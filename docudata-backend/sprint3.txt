@@ -1,0 +1,2 @@
+Sprint 3: Finalizamos o pipeline de ingestao. Decisao: usar K-means com k=5 por simplicidade. Problema: API do cliente retornou CPF 
+  inconsistente. Proximo passo: validar com o cliente.
