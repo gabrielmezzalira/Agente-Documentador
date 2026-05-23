@@ -435,7 +435,7 @@ export default function ProjectDashboard() {
           <button onClick={() => { setPendingDocType("sprint_retro"); setPendingAta(false); }} style={btnSecondary}>Retrospectiva</button>
           <button onClick={() => { setPendingAta(true); setPendingDocType(null); setSelectedIngestionId(ingestions[0]?.id ?? ""); }} style={btnSecondary}>Ata de Reunião</button>
           <button onClick={() => handleGenerate("decisoes")} style={btnSecondary}>Log de Decisões</button>
-          <button onClick={() => handleGenerate("completo")} style={btnSecondary}>Cronograma de Entregas</button>
+          <button onClick={() => handleGenerate("completo")} style={btnSecondary}>Plano de Desenvolvimento</button>
         </div>
 
         {pendingDocType && (
@@ -560,7 +560,7 @@ function docTypeLabel(tipo: string) {
     sprint_status: "Repasse Semanal",
     sprint_retro: "Retrospectiva",
     decisoes: "Log de Decisões",
-    completo: "Cronograma de Entregas",
+    completo: "Plano de Desenvolvimento",
     ata_reuniao: "Ata de Reunião",
   };
   return labels[tipo] ?? tipo;
