@@ -61,15 +61,15 @@
 | PROJ-01 | Phase 1 | Pending |
 | PROJ-02 | Phase 1 | Pending |
 | PROJ-03 | Phase 1 | Pending |
-| INGS-01 | Phase 2 | Pending |
-| INGS-02 | Phase 2 | Pending |
+| INGS-01 | Phase 1 | Pending |
+| INGS-02 | Phase 1 | Pending |
+| EXTR-01 | Phase 1 | Pending |
+| EXTR-02 | Phase 1 | Pending |
 | INGS-03 | Phase 2 | Pending |
-| EXTR-01 | Phase 2 | Pending |
-| EXTR-02 | Phase 2 | Pending |
 | EXTR-03 | Phase 2 | Pending |
 | EXTR-04 | Phase 2 | Pending |
-| GERA-01 | Phase 3 | Pending |
-| GERA-02 | Phase 3 | Pending |
+| GERA-01 | Phase 2 | Pending |
+| GERA-02 | Phase 2 | Pending |
 | GERA-03 | Phase 3 | Pending |
 | GERA-04 | Phase 3 | Pending |
 
@@ -80,4 +80,4 @@
 
 ---
 *Requirements defined: 2026-05-22*
-*Last updated: 2026-05-22 after initial definition*
+*Last updated: 2026-05-22 after roadmap creation — traceability updated to match 3-phase structure*
