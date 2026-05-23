@@ -23,7 +23,11 @@ DocuData is built in three phases aligned to the 3-day MVP deadline. Phase 1 wir
   3. `GET /projects/{id}` returns the project by ID
   4. A malformed upload (wrong content type) returns a clear error response, not a 500
   5. The extraction graph retries JSON parsing up to 2 times before marking the ingestion as failed
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Backend foundation + project CRUD vertical slice (config, schemas, Supabase client, /projects, main.py)
+- [ ] 01-02-PLAN.md — Extraction graph + POST /ingest Walking Skeleton core (TXT -> Gemini -> ingestions row)
+- [ ] 01-03-PLAN.md — Code-based eval gates (AI-SPEC dims 1/5/6: schema validity, retry edge, write integrity)
 
 ### Phase 2: Full Extraction Pipeline + Generation + Deploy
 **Goal:** All supported file types are processed correctly by the extraction graph, all four document types can be generated from accumulated ingestions, and the backend is live on Railway.
@@ -57,6 +61,6 @@ DocuData is built in three phases aligned to the 3-day MVP deadline. Phase 1 wir
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Foundation + Extraction Proof | 0/TBD | Not started | - |
+| 1. Backend Foundation + Extraction Proof | 0/3 | Not started | - |
 | 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
