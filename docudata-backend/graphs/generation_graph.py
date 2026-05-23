@@ -176,49 +176,218 @@ Transcrição / documento da reunião:
 {contexto}""",
 
     "completo": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto das ingestões abaixo, gere um Cronograma de Entregas Contínuas completo do projeto "{projeto_nome}" (cliente: {cliente}).
+Com base no contexto acumulado de todas as ingestões abaixo, gere o Plano de Desenvolvimento do Projeto "{projeto_nome}" (cliente: {cliente}), seguindo o template oficial do CITi.
+
+Instruções gerais:
+- Preencha cada seção com o máximo de informação extraível do contexto.
+- Se uma subseção não tiver dados suficientes (ex: não há modelo de IA no projeto), escreva "[Não aplicável a este projeto]" — nunca invente informações.
+- Use linguagem técnica e objetiva. O documento será entregue ao cliente.
+- Escreva em português.
 
 Siga EXATAMENTE esta estrutura em markdown:
 
-**DATA:** [Data mais recente encontrada no contexto]
-**TÓPICO:** Alinhamento de Cronograma e Planejamento de Entregas — {projeto_nome}
+# Plano de Desenvolvimento do Projeto
+## {projeto_nome}
+**Cliente:** {cliente}
+**Versão:** 1.0
+**Data:** [Data mais recente encontrada no contexto]
 
-## Objetivos deste Documento
+---
 
-[Parágrafo curto: explique que este documento dá transparência total sobre o andamento do projeto, serve como "contrato" de entregas mostrando o que já foi concluído e o plano para as próximas semanas, e será atualizado a cada nova entrega.]
+## 1. Overview
 
-## O Ritmo: Demonstrações e Rituais
+[Parágrafo introdutório resumindo o projeto: o que é, qual problema resolve, qual o valor entregue ao cliente.]
 
-- **Frequência:** [Infira do contexto, ou sugira: Semanal]
-- **Canal:** [Infira do contexto, ou sugira: Reunião de 30min via Google Meet]
-- **Dia/Hora:** [Infira do contexto, ou indique: A definir com o cliente]
-- **Correções Críticas (Hotfixes):** Serão tratadas com prioridade e comunicadas imediatamente.
+### 1.1. Definição
 
-## Cronograma de Entregas (Roadmap)
+[Descrição clara e objetiva do que é o projeto em uma ou duas frases.]
 
-### Entregas Concluídas ✅
+### 1.2. Escopo
 
-| Task/Tarefa | Descrição | Status |
+[O que está dentro do escopo do projeto — funcionalidades, entregas e fronteiras. Use lista com marcadores.]
+
+### 1.3. Dores do cliente e Objetivos
+
+**Dores identificadas:**
+- [Problema ou necessidade do cliente identificada nas ingestões]
+
+**Objetivos do projeto:**
+- [Objetivo mensurável que o projeto entrega]
+
+### 1.4. Cronograma detalhado
+
+| Sprint | Período | Entregas principais | Status |
+|---|---|---|---|
+| Sprint [N] | [Datas inferidas ou N/D] | [Tarefas da sprint extraídas do contexto] | [Concluído / Em andamento / Planejado] |
+
+### 1.5. Responsáveis e atribuições
+
+| Papel | Responsabilidade |
+|---|---|
+| Gerente de Dados — CITi | Gestão do projeto, comunicação com o cliente, entrega das sprints |
+| Analista de Dados — CITi | [Responsabilidades identificadas no contexto] |
+| Representante — {cliente} | Validações, fornecimento de dados e acesso aos sistemas |
+
+---
+
+## 2. Arquitetura da Solução
+
+[Parágrafo descrevendo a abordagem técnica geral do projeto.]
+
+### 2.1. Requisitos Funcionais e Não Funcionais
+
+**Funcionais:**
+- [Requisito funcional identificado no contexto]
+
+**Não funcionais:**
+- [Requisito de performance, segurança, disponibilidade ou escalabilidade identificado]
+
+### 2.2. Tecnologias e Ferramentas do Projeto
+
+| Tecnologia/Ferramenta | Finalidade |
+|---|---|
+| [Tecnologia extraída das ingestões] | [Para que é usada no projeto] |
+
+### 2.3. Metodologia
+
+Scrum adaptado com sprints semanais ou quinzenais. [Complemente com informações do contexto sobre frequência e formato das sprints.]
+
+### 2.4. Rituais da Equipe e Meios de Comunicação
+
+- **Daily / Sync:** [Frequência e canal identificados no contexto, ou: A definir]
+- **Repasse semanal com cliente:** [Canal e dia identificados, ou: Google Meet — dia a definir]
+- **Comunicação assíncrona:** [Ferramenta identificada no contexto, ou: WhatsApp / e-mail]
+
+### 2.5. Decisões Estratégicas do Projeto
+
+- [Decisão técnica ou de escopo tomada ao longo do projeto, identificada nas ingestões]
+
+---
+
+## 3. Projeto de Dados
+
+[Parágrafo descrevendo como os dados são armazenados, gerenciados e processados.]
+
+### 3.1. Estrutura de Banco de Dados
+
+[Descreva as tabelas, coleções ou estruturas de dados identificadas no contexto. Se não houver detalhe, descreva o banco de dados usado e seu propósito.]
+
+### 3.2. Diagrama de Fluxo de Dados / Data Lineage
+
+[Descreva em texto o fluxo: fonte dos dados → transformações → destino/saída. Use setas (→) para representar o fluxo.]
+
+Exemplo extraído do contexto:
+[Fonte de dados] → [Processamento/ETL] → [Destino ou visualização]
+
+### 3.3. Automações
+
+- [Automação identificada no contexto — ex: pipeline agendado, trigger, job recorrente]
+
+---
+
+## 4. Qualidade de Dados
+
+[Parágrafo introdutório sobre a abordagem de qualidade adotada no projeto.]
+
+### 4.1. Dicionário de Dados
+
+| Campo | Tipo | Descrição | Regra de negócio |
+|---|---|---|---|
+| [Campo identificado no contexto] | [Tipo] | [Descrição] | [Regra se houver] |
+
+### 4.2. Arquitetura de Pipeline de ETL
+
+[Descreva as etapas de extração, transformação e carga identificadas no contexto.]
+
+- **Extração:** [Fonte e método]
+- **Transformação:** [Limpeza, normalização, cálculos aplicados]
+- **Carga:** [Destino final dos dados tratados]
+
+### 4.3. Regras de Qualidade de Dados
+
+- [Regra de validação identificada — ex: campos obrigatórios, formatos esperados, tratamento de nulos]
+
+### 4.4. Credenciais dos Dados (ENVs e Keys)
+
+As credenciais de acesso aos sistemas e bancos de dados estão armazenadas como variáveis de ambiente e não são expostas neste documento. [Liste os sistemas que requerem credenciais, sem expor valores.]
+
+---
+
+## 5. Design de Interfaces
+
+[Descreva como as partes do sistema se comunicam entre si e com sistemas externos.]
+
+### 5.1. Formatos de Estruturas de Dados
+
+[Descreva os formatos de dados trocados entre componentes — ex: JSON, CSV, DataFrame, API response.]
+
+### 5.2. Protocolos e Especificações das APIs
+
+[Liste APIs externas ou internas usadas, com endpoint principal e finalidade, se identificados no contexto.]
+
+---
+
+## 6. Documentação de Modelo
+
+[Inclua esta seção apenas se o projeto envolver modelo preditivo ou agente de IA. Caso contrário: "Não aplicável a este projeto."]
+
+### 6.1. Definição do Modelo de Ciência de Dados
+
+[Descreva o tipo de modelo, o problema que resolve e o output esperado.]
+
+### 6.2. Algoritmos e Parâmetros
+
+[Liste algoritmos usados e principais hiperparâmetros ou configurações.]
+
+### 6.3. Métricas de Desempenho e Testes
+
+[Liste as métricas de avaliação usadas e os resultados obtidos, se disponíveis no contexto.]
+
+---
+
+## 7. Interface do Usuário
+
+[Inclua se o projeto tiver frontend ou dashboard. Caso contrário: "Não aplicável a este projeto."]
+
+### 7.1. Fluxos de Trabalho e Interação
+
+[Descreva o fluxo principal do usuário dentro do sistema.]
+
+### 7.2. Modelos de Telas Principais
+
+[Descreva as telas ou visualizações principais em texto — ex: Dashboard de vendas com filtros por período e região.]
+
+### 7.3. User Stories
+
+- **Como** [tipo de usuário], **quero** [ação], **para** [benefício].
+
+---
+
+## 8. Deploy
+
+### 8.1. Organização do Deploy
+
+[Descreva onde e como o projeto é deployado — ex: cloud, on-premise, ferramenta de BI, script agendado.]
+
+| Componente | Ambiente | Tecnologia |
 |---|---|---|
-| [Tarefa concluída extraída do contexto] | [Descrição breve do que foi feito] | Entregue |
+| [Componente] | [Produção / Homologação] | [Tecnologia identificada] |
 
-### Próximas Entregas ⏳
+### 8.2. Manutenção do Deploy
 
-| Task/Tarefa | Descrição | Status |
-|---|---|---|
-| [Próxima tarefa inferida do contexto] | [Descrição breve] | A Fazer |
-| [Tarefa futura] | [Descrição breve] | Em andamento |
+[Descreva a frequência e responsável pela manutenção. Ex: manutenção quinzenal pelo time CITi, com comunicação prévia ao cliente.]
 
-## Alinhamento de Expectativas (Regras do Jogo)
+---
 
-- **[Subtítulo relevante ao projeto — ex: O que é uma "Entrega"?]:** [Explicação importante para o cliente entender o processo de entrega. Diferencie "demonstrar que funciona" de "colocar no ar".]
+## 9. Glossário
 
-## Condições e Dependências (O que precisamos de você)
+| Termo | Definição |
+|---|---|
+| [Termo técnico identificado no contexto] | [Definição clara para o cliente] |
 
-- **[Dependência identificada no contexto]:** [Descrição clara do que o cliente ou time precisa providenciar para o projeto avançar. Se não houver dependências claras no contexto, mencione acessos, validações ou aprovações típicas de projetos de dados.]
+---
 
-Atenciosamente,
-Gerente de Dados — CITi · Centro de Informática, UFPE
+*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
 
 ---
 Contexto de todas as ingestões do projeto:
