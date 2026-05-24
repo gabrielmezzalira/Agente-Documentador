@@ -52,6 +52,7 @@ class GenerateRequest(BaseModel):
     tipo_doc: str        # sprint_status | sprint_retro | decisoes | completo | ata_reuniao
     sprint_numero: Optional[int] = None
     ingestion_id: Optional[str] = None
+    observacoes: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):

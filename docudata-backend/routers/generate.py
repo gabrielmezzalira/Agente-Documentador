@@ -49,6 +49,7 @@ async def generate(req: GenerateRequest):
         "tipo_doc": req.tipo_doc,
         "sprint_numero": req.sprint_numero,
         "ingestion_id": req.ingestion_id,
+        "observacoes": req.observacoes,
         "gemini_api_key": api_key,
         "ingestions": [],
         "contexto": "",
