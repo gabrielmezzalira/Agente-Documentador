@@ -135,7 +135,8 @@ export async function generateDoc(
   projectId: string,
   tipoDoc: string,
   sprintNumero?: number,
-  ingestionId?: string
+  ingestionId?: string,
+  observacoes?: string
 ): Promise<GeneratedDoc> {
   const res = await fetch(`${API}/generate`, {
     method: "POST",
@@ -145,6 +146,7 @@ export async function generateDoc(
       tipo_doc: tipoDoc,
       sprint_numero: sprintNumero ?? null,
       ingestion_id: ingestionId ?? null,
+      observacoes: observacoes || null,
     }),
   });
   if (!res.ok) {

@@ -48,6 +48,7 @@ export default function ProjectDashboard() {
   const [pendingDocType, setPendingDocType] = useState<string | null>(null);
 
   const [pendingAta, setPendingAta] = useState(false);
+  const [observacoes, setObservacoes] = useState("");
   const [selectedIngestionId, setSelectedIngestionId] = useState<string>("");
 
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
@@ -183,7 +184,7 @@ export default function ProjectDashboard() {
     setGeneratedDoc(null);
     setGenerateError("");
     try {
-      const doc = await generateDoc(id, tipoDoc, sprintNum, ingestionId);
+      const doc = await generateDoc(id, tipoDoc, sprintNum, ingestionId, observacoes);
       setGeneratedDoc(doc);
       setDocs(await listDocs(id));
       refreshCost();
@@ -430,6 +431,16 @@ export default function ProjectDashboard() {
       {/* GERAÇÃO */}
       <section style={sectionStyle}>
         <h2 style={sectionTitle}>Gerar documento</h2>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
+          <textarea
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            placeholder="Adicione contexto extra que deve ser considerado na geração — ex: foco do documento, ressalvas, detalhes que não estão nos uploads..."
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
+          />
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
           <button onClick={() => { setPendingDocType("sprint_status"); setPendingAta(false); }} style={btnSecondary}>Repasse Semanal</button>
           <button onClick={() => { setPendingDocType("sprint_retro"); setPendingAta(false); }} style={btnSecondary}>Retrospectiva</button>

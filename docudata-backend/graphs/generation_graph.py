@@ -18,6 +18,7 @@ class GenerationState(TypedDict):
     tipo_doc: str
     sprint_numero: Optional[int]
     ingestion_id: Optional[str]
+    observacoes: Optional[str]
     gemini_api_key: str
     ingestions: list
     contexto: str
@@ -457,11 +458,16 @@ async def gerar_documento(state: GenerationState) -> dict:
     prompt = ChatPromptTemplate.from_template(template)
     llm = _make_llm(state["gemini_api_key"])
 
+    contexto = state["contexto"]
+    obs = (state.get("observacoes") or "").strip()
+    if obs:
+        contexto = contexto + f"\n\n--- Observações adicionais do gerente ---\n{obs}"
+
     formatted = await prompt.ainvoke({
         "projeto_nome": state["projeto_nome"],
         "cliente": state["cliente"],
         "sprint_numero": state.get("sprint_numero"),
-        "contexto": state["contexto"],
+        "contexto": contexto,
     })
     response = await llm.ainvoke(formatted)
 
