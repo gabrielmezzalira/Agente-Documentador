@@ -7,7 +7,22 @@ export interface Project {
   description?: string;
   budget_usd?: number | null;
   has_api_key: boolean;
+  is_delivered: boolean;
   created_at: string;
+  last_ingestion_at?: string | null;
+}
+
+export interface StackSearchResult {
+  project_id: string;
+  project_name: string;
+  client: string;
+  sprints: number[];
+  sample_context: string;
+}
+
+export interface StackSearchResponse {
+  query: string;
+  results: StackSearchResult[];
 }
 
 export interface ProjectCost {
@@ -129,6 +144,18 @@ export async function listDocs(projectId: string): Promise<GeneratedDoc[]> {
 export async function deleteDoc(docId: string): Promise<void> {
   const res = await fetch(`${API}/docs/${docId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir documento");
+}
+
+export async function toggleDelivered(projectId: string): Promise<Project> {
+  const res = await fetch(`${API}/projects/${projectId}/delivered`, { method: "PATCH" });
+  if (!res.ok) throw new Error("Erro ao atualizar status do projeto");
+  return res.json();
+}
+
+export async function searchStack(query: string): Promise<StackSearchResponse> {
+  const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error("Erro ao buscar stack");
+  return res.json();
 }
 
 export async function generateDoc(

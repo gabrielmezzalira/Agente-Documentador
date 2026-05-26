@@ -30,7 +30,9 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     budget_usd: Optional[float] = None
     has_api_key: bool = False
+    is_delivered: bool = False
     created_at: datetime
+    last_ingestion_at: Optional[datetime] = None
 
 
 class ProjectCostResponse(BaseModel):

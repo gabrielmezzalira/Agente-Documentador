@@ -176,18 +176,88 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Transcrição / documento da reunião:
 {contexto}""",
 
+    "onboarding": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+Com base no contexto acumulado de todas as ingestões abaixo, gere um documento de Onboarding para o projeto "{projeto_nome}" (cliente: {cliente}).
+
+Este documento é destinado a um novo gerente ou analista que vai assumir o projeto. Deve ser suficiente para que a pessoa entenda completamente o projeto sem precisar perguntar a ninguém.
+
+IMPORTANTE: Se o contexto contiver dados de múltiplas sprints, use os dados da sprint mais recente para descrever o estado ATUAL. Dados de sprints anteriores são contexto histórico. Se a seção de MUDANÇAS DETECTADAS indicar que algo foi removido ou substituído, não inclua o item antigo como ativo.
+
+Siga EXATAMENTE esta estrutura em markdown:
+
+# Onboarding — {projeto_nome}
+**Cliente:** {cliente}
+**Data do documento:** [Data mais recente encontrada no contexto, ou data de hoje]
+
+---
+
+## O que é este projeto
+
+[Parágrafo curto e direto: o que o projeto faz, qual problema resolve para o cliente, qual é o entregável principal. Alguém que nunca ouviu falar do projeto deve entender em 30 segundos.]
+
+## Contexto do cliente
+
+[Quem é o cliente, o que eles fazem, por que precisam deste projeto. Se identificado no contexto: urgência, visibilidade, critérios que o cliente prioriza.]
+
+## O que já foi feito
+
+| Sprint | Principais entregas | Estado |
+|---|---|---|
+| Sprint [N] | [Entregas desta sprint extraídas do contexto] | Concluído |
+
+[Parágrafo final: onde o projeto está AGORA — o que está em andamento, o que falta, estado geral.]
+
+## Stack atual
+
+| Tecnologia | Para que serve neste projeto |
+|---|---|
+| [Tecnologia da sprint mais recente] | [Uso específico] |
+
+[Use apenas tecnologias da sprint mais recente. Se houve troca de tecnologia, mencione apenas a atual e indique a troca em "Decisões importantes".]
+
+## Decisões importantes que você precisa saber
+
+- **[Decisão]:** [Por que foi tomada — sem essa informação, o novo gerente pode reverter algo por engano]
+
+(Inclua especialmente decisões de escopo, mudanças de rota e escolhas técnicas com motivação conhecida)
+
+## Problemas que apareceram
+
+- **[Problema]:** [Como foi resolvido, ou status atual se ainda aberto]
+
+## Próximos passos imediatos
+
+[Ordem de prioridade clara do que precisa ser feito. A pessoa que acabou de entrar deve saber exatamente o que fazer na primeira semana.]
+
+1. [Ação imediata]
+2. [Segunda prioridade]
+
+## Quem contatar
+
+- **Time CITi:** [Nomes identificados no contexto, ou: verificar com o coordenador de dados]
+- **Cliente:** [Contato do cliente se identificado no contexto, ou: verificar com o gerente anterior]
+
+---
+
+*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
+
+---
+Contexto de todas as ingestões do projeto:
+{contexto}""",
+
     "completo": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto acumulado de todas as ingestões abaixo, gere o Plano de Desenvolvimento do Projeto "{projeto_nome}" (cliente: {cliente}), seguindo o template oficial do CITi.
+Com base no contexto acumulado de todas as ingestões abaixo, gere a Documentação Final do Projeto "{projeto_nome}" (cliente: {cliente}), seguindo o template oficial do CITi.
 
 Instruções gerais:
 - Preencha cada seção com o máximo de informação extraível do contexto.
 - Se uma subseção não tiver dados suficientes (ex: não há modelo de IA no projeto), escreva "[Não aplicável a este projeto]" — nunca invente informações.
 - Use linguagem técnica e objetiva. O documento será entregue ao cliente.
 - Escreva em português.
+- IMPORTANTE: Use os dados da sprint mais recente para descrever o estado ATUAL do projeto. Se a seção de MUDANÇAS DETECTADAS indicar que algo foi removido ou substituído, não inclua o item antigo como ativo — use apenas o estado mais recente.
 
 Siga EXATAMENTE esta estrutura em markdown:
 
-# Plano de Desenvolvimento do Projeto
+# Documentação Final do Projeto
 ## {projeto_nome}
 **Cliente:** {cliente}
 **Versão:** 1.0
@@ -396,6 +466,39 @@ Contexto de todas as ingestões do projeto:
 }
 
 
+def _detect_changes(ingestions: list) -> str:
+    """Compare first and last sprint to surface technology/approach changes."""
+    sprints = sorted({ing.get("sprint_number", 0) for ing in ingestions})
+    if len(sprints) < 2:
+        return ""
+
+    def get_techs(sprint_num: int) -> set[str]:
+        result: set[str] = set()
+        for ing in ingestions:
+            if ing.get("sprint_number") == sprint_num:
+                for t in (ing.get("extracted_content") or {}).get("tecnologias") or []:
+                    result.add(t.lower())
+        return result
+
+    first_techs = get_techs(sprints[0])
+    last_techs = get_techs(sprints[-1])
+    removed = first_techs - last_techs
+    added = last_techs - first_techs
+
+    if not removed and not added:
+        return ""
+
+    lines = [
+        f"--- MUDANÇAS DETECTADAS (Sprint {sprints[0]} → Sprint {sprints[-1]}) ---",
+        "ATENÇÃO PARA O MODELO: Houve mudanças no projeto. Use o estado da sprint mais recente como ESTADO ATUAL.",
+    ]
+    if added:
+        lines.append(f"Tecnologias adicionadas/novas: {', '.join(sorted(added))}")
+    if removed:
+        lines.append(f"Tecnologias removidas/descontinuadas: {', '.join(sorted(removed))}")
+    return "\n".join(lines)
+
+
 def buscar_ingestions(state: GenerationState) -> dict:
     client = get_client()
     tipo_doc = state["tipo_doc"]
@@ -448,6 +551,10 @@ def compilar_contexto(state: GenerationState) -> dict:
             f"Contexto do cliente: {content.get('contexto_cliente', '')}\n"
             f"Proximos passos: {proximos}"
         )
+
+    changes = _detect_changes(state["ingestions"])
+    if changes:
+        partes.append(changes)
 
     contexto = "\n\n".join(partes) if partes else "Nenhuma ingestão encontrada para este projeto/sprint."
     return {"contexto": contexto}

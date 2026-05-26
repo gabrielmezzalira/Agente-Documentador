@@ -14,6 +14,7 @@ import {
   generateDoc,
   deleteProject,
   deleteDoc,
+  toggleDelivered,
   type Project,
   type Ingestion,
   type GeneratedDoc,
@@ -199,6 +200,13 @@ export default function ProjectDashboard() {
     catch { alert("Erro ao excluir projeto."); }
   }
 
+  async function handleToggleDelivered() {
+    try {
+      const updated = await toggleDelivered(id);
+      setProject(updated);
+    } catch { alert("Erro ao atualizar status do projeto."); }
+  }
+
   async function handleDeleteDoc(docId: string) {
     if (!confirm("Excluir este documento?")) return;
     try {
@@ -234,7 +242,15 @@ export default function ProjectDashboard() {
             <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>{project.description}</p>
           )}
         </div>
-        <button onClick={handleDeleteProject} style={btnDanger}>Excluir projeto</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleToggleDelivered}
+            style={project?.is_delivered ? btnDeliveredActive : btnDelivered}
+          >
+            {project?.is_delivered ? "✓ Entregue" : "Marcar como entregue"}
+          </button>
+          <button onClick={handleDeleteProject} style={btnDanger}>Excluir projeto</button>
+        </div>
       </div>
 
       {/* API KEY — not configured */}
@@ -443,10 +459,10 @@ export default function ProjectDashboard() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
           <button onClick={() => { setPendingDocType("sprint_status"); setPendingAta(false); }} style={btnSecondary}>Repasse Semanal</button>
-          <button onClick={() => { setPendingDocType("sprint_retro"); setPendingAta(false); }} style={btnSecondary}>Retrospectiva</button>
           <button onClick={() => { setPendingAta(true); setPendingDocType(null); setSelectedIngestionId(ingestions[0]?.id ?? ""); }} style={btnSecondary}>Ata de Reunião</button>
           <button onClick={() => handleGenerate("decisoes")} style={btnSecondary}>Log de Decisões</button>
-          <button onClick={() => handleGenerate("completo")} style={btnSecondary}>Plano de Desenvolvimento</button>
+          <button onClick={() => handleGenerate("onboarding")} style={btnSecondary}>Onboarding</button>
+          <button onClick={() => handleGenerate("completo")} style={btnSecondary}>Documentação Final</button>
         </div>
 
         {pendingDocType && (
@@ -571,8 +587,9 @@ function docTypeLabel(tipo: string) {
     sprint_status: "Repasse Semanal",
     sprint_retro: "Retrospectiva",
     decisoes: "Log de Decisões",
-    completo: "Plano de Desenvolvimento",
+    completo: "Documentação Final",
     ata_reuniao: "Ata de Reunião",
+    onboarding: "Onboarding",
   };
   return labels[tipo] ?? tipo;
 }
@@ -680,4 +697,24 @@ const modeTabActive: React.CSSProperties = {
   background: "#4ade80",
   color: "#0a0a0a",
   fontWeight: 700,
+};
+const btnDelivered: React.CSSProperties = {
+  background: "#f7f7fa",
+  color: "#6a6a7a",
+  border: "1px solid #e4e4ea",
+  borderRadius: 8,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: "pointer",
+};
+const btnDeliveredActive: React.CSSProperties = {
+  background: "#dcfce7",
+  color: "#16a34a",
+  border: "1px solid #86efac",
+  borderRadius: 8,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
 };

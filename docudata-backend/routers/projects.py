@@ -37,7 +37,24 @@ async def list_projects():
     """List all projects ordered by creation date (most recent first)."""
     client = get_client()
     response = client.table("projects").select("*").order("created_at", desc=True).execute()
-    return [_sanitize(row) for row in response.data]
+    projects = [_sanitize(row) for row in response.data]
+
+    if projects:
+        ing_resp = (
+            client.table("ingestions")
+            .select("project_id, created_at")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        latest_by_project: dict = {}
+        for ing in (ing_resp.data or []):
+            pid = ing["project_id"]
+            if pid not in latest_by_project:
+                latest_by_project[pid] = ing["created_at"]
+        for p in projects:
+            p["last_ingestion_at"] = latest_by_project.get(p["id"])
+
+    return projects
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -101,6 +118,25 @@ async def get_project_cost(project_id: str):
         input_tokens=total_in,
         output_tokens=total_out,
     )
+
+
+@router.patch("/{project_id}/delivered", response_model=ProjectResponse)
+async def toggle_delivered(project_id: str):
+    """Toggle the delivered status of a project."""
+    client = get_client()
+    check = client.table("projects").select("id, is_delivered").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    current = check.data[0].get("is_delivered", False)
+    response = (
+        client.table("projects")
+        .update({"is_delivered": not current})
+        .eq("id", project_id)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update project")
+    return _sanitize(response.data[0])
 
 
 @router.delete("/{project_id}", status_code=204)
