@@ -168,15 +168,13 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
         # Completeness guardrail — block empty/null extractions before saving
         # tecnologias is optional (not all docs mention a stack), so excluded from the null check
         fields = ["resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"]
-        list_fields = ["tarefas", "decisoes", "problemas", "proximos_passos"]
-        if (
-            any(content.get(f) is None for f in fields)
-            or (
-                not content.get("resumo", "").strip()
-                and not content.get("contexto_cliente", "").strip()
-            )
-            or all(len(content.get(f, [])) == 0 for f in list_fields)
-        ):
+        all_lists = ["tarefas", "decisoes", "problemas", "proximos_passos", "tecnologias"]
+        has_any_content = (
+            content.get("resumo", "").strip()
+            or content.get("contexto_cliente", "").strip()
+            or any(len(content.get(f) or []) > 0 for f in all_lists)
+        )
+        if any(content.get(f) is None for f in fields) or not has_any_content:
             return {
                 "valido": False,
                 "tentativas": tentativas + 1,
