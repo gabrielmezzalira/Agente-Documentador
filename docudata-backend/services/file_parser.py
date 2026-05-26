@@ -27,7 +27,7 @@ def parse_pdf(file_bytes: bytes) -> dict:
 
     all_text = "\n".join(pages_text)
 
-    if len(all_text.strip()) < 100:
+    if len(all_text.strip()) == 0:
         b64 = _pdf_page_to_base64(file_bytes)
         return {"text": "", "is_scanned": True, "b64": b64}
 
