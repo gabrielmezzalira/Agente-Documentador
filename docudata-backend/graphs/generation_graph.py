@@ -35,6 +35,13 @@ def _make_llm(api_key: str):
         google_api_key=api_key,
     )
 
+_NO_HALLUCINATE = (
+    "REGRA ABSOLUTA: Se o contexto não contiver informação suficiente para preencher "
+    "qualquer seção ou campo, escreva exatamente \"[Insumo insuficiente — sem dados "
+    "nas ingestões do projeto]\". Nunca invente, infira ou complete com informações "
+    "não presentes no contexto fornecido abaixo."
+)
+
 _PROMPTS = {
     "sprint_status": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto das ingestões abaixo, gere um Repasse Semanal da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
@@ -618,7 +625,9 @@ def compilar_contexto(state: GenerationState) -> dict:
 
 
 async def gerar_documento(state: GenerationState) -> dict:
-    template = _PROMPTS[state["tipo_doc"]]
+    template = _PROMPTS[state["tipo_doc"]].replace(
+        "{contexto}", _NO_HALLUCINATE + "\n\n{contexto}"
+    )
     prompt = ChatPromptTemplate.from_template(template)
     llm = _make_llm(state["gemini_api_key"])
 
