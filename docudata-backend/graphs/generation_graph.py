@@ -567,7 +567,7 @@ def buscar_ingestions(state: GenerationState) -> dict:
             .eq("id", state["ingestion_id"])
             .execute()
         )
-    elif tipo_doc in ("sprint_status", "sprint_retro"):
+    elif tipo_doc in ("sprint_status", "sprint_retro", "decisoes"):
         response = (
             client.table("ingestions")
             .select("*")

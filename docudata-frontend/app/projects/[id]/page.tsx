@@ -460,7 +460,7 @@ export default function ProjectDashboard() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
           <button onClick={() => { setPendingDocType("sprint_status"); setPendingAta(false); }} style={btnSecondary}>Repasse Semanal</button>
           <button onClick={() => { setPendingAta(true); setPendingDocType(null); setSelectedIngestionId(ingestions[0]?.id ?? ""); }} style={btnSecondary}>Ata de Reunião</button>
-          <button onClick={() => handleGenerate("decisoes")} style={btnSecondary}>Log de Decisões</button>
+          <button onClick={() => { setPendingDocType("decisoes"); setPendingAta(false); }} style={btnSecondary}>Log de Decisões</button>
           <button onClick={() => handleGenerate("adr")} style={btnSecondary}>ADRs</button>
           <button onClick={() => handleGenerate("onboarding")} style={btnSecondary}>Onboarding</button>
           <button onClick={() => handleGenerate("completo")} style={btnSecondary}>Documentação Final</button>
