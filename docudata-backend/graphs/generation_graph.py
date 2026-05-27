@@ -176,6 +176,55 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Transcrição / documento da reunião:
 {contexto}""",
 
+    "adr": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+Com base no contexto acumulado de todas as ingestões abaixo, gere um conjunto de ADRs (Architecture Decision Records) para o projeto "{projeto_nome}" (cliente: {cliente}).
+
+Gere um ADR numerado para cada decisão técnica ou arquitetural significativa identificada.
+Se a seção MUDANÇAS DETECTADAS ENTRE SPRINTS indicar troca de tecnologia entre sprints consecutivas, gere um ADR dedicado para essa migração — use as ingestões intermediárias para reconstruir o contexto e o motivo da troca.
+
+Regras:
+- Um ADR por decisão — não agrupe múltiplas decisões em um único ADR
+- Ordene cronologicamente pela sprint onde a decisão foi tomada
+- Se não houver informação suficiente para um campo, escreva "[Não identificado no contexto]"
+- Nunca invente informações
+
+Para cada ADR use EXATAMENTE este formato:
+
+---
+
+## ADR-[NNN] — [Título da Decisão]
+
+**Status:** Aceito
+**Sprint:** [número]
+**Data:** [data se identificada no contexto, ou N/D]
+
+### Contexto
+
+[O que estava acontecendo no projeto que forçou essa decisão — problema, restrição ou pressão que precisava ser resolvida.]
+
+### Decisão
+
+[O que foi decidido. Uma frase direta.]
+
+### Motivo
+
+[Por que essa opção foi escolhida. Se houver alternativas consideradas e descartadas, mencione-as.]
+
+### Consequências
+
+[O que muda como resultado desta decisão.]
+- **Positivo:** [o que fica mais fácil ou mais robusto]
+- **Negativo:** [o que é sacrificado ou fica mais difícil]
+- **Neutro:** [o que precisa ser feito por causa desta decisão]
+
+---
+
+*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
+
+---
+Contexto de todas as ingestões do projeto:
+{contexto}""",
+
     "onboarding": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto acumulado de todas as ingestões abaixo, gere um documento de Onboarding para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -467,7 +516,7 @@ Contexto de todas as ingestões do projeto:
 
 
 def _detect_changes(ingestions: list) -> str:
-    """Compare first and last sprint to surface technology/approach changes."""
+    """Compare consecutive sprints to track exactly when each technology change happened."""
     sprints = sorted({ing.get("sprint_number", 0) for ing in ingestions})
     if len(sprints) < 2:
         return ""
@@ -480,22 +529,30 @@ def _detect_changes(ingestions: list) -> str:
                     result.add(t.lower())
         return result
 
-    first_techs = get_techs(sprints[0])
-    last_techs = get_techs(sprints[-1])
-    removed = first_techs - last_techs
-    added = last_techs - first_techs
+    changes_by_transition: list[tuple] = []
+    prev_techs = get_techs(sprints[0])
+    for i in range(1, len(sprints)):
+        curr_techs = get_techs(sprints[i])
+        added = curr_techs - prev_techs
+        removed = prev_techs - curr_techs
+        if added or removed:
+            changes_by_transition.append((sprints[i - 1], sprints[i], added, removed))
+        prev_techs = curr_techs
 
-    if not removed and not added:
+    if not changes_by_transition:
         return ""
 
     lines = [
-        f"--- MUDANÇAS DETECTADAS (Sprint {sprints[0]} → Sprint {sprints[-1]}) ---",
-        "ATENÇÃO PARA O MODELO: Houve mudanças no projeto. Use o estado da sprint mais recente como ESTADO ATUAL.",
+        "--- MUDANÇAS DETECTADAS ENTRE SPRINTS ---",
+        "ATENÇÃO PARA O MODELO: Use o estado da sprint mais recente como ESTADO ATUAL.",
     ]
-    if added:
-        lines.append(f"Tecnologias adicionadas/novas: {', '.join(sorted(added))}")
-    if removed:
-        lines.append(f"Tecnologias removidas/descontinuadas: {', '.join(sorted(removed))}")
+    for s_from, s_to, added, removed in changes_by_transition:
+        parts = [f"Sprint {s_from} → Sprint {s_to}:"]
+        if added:
+            parts.append(f"adicionado: {', '.join(sorted(added))}")
+        if removed:
+            parts.append(f"removido: {', '.join(sorted(removed))}")
+        lines.append(" | ".join(parts))
     return "\n".join(lines)
 
 
