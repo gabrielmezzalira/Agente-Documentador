@@ -33,7 +33,7 @@ import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "tecnologias" | "docs" | "config";
+type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "config";
 
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
@@ -233,6 +233,38 @@ export default function ProjectDashboard() {
 
   const totalPendencias = sprints.reduce((acc, s) => acc + s.pendencias.length, 0);
 
+  function renderDocRow(doc: GeneratedDoc) {
+    return (
+      <div key={doc.id} style={ingestionCard}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{docTypeLabel(doc.doc_type)}</span>
+            {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
+            <span style={{ color: "#94a3b8", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
+              {expandedDocId === doc.id ? "Fechar" : "Ver"}
+            </button>
+            <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
+              Copiar
+            </button>
+            <button onClick={() => {
+              if (confirm("Excluir este documento?")) handleDeleteDoc(doc.id);
+            }} style={{ ...btnDanger, fontSize: 12, padding: "6px 12px" }}>
+              Excluir
+            </button>
+          </div>
+        </div>
+        {expandedDocId === doc.id && (
+          <div style={{ ...markdownContainer, marginTop: 14 }}>
+            <ReactMarkdown>{doc.content}</ReactMarkdown>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (loading) return <p style={{ padding: 48, color: "#9696a0" }}>Carregando...</p>;
   if (!project) return <p style={{ padding: 48, color: "#dc2626" }}>Projeto não encontrado.</p>;
 
@@ -303,7 +335,8 @@ export default function ProjectDashboard() {
         tabs={[
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
           { id: "tecnologias", label: "Tecnologias" },
-          { id: "docs", label: "Docs Gerais", badge: docs.length || undefined },
+          { id: "cross_sprint", label: "Cross-sprint" },
+          { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
         ]}
         active={activeTab}
@@ -376,13 +409,13 @@ export default function ProjectDashboard() {
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
 
-      {/* ABA: DOCS GERAIS */}
-      {activeTab === "docs" && (
+      {/* ABA: CROSS-SPRINT (geradores que olham o projeto inteiro) */}
+      {activeTab === "cross_sprint" && (
         <>
           <section style={sectionStyle}>
             <h2 style={sectionTitle}>Documentos cross-sprint</h2>
             <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
-              Documentos que olham o projeto como um todo. <strong>Repasse Semanal e Retrospectiva</strong> agora ficam dentro do card da sprint correspondente (aba Sprints), já que são sprint-específicos. Clique em cada tipo abaixo pra ver o que é antes de gerar.
+              Documentos que olham o projeto como um todo. Clique em cada tipo abaixo pra ver o que é antes de gerar.
             </p>
             <div style={{ marginBottom: 18 }}>
               <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
@@ -450,42 +483,112 @@ export default function ProjectDashboard() {
             )}
           </section>
 
-          <section style={sectionStyle}>
-            <h2 style={sectionTitle}>Documentos gerados ({docs.length})</h2>
-            {docs.length === 0 ? (
-              <p style={{ color: "#9696a0", fontSize: 14 }}>Nenhum documento gerado ainda.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {docs.map((doc) => (
-                  <div key={doc.id} style={ingestionCard}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: "#111116" }}>{docTypeLabel(doc.doc_type)}</span>
-                        {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
-                        <span style={{ color: "#b8b8c0", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)} style={{ ...btnSecondary, fontSize: 12, padding: "5px 10px" }}>
-                          {expandedDocId === doc.id ? "Fechar" : "Ver"}
-                        </button>
-                        <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "5px 10px" }}>
-                          Copiar
-                        </button>
-                        <button onClick={() => handleDeleteDoc(doc.id)} style={{ ...btnDanger, fontSize: 12, padding: "5px 10px" }}>
-                          Excluir
-                        </button>
-                      </div>
+        </>
+      )}
+
+      {/* ABA: DOCUMENTOS — visualização de todos os docs do projeto, agrupados */}
+      {activeTab === "documentos" && (
+        <>
+          <div style={{ marginBottom: 16, marginTop: 4 }}>
+            <h2 style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: "#0f172a",
+              letterSpacing: "-0.02em",
+              margin: 0,
+            }}>
+              Documentos do projeto
+              <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600, marginLeft: 10 }}>
+                {docs.length} {docs.length === 1 ? "documento" : "documentos"}
+              </span>
+            </h2>
+            <p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
+              Tudo que foi gerado ou adicionado manualmente, organizado por sprint e separando os docs cross-sprint.
+            </p>
+          </div>
+
+          {docs.length === 0 ? (
+            <section style={sectionStyle}>
+              <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
+                Nenhum documento ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva por sprint) ou <strong>Cross-sprint</strong> (Ata, Decisões, ADRs, Onboarding, Documentação Final).
+              </p>
+            </section>
+          ) : (
+            <>
+              {/* Por sprint — ordem decrescente */}
+              {sprints.map((s) => {
+                const sprintDocs = docsBySprint[s.numero] ?? [];
+                if (sprintDocs.length === 0) return null;
+                return (
+                  <section key={s.id} style={sectionStyle}>
+                    <h3 style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "#64748b",
+                      margin: 0,
+                      marginBottom: 12,
+                    }}>
+                      Sprint {s.numero}
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#16a34a",
+                        marginLeft: 8,
+                        background: "#dcfce7",
+                        borderRadius: 4,
+                        padding: "2px 7px",
+                      }}>
+                        {sprintDocs.length}
+                      </span>
+                    </h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {sprintDocs.map((doc) => renderDocRow(doc))}
                     </div>
-                    {expandedDocId === doc.id && (
-                      <div style={{ ...markdownContainer, marginTop: 14 }}>
-                        <ReactMarkdown>{doc.content}</ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  </section>
+                );
+              })}
+
+              {/* Cross-sprint — docs sem sprint_number */}
+              {(() => {
+                const crossSprintDocs = docs.filter((d) => d.sprint_number == null);
+                if (crossSprintDocs.length === 0) return null;
+                return (
+                  <section style={sectionStyle}>
+                    <h3 style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "#64748b",
+                      margin: 0,
+                      marginBottom: 12,
+                    }}>
+                      Cross-sprint
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#4338ca",
+                        marginLeft: 8,
+                        background: "#e0e7ff",
+                        borderRadius: 4,
+                        padding: "2px 7px",
+                      }}>
+                        {crossSprintDocs.length}
+                      </span>
+                      <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 500, marginLeft: 8, letterSpacing: 0, textTransform: "none" }}>
+                        — docs que cobrem o projeto inteiro (Decisões, ADRs, Onboarding, Documentação Final, Ata)
+                      </span>
+                    </h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {crossSprintDocs.map((doc) => renderDocRow(doc))}
+                    </div>
+                  </section>
+                );
+              })()}
+            </>
+          )}
         </>
       )}
 
