@@ -6,9 +6,12 @@ from services.supabase_client import get_client
 
 router = APIRouter(tags=["generate"])
 
-_VALID_DOC_TYPES = {"sprint_status", "sprint_retro", "decisoes", "completo", "ata_reuniao", "onboarding", "adr"}
-_SPRINT_REQUIRED = {"sprint_status", "sprint_retro", "decisoes"}
-_INGESTION_REQUIRED = {"ata_reuniao"}
+_VALID_DOC_TYPES = {
+    "sprint_status", "sprint_retro", "decisoes", "completo", "ata_reuniao", "onboarding", "adr",
+    "planning", "daily", "review",
+}
+_SPRINT_REQUIRED = {"sprint_status", "sprint_retro", "decisoes", "review"}
+_INGESTION_REQUIRED = {"ata_reuniao", "planning", "daily"}
 
 
 @router.post("/generate", response_model=GenerateResponse)

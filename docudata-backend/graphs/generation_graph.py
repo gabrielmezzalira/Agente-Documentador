@@ -301,6 +301,130 @@ Siga EXATAMENTE esta estrutura em markdown:
 Contexto de todas as ingestões do projeto:
 {contexto}""",
 
+    "planning": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+Com base nos insumos estruturados informados pelo gerente abaixo (e PDF anexo, se houver), gere um documento de Planning da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
+
+Siga EXATAMENTE esta estrutura em markdown:
+
+# Planning — Sprint {sprint_numero}
+**Projeto:** {projeto_nome}
+**Cliente:** {cliente}
+**Data:** [Data identificada nos insumos, ou data de hoje]
+
+## Objetivo da sprint
+
+[Parágrafo executivo do que esta sprint precisa entregar — derive da descrição. Escreva de forma que o cliente entenda o foco em 30 segundos.]
+
+## Backlog da sprint
+
+- [Item do backlog 1 — adicione contexto curto se houver]
+- [Item 2]
+- [Item N]
+
+(Liste cada item do backlog informado. Se houver descrição/responsável associado, inclua-o.)
+
+## Responsabilidades
+
+| Responsável | Item / Frente |
+|---|---|
+| [Nome ou papel identificado] | [Item do backlog atribuído] |
+
+(Se não houver atribuição explícita: "A definir na primeira daily da sprint")
+
+## Riscos previstos
+
+- [Risco identificado nos insumos]
+
+(Se não houver risco mencionado: "Nenhum risco reportado pelo gerente neste momento")
+
+Atenciosamente,
+Gerente de Dados — CITi · Centro de Informática, UFPE
+
+---
+Insumos do gerente:
+{contexto}""",
+
+    "daily": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+Com base nos insumos estruturados informados pelo gerente abaixo (e PDF/transcrição anexa, se houver), gere o documento da Daily da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
+
+Siga EXATAMENTE esta estrutura em markdown:
+
+# Daily — Sprint {sprint_numero}
+**Projeto:** {projeto_nome}
+**Data:** [Data informada nos insumos]
+
+## O que foi feito desde a última Daily
+
+[Texto narrativo curto baseado no campo "feito". Liste em bullets se houver múltiplos itens.]
+
+## O que será feito até a próxima Daily
+
+[Texto narrativo curto baseado no campo "proximo". Liste em bullets se houver múltiplos itens.]
+
+## Impedimentos / Riscos
+
+[Texto baseado no campo "impedimentos". Se vazio ou não mencionado: "Nenhum impedimento reportado nesta daily."]
+
+## Observações adicionais
+
+[Use apenas se a transcrição/PDF anexo trouxe contexto extra não capturado nos campos acima. Caso contrário: omita esta seção.]
+
+---
+Insumos:
+{contexto}""",
+
+    "review": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+Com base no contexto da Sprint {sprint_numero} (planning, dailys e ingestões livres) do projeto "{projeto_nome}" (cliente: {cliente}), gere uma Review da Sprint.
+
+A Review precisa explicitar o DELTA: o que foi planejado vs. o que foi efetivamente entregue. Use o documento de Planning desta sprint como referência do planejado, e o conjunto de Dailys + ingestões livres como evidência do realizado.
+
+Siga EXATAMENTE esta estrutura em markdown:
+
+# Review — Sprint {sprint_numero}
+**Projeto:** {projeto_nome}
+**Cliente:** {cliente}
+**Data:** [Data mais recente identificada no contexto, ou data de hoje]
+
+## O que foi planejado
+
+[Liste os itens do backlog identificados no documento de Planning da sprint. Se não houver planning na sprint, escreva: "Planning desta sprint não foi registrado — review baseada apenas em evidências de execução."]
+
+## O que foi efetivamente realizado
+
+[Liste o que aparece como concluído/em andamento nas dailys e ingestões da sprint. Use bullets factuais — não invente.]
+
+## Delta — diferenças entre planejado e realizado
+
+**Entregue como planejado:**
+- [Item planejado que apareceu como concluído nas dailys/ingestões]
+
+**Não entregue / adiado:**
+- [Item do planning que NÃO aparece como concluído nas evidências] — [Motivo se identificado]
+
+**Entregue além do escopo:**
+- [Algo concluído que não estava no planning original]
+
+(Se uma das três seções não tem itens: escreva "—" abaixo dela.)
+
+## Decisões tomadas durante a sprint
+
+- [Decisão técnica ou de escopo identificada nas dailys/ingestões]
+
+## Impedimentos enfrentados
+
+- [Impedimento reportado em alguma daily ou ingestão]
+
+## Aprendizados para próxima sprint
+
+- [Padrão observado que vale propagar ou evitar]
+
+Atenciosamente,
+Gerente de Dados — CITi · Centro de Informática, UFPE
+
+---
+Contexto completo da Sprint {sprint_numero}:
+{contexto}""",
+
     "completo": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto acumulado de todas as ingestões abaixo, gere a Documentação Final do Projeto "{projeto_nome}" (cliente: {cliente}), seguindo o template oficial do CITi.
 
@@ -567,14 +691,16 @@ def buscar_ingestions(state: GenerationState) -> dict:
     client = get_client()
     tipo_doc = state["tipo_doc"]
 
-    if tipo_doc == "ata_reuniao":
+    if tipo_doc in ("ata_reuniao", "planning", "daily"):
+        # Single-ingestion docs: use only the ingestion this doc is anchored on
         response = (
             client.table("ingestions")
             .select("*")
             .eq("id", state["ingestion_id"])
             .execute()
         )
-    elif tipo_doc in ("sprint_status", "sprint_retro", "decisoes"):
+    elif tipo_doc in ("sprint_status", "sprint_retro", "decisoes", "review"):
+        # Sprint-scoped docs: all ingestions of the sprint (review uses these to compute delta vs planning)
         response = (
             client.table("ingestions")
             .select("*")
@@ -600,14 +726,20 @@ def compilar_contexto(state: GenerationState) -> dict:
         content = ing.get("extracted_content") or {}
         sprint = ing.get("sprint_number", "?")
         nome = ing.get("file_name", "arquivo")
+        tipo_doc = ing.get("tipo_documentacao")  # planning | daily | review | outro | None
 
         tarefas = ", ".join(content.get("tarefas") or [])
         decisoes = ", ".join(content.get("decisoes") or [])
         problemas = ", ".join(content.get("problemas") or [])
         proximos = ", ".join(content.get("proximos_passos") or [])
 
+        header = f"--- Sprint {sprint} | {nome}"
+        if tipo_doc:
+            header += f" | TIPO: {tipo_doc.upper()}"
+        header += " ---"
+
         partes.append(
-            f"--- Sprint {sprint} | {nome} ---\n"
+            f"{header}\n"
             f"Resumo: {content.get('resumo', '')}\n"
             f"Tarefas: {tarefas}\n"
             f"Decisoes: {decisoes}\n"

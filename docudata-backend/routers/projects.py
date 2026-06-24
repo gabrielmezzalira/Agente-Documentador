@@ -1,8 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from models.schemas import ProjectCreate, ProjectResponse, ProjectCostResponse
+from models.schemas import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectCostResponse,
+    TechTimelineResponse,
+)
 from services.supabase_client import get_client
+from services.tech_timeline import build_tech_timeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -137,6 +143,22 @@ async def toggle_delivered(project_id: str):
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update project")
     return _sanitize(response.data[0])
+
+
+@router.get("/{project_id}/technologies", response_model=TechTimelineResponse)
+async def get_technologies(project_id: str):
+    """Retorna stack atual + timeline de introdução/abandono por tecnologia."""
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    response = (
+        client.table("ingestions")
+        .select("sprint_number, extracted_content")
+        .eq("project_id", project_id)
+        .execute()
+    )
+    return build_tech_timeline(response.data or [])
 
 
 @router.delete("/{project_id}", status_code=204)

@@ -24,6 +24,7 @@ class ExtractionState(TypedDict):
     erro: Optional[str]
     input_tokens: int
     output_tokens: int
+    ingestion_id: Optional[str]
 
 
 _COST_PER_INPUT_TOKEN = 0.15 / 1_000_000   # USD — Gemini 2.5 Flash
@@ -218,7 +219,7 @@ async def salvar(state: ExtractionState) -> dict:
             raise RuntimeError("Insert returned no data — row may not have been written")
     except Exception as exc:
         return {"erro": f"Supabase insert failed: {exc}", "valido": False}
-    return {}
+    return {"ingestion_id": response.data[0].get("id")}
 
 
 def _roteador(state: ExtractionState):

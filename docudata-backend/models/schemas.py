@@ -76,3 +76,53 @@ class IngestionResponse(BaseModel):
     output_tokens: int = 0
     cost_usd: float = 0.0
     created_at: datetime
+
+
+class SprintCreate(BaseModel):
+    numero: Optional[int] = None  # se None, auto = max(numero)+1
+
+
+class SprintHealthUpdate(BaseModel):
+    status_saude: Optional[str] = None       # 'verde' | 'amarelo' | 'vermelho' | None
+    plano_correcao: Optional[str] = None
+
+
+class SprintResponse(BaseModel):
+    id: str
+    project_id: str
+    numero: int
+    status_saude: Optional[str] = None
+    plano_correcao: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SprintStatusResponse(SprintResponse):
+    """Sprint + agregados de mínimo obrigatório (usado pelo GET de listagem)."""
+    tem_planning: bool = False
+    tem_review: bool = False
+    dailys_count: int = 0
+    ingestions_count: int = 0          # total de ingestões da sprint (qualquer tipo)
+    docs_gerados_count: int = 0        # total de generated_docs da sprint
+    pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
+
+
+class SprintDocResponse(BaseModel):
+    """Resposta unificada dos endpoints /sprint-docs/* — devolve a ingestão criada e o doc gerado."""
+    ingestion_id: str
+    doc_id: str
+    doc_type: str           # planning | daily | review
+    sprint_number: int
+    content: str            # markdown gerado
+    created_at: datetime
+
+
+class TechTimelineEntry(BaseModel):
+    tecnologia: str
+    introduzida_em: int
+    abandonada_em: Optional[int] = None   # None = ainda em uso
+
+
+class TechTimelineResponse(BaseModel):
+    em_uso_atual: list[str]
+    timeline: list[TechTimelineEntry]

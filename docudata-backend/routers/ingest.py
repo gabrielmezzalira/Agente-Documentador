@@ -3,6 +3,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from graphs.extraction_graph import extraction_graph, ExtractionState
 from models.schemas import IngestResponse
 from services.supabase_client import get_client
+from services.sprints import ensure_sprint_row
 
 _ACCEPTED_BINARY_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -50,6 +51,8 @@ async def ingest(
             detail="Este projeto não tem uma chave de API do Gemini configurada. Configure-a no dashboard antes de enviar arquivos.",
         )
 
+    ensure_sprint_row(db, projeto_id, sprint_numero)
+
     file_bytes = await arquivo.read()
     state: ExtractionState = {
         "arquivo_bytes": file_bytes,
@@ -66,6 +69,7 @@ async def ingest(
         "erro": None,
         "input_tokens": 0,
         "output_tokens": 0,
+        "ingestion_id": None,
     }
     result = await extraction_graph.ainvoke(state)
 

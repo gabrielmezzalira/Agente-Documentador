@@ -39,6 +39,7 @@ export interface Ingestion {
   sprint_number: number;
   file_name?: string;
   file_type?: string;
+  tipo_documentacao?: "planning" | "daily" | "review" | "outro" | null;
   extracted_content?: {
     resumo?: string;
     tarefas?: string[];
@@ -58,6 +59,50 @@ export interface GeneratedDoc {
   id: string;
   doc_type: string;
   sprint_number?: number;
+  content: string;
+  created_at: string;
+}
+
+export type SprintHealth = "verde" | "amarelo" | "vermelho";
+
+export interface Sprint {
+  id: string;
+  project_id: string;
+  numero: number;
+  status_saude?: SprintHealth | null;
+  plano_correcao?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Retorno do GET /projects/{id}/sprints — Sprint + agregados de mínimo obrigatório. */
+export interface SprintWithStatus extends Sprint {
+  tem_planning: boolean;
+  tem_review: boolean;
+  dailys_count: number;
+  ingestions_count: number;
+  docs_gerados_count: number;
+  pendencias: string[];          // subset de ['planning','review']
+}
+
+export interface TechTimelineEntry {
+  tecnologia: string;
+  introduzida_em: number;
+  abandonada_em: number | null;   // null = ainda em uso
+}
+
+export interface TechTimeline {
+  em_uso_atual: string[];
+  timeline: TechTimelineEntry[];
+}
+
+export type SprintDocType = "planning" | "daily" | "review";
+
+export interface SprintDocResponse {
+  ingestion_id: string;
+  doc_id: string;
+  doc_type: SprintDocType;
+  sprint_number: number;
   content: string;
   created_at: string;
 }
@@ -156,6 +201,110 @@ export async function searchStack(query: string): Promise<StackSearchResponse> {
   const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error("Erro ao buscar stack");
   return res.json();
+}
+
+export async function listSprints(projectId: string): Promise<SprintWithStatus[]> {
+  const res = await fetch(`${API}/projects/${projectId}/sprints`);
+  if (!res.ok) throw new Error("Erro ao buscar sprints");
+  return res.json();
+}
+
+export async function createSprint(projectId: string, numero?: number): Promise<Sprint> {
+  const res = await fetch(`${API}/projects/${projectId}/sprints`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ numero: numero ?? null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao criar sprint");
+  }
+  return res.json();
+}
+
+export async function getTechnologies(projectId: string): Promise<TechTimeline> {
+  const res = await fetch(`${API}/projects/${projectId}/technologies`);
+  if (!res.ok) throw new Error("Erro ao buscar tecnologias do projeto");
+  return res.json();
+}
+
+export async function updateSprintHealth(
+  sprintId: string,
+  statusSaude: SprintHealth | null,
+  planoCorrecao?: string | null
+): Promise<Sprint> {
+  const res = await fetch(`${API}/sprints/${sprintId}/health`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      status_saude: statusSaude,
+      plano_correcao: planoCorrecao ?? null,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao atualizar saúde da sprint");
+  }
+  return res.json();
+}
+
+async function _postSprintDoc(path: string, form: FormData): Promise<SprintDocResponse> {
+  const res = await fetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao registrar documento de sprint");
+  }
+  return res.json();
+}
+
+export async function submitPlanning(input: {
+  projetoId: string;
+  sprintNumero: number;
+  descricao: string;
+  itensBacklog: string[];
+  anexo?: File | null;
+}): Promise<SprintDocResponse> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("sprint_numero", String(input.sprintNumero));
+  form.append("descricao", input.descricao);
+  form.append("itens_backlog", JSON.stringify(input.itensBacklog));
+  if (input.anexo) form.append("anexo", input.anexo);
+  return _postSprintDoc("planning", form);
+}
+
+export async function submitDaily(input: {
+  projetoId: string;
+  sprintNumero: number;
+  data: string;            // YYYY-MM-DD
+  feito: string;
+  proximo: string;
+  impedimentos?: string;
+  anexo?: File | null;
+}): Promise<SprintDocResponse> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("sprint_numero", String(input.sprintNumero));
+  form.append("data", input.data);
+  form.append("feito", input.feito);
+  form.append("proximo", input.proximo);
+  if (input.impedimentos) form.append("impedimentos", input.impedimentos);
+  if (input.anexo) form.append("anexo", input.anexo);
+  return _postSprintDoc("daily", form);
+}
+
+export async function submitReview(input: {
+  projetoId: string;
+  sprintNumero: number;
+  observacoes?: string;
+  anexo?: File | null;
+}): Promise<SprintDocResponse> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("sprint_numero", String(input.sprintNumero));
+  if (input.observacoes) form.append("observacoes", input.observacoes);
+  if (input.anexo) form.append("anexo", input.anexo);
+  return _postSprintDoc("review", form);
 }
 
 export async function generateDoc(
