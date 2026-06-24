@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { DocTypeMeta } from "../lib/doc_types";
 import type { Ingestion, SprintWithStatus } from "../lib/api";
 
@@ -11,6 +11,8 @@ interface Props {
   generating: boolean;
   /** Disparado quando o usuário clica em "Gerar documento" dentro do card. */
   onGenerate: (key: string, sprintNumero?: number, ingestionId?: string) => void;
+  /** Para ata_reuniao: além de selecionar ingestão existente, permite subir PDF inline. */
+  onUploadAndGenerate?: (sprintNumero: number, file: File) => void;
 }
 
 const cardStyle = (expanded: boolean): React.CSSProperties => ({
@@ -103,6 +105,7 @@ export default function DocTypeCard({
   ingestions,
   generating,
   onGenerate,
+  onUploadAndGenerate,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [sprintNumero, setSprintNumero] = useState<number>(
@@ -111,21 +114,24 @@ export default function DocTypeCard({
   const [ingestionId, setIngestionId] = useState<string>(
     ingestions[0]?.id ?? ""
   );
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [pdfName, setPdfName] = useState<string | null>(null);
 
   function handleGenerate(e: React.MouseEvent) {
     e.stopPropagation();
+    const file = fileRef.current?.files?.[0] ?? null;
     if (meta.scope === "sprint") onGenerate(meta.key, sprintNumero);
-    else if (meta.scope === "ingestion") onGenerate(meta.key, undefined, ingestionId);
-    else onGenerate(meta.key);
+    else if (meta.scope === "ingestion") {
+      // Se o usuário subiu um PDF e o handler de upload está disponível, usa o upload
+      if (file && onUploadAndGenerate) onUploadAndGenerate(sprintNumero, file);
+      else onGenerate(meta.key, undefined, ingestionId);
+    } else onGenerate(meta.key);
   }
 
   return (
     <div style={cardStyle(expanded)} onClick={() => setExpanded((v) => !v)}>
       <div style={headerStyle}>
-        <span style={titleStyle}>
-          <span style={{ fontSize: 18 }}>{meta.icone}</span>
-          {meta.label}
-        </span>
+        <span style={titleStyle}>{meta.label}</span>
         <span style={{ color: "#9696a0", fontSize: 13 }}>
           {expanded ? "▴" : "▾"}
         </span>
@@ -181,26 +187,62 @@ export default function DocTypeCard({
             )}
 
             {meta.scope === "ingestion" && (
-              <>
-                <span style={fieldLabel}>Ingestão:</span>
-                {ingestions.length === 0 ? (
-                  <span style={{ color: "#9696a0", fontSize: 13 }}>
-                    Nenhuma ingestão disponível ainda.
-                  </span>
-                ) : (
-                  <select
-                    value={ingestionId}
-                    onChange={(e) => setIngestionId(e.target.value)}
-                    style={{ ...inputStyle, maxWidth: 360 }}
-                  >
-                    {ingestions.map((ing) => (
-                      <option key={ing.id} value={ing.id}>
-                        Sprint {ing.sprint_number} · {ing.file_name}
-                      </option>
-                    ))}
-                  </select>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={fieldLabel}>Ingestão existente:</span>
+                  {ingestions.length === 0 ? (
+                    <span style={{ color: "#9696a0", fontSize: 13 }}>
+                      Nenhuma ingestão disponível.
+                    </span>
+                  ) : (
+                    <select
+                      value={ingestionId}
+                      onChange={(e) => setIngestionId(e.target.value)}
+                      style={{ ...inputStyle, maxWidth: 360 }}
+                    >
+                      {ingestions.map((ing) => (
+                        <option key={ing.id} value={ing.id}>
+                          Sprint {ing.sprint_number} · {ing.file_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {onUploadAndGenerate && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={fieldLabel}>ou subir transcrição (PDF):</span>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)}
+                      style={{ fontSize: 12 }}
+                    />
+                    {pdfName && (
+                      <>
+                        <span style={{ ...fieldLabel, color: "#9696a0" }}>
+                          {pdfName} · Sprint:
+                        </span>
+                        <select
+                          value={sprintNumero}
+                          onChange={(e) => setSprintNumero(Number(e.target.value))}
+                          style={inputStyle}
+                        >
+                          {sprints.length === 0 ? (
+                            <option value={1}>Sprint 1</option>
+                          ) : (
+                            sprints.map((s) => (
+                              <option key={s.id} value={s.numero}>
+                                Sprint {s.numero}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </>
+                    )}
+                  </div>
                 )}
-              </>
+              </div>
             )}
 
             <button

@@ -117,6 +117,14 @@ class SprintDocResponse(BaseModel):
     created_at: datetime
 
 
+class ManualDocCreate(BaseModel):
+    """Payload pra criar um doc manualmente (sem chamar o LLM)."""
+    projeto_id: str
+    doc_type: str
+    sprint_numero: Optional[int] = None
+    content: str
+
+
 class TechTimelineEntry(BaseModel):
     tecnologia: str
     introduzida_em: int

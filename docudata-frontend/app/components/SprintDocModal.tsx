@@ -281,11 +281,23 @@ export default function SprintDocModal({
           </>
         )}
 
-        <label style={labelStyle}>Anexo (PDF opcional)</label>
+        <label style={labelStyle}>
+          Anexo (opcional)
+          {tipo === "planning" && (
+            <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
+              — PDF ou print do kanban; tasks visíveis na imagem são extraídas como itens do backlog
+            </span>
+          )}
+          {tipo !== "planning" && (
+            <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
+              — PDF
+            </span>
+          )}
+        </label>
         <input
           ref={fileRef}
           type="file"
-          accept="application/pdf"
+          accept={tipo === "planning" ? "application/pdf,image/png,image/jpeg,image/jpg,image/webp" : "application/pdf"}
           onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)}
         />
         {anexoName && (

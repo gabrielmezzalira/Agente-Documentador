@@ -307,6 +307,41 @@ export async function submitReview(input: {
   return _postSprintDoc("review", form);
 }
 
+export async function submitAtaUpload(input: {
+  projetoId: string;
+  sprintNumero: number;
+  anexo: File;       // obrigatório — PDF da transcrição
+}): Promise<SprintDocResponse> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("sprint_numero", String(input.sprintNumero));
+  form.append("anexo", input.anexo);
+  return _postSprintDoc("ata", form);
+}
+
+export async function createManualDoc(input: {
+  projetoId: string;
+  docType: string;
+  sprintNumero?: number | null;
+  content: string;
+}): Promise<GeneratedDoc> {
+  const res = await fetch(`${API}/docs/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      projeto_id: input.projetoId,
+      doc_type: input.docType,
+      sprint_numero: input.sprintNumero ?? null,
+      content: input.content,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao criar documento manual");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

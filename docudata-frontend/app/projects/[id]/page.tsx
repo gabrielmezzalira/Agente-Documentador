@@ -14,6 +14,7 @@ import {
   createSprint,
   ingestFile,
   generateDoc,
+  submitAtaUpload,
   deleteProject,
   deleteDoc,
   toggleDelivered,
@@ -29,6 +30,7 @@ import SprintCard from "../../components/SprintCard";
 import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
 import DocTypeCard from "../../components/DocTypeCard";
+import ManualDocModal from "../../components/ManualDocModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
 type TabId = "sprints" | "tecnologias" | "docs" | "config";
@@ -50,6 +52,9 @@ export default function ProjectDashboard() {
 
   // ---------- modal sprint-docs ----------
   const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number } | null>(null);
+
+  // ---------- modal doc manual ----------
+  const [manualModal, setManualModal] = useState<{ sprintNumero: number | null } | null>(null);
 
   // ---------- upload livre ----------
   const [uploadMode, setUploadMode] = useState<"file" | "folder">("file");
@@ -305,10 +310,30 @@ export default function ProjectDashboard() {
   }
 
   function handleGenerateFromCard(tipoDoc: "sprint_status" | "sprint_retro", sprintNumero: number) {
-    // Atalho do card de sprint: gera direto e leva pra aba Docs Gerais onde o resultado aparece
-    setActiveTab("docs");
-    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
+    // Gera direto e mantém o gerente na aba Sprints — o doc aparece dentro do próprio card
     handleGenerate(tipoDoc, sprintNumero);
+  }
+
+  async function handleAtaUpload(sprintNumero: number, file: File) {
+    setGenerating(true);
+    setGeneratedDoc(null);
+    setGenerateError("");
+    try {
+      const res = await submitAtaUpload({ projetoId: id, sprintNumero, anexo: file });
+      // Adapta o SprintDocResponse pro shape do GeneratedDoc
+      setGeneratedDoc({
+        id: res.doc_id,
+        doc_type: res.doc_type,
+        sprint_number: res.sprint_number,
+        content: res.content,
+        created_at: res.created_at,
+      });
+      await refreshAll();
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Erro ao gerar ata a partir do PDF");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   // ---------- derived ----------
@@ -412,13 +437,16 @@ export default function ProjectDashboard() {
         <>
           {/* UPLOAD LIVRE */}
           <section ref={uploadSectionRef} style={sectionStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <h2 style={sectionTitle}>Upload livre · Sprint {sprint}</h2>
               <div style={{ display: "flex", border: "1px solid #e4e4ea", borderRadius: 8, overflow: "hidden" }}>
                 <button onClick={() => setUploadMode("file")} style={uploadMode === "file" ? modeTabActive : modeTab}>Arquivo</button>
                 <button onClick={() => setUploadMode("folder")} style={uploadMode === "folder" ? modeTabActive : modeTab}>Pasta</button>
               </div>
             </div>
+            <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 18px", lineHeight: 1.5 }}>
+              Material avulso pra dar contexto ao projeto — print de conversa, código fonte, PDFs do cliente, ata externa, qualquer coisa que ajude o agente a entender o que está acontecendo. Esses uploads alimentam as documentações gerais (ADRs, Onboarding, Documentação Final). Pro mínimo obrigatório de cada sprint (Planning, Daily, Review) use os botões coloridos no card da sprint.
+            </p>
 
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Sprint</label>
@@ -529,9 +557,12 @@ export default function ProjectDashboard() {
                 sprint={s}
                 ingestions={ingestionsBySprint[s.numero] ?? []}
                 docs={docsBySprint[s.numero] ?? []}
+                generating={generating}
                 onOpenSprintDoc={(tipo, n) => setModal({ tipo, sprintNumero: n })}
                 onUploadLivre={handleUploadLivre}
                 onGenerateSprintDoc={handleGenerateFromCard}
+                onAddManualDoc={(n) => setManualModal({ sprintNumero: n })}
+                onDeleteDoc={handleDeleteDoc}
                 onHealthChanged={refreshSprints}
               />
             ))
@@ -546,9 +577,9 @@ export default function ProjectDashboard() {
       {activeTab === "docs" && (
         <>
           <section style={sectionStyle}>
-            <h2 style={sectionTitle}>Gerar documento</h2>
+            <h2 style={sectionTitle}>Documentos cross-sprint</h2>
             <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
-              Clique no tipo de documento pra ver o que é, pra que serve e em que se baseia antes de gerar.
+              Documentos que olham o projeto como um todo. <strong>Repasse Semanal e Retrospectiva</strong> agora ficam dentro do card da sprint correspondente (aba Sprints), já que são sprint-específicos. Clique em cada tipo abaixo pra ver o que é antes de gerar.
             </p>
             <div style={{ marginBottom: 18 }}>
               <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
@@ -564,8 +595,6 @@ export default function ProjectDashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
               {(
                 [
-                  "sprint_status",
-                  "sprint_retro",
                   "ata_reuniao",
                   "decisoes",
                   "adr",
@@ -580,8 +609,21 @@ export default function ProjectDashboard() {
                   ingestions={ingestions}
                   generating={generating}
                   onGenerate={handleGenerate}
+                  onUploadAndGenerate={key === "ata_reuniao" ? handleAtaUpload : undefined}
                 />
               ))}
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <button
+                onClick={() => setManualModal({ sprintNumero: null })}
+                style={btnSecondary}
+              >
+                + Adicionar documento manual
+              </button>
+              <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>
+                Pra registrar um doc que você escreveu fora do sistema (sem custo de IA).
+              </span>
             </div>
 
             {generating && <p style={{ color: "#9696a0", fontSize: 14 }}>Gerando documento com IA...</p>}
@@ -720,6 +762,17 @@ export default function ProjectDashboard() {
         projetoId={id}
         sprintNumero={modal?.sprintNumero ?? 1}
         onSubmitted={async () => {
+          await refreshAll();
+        }}
+      />
+
+      {/* MODAL Doc Manual */}
+      <ManualDocModal
+        open={manualModal !== null}
+        onClose={() => setManualModal(null)}
+        projetoId={id}
+        defaultSprintNumero={manualModal?.sprintNumero ?? null}
+        onCreated={async () => {
           await refreshAll();
         }}
       />

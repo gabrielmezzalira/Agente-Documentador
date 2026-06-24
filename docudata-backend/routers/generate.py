@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from graphs.generation_graph import generation_graph, GenerationState
-from models.schemas import GenerateRequest, GenerateResponse
+from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["generate"])
@@ -89,6 +89,37 @@ async def list_docs(projeto_id: str):
         .execute()
     )
     return response.data or []
+
+
+@router.post("/docs/manual", response_model=GenerateResponse, status_code=201)
+async def create_manual_doc(req: ManualDocCreate):
+    """Cria um documento manualmente (markdown digitado pelo gerente), sem chamar o LLM.
+
+    Útil quando o gerente quer registrar um doc final que foi escrito fora do sistema,
+    ou quando quer editar/regenerar um doc com texto próprio.
+    """
+    if not req.content.strip():
+        raise HTTPException(status_code=422, detail="content não pode estar vazio")
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", req.projeto_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    response = (
+        client.table("generated_docs")
+        .insert({
+            "project_id": req.projeto_id,
+            "doc_type": req.doc_type,
+            "sprint_number": req.sprint_numero,
+            "content": req.content,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+        })
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to create manual doc")
+    return response.data[0]
 
 
 @router.delete("/docs/{doc_id}", status_code=204)

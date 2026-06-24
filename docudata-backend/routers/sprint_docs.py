@@ -24,23 +24,28 @@ from services.sprints import ensure_sprint_row
 router = APIRouter(prefix="/sprint-docs", tags=["sprint-docs"])
 
 _PDF_MIME = "application/pdf"
+_IMAGE_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+_ACCEPTED_ANEXO_MIMES = {_PDF_MIME} | _IMAGE_MIMES
 
 
-async def _extract_pdf_to_content(
+async def _extract_anexo_to_content(
     project_id: str,
     sprint_numero: int,
     api_key: str,
     anexo: UploadFile,
 ) -> dict:
-    """Roda o extraction_graph no PDF anexo e devolve o `extracted_content`.
+    """Roda o extraction_graph no anexo (PDF ou imagem) e devolve o `extracted_content`.
+
+    Para planning, o anexo pode ser um print de kanban (PNG/JPG) com tarefas do backlog —
+    a vision do Gemini identifica e extrai os itens automaticamente.
 
     Cuidado: o graph atual cria um registro em `ingestions` ao final. Para evitar
     duplicação, deletamos esse registro intermediário e retornamos apenas o conteúdo.
     """
-    if anexo.content_type != _PDF_MIME:
+    if anexo.content_type not in _ACCEPTED_ANEXO_MIMES:
         raise HTTPException(
             status_code=422,
-            detail="Anexo deve ser PDF (application/pdf).",
+            detail=f"Anexo deve ser PDF ou imagem (PNG/JPG/WEBP). Recebido: {anexo.content_type}",
         )
 
     file_bytes = await anexo.read()
@@ -226,7 +231,7 @@ async def submit_planning(
     }
 
     if anexo is not None:
-        extra = await _extract_pdf_to_content(projeto_id, sprint_numero, api_key, anexo)
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
         base_content = _merge_content(base_content, extra)
 
     ingestion = _insert_ingestion(
@@ -296,7 +301,7 @@ async def submit_daily(
     }
 
     if anexo is not None:
-        extra = await _extract_pdf_to_content(projeto_id, sprint_numero, api_key, anexo)
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
         base_content = _merge_content(base_content, extra)
 
     ingestion = _insert_ingestion(
@@ -319,6 +324,74 @@ async def submit_daily(
         ingestion_id=ingestion["id"],
         doc_id=doc["id"],
         doc_type="daily",
+        sprint_number=sprint_numero,
+        content=doc["content"],
+        created_at=doc["created_at"],
+    )
+
+
+@router.post("/ata", response_model=SprintDocResponse, status_code=201)
+async def submit_ata_with_upload(
+    projeto_id: str = Form(...),
+    sprint_numero: int = Form(...),
+    anexo: UploadFile = File(...),
+):
+    """Gera Ata de Reunião a partir de uma transcrição em PDF (upload + extração + geração em uma chamada).
+
+    Diferente de planning/daily/review (que recebem campos estruturados), a ata depende
+    SEMPRE de uma transcrição — o PDF é obrigatório. A ingestão resultante fica com
+    tipo_documentacao=NULL (é um insumo livre, não conta como mínimo obrigatório).
+    """
+    project, api_key = _project_or_404(projeto_id)
+    ensure_sprint_row(get_client(), projeto_id, sprint_numero)
+
+    if anexo.content_type != _PDF_MIME:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Transcrição da ata deve ser PDF. Recebido: {anexo.content_type}",
+        )
+
+    # Roda extraction_graph — ele já cria a ingestion intermediária
+    file_bytes = await anexo.read()
+    state: ExtractionState = {
+        "arquivo_bytes": file_bytes,
+        "arquivo_nome": anexo.filename or "transcricao.pdf",
+        "mime_type": anexo.content_type,
+        "sprint_numero": sprint_numero,
+        "projeto_id": projeto_id,
+        "gemini_api_key": api_key,
+        "tipo": "",
+        "texto_preprocessado": "",
+        "conteudo_estruturado": None,
+        "valido": False,
+        "tentativas": 0,
+        "erro": None,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "ingestion_id": None,
+    }
+    result = await extraction_graph.ainvoke(state)
+    if not result.get("valido"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Extração da transcrição falhou: {result.get('erro') or 'erro desconhecido'}",
+        )
+
+    ingestion_id = result.get("ingestion_id")
+    if not ingestion_id:
+        raise HTTPException(status_code=500, detail="Ingestão da transcrição não retornou ID")
+
+    doc = await _run_generation(
+        project=project,
+        tipo_doc="ata_reuniao",
+        sprint_numero=sprint_numero,
+        ingestion_id=ingestion_id,
+        api_key=api_key,
+    )
+    return SprintDocResponse(
+        ingestion_id=ingestion_id,
+        doc_id=doc["id"],
+        doc_type="ata_reuniao",
         sprint_number=sprint_numero,
         content=doc["content"],
         created_at=doc["created_at"],
@@ -354,7 +427,7 @@ async def submit_review(
     }
 
     if anexo is not None:
-        extra = await _extract_pdf_to_content(projeto_id, sprint_numero, api_key, anexo)
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
         base_content = _merge_content(base_content, extra)
 
     ingestion = _insert_ingestion(

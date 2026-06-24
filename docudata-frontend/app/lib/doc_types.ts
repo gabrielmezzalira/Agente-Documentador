@@ -29,7 +29,8 @@ export type DocTypeScope = "sprint" | "ingestion" | "project" | "hybrid";
 export interface DocTypeMeta {
   key: DocTypeKey;
   label: string;
-  icone: string;
+  /** Emoji opcional — mantido pra retrocompatibilidade. UI atual não renderiza por padrão. */
+  icone?: string;
   scope: DocTypeScope;
   o_que: string;
   pra_que: string;
