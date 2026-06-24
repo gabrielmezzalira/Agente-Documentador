@@ -9,29 +9,34 @@ import type {
   SprintDocType,
   SprintWithStatus,
 } from "../lib/api";
-import { docTypeLabel } from "../lib/doc_types";
+import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 
 const EXPECTED_DAILYS = 5;
 
+type SprintGenType = "sprint_status" | "sprint_retro";
+
 interface Props {
   sprint: SprintWithStatus;
-  ingestions: Ingestion[];      // já filtradas pra esta sprint
-  docs: GeneratedDoc[];         // já filtradas pra esta sprint
-  generating: boolean;          // estado global de geração
+  ingestions: Ingestion[];
+  docs: GeneratedDoc[];
+  generating: boolean;
   onOpenSprintDoc: (tipo: SprintDocType, sprintNumero: number) => void;
   onUploadLivre: (sprintNumero: number) => void;
-  onGenerateSprintDoc: (tipoDoc: "sprint_status" | "sprint_retro", sprintNumero: number) => void;
+  onGenerateSprintDoc: (tipoDoc: SprintGenType, sprintNumero: number) => void;
   onAddManualDoc: (sprintNumero: number) => void;
   onDeleteDoc: (docId: string) => void;
   onHealthChanged: () => void;
 }
 
+// ---------- styles ----------
+
 const cardStyle: React.CSSProperties = {
   background: "#ffffff",
-  border: "1px solid #e8e8ed",
-  borderRadius: 14,
-  padding: "18px 22px",
-  marginBottom: 12,
+  border: "1px solid #e4e4ea",
+  borderRadius: 16,
+  padding: "26px 28px",
+  marginBottom: 16,
+  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
 };
 
 const headerRow: React.CSSProperties = {
@@ -39,43 +44,45 @@ const headerRow: React.CSSProperties = {
   justifyContent: "space-between",
   alignItems: "center",
   gap: 12,
+  marginBottom: 4,
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 700,
-  color: "#111116",
+  fontSize: 24,
+  fontWeight: 800,
+  color: "#0f172a",
+  letterSpacing: "-0.02em",
   margin: 0,
 };
 
 const statusRow: React.CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 10,
   alignItems: "center",
   flexWrap: "wrap",
-  marginTop: 14,
-  marginBottom: 14,
+  marginTop: 18,
+  marginBottom: 18,
 };
 
 const statusChip = (done: boolean): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  padding: "6px 12px",
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
+  padding: "9px 16px",
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 700,
   background: done ? "#dcfce7" : "#fef3c7",
   color: done ? "#16a34a" : "#b45309",
   border: done ? "1px solid #86efac" : "1px solid #fde68a",
   cursor: "pointer",
-  transition: "transform 0.05s",
+  transition: "transform 0.06s",
 });
 
 const dailyChip = (count: number): React.CSSProperties => ({
   ...statusChip(count > 0),
   background: count >= EXPECTED_DAILYS ? "#dcfce7" : count > 0 ? "#fef3c7" : "#f7f7fa",
-  color: count >= EXPECTED_DAILYS ? "#16a34a" : count > 0 ? "#b45309" : "#6a6a7a",
+  color: count >= EXPECTED_DAILYS ? "#16a34a" : count > 0 ? "#b45309" : "#475569",
   border: count >= EXPECTED_DAILYS
     ? "1px solid #86efac"
     : count > 0
@@ -85,60 +92,122 @@ const dailyChip = (count: number): React.CSSProperties => ({
 
 const muted: React.CSSProperties = {
   color: "#9696a0",
-  fontSize: 12,
+  fontSize: 13,
   marginLeft: 4,
 };
 
 const actionRow: React.CSSProperties = {
   display: "flex",
-  gap: 6,
+  gap: 8,
   flexWrap: "wrap",
 };
 
-const btnGhost: React.CSSProperties = {
-  background: "#f7f7fa",
-  color: "#374151",
-  border: "1px solid #e4e4ea",
-  borderRadius: 8,
-  padding: "7px 12px",
-  fontSize: 12,
-  fontWeight: 500,
+const btnAction: React.CSSProperties = {
+  background: "#f1f5f9",
+  color: "#1e293b",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "11px 18px",
+  fontSize: 14,
+  fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.1s",
+};
+
+const btnActionActive: React.CSSProperties = {
+  ...btnAction,
+  background: "#dcfce7",
+  borderColor: "#86efac",
+  color: "#15803d",
 };
 
 const btnSubtle: React.CSSProperties = {
   background: "transparent",
-  color: "#9696a0",
+  color: "#64748b",
   border: "none",
-  fontSize: 12,
+  fontSize: 13,
   cursor: "pointer",
-  padding: "6px 10px",
+  padding: "8px 12px",
+  fontWeight: 500,
+};
+
+const confirmPanel: React.CSSProperties = {
+  marginTop: 14,
+  padding: "16px 18px",
+  background: "#f8fafc",
+  borderRadius: 12,
+  border: "1px solid #e2e8f0",
+};
+
+const confirmField: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  fontSize: 13,
+  color: "#475569",
+  marginBottom: 8,
+  lineHeight: 1.5,
+};
+
+const confirmFieldLabel: React.CSSProperties = {
+  flexShrink: 0,
+  fontWeight: 700,
+  color: "#1e293b",
+  minWidth: 72,
+};
+
+const confirmActions: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  justifyContent: "flex-end",
+  marginTop: 14,
+};
+
+const btnConfirm: React.CSSProperties = {
+  background: "#4ade80",
+  color: "#052e16",
+  border: "none",
+  padding: "9px 18px",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const btnCancel: React.CSSProperties = {
+  background: "#fff",
+  color: "#64748b",
+  border: "1px solid #e2e8f0",
+  padding: "9px 16px",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
 };
 
 const detailBox: React.CSSProperties = {
-  marginTop: 16,
-  padding: 14,
-  background: "#f7f7fa",
-  borderRadius: 10,
-  border: "1px solid #e8e8ed",
+  marginTop: 20,
+  padding: 18,
+  background: "#f8fafc",
+  borderRadius: 12,
+  border: "1px solid #e2e8f0",
 };
 
 const subTitleStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 700,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
-  color: "#9696a0",
+  color: "#64748b",
   margin: 0,
-  marginBottom: 8,
+  marginBottom: 10,
 };
 
 const tagStyle: React.CSSProperties = {
   background: "#e0e7ff",
   color: "#4338ca",
-  borderRadius: 4,
-  padding: "1px 7px",
-  fontSize: 10,
+  borderRadius: 5,
+  padding: "2px 9px",
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.04em",
   textTransform: "uppercase",
@@ -146,9 +215,9 @@ const tagStyle: React.CSSProperties = {
 
 const docRow: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e8e8ed",
-  borderRadius: 8,
-  padding: "10px 12px",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "12px 14px",
   fontSize: 13,
 };
 
@@ -160,11 +229,11 @@ const docHeader: React.CSSProperties = {
 };
 
 const markdownContainer: React.CSSProperties = {
-  marginTop: 10,
-  background: "#f7f7fa",
-  border: "1px solid #e8e8ed",
+  marginTop: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
   borderRadius: 8,
-  padding: "14px 18px",
+  padding: "16px 20px",
   lineHeight: 1.7,
   color: "#374151",
   fontSize: 13,
@@ -173,11 +242,11 @@ const markdownContainer: React.CSSProperties = {
 const tinyBtn: React.CSSProperties = {
   background: "#fff",
   color: "#374151",
-  border: "1px solid #e4e4ea",
-  borderRadius: 6,
-  padding: "4px 9px",
-  fontSize: 11,
-  fontWeight: 500,
+  border: "1px solid #e2e8f0",
+  borderRadius: 7,
+  padding: "5px 11px",
+  fontSize: 12,
+  fontWeight: 600,
   cursor: "pointer",
 };
 
@@ -187,6 +256,8 @@ const tinyBtnDanger: React.CSSProperties = {
   color: "#dc2626",
   border: "1px solid #fecaca",
 };
+
+// ---------- component ----------
 
 export default function SprintCard({
   sprint,
@@ -202,6 +273,16 @@ export default function SprintCard({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [pendingGen, setPendingGen] = useState<SprintGenType | null>(null);
+
+  function confirmGenerate() {
+    if (pendingGen) {
+      onGenerateSprintDoc(pendingGen, sprint.numero);
+      setPendingGen(null);
+    }
+  }
+
+  const pendingMeta = pendingGen ? DOC_TYPES[pendingGen] : null;
 
   return (
     <div style={cardStyle}>
@@ -229,7 +310,7 @@ export default function SprintCard({
           title="Adicionar Planning"
         >
           {sprint.tem_planning ? "1/1" : "0/1"} Planning
-          <span style={{ marginLeft: 4, fontWeight: 700 }}>+</span>
+          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
         <button
           type="button"
@@ -238,7 +319,7 @@ export default function SprintCard({
           title="Adicionar Review"
         >
           {sprint.tem_review ? "1/1" : "0/1"} Review
-          <span style={{ marginLeft: 4, fontWeight: 700 }}>+</span>
+          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
         <button
           type="button"
@@ -247,7 +328,7 @@ export default function SprintCard({
           title="Adicionar Daily"
         >
           {sprint.dailys_count}/{EXPECTED_DAILYS} Dailys
-          <span style={{ marginLeft: 4, fontWeight: 700 }}>+</span>
+          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
         <span style={muted}>
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
@@ -261,47 +342,82 @@ export default function SprintCard({
 
       <div style={actionRow}>
         <button
-          style={btnGhost}
-          onClick={() => onGenerateSprintDoc("sprint_status", sprint.numero)}
-          disabled={generating}
+          style={pendingGen === "sprint_status" ? btnActionActive : btnAction}
+          onClick={() => setPendingGen(pendingGen === "sprint_status" ? null : "sprint_status")}
         >
-          {generating ? "Gerando…" : "Gerar Repasse Semanal"}
+          Gerar Repasse Semanal
         </button>
         <button
-          style={btnGhost}
-          onClick={() => onGenerateSprintDoc("sprint_retro", sprint.numero)}
-          disabled={generating}
+          style={pendingGen === "sprint_retro" ? btnActionActive : btnAction}
+          onClick={() => setPendingGen(pendingGen === "sprint_retro" ? null : "sprint_retro")}
         >
-          {generating ? "Gerando…" : "Gerar Retrospectiva"}
+          Gerar Retrospectiva
         </button>
-        <button style={btnGhost} onClick={() => onUploadLivre(sprint.numero)}>
+        <button style={btnAction} onClick={() => onUploadLivre(sprint.numero)}>
           Upload livre
         </button>
-        <button style={btnGhost} onClick={() => onAddManualDoc(sprint.numero)}>
+        <button style={btnAction} onClick={() => onAddManualDoc(sprint.numero)}>
           + Documento manual
         </button>
       </div>
 
+      {/* Painel de confirmação com explicação */}
+      {pendingMeta && (
+        <div style={confirmPanel}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 12px" }}>
+            {pendingMeta.label} — Sprint {sprint.numero}
+          </h4>
+          <div style={confirmField}>
+            <span style={confirmFieldLabel}>O quê</span>
+            <span>{pendingMeta.o_que}</span>
+          </div>
+          <div style={confirmField}>
+            <span style={confirmFieldLabel}>Pra quê</span>
+            <span>{pendingMeta.pra_que}</span>
+          </div>
+          <div style={confirmField}>
+            <span style={confirmFieldLabel}>Quando</span>
+            <span>{pendingMeta.quando}</span>
+          </div>
+          <div style={confirmField}>
+            <span style={confirmFieldLabel}>Fontes</span>
+            <span>{pendingMeta.fontes}</span>
+          </div>
+          <div style={confirmActions}>
+            <button style={btnCancel} onClick={() => setPendingGen(null)}>
+              Cancelar
+            </button>
+            <button
+              style={{ ...btnConfirm, opacity: generating ? 0.6 : 1 }}
+              onClick={confirmGenerate}
+              disabled={generating}
+            >
+              {generating ? "Gerando…" : "Confirmar e gerar"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {expanded && (
         <div style={detailBox}>
-          {/* DOCS GERADOS DA SPRINT — mais destaque, primeiro */}
+          {/* DOCS GERADOS DA SPRINT — destaque */}
           <p style={subTitleStyle}>Documentos desta sprint ({docs.length})</p>
           {docs.length === 0 ? (
             <p style={{ color: "#9696a0", fontSize: 13, margin: "0 0 14px" }}>
               Nenhum documento gerado para esta sprint ainda.
             </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
               {docs.map((d) => (
                 <div key={d.id} style={docRow}>
                   <div style={docHeader}>
-                    <span style={{ fontWeight: 600, color: "#111116" }}>
+                    <span style={{ fontWeight: 600, color: "#0f172a" }}>
                       {docTypeLabel(d.doc_type)}
-                      <span style={{ color: "#b8b8c0", fontWeight: 400, marginLeft: 8 }}>
+                      <span style={{ color: "#94a3b8", fontWeight: 400, marginLeft: 8 }}>
                         {new Date(d.created_at).toLocaleDateString("pt-BR")}
                       </span>
                     </span>
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 5 }}>
                       <button
                         style={tinyBtn}
                         onClick={() => setExpandedDocId(expandedDocId === d.id ? null : d.id)}
@@ -334,10 +450,16 @@ export default function SprintCard({
             </div>
           )}
 
-          {/* INGESTÕES — contexto bruto, secundário */}
+          {/* INGESTÕES — material bruto, secundário */}
           <p style={subTitleStyle}>
             Ingestões da sprint ({ingestions.length})
-            <span style={{ ...muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+            <span style={{
+              ...muted,
+              fontWeight: 400,
+              marginLeft: 6,
+              textTransform: "none",
+              letterSpacing: 0,
+            }}>
               — material bruto que alimenta as docs
             </span>
           </p>
@@ -352,7 +474,7 @@ export default function SprintCard({
                   key={ing.id}
                   style={{
                     background: "#fff",
-                    border: "1px solid #e8e8ed",
+                    border: "1px solid #e2e8f0",
                     borderRadius: 8,
                     padding: "10px 12px",
                     fontSize: 13,

@@ -342,6 +342,25 @@ export async function createManualDoc(input: {
   return res.json();
 }
 
+export async function uploadManualDocPdf(input: {
+  projetoId: string;
+  docType: string;
+  sprintNumero?: number | null;
+  arquivo: File;
+}): Promise<GeneratedDoc> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("doc_type", input.docType);
+  if (input.sprintNumero != null) form.append("sprint_numero", String(input.sprintNumero));
+  form.append("arquivo", input.arquivo);
+  const res = await fetch(`${API}/docs/manual/upload`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao subir PDF do documento manual");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

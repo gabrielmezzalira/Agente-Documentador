@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Form, File, HTTPException, UploadFile
 
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
@@ -111,6 +113,56 @@ async def create_manual_doc(req: ManualDocCreate):
             "doc_type": req.doc_type,
             "sprint_number": req.sprint_numero,
             "content": req.content,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+        })
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to create manual doc")
+    return response.data[0]
+
+
+@router.post("/docs/manual/upload", response_model=GenerateResponse, status_code=201)
+async def create_manual_doc_from_pdf(
+    projeto_id: str = Form(...),
+    doc_type: str = Form(...),
+    sprint_numero: Optional[int] = Form(None),
+    arquivo: UploadFile = File(...),
+):
+    """Cria doc manual a partir de PDF — extrai texto via pdfplumber, sem chamar LLM.
+
+    PDFs escaneados (sem camada de texto) são rejeitados; nesse caso o gerente deveria
+    usar o upload livre, que tem fallback para vision.
+    """
+    if arquivo.content_type != "application/pdf":
+        raise HTTPException(status_code=422, detail="Arquivo deve ser PDF")
+
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", projeto_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pdf_bytes = await arquivo.read()
+    from services.file_parser import parse_pdf
+    parsed = parse_pdf(pdf_bytes)
+    if parsed["is_scanned"]:
+        raise HTTPException(
+            status_code=422,
+            detail="PDF parece escaneado (sem camada de texto). Use o upload livre para PDFs escaneados.",
+        )
+    text = parsed["text"].strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="PDF não contém texto extraível")
+
+    response = (
+        client.table("generated_docs")
+        .insert({
+            "project_id": projeto_id,
+            "doc_type": doc_type,
+            "sprint_number": sprint_numero,
+            "content": text,
             "input_tokens": 0,
             "output_tokens": 0,
             "cost_usd": 0,

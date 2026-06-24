@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -12,7 +12,6 @@ import {
   listDocs,
   listSprints,
   createSprint,
-  ingestFile,
   generateDoc,
   submitAtaUpload,
   deleteProject,
@@ -31,6 +30,7 @@ import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
+import UploadLivreModal from "../../components/UploadLivreModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
 type TabId = "sprints" | "tecnologias" | "docs" | "config";
@@ -56,19 +56,8 @@ export default function ProjectDashboard() {
   // ---------- modal doc manual ----------
   const [manualModal, setManualModal] = useState<{ sprintNumero: number | null } | null>(null);
 
-  // ---------- upload livre ----------
-  const [uploadMode, setUploadMode] = useState<"file" | "folder">("file");
-  const [file, setFile] = useState<File | null>(null);
-  const [sprint, setSprint] = useState<number>(1);
-  const [ingesting, setIngesting] = useState(false);
-  const [ingestMsg, setIngestMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [folderFiles, setFolderFiles] = useState<File[]>([]);
-  const [folderIngesting, setFolderIngesting] = useState(false);
-  const [folderProgress, setFolderProgress] = useState<
-    { done: number; total: number; errors: string[]; cancelled?: boolean } | null
-  >(null);
-  const cancelRef = useRef(false);
-  const uploadSectionRef = useRef<HTMLDivElement | null>(null);
+  // ---------- modal upload livre ----------
+  const [uploadModal, setUploadModal] = useState<{ sprintNumero: number } | null>(null);
 
   // ---------- geração ----------
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
@@ -147,115 +136,6 @@ export default function ProjectDashboard() {
     }
   }
 
-  const ACCEPTED_EXTS = new Set([
-    ".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx", ".sql",
-    ".yaml", ".yml", ".json", ".csv", ".html", ".css", ".java",
-    ".go", ".rs", ".rb", ".sh", ".toml", ".xml", ".env",
-    ".docx", ".pdf", ".png", ".jpg", ".jpeg", ".webp",
-  ]);
-  const SKIP_DIRS = new Set([
-    "node_modules", ".git", "__pycache__", ".venv", "venv",
-    "dist", "build", ".next", ".cache", ".idea", ".vscode",
-  ]);
-
-  async function resizeImageIfNeeded(f: File, maxDim = 1024): Promise<File> {
-    if (!f.type.startsWith("image/")) return f;
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(f);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const { naturalWidth: w, naturalHeight: h } = img;
-        if (w <= maxDim && h <= maxDim) { resolve(f); return; }
-        const scale = maxDim / Math.max(w, h);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(w * scale);
-        canvas.height = Math.round(h * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(
-          (blob) => resolve(blob ? new File([blob], f.name, { type: "image/jpeg" }) : f),
-          "image/jpeg",
-          0.85
-        );
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(f); };
-      img.src = url;
-    });
-  }
-
-  function isAcceptedFile(f: File): boolean {
-    if (f.size < 100) return false;
-    const path = (f as File & { webkitRelativePath: string }).webkitRelativePath || f.name;
-    const segments = path.split("/");
-    if (segments.slice(0, -1).some((s) => SKIP_DIRS.has(s))) return false;
-    const ext = "." + (f.name.split(".").pop() ?? "").toLowerCase();
-    return ACCEPTED_EXTS.has(ext);
-  }
-
-  function handleFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setFolderFiles(Array.from(e.target.files ?? []).filter(isAcceptedFile));
-    setFolderProgress(null);
-  }
-
-  async function handleFolderIngest(e: React.FormEvent) {
-    e.preventDefault();
-    if (folderFiles.length === 0) return;
-    cancelRef.current = false;
-    setFolderIngesting(true);
-    setFolderProgress({ done: 0, total: folderFiles.length, errors: [] });
-    const CONCURRENCY = 5;
-    const errors: string[] = [];
-    let done = 0;
-    let idx = 0;
-    async function worker() {
-      while (true) {
-        if (cancelRef.current) break;
-        const myIdx = idx++;
-        if (myIdx >= folderFiles.length) break;
-        const f = folderFiles[myIdx];
-        const relativePath =
-          (f as File & { webkitRelativePath: string }).webkitRelativePath || f.name;
-        try {
-          const fileToSend = await resizeImageIfNeeded(
-            new File([f], relativePath, { type: f.type })
-          );
-          await ingestFile(id, sprint, fileToSend);
-        } catch {
-          errors.push(relativePath);
-        }
-        done++;
-        setFolderProgress({ done, total: folderFiles.length, errors: [...errors] });
-      }
-    }
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    setFolderIngesting(false);
-    if (!cancelRef.current) {
-      await refreshAll();
-    } else {
-      setFolderProgress((p) => (p ? { ...p, cancelled: true } : null));
-    }
-  }
-
-  async function handleIngest(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) return;
-    setIngesting(true);
-    setIngestMsg(null);
-    try {
-      await ingestFile(id, sprint, await resizeImageIfNeeded(file));
-      setIngestMsg({ ok: true, text: `"${file.name}" processado com sucesso.` });
-      setFile(null);
-      await refreshAll();
-    } catch (err) {
-      setIngestMsg({
-        ok: false,
-        text: err instanceof Error ? err.message : "Erro desconhecido",
-      });
-    } finally {
-      setIngesting(false);
-    }
-  }
-
   async function handleGenerate(
     tipoDoc: string,
     sprintNum?: number,
@@ -304,9 +184,7 @@ export default function ProjectDashboard() {
   }
 
   function handleUploadLivre(sprintNumero: number) {
-    setSprint(sprintNumero);
-    setActiveTab("sprints");
-    setTimeout(() => uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    setUploadModal({ sprintNumero });
   }
 
   function handleGenerateFromCard(tipoDoc: "sprint_status" | "sprint_retro", sprintNumero: number) {
@@ -435,119 +313,44 @@ export default function ProjectDashboard() {
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
         <>
-          {/* UPLOAD LIVRE */}
-          <section ref={uploadSectionRef} style={sectionStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <h2 style={sectionTitle}>Upload livre · Sprint {sprint}</h2>
-              <div style={{ display: "flex", border: "1px solid #e4e4ea", borderRadius: 8, overflow: "hidden" }}>
-                <button onClick={() => setUploadMode("file")} style={uploadMode === "file" ? modeTabActive : modeTab}>Arquivo</button>
-                <button onClick={() => setUploadMode("folder")} style={uploadMode === "folder" ? modeTabActive : modeTab}>Pasta</button>
-              </div>
+          {/* SPRINTS — header destacado */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+            marginTop: 4,
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#0f172a",
+                letterSpacing: "-0.02em",
+                margin: 0,
+              }}>
+                Sprints
+                <span style={{
+                  fontSize: 14,
+                  color: "#94a3b8",
+                  fontWeight: 600,
+                  marginLeft: 10,
+                }}>
+                  {sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}
+                  {totalPendencias > 0 && ` · ${totalPendencias} pendência${totalPendencias === 1 ? "" : "s"}`}
+                </span>
+              </h2>
+              <p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
+                Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips coloridos pra registrar, ou use os botões pra gerar docs derivadas.
+              </p>
             </div>
-            <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 18px", lineHeight: 1.5 }}>
-              Material avulso pra dar contexto ao projeto — print de conversa, código fonte, PDFs do cliente, ata externa, qualquer coisa que ajude o agente a entender o que está acontecendo. Esses uploads alimentam as documentações gerais (ADRs, Onboarding, Documentação Final). Pro mínimo obrigatório de cada sprint (Planning, Daily, Review) use os botões coloridos no card da sprint.
-            </p>
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Sprint</label>
-              <input
-                type="number"
-                min={1}
-                value={sprint}
-                onChange={(e) => setSprint(Number(e.target.value))}
-                style={{ ...inputStyle, width: 90 }}
-              />
-            </div>
-
-            {uploadMode === "file" ? (
-              <form onSubmit={handleIngest} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Arquivo (.txt, .docx, .pdf, imagens, código)</label>
-                    <input
-                      type="file"
-                      accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp,.py,.js,.ts,.tsx,.jsx,.sql,.md,.yaml,.yml,.json,.csv,.html,.css,.java,.go,.rs,.rb,.sh,.toml,.env,.xml"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                      style={{ ...inputStyle, padding: "8px 12px" }}
-                    />
-                  </div>
-                  <button type="submit" disabled={ingesting || !file} style={btnPrimary}>
-                    {ingesting ? "Processando..." : "Enviar"}
-                  </button>
-                </div>
-                {ingestMsg && (
-                  <p style={{ fontSize: 13, color: ingestMsg.ok ? "#16a34a" : "#dc2626" }}>
-                    {ingestMsg.text}
-                  </p>
-                )}
-              </form>
-            ) : (
-              <form onSubmit={handleFolderIngest} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Selecionar pasta</label>
-                    <input
-                      type="file"
-                      /* @ts-expect-error webkitdirectory não é atributo padrão do TS */
-                      webkitdirectory=""
-                      multiple
-                      onChange={handleFolderChange}
-                      style={{ ...inputStyle, padding: "8px 12px" }}
-                    />
-                    {folderFiles.length > 0 && (
-                      <p style={{ fontSize: 13, color: "#9696a0", marginTop: 6 }}>
-                        {folderFiles.length} arquivo{folderFiles.length !== 1 ? "s" : ""} aceitos · node_modules, .git e binários ignorados
-                      </p>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button type="submit" disabled={folderIngesting || folderFiles.length === 0} style={btnPrimary}>
-                      {folderIngesting ? `${folderProgress?.done ?? 0} / ${folderProgress?.total ?? 0}` : "Enviar pasta"}
-                    </button>
-                    {folderIngesting && (
-                      <button type="button" onClick={() => { cancelRef.current = true; }} style={btnDanger}>Cancelar</button>
-                    )}
-                  </div>
-                </div>
-                {folderProgress && (
-                  <div style={{ fontSize: 13 }}>
-                    <div style={{ background: "#f0f0f4", borderRadius: 4, height: 4, marginBottom: 8 }}>
-                      <div style={{
-                        background: folderProgress.cancelled ? "#b8b8c0" : folderProgress.errors.length > 0 ? "#d97706" : "#22c55e",
-                        borderRadius: 4,
-                        height: 4,
-                        width: `${(folderProgress.done / folderProgress.total) * 100}%`,
-                        transition: "width 0.2s",
-                      }} />
-                    </div>
-                    {folderIngesting ? (
-                      <p style={{ color: "#9696a0" }}>Processando {folderProgress.done} de {folderProgress.total} · 5 em paralelo</p>
-                    ) : folderProgress.cancelled ? (
-                      <p style={{ color: "#9696a0" }}>Cancelado · {folderProgress.done - folderProgress.errors.length} processados</p>
-                    ) : (
-                      <p style={{ color: folderProgress.errors.length === 0 ? "#16a34a" : "#d97706" }}>
-                        ✓ {folderProgress.done - folderProgress.errors.length} processados
-                        {folderProgress.errors.length > 0 && ` · ${folderProgress.errors.length} com erro: ${folderProgress.errors.slice(0, 3).join(", ")}`}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </form>
-            )}
-          </section>
-
-          {/* SPRINTS LIST */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, marginTop: 24 }}>
-            <h2 style={{ ...sectionTitle, margin: 0 }}>
-              Sprints ({sprints.length})
-            </h2>
             <button onClick={handleCreateSprint} style={btnPrimary}>+ Nova sprint</button>
           </div>
 
           {sprints.length === 0 ? (
             <section style={sectionStyle}>
               <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
-                Nenhuma sprint criada. Clique em <strong>+ Nova sprint</strong> ou faça um upload acima.
+                Nenhuma sprint criada. Clique em <strong>+ Nova sprint</strong> pra começar.
               </p>
             </section>
           ) : (
@@ -776,6 +579,17 @@ export default function ProjectDashboard() {
           await refreshAll();
         }}
       />
+
+      {/* MODAL Upload Livre */}
+      <UploadLivreModal
+        open={uploadModal !== null}
+        onClose={() => setUploadModal(null)}
+        projetoId={id}
+        sprintNumero={uploadModal?.sprintNumero ?? 1}
+        onCompleted={async () => {
+          await refreshAll();
+        }}
+      />
     </main>
   );
 }
@@ -869,21 +683,6 @@ const markdownContainer: React.CSSProperties = {
   padding: "20px 24px",
   lineHeight: 1.8,
   color: "#374151",
-};
-const modeTab: React.CSSProperties = {
-  background: "transparent",
-  color: "#9696a0",
-  border: "none",
-  padding: "6px 14px",
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: "pointer",
-};
-const modeTabActive: React.CSSProperties = {
-  ...modeTab,
-  background: "#4ade80",
-  color: "#0a0a0a",
-  fontWeight: 700,
 };
 const btnDelivered: React.CSSProperties = {
   background: "#f7f7fa",

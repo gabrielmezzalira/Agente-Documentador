@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createManualDoc, type GeneratedDoc } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { uploadManualDocPdf, type GeneratedDoc } from "../lib/api";
 import { DOC_TYPES, type DocTypeKey } from "../lib/doc_types";
 
 interface Props {
@@ -29,10 +29,10 @@ const modalStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: 12,
   width: "100%",
-  maxWidth: 640,
+  maxWidth: 560,
   maxHeight: "90vh",
   overflowY: "auto",
-  padding: 24,
+  padding: 28,
   boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
 };
 
@@ -42,27 +42,18 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "#334155",
   marginBottom: 6,
-  marginTop: 14,
+  marginTop: 16,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   border: "1px solid #e2e8f0",
   borderRadius: 8,
-  padding: "8px 10px",
+  padding: "10px 12px",
   fontSize: 14,
   outline: "none",
   background: "#fff",
   boxSizing: "border-box",
-};
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  resize: "vertical",
-  minHeight: 240,
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  fontSize: 13,
-  lineHeight: 1.6,
 };
 
 const primaryBtn: React.CSSProperties = {
@@ -110,7 +101,8 @@ export default function ManualDocModal({
 }: Props) {
   const [docType, setDocType] = useState<DocTypeKey>(defaultDocType);
   const [sprintNumero, setSprintNumero] = useState<number | null>(defaultSprintNumero);
-  const [content, setContent] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,31 +110,33 @@ export default function ManualDocModal({
     if (open) {
       setDocType(defaultDocType);
       setSprintNumero(defaultSprintNumero);
-      setContent("");
+      setFileName(null);
       setError(null);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }, [open, defaultDocType, defaultSprintNumero]);
 
   if (!open) return null;
 
   async function submit() {
-    if (!content.trim()) {
-      setError("O conteúdo do documento não pode estar vazio.");
+    const file = fileRef.current?.files?.[0];
+    if (!file) {
+      setError("Selecione um PDF.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const doc = await createManualDoc({
+      const doc = await uploadManualDocPdf({
         projetoId,
         docType,
         sprintNumero: sprintNumero ?? null,
-        content,
+        arquivo: file,
       });
       onCreated?.(doc);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao criar documento");
+      setError(e instanceof Error ? e.message : "Erro ao subir documento");
     } finally {
       setSubmitting(false);
     }
@@ -151,12 +145,12 @@ export default function ManualDocModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0f172a" }}>
           Adicionar documento manual
         </h2>
         <p style={{ fontSize: 13, color: "#6a6a7a", margin: "8px 0 0", lineHeight: 1.5 }}>
-          Use pra registrar um doc que você já escreveu fora do sistema. Não chama o LLM
-          (sem custo). Aparece junto com os documentos gerados.
+          Subir um PDF de doc final escrito fora do sistema. O texto é extraído e armazenado
+          junto com os outros documentos do projeto. Não chama o LLM (sem custo).
         </p>
 
         <label style={labelStyle}>Tipo de documento</label>
@@ -185,17 +179,26 @@ export default function ManualDocModal({
           onChange={(e) =>
             setSprintNumero(e.target.value === "" ? null : Number(e.target.value))
           }
-          style={{ ...inputStyle, width: 120 }}
+          style={{ ...inputStyle, width: 140 }}
           placeholder="—"
         />
 
-        <label style={labelStyle}>Conteúdo (markdown)</label>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={"# Título\n\n## Seção\n\nTexto..."}
-          style={textareaStyle}
+        <label style={labelStyle}>PDF do documento</label>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+          style={{ fontSize: 13 }}
         />
+        {fileName && (
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
+            Selecionado: {fileName}
+          </div>
+        )}
+        <p style={{ fontSize: 12, color: "#9696a0", margin: "8px 0 0", lineHeight: 1.5 }}>
+          PDFs escaneados sem camada de texto não são suportados aqui — use o upload livre da sprint nesse caso.
+        </p>
 
         {error && (
           <div
