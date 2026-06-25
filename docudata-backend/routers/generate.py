@@ -9,10 +9,11 @@ from services.supabase_client import get_client
 router = APIRouter(tags=["generate"])
 
 _VALID_DOC_TYPES = {
-    "sprint_status", "sprint_retro", "decisoes", "completo", "ata_reuniao", "onboarding", "adr",
+    "repasse_semanal", "retrospectiva", "log_decisoes", "documentacao_final",
+    "ata_reuniao", "onboarding", "adr",
     "planning", "daily", "review",
 }
-_SPRINT_REQUIRED = {"sprint_status", "sprint_retro", "decisoes", "review"}
+_SPRINT_REQUIRED = {"repasse_semanal", "retrospectiva", "review"}
 _INGESTION_REQUIRED = {"ata_reuniao", "planning", "daily"}
 
 
@@ -61,9 +62,12 @@ async def generate(req: GenerateRequest):
         "documento": "",
         "input_tokens": 0,
         "output_tokens": 0,
+        "erro_contexto": None,
     }
 
-    await generation_graph.ainvoke(state)
+    result = await generation_graph.ainvoke(state)
+    if result.get("erro_contexto"):
+        raise HTTPException(status_code=422, detail=result["erro_contexto"])
 
     doc_resp = (
         client.table("generated_docs")

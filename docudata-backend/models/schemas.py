@@ -51,7 +51,7 @@ class IngestResponse(BaseModel):
 
 class GenerateRequest(BaseModel):
     projeto_id: str
-    tipo_doc: str        # sprint_status | sprint_retro | decisoes | completo | ata_reuniao
+    tipo_doc: str        # repasse_semanal | retrospectiva | log_decisoes | documentacao_final | ata_reuniao | adr | onboarding | planning | daily | review
     sprint_numero: Optional[int] = None
     ingestion_id: Optional[str] = None
     observacoes: Optional[str] = None

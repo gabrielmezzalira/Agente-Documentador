@@ -13,13 +13,13 @@
  */
 
 export type DocTypeKey =
-  | "sprint_status"
-  | "sprint_retro"
+  | "repasse_semanal"
+  | "retrospectiva"
   | "ata_reuniao"
-  | "decisoes"
+  | "log_decisoes"
   | "adr"
   | "onboarding"
-  | "completo"
+  | "documentacao_final"
   | "planning"
   | "daily"
   | "review";
@@ -39,8 +39,8 @@ export interface DocTypeMeta {
 }
 
 export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
-  sprint_status: {
-    key: "sprint_status",
+  repasse_semanal: {
+    key: "repasse_semanal",
     label: "Repasse Semanal",
     icone: "📊",
     scope: "sprint",
@@ -49,8 +49,8 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     quando: "Ao final de cada sprint (semanal/quinzenal), ou antes de uma reunião de status com o cliente.",
     fontes: "Planning + Dailys + ingestões livres da sprint selecionada.",
   },
-  sprint_retro: {
-    key: "sprint_retro",
+  retrospectiva: {
+    key: "retrospectiva",
     label: "Retrospectiva",
     icone: "🔁",
     scope: "sprint",
@@ -69,8 +69,8 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     quando: "Logo após uma reunião — você sobe a transcrição ou PDF da pauta e gera a ata.",
     fontes: "Uma ingestão específica que contenha a transcrição ou pauta da reunião.",
   },
-  decisoes: {
-    key: "decisoes",
+  log_decisoes: {
+    key: "log_decisoes",
     label: "Log de Decisões",
     icone: "🧭",
     scope: "project",
@@ -99,8 +99,8 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     quando: "Antes de trocar de gerente, no início da gestão, ou pra integrar um novo analista ao projeto.",
     fontes: "Todas as ingestões do projeto. A sprint mais recente define o estado ATUAL.",
   },
-  completo: {
-    key: "completo",
+  documentacao_final: {
+    key: "documentacao_final",
     label: "Documentação Final",
     icone: "📚",
     scope: "project",

@@ -13,7 +13,7 @@ import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 
 const EXPECTED_DAILYS = 5;
 
-type SprintGenType = "sprint_status" | "sprint_retro";
+type SprintGenType = "repasse_semanal" | "retrospectiva";
 
 interface Props {
   sprint: SprintWithStatus;
@@ -273,6 +273,7 @@ export default function SprintCard({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
   const [pendingGen, setPendingGen] = useState<SprintGenType | null>(null);
 
   function confirmGenerate() {
@@ -283,6 +284,56 @@ export default function SprintCard({
   }
 
   const pendingMeta = pendingGen ? DOC_TYPES[pendingGen] : null;
+
+  type ExtractedContent = NonNullable<Ingestion["extracted_content"]>;
+
+  function renderIngestionChips(content: ExtractedContent | undefined | null) {
+    if (!content) return null;
+    const tarefas = content.tarefas?.length ?? 0;
+    const decisoes = content.decisoes?.length ?? 0;
+    const problemas = content.problemas?.length ?? 0;
+    const tecnologias = content.tecnologias ?? [];
+    const parts: string[] = [];
+    if (tarefas > 0) parts.push(`📋 ${tarefas}`);
+    if (decisoes > 0) parts.push(`🧭 ${decisoes}`);
+    if (problemas > 0) parts.push(`⚠️ ${problemas}`);
+    if (tecnologias.length > 0) {
+      const techStr = tecnologias.slice(0, 3).join(", ") + (tecnologias.length > 3 ? "…" : "");
+      parts.push(`🔧 ${techStr}`);
+    }
+    if (parts.length === 0) return null;
+    return (
+      <p style={{ color: "#8892a4", fontSize: 11, margin: "4px 0 0", lineHeight: 1.4 }}>
+        {parts.join("  ·  ")}
+      </p>
+    );
+  }
+
+  function renderIngestionDetail(content: ExtractedContent | undefined | null) {
+    if (!content) return null;
+    const sections = [
+      { label: "Tarefas", items: content.tarefas ?? [] },
+      { label: "Decisões", items: content.decisoes ?? [] },
+      { label: "Problemas", items: content.problemas ?? [] },
+      { label: "Próximos passos", items: content.proximos_passos ?? [] },
+      { label: "Tecnologias", items: content.tecnologias ?? [] },
+    ].filter((s) => s.items.length > 0);
+    if (sections.length === 0) return null;
+    return (
+      <div style={{ marginTop: 8, borderTop: "1px solid #f0f0f6", paddingTop: 8 }}>
+        {sections.map(({ label, items }) => (
+          <div key={label} style={{ marginBottom: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 11, color: "#64748b" }}>{label}:</span>
+            <ul style={{ margin: "2px 0 0 16px", padding: 0 }}>
+              {items.map((item, i) => (
+                <li key={i} style={{ fontSize: 11, color: "#52525b", lineHeight: 1.5 }}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div style={cardStyle}>
@@ -342,14 +393,14 @@ export default function SprintCard({
 
       <div style={actionRow}>
         <button
-          style={pendingGen === "sprint_status" ? btnActionActive : btnAction}
-          onClick={() => setPendingGen(pendingGen === "sprint_status" ? null : "sprint_status")}
+          style={pendingGen === "repasse_semanal" ? btnActionActive : btnAction}
+          onClick={() => setPendingGen(pendingGen === "repasse_semanal" ? null : "repasse_semanal")}
         >
           Gerar Repasse Semanal
         </button>
         <button
-          style={pendingGen === "sprint_retro" ? btnActionActive : btnAction}
-          onClick={() => setPendingGen(pendingGen === "sprint_retro" ? null : "sprint_retro")}
+          style={pendingGen === "retrospectiva" ? btnActionActive : btnAction}
+          onClick={() => setPendingGen(pendingGen === "retrospectiva" ? null : "retrospectiva")}
         >
           Gerar Retrospectiva
         </button>
@@ -469,30 +520,59 @@ export default function SprintCard({
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ingestions.map((ing) => (
-                <div
-                  key={ing.id}
-                  style={{
-                    background: "#fff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    fontSize: 13,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontWeight: 600 }}>{ing.file_name}</span>
-                    {ing.tipo_documentacao && (
-                      <span style={tagStyle}>{ing.tipo_documentacao}</span>
+              {ingestions.map((ing) => {
+                const isIngExpanded = expandedIngId === ing.id;
+                const content = ing.extracted_content;
+                const hasDetails = content && (
+                  (content.tarefas?.length ?? 0) > 0 ||
+                  (content.decisoes?.length ?? 0) > 0 ||
+                  (content.problemas?.length ?? 0) > 0 ||
+                  (content.proximos_passos?.length ?? 0) > 0 ||
+                  (content.tecnologias?.length ?? 0) > 0
+                );
+                return (
+                  <div
+                    key={ing.id}
+                    style={{
+                      background: "#fff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontWeight: 600 }}>{ing.file_name}</span>
+                      {ing.tipo_documentacao && (
+                        <span style={tagStyle}>{ing.tipo_documentacao}</span>
+                      )}
+                    </div>
+                    {content?.resumo && (
+                      <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 12, lineHeight: 1.5 }}>
+                        {content.resumo}
+                      </p>
                     )}
+                    {renderIngestionChips(content)}
+                    {hasDetails && (
+                      <button
+                        onClick={() => setExpandedIngId(isIngExpanded ? null : ing.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "3px 0 0",
+                          fontSize: 11,
+                          color: "#6366f1",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {isIngExpanded ? "ocultar detalhes ▲" : "ver detalhes ▼"}
+                      </button>
+                    )}
+                    {isIngExpanded && renderIngestionDetail(content)}
                   </div>
-                  {ing.extracted_content?.resumo && (
-                    <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 12, lineHeight: 1.5 }}>
-                      {ing.extracted_content.resumo}
-                    </p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

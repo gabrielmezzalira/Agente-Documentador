@@ -25,6 +25,7 @@ class GenerationState(TypedDict):
     documento: str
     input_tokens: int
     output_tokens: int
+    erro_contexto: Optional[str]
 
 
 def _make_llm(api_key: str):
@@ -42,8 +43,33 @@ _NO_HALLUCINATE = (
     "não presentes no contexto fornecido abaixo."
 )
 
+# ─── COMO OS TEMPLATES FUNCIONAM ─────────────────────────────────────────────
+# Cada chave é o valor de `tipo_doc` trafegado entre frontend e backend.
+#
+# Fluxo de geração (sempre o mesmo para todos):
+#   1. buscar_ingestions  → consulta tabela `ingestions` no Supabase
+#   2. compilar_contexto  → serializa os JSONs extraídos em bloco de texto
+#   3. gerar_documento    → injeta contexto + vars do projeto no template abaixo
+#   4. salvar_documento   → grava o markdown em `generated_docs`
+#
+# Escopo de busca por tipo:
+#   · sprint-scoped   → ingestions WHERE project_id=X AND sprint_number=N
+#   · ingestion-only  → ingestions WHERE id=<ingestion_id>  (âncora direta)
+#   · project-wide    → ingestions WHERE project_id=X ORDER BY sprint_number ASC
+#
+# Variáveis injetadas em todos os templates:
+#   {projeto_nome}  → projects.name
+#   {cliente}       → projects.client
+#   {sprint_numero} → sprint_number passado na request (None para project-wide)
+#   {contexto}      → bloco serializado das ingestões (ver compilar_contexto)
+# ──────────────────────────────────────────────────────────────────────────────
+
 _PROMPTS = {
-    "sprint_status": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+    # ── REPASSE SEMANAL ───────────────────────────────────────────────────────
+    # Escopo: sprint-scoped
+    # Insumos: planning + dailys + uploads livres da sprint selecionada
+    # Campos de ingestion usados: resumo, tarefas, decisoes, problemas, proximos_passos
+    "repasse_semanal": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto das ingestões abaixo, gere um Repasse Semanal da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
 Siga EXATAMENTE esta estrutura em markdown:
@@ -80,7 +106,11 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Contexto das ingestões da Sprint {sprint_numero}:
 {contexto}""",
 
-    "sprint_retro": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+    # ── RETROSPECTIVA ─────────────────────────────────────────────────────────
+    # Escopo: sprint-scoped
+    # Insumos: TODAS as ingestões da sprint (planning, dailys, review, uploads livres)
+    # Campos usados: resumo, tarefas, decisoes, problemas, proximos_passos, contexto_cliente
+    "retrospectiva": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto das ingestões abaixo, gere uma Ata de Reunião da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
 Siga EXATAMENTE esta estrutura em markdown:
@@ -122,7 +152,11 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Contexto das ingestões da Sprint {sprint_numero}:
 {contexto}""",
 
-    "decisoes": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+    # ── LOG DE DECISÕES ───────────────────────────────────────────────────────
+    # Escopo: project-wide
+    # Insumos: TODAS as ingestões do projeto ordenadas por sprint
+    # Campos usados: decisoes (campo principal), resumo (contexto adicional)
+    "log_decisoes": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto abaixo, gere um Log de Decisões Técnicas completo do projeto "{projeto_nome}" (cliente: {cliente}).
 
 O documento deve ter o seguinte formato em markdown:
@@ -139,6 +173,11 @@ Liste em ordem cronológica por sprint. Inclua decisões técnicas, de escopo, d
 Contexto de todas as ingestões do projeto:
 {contexto}""",
 
+    # ── ATA DE REUNIÃO ────────────────────────────────────────────────────────
+    # Escopo: ingestion-only — âncora em UM registro específico
+    # Insumos: transcrição ou pauta da reunião (PDF ou imagem) já extraída pelo extraction_graph
+    # Campos usados: resumo (transcrição resumida), tarefas, decisoes, problemas
+    # Nota: a ingestão é criada pelo endpoint POST /sprint-docs/ata (via sprint_docs.py)
     "ata_reuniao": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base na transcrição ou documento de reunião abaixo, gere uma Ata de Reunião formal para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -183,6 +222,12 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Transcrição / documento da reunião:
 {contexto}""",
 
+    # ── ADRs ──────────────────────────────────────────────────────────────────
+    # Escopo: project-wide
+    # Insumos: TODAS as ingestões do projeto + seção MUDANÇAS DETECTADAS (gerada por _detect_changes)
+    # Campos usados: decisoes, tecnologias (para detectar migrações de stack entre sprints)
+    # Nota: _detect_changes compara tecnologias de sprints consecutivas e adiciona
+    #       um bloco extra no contexto quando detecta adições/remoções de stack
     "adr": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto acumulado de todas as ingestões abaixo, gere um conjunto de ADRs (Architecture Decision Records) para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -232,6 +277,13 @@ Para cada ADR use EXATAMENTE este formato:
 Contexto de todas as ingestões do projeto:
 {contexto}""",
 
+    # ── ONBOARDING ────────────────────────────────────────────────────────────
+    # Escopo: project-wide
+    # Insumos: TODAS as ingestões do projeto; sprint mais recente = estado atual
+    # Campos usados: resumo, tarefas, tecnologias, decisoes, problemas, proximos_passos,
+    #                contexto_cliente
+    # Nota: o template instrui o modelo a usar dados da sprint mais recente para
+    #       descrever stack/estado atual, e tratar sprints anteriores como histórico
     "onboarding": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto acumulado de todas as ingestões abaixo, gere um documento de Onboarding para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -301,6 +353,12 @@ Siga EXATAMENTE esta estrutura em markdown:
 Contexto de todas as ingestões do projeto:
 {contexto}""",
 
+    # ── PLANNING ──────────────────────────────────────────────────────────────
+    # Escopo: ingestion-only — âncora em UM registro criado pelo modal de Planning
+    # Insumos: formulário estruturado (descricao + itens_backlog) + PDF/imagem opcional
+    # Campos usados: resumo (= descricao), tarefas (= itens_backlog), proximos_passos
+    # Nota: a ingestão é criada pelo endpoint POST /sprint-docs/planning (sprint_docs.py)
+    #       sem passar pelo extraction_graph (dados já chegam estruturados do form)
     "planning": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base nos insumos estruturados informados pelo gerente abaixo (e PDF anexo, se houver), gere um documento de Planning da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -344,6 +402,12 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Insumos do gerente:
 {contexto}""",
 
+    # ── DAILY ─────────────────────────────────────────────────────────────────
+    # Escopo: ingestion-only — âncora em UM registro criado pelo modal de Daily
+    # Insumos: formulário estruturado (data, feito, proximo, impedimentos) + PDF opcional
+    # Campos usados: campos_daily.{data,feito,proximo,impedimentos} + resumo (serializado)
+    # Nota: a ingestão é criada pelo endpoint POST /sprint-docs/daily (sprint_docs.py)
+    #       o campo `campos_daily` é um sub-dict dentro de extracted_content
     "daily": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base nos insumos estruturados informados pelo gerente abaixo (e PDF/transcrição anexa, se houver), gere o documento da Daily da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
@@ -373,6 +437,13 @@ Siga EXATAMENTE esta estrutura em markdown:
 Insumos:
 {contexto}""",
 
+    # ── REVIEW ────────────────────────────────────────────────────────────────
+    # Escopo: sprint-scoped — busca TODAS as ingestões da sprint selecionada
+    # Insumos: planning da sprint (tipo_documentacao="planning") + dailys + uploads livres
+    # Campos usados: tarefas (do planning → planejado), resumo+problemas (das dailys → realizado)
+    # Nota: o modelo compara o planning (o que foi prometido) vs dailys/uploads (o que foi feito).
+    #       A ingestão de review em si é criada pelo endpoint /sprint-docs/review mas
+    #       o generation_graph usa ingestion_id=None e busca tudo da sprint.
     "review": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto da Sprint {sprint_numero} (planning, dailys e ingestões livres) do projeto "{projeto_nome}" (cliente: {cliente}), gere uma Review da Sprint.
 
@@ -425,7 +496,14 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Contexto completo da Sprint {sprint_numero}:
 {contexto}""",
 
-    "completo": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
+    # ── DOCUMENTAÇÃO FINAL ────────────────────────────────────────────────────
+    # Escopo: project-wide
+    # Insumos: TODAS as ingestões do projeto; sprint mais recente = estado atual
+    # Campos usados: todos os campos do extracted_content + _detect_changes para stack
+    # Nota: documento de fechamento oficial entregue ao cliente — segue template CITi
+    #       com 9 seções (overview, arquitetura, dados, qualidade, interfaces, modelo,
+    #       UI, deploy, glossário). Usa prioridade da sprint mais recente para seção 2.2.
+    "documentacao_final": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto acumulado de todas as ingestões abaixo, gere a Documentação Final do Projeto "{projeto_nome}" (cliente: {cliente}), seguindo o template oficial do CITi.
 
 Instruções gerais:
@@ -687,20 +765,75 @@ def _detect_changes(ingestions: list) -> str:
     return "\n".join(lines)
 
 
+def _validar_contexto_suficiente(tipo_doc: str, ingestions: list) -> tuple[bool, str]:
+    """Verifica se há contexto mínimo para gerar o documento sem risco de alucinação.
+
+    Tipos ingestion-only (ata_reuniao, planning, daily) são sempre válidos — a ingestão
+    é criada imediatamente antes da geração pelo sprint_docs.py.
+    """
+    # Tipos ancorados em ingestão recém-criada: sempre válidos
+    if tipo_doc in ("ata_reuniao", "planning", "daily"):
+        return True, ""
+
+    # Fallback universal para todos os outros tipos
+    if not ingestions:
+        return False, (
+            "Nenhuma ingestão encontrada para este escopo. "
+            "Faça upload de pelo menos um arquivo antes de gerar este documento."
+        )
+
+    if tipo_doc == "log_decisoes":
+        tem_decisoes = any(
+            (i.get("extracted_content") or {}).get("decisoes")
+            for i in ingestions
+        )
+        if not tem_decisoes:
+            return False, (
+                "Nenhuma decisão técnica foi identificada nas ingestões desta sprint/projeto. "
+                "Faça upload de arquivos que contenham decisões tomadas para que o Log de Decisões tenha substância."
+            )
+
+    elif tipo_doc == "adr":
+        tem = any(
+            (i.get("extracted_content") or {}).get("decisoes") or
+            (i.get("extracted_content") or {}).get("tecnologias")
+            for i in ingestions
+        )
+        if not tem:
+            return False, (
+                "Nenhuma decisão arquitetural ou tecnologia foi identificada nas ingestões. "
+                "ADRs precisam de pelo menos uma decisão técnica ou escolha de stack registrada."
+            )
+
+    elif tipo_doc == "documentacao_final":
+        sprints_com_dados = {
+            i.get("sprint_number")
+            for i in ingestions
+            if i.get("extracted_content")
+        }
+        if len(sprints_com_dados) < 2:
+            return False, (
+                "A Documentação Final precisa de dados de pelo menos 2 sprints para ter substância. "
+                "Continue ingerindo arquivos ao longo do projeto."
+            )
+
+    return True, ""
+
+
 def buscar_ingestions(state: GenerationState) -> dict:
     client = get_client()
     tipo_doc = state["tipo_doc"]
 
     if tipo_doc in ("ata_reuniao", "planning", "daily"):
-        # Single-ingestion docs: use only the ingestion this doc is anchored on
+        # ingestion-only: usa apenas a ingestão ancorada (criada pelo sprint_docs.py)
         response = (
             client.table("ingestions")
             .select("*")
             .eq("id", state["ingestion_id"])
             .execute()
         )
-    elif tipo_doc in ("sprint_status", "sprint_retro", "decisoes", "review"):
-        # Sprint-scoped docs: all ingestions of the sprint (review uses these to compute delta vs planning)
+    elif tipo_doc in ("repasse_semanal", "retrospectiva", "review"):
+        # sprint-scoped: todas as ingestões da sprint selecionada
         response = (
             client.table("ingestions")
             .select("*")
@@ -709,6 +842,7 @@ def buscar_ingestions(state: GenerationState) -> dict:
             .execute()
         )
     else:
+        # project-wide: log_decisoes, adr, onboarding, documentacao_final
         response = (
             client.table("ingestions")
             .select("*")
@@ -717,7 +851,11 @@ def buscar_ingestions(state: GenerationState) -> dict:
             .execute()
         )
 
-    return {"ingestions": response.data or []}
+    ingestions = response.data or []
+    valid, reason = _validar_contexto_suficiente(tipo_doc, ingestions)
+    if not valid:
+        return {"ingestions": [], "erro_contexto": reason}
+    return {"ingestions": ingestions, "erro_contexto": None}
 
 
 def compilar_contexto(state: GenerationState) -> dict:

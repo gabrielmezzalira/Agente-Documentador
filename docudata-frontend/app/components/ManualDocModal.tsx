@@ -79,13 +79,13 @@ const ghostBtn: React.CSSProperties = {
 };
 
 const TIPOS_SELECIONAVEIS: DocTypeKey[] = [
-  "sprint_status",
-  "sprint_retro",
+  "repasse_semanal",
+  "retrospectiva",
   "ata_reuniao",
-  "decisoes",
+  "log_decisoes",
   "adr",
   "onboarding",
-  "completo",
+  "documentacao_final",
   "planning",
   "daily",
   "review",
@@ -96,7 +96,7 @@ export default function ManualDocModal({
   onClose,
   projetoId,
   defaultSprintNumero = null,
-  defaultDocType = "completo",
+  defaultDocType = "documentacao_final",
   onCreated,
 }: Props) {
   const [docType, setDocType] = useState<DocTypeKey>(defaultDocType);

@@ -187,7 +187,7 @@ export default function ProjectDashboard() {
     setUploadModal({ sprintNumero });
   }
 
-  function handleGenerateFromCard(tipoDoc: "sprint_status" | "sprint_retro", sprintNumero: number) {
+  function handleGenerateFromCard(tipoDoc: "repasse_semanal" | "retrospectiva", sprintNumero: number) {
     // Gera direto e mantém o gerente na aba Sprints — o doc aparece dentro do próprio card
     handleGenerate(tipoDoc, sprintNumero);
   }
@@ -432,10 +432,10 @@ export default function ProjectDashboard() {
               {(
                 [
                   "ata_reuniao",
-                  "decisoes",
+                  "log_decisoes",
                   "adr",
                   "onboarding",
-                  "completo",
+                  "documentacao_final",
                 ] as DocTypeKey[]
               ).map((key) => (
                 <DocTypeCard

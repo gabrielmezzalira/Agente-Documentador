@@ -150,8 +150,11 @@ async def _run_generation(
         "documento": "",
         "input_tokens": 0,
         "output_tokens": 0,
+        "erro_contexto": None,
     }
-    await generation_graph.ainvoke(state)
+    result = await generation_graph.ainvoke(state)
+    if result.get("erro_contexto"):
+        raise HTTPException(status_code=422, detail=result["erro_contexto"])
 
     client = get_client()
     doc_resp = (
