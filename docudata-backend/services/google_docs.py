@@ -3,7 +3,8 @@ import os
 import re
 from datetime import datetime
 
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 SCOPES = [
@@ -13,11 +14,25 @@ SCOPES = [
 
 
 def _get_services():
-    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    if not raw:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON não configurado")
-    info = json.loads(raw)
-    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN", "")
+
+    if not (client_id and client_secret and refresh_token):
+        raise RuntimeError(
+            "Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e GOOGLE_REFRESH_TOKEN no .env"
+        )
+
+    creds = OAuthCredentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=SCOPES,
+    )
+    creds.refresh(Request())
+
     docs = build("docs", "v1", credentials=creds)
     drive = build("drive", "v3", credentials=creds)
     return docs, drive

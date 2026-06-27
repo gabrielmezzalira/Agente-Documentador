@@ -416,7 +416,7 @@ Sequência recomendada para implementar o MVP em uma semana:
 
 | Decisão | Alternativa considerada | Motivo da escolha |
 |---|---|---|
-| Gemini 1.5 Flash como modelo | Claude ou GPT-4 | Aceita imagens e PDFs nativamente, custo menor, API key gratuita disponível |
+| Gemini 2.5 Flash como modelo | Claude ou GPT-4 | Aceita imagens e PDFs nativamente, custo menor, API key gratuita disponível |
 | Sprint como metadado obrigatório no upload | Inferir sprint pelo timestamp | Permite ao gerente atribuir uploads retroativos à sprint correta sem ambiguidade |
 | LangGraph para orquestração | Chains simples do LangChain | Retry granular por nó e estado explícito — facilita debugging e extensão futura |
 | JSON com 6 campos fixos como schema de extração | Texto livre no banco | Permite filtrar, agregar e referenciar campos específicos na compilação de contexto |
