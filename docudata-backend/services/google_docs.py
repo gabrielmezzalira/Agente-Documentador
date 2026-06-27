@@ -38,6 +38,24 @@ def _get_services():
     return docs, drive
 
 
+def _get_or_create_folder(drive, name: str, parent_id: str) -> str:
+    """Retorna o ID de uma pasta com `name` dentro de `parent_id`, criando se não existir."""
+    q = (
+        f"name='{name}' and mimeType='application/vnd.google-apps.folder'"
+        f" and '{parent_id}' in parents and trashed=false"
+    )
+    result = drive.files().list(q=q, fields="files(id)", supportsAllDrives=True).execute()
+    files = result.get("files", [])
+    if files:
+        return files[0]["id"]
+    folder = drive.files().create(
+        body={"name": name, "mimeType": "application/vnd.google-apps.folder", "parents": [parent_id]},
+        fields="id",
+        supportsAllDrives=True,
+    ).execute()
+    return folder["id"]
+
+
 def _clone_template(drive, template_id: str, title: str, folder_id: str) -> str:
     copy = drive.files().copy(
         fileId=template_id,
@@ -183,7 +201,13 @@ def export_to_gdocs(
 
     sprint_label = f"Sprint {sprint_numero}" if sprint_numero else "Projeto completo"
     title = f"{doc_type_label} — {projeto_nome} — {sprint_label}"
-    doc_id = _clone_template(drive, template_id, title, folder_id)
+
+    # Hierarquia: pasta raiz → pasta do projeto → pasta da sprint (ou Cross-Sprint)
+    project_folder_id = _get_or_create_folder(drive, projeto_nome, folder_id)
+    sprint_folder_name = f"Sprint {sprint_numero}" if sprint_numero else "Cross-Sprint"
+    sprint_folder_id = _get_or_create_folder(drive, sprint_folder_name, project_folder_id)
+
+    doc_id = _clone_template(drive, template_id, title, sprint_folder_id)
 
     data_fmt = datetime.fromisoformat(created_at.replace("Z", "+00:00")).strftime("%d/%m/%Y")
     _replace_placeholders(docs, doc_id, {
