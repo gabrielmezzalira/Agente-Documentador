@@ -14,6 +14,7 @@ import {
   createSprint,
   generateDoc,
   ingestFile,
+  exportToGdocs,
   submitAtaUpload,
   deleteProject,
   deleteDoc,
@@ -70,6 +71,8 @@ export default function ProjectDashboard() {
   const [generateError, setGenerateError] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [exportingDocId, setExportingDocId] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<Record<string, string>>({});
 
   // ---------- api key ----------
   const [apiKeyInput, setApiKeyInput] = useState("");
@@ -176,6 +179,19 @@ export default function ProjectDashboard() {
     }
   }
 
+  async function handleExportGdocs(docId: string) {
+    setExportingDocId(docId);
+    setExportError((prev) => { const n = { ...prev }; delete n[docId]; return n; });
+    try {
+      const { url } = await exportToGdocs(docId);
+      window.open(url, "_blank");
+    } catch (e) {
+      setExportError((prev) => ({ ...prev, [docId]: e instanceof Error ? e.message : "Erro ao exportar" }));
+    } finally {
+      setExportingDocId(null);
+    }
+  }
+
   async function handleDeleteDoc(docId: string) {
     if (!confirm("Excluir este documento?")) return;
     try {
@@ -264,11 +280,21 @@ export default function ProjectDashboard() {
             <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
               Copiar
             </button>
+            <button
+              onClick={() => handleExportGdocs(doc.id)}
+              disabled={exportingDocId === doc.id}
+              style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px", opacity: exportingDocId === doc.id ? 0.6 : 1 }}
+            >
+              {exportingDocId === doc.id ? "Exportando…" : "Google Docs"}
+            </button>
             <button onClick={() => {
               if (confirm("Excluir este documento?")) handleDeleteDoc(doc.id);
             }} style={{ ...btnDanger, fontSize: 12, padding: "6px 12px" }}>
               Excluir
             </button>
+            {exportError[doc.id] && (
+              <span style={{ fontSize: 11, color: "#dc2626" }}>{exportError[doc.id]}</span>
+            )}
           </div>
         </div>
         {expandedDocId === doc.id && (
@@ -414,6 +440,8 @@ export default function ProjectDashboard() {
                 onGenerateSprintDoc={handleGenerateFromCard}
                 onOpenRetroModal={(n) => setRetroModal({ sprintNumero: n })}
                 onAddManualDoc={(n) => setManualModal({ sprintNumero: n })}
+                onExportGdocs={handleExportGdocs}
+                exportingDocId={exportingDocId}
                 onDeleteDoc={handleDeleteDoc}
                 onHealthChanged={refreshSprints}
               />

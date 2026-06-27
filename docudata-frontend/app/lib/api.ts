@@ -361,6 +361,15 @@ export async function uploadManualDocPdf(input: {
   return res.json();
 }
 
+export async function exportToGdocs(docId: string): Promise<{ url: string }> {
+  const res = await fetch(`${API}/docs/${docId}/export-gdocs`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao exportar para Google Docs");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

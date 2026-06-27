@@ -25,6 +25,8 @@ interface Props {
   onGenerateSprintDoc: (tipoDoc: SprintGenType, sprintNumero: number) => void;
   onOpenRetroModal: (sprintNumero: number) => void;
   onAddManualDoc: (sprintNumero: number) => void;
+  onExportGdocs: (docId: string) => void;
+  exportingDocId: string | null;
   onDeleteDoc: (docId: string) => void;
   onHealthChanged: () => void;
 }
@@ -270,6 +272,8 @@ export default function SprintCard({
   onGenerateSprintDoc,
   onOpenRetroModal,
   onAddManualDoc,
+  onExportGdocs,
+  exportingDocId,
   onDeleteDoc,
   onHealthChanged,
 }: Props) {
@@ -482,6 +486,13 @@ export default function SprintCard({
                         onClick={() => navigator.clipboard.writeText(d.content)}
                       >
                         Copiar
+                      </button>
+                      <button
+                        style={{ ...tinyBtn, opacity: exportingDocId === d.id ? 0.6 : 1 }}
+                        onClick={() => onExportGdocs(d.id)}
+                        disabled={exportingDocId === d.id}
+                      >
+                        {exportingDocId === d.id ? "Exportando…" : "Google Docs"}
                       </button>
                       <button
                         style={tinyBtnDanger}
