@@ -117,16 +117,20 @@ def _apply_content(docs, doc_id: str, segments: list):
         }}}]},
     ).execute()
 
-    # Insere linhas de baixo pra cima para preservar índices
+    # Insere todo o texto de uma vez para que os índices não se deslocam entre inserções
+    full_text = "".join(seg["text"] + "\n" for seg in segments)
+    docs.documents().batchUpdate(
+        documentId=doc_id,
+        body={"requests": [{"insertText": {"location": {"index": content_index}, "text": full_text}}]},
+    ).execute()
+
+    # Aplica estilos com índices corretos (calculados sequencialmente sobre o texto já inserido)
     style_requests = []
     idx = content_index
-    for seg in reversed(segments):
+    for seg in segments:
         line_text = seg["text"] + "\n"
-        docs.documents().batchUpdate(
-            documentId=doc_id,
-            body={"requests": [{"insertText": {"location": {"index": idx}, "text": line_text}}]},
-        ).execute()
         end_idx = idx + len(line_text)
+        text_end = end_idx - 1  # exclui o \n ao aplicar bold em texto
 
         if seg["heading"]:
             named = {1: "HEADING_1", 2: "HEADING_2", 3: "HEADING_3"}[seg["heading"]]
@@ -134,6 +138,12 @@ def _apply_content(docs, doc_id: str, segments: list):
                 "range": {"startIndex": idx, "endIndex": end_idx},
                 "paragraphStyle": {"namedStyleType": named},
                 "fields": "namedStyleType",
+            }})
+            # Garante negrito em todos os títulos
+            style_requests.append({"updateTextStyle": {
+                "range": {"startIndex": idx, "endIndex": text_end},
+                "textStyle": {"bold": True},
+                "fields": "bold",
             }})
         if seg["bullet"]:
             style_requests.append({"createParagraphBullets": {
@@ -146,6 +156,8 @@ def _apply_content(docs, doc_id: str, segments: list):
                 "textStyle": {"bold": True},
                 "fields": "bold",
             }})
+
+        idx = end_idx
 
     if style_requests:
         docs.documents().batchUpdate(
