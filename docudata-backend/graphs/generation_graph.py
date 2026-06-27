@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import TypedDict, Optional
 
 from langgraph.graph import StateGraph, START, END
@@ -20,6 +21,7 @@ class GenerationState(TypedDict):
     ingestion_id: Optional[str]
     observacoes: Optional[str]
     gemini_api_key: str
+    data_atual: str
     ingestions: list
     contexto: str
     documento: str
@@ -74,7 +76,7 @@ Com base no contexto das ingestões abaixo, gere um Repasse Semanal da Sprint {s
 
 Siga EXATAMENTE esta estrutura em markdown:
 
-**DATA:** [Infira a data mais recente mencionada no contexto, ou escreva a data de hoje se não houver referência]
+**DATA:** {data_atual}
 **TÓPICO:** [Título resumido do repasse — ex: "Avanços na Pipeline e Início da Automação"]
 
 ## Resumo da Semana
@@ -115,7 +117,7 @@ Com base no contexto das ingestões abaixo, gere uma Ata de Reunião da Sprint {
 
 Siga EXATAMENTE esta estrutura em markdown:
 
-**DATA:** [Infira a data mais recente mencionada no contexto, ou escreva a data de hoje]
+**DATA:** {data_atual}
 **TÓPICO:** [Tema central da reunião — ex: "Alinhamento de Cronograma e Validação do Tratamento"]
 **ANDAMENTO:** [Uma frase descrevendo o estado geral do desenvolvimento nesta sprint.]
 
@@ -183,7 +185,7 @@ Com base na transcrição ou documento de reunião abaixo, gere uma Ata de Reuni
 
 Siga EXATAMENTE esta estrutura em markdown:
 
-**DATA:** [Infira a data da reunião do contexto, ou escreva a data de hoje se não houver referência]
+**DATA:** {data_atual}
 **TÓPICO:** [Tema central da reunião — ex: "Alinhamento de Pipeline e Validação de Dados"]
 **ANDAMENTO:** [Uma frase objetiva descrevendo o estado geral do projeto no momento da reunião]
 
@@ -240,7 +242,7 @@ Siga EXATAMENTE esta estrutura em markdown:
 
 # Onboarding — {projeto_nome}
 **Cliente:** {cliente}
-**Data do documento:** [Data mais recente encontrada no contexto, ou data de hoje]
+**Data do documento:** {data_atual}
 
 ---
 
@@ -312,7 +314,7 @@ Siga EXATAMENTE esta estrutura em markdown:
 # Planning — Sprint {sprint_numero}
 **Projeto:** {projeto_nome}
 **Cliente:** {cliente}
-**Data:** [Data identificada nos insumos, ou data de hoje]
+**Data:** {data_atual}
 
 ## Objetivo da sprint
 
@@ -399,7 +401,7 @@ Siga EXATAMENTE esta estrutura em markdown:
 # Review — Sprint {sprint_numero}
 **Projeto:** {projeto_nome}
 **Cliente:** {cliente}
-**Data:** [Data mais recente identificada no contexto, ou data de hoje]
+**Data:** {data_atual}
 
 ## O que foi planejado
 
@@ -464,7 +466,7 @@ Siga EXATAMENTE esta estrutura em markdown:
 ## {projeto_nome}
 **Cliente:** {cliente}
 **Versão:** 1.0
-**Data:** [Data mais recente encontrada no contexto]
+**Data:** {data_atual}
 
 ---
 
@@ -843,6 +845,7 @@ async def gerar_documento(state: GenerationState) -> dict:
         "projeto_nome": state["projeto_nome"],
         "cliente": state["cliente"],
         "sprint_numero": state.get("sprint_numero"),
+        "data_atual": state.get("data_atual", datetime.now().strftime("%d/%m/%Y")),
         "contexto": contexto,
     })
     response = await llm.ainvoke(formatted)

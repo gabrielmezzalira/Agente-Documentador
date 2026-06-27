@@ -11,6 +11,7 @@ seria desperdício e fonte de alucinação). Se houver PDF anexo, ele passa pelo
 `extraction_graph` separadamente e os campos extraídos são mesclados.
 """
 import json
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Form, File, UploadFile, HTTPException
@@ -145,6 +146,7 @@ async def _run_generation(
         "ingestion_id": ingestion_id,
         "observacoes": None,
         "gemini_api_key": api_key,
+        "data_atual": datetime.now().strftime("%d/%m/%Y"),
         "ingestions": [],
         "contexto": "",
         "documento": "",

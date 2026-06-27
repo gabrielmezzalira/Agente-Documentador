@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Form, File, HTTPException, UploadFile
@@ -57,6 +58,7 @@ async def generate(req: GenerateRequest):
         "ingestion_id": req.ingestion_id,
         "observacoes": req.observacoes,
         "gemini_api_key": api_key,
+        "data_atual": datetime.now().strftime("%d/%m/%Y"),
         "ingestions": [],
         "contexto": "",
         "documento": "",
