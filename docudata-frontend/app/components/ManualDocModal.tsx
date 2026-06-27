@@ -83,7 +83,6 @@ const TIPOS_SELECIONAVEIS: DocTypeKey[] = [
   "retrospectiva",
   "ata_reuniao",
   "log_decisoes",
-  "adr",
   "onboarding",
   "documentacao_final",
   "planning",
