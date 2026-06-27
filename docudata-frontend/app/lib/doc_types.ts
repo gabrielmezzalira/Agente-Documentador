@@ -17,7 +17,6 @@ export type DocTypeKey =
   | "retrospectiva"
   | "ata_reuniao"
   | "log_decisoes"
-  | "adr"
   | "onboarding"
   | "documentacao_final"
   | "planning"
@@ -78,16 +77,6 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     pra_que: "Manter rastreabilidade do porquê das escolhas — útil em handoffs e revisões pós-projeto.",
     quando: "A qualquer momento; ideal antes de virar uma nova milestone ou quando o time vai mudar.",
     fontes: "Todas as ingestões do projeto, ordenadas por sprint.",
-  },
-  adr: {
-    key: "adr",
-    label: "ADRs",
-    icone: "📐",
-    scope: "project",
-    o_que: "Conjunto de Architecture Decision Records — uma seção por decisão arquitetural, com contexto, motivo e consequências.",
-    pra_que: "Formalizar decisões técnicas no formato de mercado (ADR), inclusive migrações de tecnologia entre sprints.",
-    quando: "Quando o projeto está maduro e dá pra olhar pra trás e formalizar as escolhas técnicas.",
-    fontes: "Todas as ingestões do projeto; o sistema detecta automaticamente migrações de stack entre sprints.",
   },
   onboarding: {
     key: "onboarding",

@@ -13,6 +13,7 @@ import {
   listSprints,
   createSprint,
   generateDoc,
+  ingestFile,
   submitAtaUpload,
   deleteProject,
   deleteDoc,
@@ -31,6 +32,7 @@ import TechnologiesTab from "../../components/TechnologiesTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
+import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
 type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "config";
@@ -58,6 +60,9 @@ export default function ProjectDashboard() {
 
   // ---------- modal upload livre ----------
   const [uploadModal, setUploadModal] = useState<{ sprintNumero: number } | null>(null);
+
+  // ---------- modal retrospectiva ----------
+  const [retroModal, setRetroModal] = useState<{ sprintNumero: number } | null>(null);
 
   // ---------- geração ----------
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
@@ -187,9 +192,19 @@ export default function ProjectDashboard() {
     setUploadModal({ sprintNumero });
   }
 
-  function handleGenerateFromCard(tipoDoc: "repasse_semanal" | "retrospectiva", sprintNumero: number) {
-    // Gera direto e mantém o gerente na aba Sprints — o doc aparece dentro do próprio card
+  function handleGenerateFromCard(tipoDoc: "repasse_semanal", sprintNumero: number) {
     handleGenerate(tipoDoc, sprintNumero);
+  }
+
+  async function handleRetroSubmit(observacoes: string, file: File | null) {
+    if (!retroModal) return;
+    const sprintNumero = retroModal.sprintNumero;
+    if (file) {
+      await ingestFile(id, sprintNumero, file);
+    }
+    const doc = await generateDoc(id, "retrospectiva", sprintNumero, undefined, observacoes || undefined);
+    setGeneratedDoc(doc);
+    await refreshAll();
   }
 
   async function handleAtaUpload(sprintNumero: number, file: File) {
@@ -397,6 +412,7 @@ export default function ProjectDashboard() {
                 onOpenSprintDoc={(tipo, n) => setModal({ tipo, sprintNumero: n })}
                 onUploadLivre={handleUploadLivre}
                 onGenerateSprintDoc={handleGenerateFromCard}
+                onOpenRetroModal={(n) => setRetroModal({ sprintNumero: n })}
                 onAddManualDoc={(n) => setManualModal({ sprintNumero: n })}
                 onDeleteDoc={handleDeleteDoc}
                 onHealthChanged={refreshSprints}
@@ -433,7 +449,6 @@ export default function ProjectDashboard() {
                 [
                   "ata_reuniao",
                   "log_decisoes",
-                  "adr",
                   "onboarding",
                   "documentacao_final",
                 ] as DocTypeKey[]
@@ -510,7 +525,7 @@ export default function ProjectDashboard() {
           {docs.length === 0 ? (
             <section style={sectionStyle}>
               <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
-                Nenhum documento ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva por sprint) ou <strong>Cross-sprint</strong> (Ata, Decisões, ADRs, Onboarding, Documentação Final).
+                Nenhum documento ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva por sprint) ou <strong>Cross-sprint</strong> (Ata, Decisões, Onboarding, Documentação Final).
               </p>
             </section>
           ) : (
@@ -578,7 +593,7 @@ export default function ProjectDashboard() {
                         {crossSprintDocs.length}
                       </span>
                       <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 500, marginLeft: 8, letterSpacing: 0, textTransform: "none" }}>
-                        — docs que cobrem o projeto inteiro (Decisões, ADRs, Onboarding, Documentação Final, Ata)
+                        — docs que cobrem o projeto inteiro (Decisões, Onboarding, Documentação Final, Ata)
                       </span>
                     </h3>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -692,6 +707,14 @@ export default function ProjectDashboard() {
         onCompleted={async () => {
           await refreshAll();
         }}
+      />
+
+      {/* MODAL Retrospectiva */}
+      <RetroModal
+        open={retroModal !== null}
+        onClose={() => setRetroModal(null)}
+        sprintNumero={retroModal?.sprintNumero ?? 1}
+        onSubmit={handleRetroSubmit}
       />
     </main>
   );

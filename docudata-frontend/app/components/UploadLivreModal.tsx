@@ -246,7 +246,7 @@ export default function UploadLivreModal({
         </h2>
         <p style={{ fontSize: 13, color: "#6a6a7a", margin: "8px 0 0", lineHeight: 1.5 }}>
           Material avulso que alimenta o contexto do projeto: prints, código, atas externas,
-          PDFs do cliente. Estes uploads alimentam as docs gerais (ADRs, Onboarding, Documentação Final).
+          PDFs do cliente. Estes uploads alimentam as docs gerais (Onboarding, Documentação Final).
         </p>
 
         <div style={{

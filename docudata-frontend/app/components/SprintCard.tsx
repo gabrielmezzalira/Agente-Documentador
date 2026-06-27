@@ -13,7 +13,7 @@ import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 
 const EXPECTED_DAILYS = 5;
 
-type SprintGenType = "repasse_semanal" | "retrospectiva";
+type SprintGenType = "repasse_semanal";
 
 interface Props {
   sprint: SprintWithStatus;
@@ -23,6 +23,7 @@ interface Props {
   onOpenSprintDoc: (tipo: SprintDocType, sprintNumero: number) => void;
   onUploadLivre: (sprintNumero: number) => void;
   onGenerateSprintDoc: (tipoDoc: SprintGenType, sprintNumero: number) => void;
+  onOpenRetroModal: (sprintNumero: number) => void;
   onAddManualDoc: (sprintNumero: number) => void;
   onDeleteDoc: (docId: string) => void;
   onHealthChanged: () => void;
@@ -267,6 +268,7 @@ export default function SprintCard({
   onOpenSprintDoc,
   onUploadLivre,
   onGenerateSprintDoc,
+  onOpenRetroModal,
   onAddManualDoc,
   onDeleteDoc,
   onHealthChanged,
@@ -399,8 +401,8 @@ export default function SprintCard({
           Gerar Repasse Semanal
         </button>
         <button
-          style={pendingGen === "retrospectiva" ? btnActionActive : btnAction}
-          onClick={() => setPendingGen(pendingGen === "retrospectiva" ? null : "retrospectiva")}
+          style={btnAction}
+          onClick={() => onOpenRetroModal(sprint.numero)}
         >
           Gerar Retrospectiva
         </button>

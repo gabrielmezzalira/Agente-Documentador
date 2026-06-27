@@ -222,61 +222,6 @@ Gerente de Dados — CITi · Centro de Informática, UFPE
 Transcrição / documento da reunião:
 {contexto}""",
 
-    # ── ADRs ──────────────────────────────────────────────────────────────────
-    # Escopo: project-wide
-    # Insumos: TODAS as ingestões do projeto + seção MUDANÇAS DETECTADAS (gerada por _detect_changes)
-    # Campos usados: decisoes, tecnologias (para detectar migrações de stack entre sprints)
-    # Nota: _detect_changes compara tecnologias de sprints consecutivas e adiciona
-    #       um bloco extra no contexto quando detecta adições/remoções de stack
-    "adr": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto acumulado de todas as ingestões abaixo, gere um conjunto de ADRs (Architecture Decision Records) para o projeto "{projeto_nome}" (cliente: {cliente}).
-
-Gere um ADR numerado para cada decisão técnica ou arquitetural significativa identificada.
-Se a seção MUDANÇAS DETECTADAS ENTRE SPRINTS indicar troca de tecnologia entre sprints consecutivas, gere um ADR dedicado para essa migração — use as ingestões intermediárias para reconstruir o contexto e o motivo da troca.
-
-Regras:
-- Um ADR por decisão — não agrupe múltiplas decisões em um único ADR
-- Ordene cronologicamente pela sprint onde a decisão foi tomada
-- Se não houver informação suficiente para um campo, escreva "[Não identificado no contexto]"
-- Nunca invente informações
-
-Para cada ADR use EXATAMENTE este formato:
-
----
-
-## ADR-[NNN] — [Título da Decisão]
-
-**Status:** Aceito
-**Sprint:** [número]
-**Data:** [data se identificada no contexto, ou N/D]
-
-### Contexto
-
-[O que estava acontecendo no projeto que forçou essa decisão — problema, restrição ou pressão que precisava ser resolvida.]
-
-### Decisão
-
-[O que foi decidido. Uma frase direta.]
-
-### Motivo
-
-[Por que essa opção foi escolhida. Se houver alternativas consideradas e descartadas, mencione-as.]
-
-### Consequências
-
-[O que muda como resultado desta decisão.]
-- **Positivo:** [o que fica mais fácil ou mais robusto]
-- **Negativo:** [o que é sacrificado ou fica mais difícil]
-- **Neutro:** [o que precisa ser feito por causa desta decisão]
-
----
-
-*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
-
----
-Contexto de todas as ingestões do projeto:
-{contexto}""",
-
     # ── ONBOARDING ────────────────────────────────────────────────────────────
     # Escopo: project-wide
     # Insumos: TODAS as ingestões do projeto; sprint mais recente = estado atual
@@ -791,18 +736,6 @@ def _validar_contexto_suficiente(tipo_doc: str, ingestions: list) -> tuple[bool,
             return False, (
                 "Nenhuma decisão técnica foi identificada nas ingestões desta sprint/projeto. "
                 "Faça upload de arquivos que contenham decisões tomadas para que o Log de Decisões tenha substância."
-            )
-
-    elif tipo_doc == "adr":
-        tem = any(
-            (i.get("extracted_content") or {}).get("decisoes") or
-            (i.get("extracted_content") or {}).get("tecnologias")
-            for i in ingestions
-        )
-        if not tem:
-            return False, (
-                "Nenhuma decisão arquitetural ou tecnologia foi identificada nas ingestões. "
-                "ADRs precisam de pelo menos uma decisão técnica ou escolha de stack registrada."
             )
 
     elif tipo_doc == "documentacao_final":

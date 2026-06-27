@@ -10,7 +10,7 @@ router = APIRouter(tags=["generate"])
 
 _VALID_DOC_TYPES = {
     "repasse_semanal", "retrospectiva", "log_decisoes", "documentacao_final",
-    "ata_reuniao", "onboarding", "adr",
+    "ata_reuniao", "onboarding",
     "planning", "daily", "review",
 }
 _SPRINT_REQUIRED = {"repasse_semanal", "retrospectiva", "review"}
