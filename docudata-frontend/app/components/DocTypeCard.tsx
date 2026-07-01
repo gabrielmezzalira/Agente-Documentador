@@ -250,11 +250,11 @@ export default function DocTypeCard({
               onClick={handleGenerate}
               disabled={
                 generating ||
-                (meta.scope === "ingestion" && !ingestionId)
+                (meta.scope === "ingestion" && !ingestionId && !pdfName)
               }
               style={{
                 ...btnPrimary,
-                opacity: generating ? 0.6 : 1,
+                opacity: (generating || (meta.scope === "ingestion" && !ingestionId && !pdfName)) ? 0.6 : 1,
                 marginLeft: "auto",
               }}
             >

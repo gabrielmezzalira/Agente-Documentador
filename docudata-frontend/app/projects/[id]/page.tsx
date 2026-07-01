@@ -12,6 +12,7 @@ import {
   listDocs,
   listSprints,
   createSprint,
+  deleteSprint,
   generateDoc,
   ingestFile,
   exportToGdocs,
@@ -141,6 +142,15 @@ export default function ProjectDashboard() {
       refreshSprints();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao criar sprint");
+    }
+  }
+
+  async function handleDeleteSprint(sprintId: string) {
+    try {
+      await deleteSprint(sprintId);
+      refreshSprints();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao excluir sprint");
     }
   }
 
@@ -443,6 +453,7 @@ export default function ProjectDashboard() {
                 onExportGdocs={handleExportGdocs}
                 exportingDocId={exportingDocId}
                 onDeleteDoc={handleDeleteDoc}
+                onDeleteSprint={handleDeleteSprint}
                 onHealthChanged={refreshSprints}
               />
             ))

@@ -90,6 +90,8 @@ const TIPOS_SELECIONAVEIS: DocTypeKey[] = [
   "review",
 ];
 
+const CUSTOM_SENTINEL = "_custom";
+
 export default function ManualDocModal({
   open,
   onClose,
@@ -98,16 +100,21 @@ export default function ManualDocModal({
   defaultDocType = "documentacao_final",
   onCreated,
 }: Props) {
-  const [docType, setDocType] = useState<DocTypeKey>(defaultDocType);
+  const [docType, setDocType] = useState<string>(defaultDocType);
+  const [customLabel, setCustomLabel] = useState("");
   const [sprintNumero, setSprintNumero] = useState<number | null>(defaultSprintNumero);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isCustom = docType === CUSTOM_SENTINEL;
+  const effectiveDocType = isCustom ? customLabel.trim() : docType;
+
   useEffect(() => {
     if (open) {
       setDocType(defaultDocType);
+      setCustomLabel("");
       setSprintNumero(defaultSprintNumero);
       setFileName(null);
       setError(null);
@@ -123,12 +130,16 @@ export default function ManualDocModal({
       setError("Selecione um PDF.");
       return;
     }
+    if (isCustom && !customLabel.trim()) {
+      setError("Informe o nome do tipo de documento.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const doc = await uploadManualDocPdf({
         projetoId,
-        docType,
+        docType: effectiveDocType,
         sprintNumero: sprintNumero ?? null,
         arquivo: file,
       });
@@ -155,7 +166,7 @@ export default function ManualDocModal({
         <label style={labelStyle}>Tipo de documento</label>
         <select
           value={docType}
-          onChange={(e) => setDocType(e.target.value as DocTypeKey)}
+          onChange={(e) => setDocType(e.target.value)}
           style={inputStyle}
         >
           {TIPOS_SELECIONAVEIS.map((k) => (
@@ -163,7 +174,17 @@ export default function ManualDocModal({
               {DOC_TYPES[k].label}
             </option>
           ))}
+          <option value={CUSTOM_SENTINEL}>Outro (personalizado)</option>
         </select>
+        {isCustom && (
+          <input
+            type="text"
+            value={customLabel}
+            onChange={(e) => setCustomLabel(e.target.value)}
+            placeholder="Ex: Contrato do Projeto, Proposta Comercial…"
+            style={{ ...inputStyle, marginTop: 8 }}
+          />
+        )}
 
         <label style={labelStyle}>
           Sprint (opcional)

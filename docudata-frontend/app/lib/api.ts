@@ -209,6 +209,14 @@ export async function listSprints(projectId: string): Promise<SprintWithStatus[]
   return res.json();
 }
 
+export async function deleteSprint(sprintId: string): Promise<void> {
+  const res = await fetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao excluir sprint");
+  }
+}
+
 export async function createSprint(projectId: string, numero?: number): Promise<Sprint> {
   const res = await fetch(`${API}/projects/${projectId}/sprints`, {
     method: "POST",

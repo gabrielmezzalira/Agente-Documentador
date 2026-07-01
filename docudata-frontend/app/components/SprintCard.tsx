@@ -28,6 +28,7 @@ interface Props {
   onExportGdocs: (docId: string) => void;
   exportingDocId: string | null;
   onDeleteDoc: (docId: string) => void;
+  onDeleteSprint: (sprintId: string) => void;
   onHealthChanged: () => void;
 }
 
@@ -275,10 +276,12 @@ export default function SprintCard({
   onExportGdocs,
   exportingDocId,
   onDeleteDoc,
+  onDeleteSprint,
   onHealthChanged,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [expandedSourcesId, setExpandedSourcesId] = useState<string | null>(null);
   const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
   const [pendingGen, setPendingGen] = useState<SprintGenType | null>(null);
 
@@ -354,6 +357,16 @@ export default function SprintCard({
           />
           <button style={btnSubtle} onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Recolher" : "Detalhes"}
+          </button>
+          <button
+            style={{ ...btnSubtle, color: "#dc2626" }}
+            onClick={() => {
+              if (confirm(`Excluir Sprint ${sprint.numero}? Esta ação é irreversível.`))
+                onDeleteSprint(sprint.id);
+            }}
+            title="Excluir sprint"
+          >
+            Excluir
           </button>
         </div>
       </div>
@@ -507,6 +520,36 @@ export default function SprintCard({
                   {expandedDocId === d.id && (
                     <div style={markdownContainer}>
                       <ReactMarkdown>{d.content}</ReactMarkdown>
+                    </div>
+                  )}
+                  {ingestions.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: "#6366f1", cursor: "pointer", fontWeight: 600 }}
+                        onClick={() => setExpandedSourcesId(expandedSourcesId === d.id ? null : d.id)}
+                      >
+                        {expandedSourcesId === d.id ? "ocultar fontes ▲" : `ver fontes (${ingestions.length} ingestão${ingestions.length !== 1 ? "ões" : ""}) ▼`}
+                      </button>
+                      {expandedSourcesId === d.id && (
+                        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                          {ingestions.map((ing) => (
+                            <div key={ing.id} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ fontWeight: 600, fontSize: 12, color: "#0f172a" }}>{ing.file_name}</span>
+                                {ing.tipo_documentacao && (
+                                  <span style={tagStyle}>{ing.tipo_documentacao}</span>
+                                )}
+                              </div>
+                              {ing.extracted_content?.resumo && (
+                                <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 11, lineHeight: 1.5 }}>
+                                  {ing.extracted_content.resumo}
+                                </p>
+                              )}
+                              {renderIngestionChips(ing.extracted_content)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

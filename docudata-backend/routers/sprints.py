@@ -138,6 +138,48 @@ async def list_sprints(project_id: str):
     return enriched
 
 
+@router.delete("/sprints/{sprint_id}", status_code=204)
+async def delete_sprint(sprint_id: str):
+    """Remove uma sprint. Falha com 409 se houver ingestões ou docs associados."""
+    client = get_client()
+    check = client.table("sprints").select("id, project_id, numero").eq("id", sprint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+
+    sprint = check.data[0]
+    project_id = sprint["project_id"]
+    numero = sprint["numero"]
+
+    has_ingestions = (
+        client.table("ingestions")
+        .select("id")
+        .eq("project_id", project_id)
+        .eq("sprint_number", numero)
+        .limit(1)
+        .execute()
+    ).data
+
+    has_docs = (
+        client.table("generated_docs")
+        .select("id")
+        .eq("project_id", project_id)
+        .eq("sprint_number", numero)
+        .limit(1)
+        .execute()
+    ).data
+
+    if has_ingestions or has_docs:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Sprint {numero} tem ingestões ou documentos associados. "
+                "Exclua-os primeiro antes de remover a sprint."
+            ),
+        )
+
+    client.table("sprints").delete().eq("id", sprint_id).execute()
+
+
 @router.patch("/sprints/{sprint_id}/health", response_model=SprintResponse)
 async def update_health(sprint_id: str, data: SprintHealthUpdate):
     """Atualiza semáforo de saúde e plano de correção da sprint."""
