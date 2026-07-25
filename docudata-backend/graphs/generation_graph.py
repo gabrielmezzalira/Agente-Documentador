@@ -112,43 +112,43 @@ Contexto das ingestões da Sprint {sprint_numero}:
     # Escopo: sprint-scoped
     # Insumos: TODAS as ingestões da sprint (planning, dailys, review, uploads livres)
     # Campos usados: resumo, tarefas, decisoes, problemas, proximos_passos, contexto_cliente
+    # Seções exportadas como placeholders: O_QUE_FUNCIONOU, O_QUE_NAO_FUNCIONOU,
+    #   CAUSA_RAIZ, ACOES_MELHORIA, PEDIDO_FORA_ESCOPO
     "retrospectiva": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto das ingestões abaixo, gere uma Ata de Reunião da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
+Com base no contexto das ingestões abaixo, gere a Retrospectiva da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
-Siga EXATAMENTE esta estrutura em markdown:
+Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente como estão abaixo):
 
-**DATA:** {data_atual}
-**TÓPICO:** [Tema central da reunião — ex: "Alinhamento de Cronograma e Validação do Tratamento"]
-**ANDAMENTO:** [Uma frase descrevendo o estado geral do desenvolvimento nesta sprint.]
+# Retrospectiva — Sprint {sprint_numero}
+**Projeto:** {projeto_nome} · **Cliente:** {cliente} · **Data:** {data_atual}
 
-**PARTICIPANTES – CARGO:**
-- [Nome inferido do contexto] – [Cargo/Papel] (se não houver nomes: Gerente de Dados – CITi; Analista de Dados – CITi; Representante – {cliente})
+## O que Funcionou
 
-## Tópicos discutidos
+[Liste ao menos 1 item específico que funcionou bem nesta sprint — processo, entrega, colaboração ou decisão acertada. Seja concreto, não genérico.]
 
-1. **[Nome do Tópico]:** [Resumo narrativo do ponto central da discussão e argumentos principais.]
-2. **[Nome do Tópico]:** [Resumo.]
+- [Item que funcionou]
 
-## Decisões tomadas
+## O que Não Funcionou
 
-- [Decisão concreta com verbo no infinitivo: Manter, Iniciar, Cancelar, Adiar]
-- [Alinhamentos que impactam o futuro do projeto — esta é a parte mais crítica: se o cliente concordou com algo, deve constar aqui]
+[Liste ao menos 1 item específico que não funcionou — bloqueio, estimativa errada, problema de processo ou comunicação.]
 
-## Outcomes da reunião
+- [Item que não funcionou]
 
-- [Resultado estratégico conquistado — ex: "Alinhamento de expectativas sobre a entrega final"]
-- [Entendimento compartilhado gerado pela reunião]
+## Causa Raiz
 
-## Outputs da reunião
+[Para cada problema identificado em "O que Não Funcionou", classifique a causa raiz usando as categorias: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada · 3. Pedido de escopo novo · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro]
 
-- [Entregável tangível gerado — ex: "Novo cronograma atualizado", "Lista de acessos pendentes enviada ao cliente"]
+- [Problema] → Causa raiz nº [N]: [nome da categoria]
 
-## Conclusão
+## Ações de Melhoria
 
-[Parágrafo executivo de fechamento: se alguém não ler a ata toda, este parágrafo deve resumir como está o projeto e qual é o foco imediato agora.]
+[Liste no máximo 2 ações concretas para a próxima sprint, com responsável e prazo se identificável no contexto.]
 
-Atenciosamente,
-Gerente de Dados — CITi · Centro de Informática, UFPE
+- [Ação] — Responsável: [nome ou papel] — Prazo: [quando]
+
+## Pedido Fora de Escopo
+
+[Houve pedido fora do escopo combinado nesta sprint? Se sim, descreva o pedido e se foi registrado formalmente. Se não identificado no contexto: "Nenhum pedido fora de escopo identificado nesta sprint."]
 
 ---
 Contexto das ingestões da Sprint {sprint_numero}:
@@ -306,10 +306,12 @@ Contexto de todas as ingestões do projeto:
     # Campos usados: resumo (= descricao), tarefas (= itens_backlog), proximos_passos
     # Nota: a ingestão é criada pelo endpoint POST /sprint-docs/planning (sprint_docs.py)
     #       sem passar pelo extraction_graph (dados já chegam estruturados do form)
+    # Seções exportadas como placeholders: OBJETIVO_SPRINT, BACKLOG,
+    #   RESPONSABILIDADES, RISCOS
     "planning": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base nos insumos estruturados informados pelo gerente abaixo (e PDF anexo, se houver), gere um documento de Planning da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
 
-Siga EXATAMENTE esta estrutura em markdown:
+Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente como estão abaixo):
 
 # Planning — Sprint {sprint_numero}
 **Projeto:** {projeto_nome}
@@ -322,28 +324,23 @@ Siga EXATAMENTE esta estrutura em markdown:
 
 ## Backlog da sprint
 
-- [Item do backlog 1 — adicione contexto curto se houver]
-- [Item 2]
-- [Item N]
+- [Item do backlog] — Responsável: [nome/papel se identificado] — Prazo: [se mencionado] — DoD: [critério de pronto se mencionado]
 
-(Liste cada item do backlog informado. Se houver descrição/responsável associado, inclua-o.)
+(Liste cada item do backlog informado. Um item por linha no formato acima.)
 
 ## Responsabilidades
+
+[Tabela de atribuições. Se não houver atribuição explícita, escreva: "A definir na primeira daily da sprint".]
 
 | Responsável | Item / Frente |
 |---|---|
 | [Nome ou papel identificado] | [Item do backlog atribuído] |
-
-(Se não houver atribuição explícita: "A definir na primeira daily da sprint")
 
 ## Riscos previstos
 
 - [Risco identificado nos insumos]
 
 (Se não houver risco mencionado: "Nenhum risco reportado pelo gerente neste momento")
-
-Atenciosamente,
-Gerente de Dados — CITi · Centro de Informática, UFPE
 
 ---
 Insumos do gerente:
@@ -391,12 +388,14 @@ Insumos:
     # Nota: o modelo compara o planning (o que foi prometido) vs dailys/uploads (o que foi feito).
     #       A ingestão de review em si é criada pelo endpoint /sprint-docs/review mas
     #       o generation_graph usa ingestion_id=None e busca tudo da sprint.
+    # Seções exportadas como placeholders: PLANEJADO, REALIZADO, DELTA,
+    #   DECISOES, IMPEDIMENTOS, APRENDIZADOS, ITENS_PROXIMA_SPRINT
     "review": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto da Sprint {sprint_numero} (planning, dailys e ingestões livres) do projeto "{projeto_nome}" (cliente: {cliente}), gere uma Review da Sprint.
 
 A Review precisa explicitar o DELTA: o que foi planejado vs. o que foi efetivamente entregue. Use o documento de Planning desta sprint como referência do planejado, e o conjunto de Dailys + ingestões livres como evidência do realizado.
 
-Siga EXATAMENTE esta estrutura em markdown:
+Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente como estão abaixo):
 
 # Review — Sprint {sprint_numero}
 **Projeto:** {projeto_nome}
@@ -407,22 +406,24 @@ Siga EXATAMENTE esta estrutura em markdown:
 
 [Liste os itens do backlog identificados no documento de Planning da sprint. Se não houver planning na sprint, escreva: "Planning desta sprint não foi registrado — review baseada apenas em evidências de execução."]
 
+- [Item planejado]
+
 ## O que foi efetivamente realizado
 
 [Liste o que aparece como concluído/em andamento nas dailys e ingestões da sprint. Use bullets factuais — não invente.]
 
+- [Item realizado — status: Entregue / Em andamento / Bloqueado]
+
 ## Delta — diferenças entre planejado e realizado
 
 **Entregue como planejado:**
-- [Item planejado que apareceu como concluído nas dailys/ingestões]
+- [Item planejado que apareceu como concluído]
 
 **Não entregue / adiado:**
-- [Item do planning que NÃO aparece como concluído nas evidências] — [Motivo se identificado]
+- [Item do planning que NÃO foi concluído] — Causa raiz nº [N]: [categoria]
 
 **Entregue além do escopo:**
-- [Algo concluído que não estava no planning original]
-
-(Se uma das três seções não tem itens: escreva "—" abaixo dela.)
+- [Algo concluído que não estava no planning] (se nenhum: "—")
 
 ## Decisões tomadas durante a sprint
 
@@ -436,8 +437,11 @@ Siga EXATAMENTE esta estrutura em markdown:
 
 - [Padrão observado que vale propagar ou evitar]
 
-Atenciosamente,
-Gerente de Dados — CITi · Centro de Informática, UFPE
+## Itens que passam para a próxima sprint
+
+- [Item não entregue que deve ser carregado — Motivo: causa raiz nº N]
+
+(Se não houver carry-over: "Nenhum item pendente para próxima sprint.")
 
 ---
 Contexto completo da Sprint {sprint_numero}:

@@ -110,14 +110,22 @@ def _parse_markdown(text: str) -> list:
 
 
 def _find_placeholder_index(document: dict, placeholder: str) -> int | None:
-    for element in document.get("body", {}).get("content", []):
-        if "paragraph" not in element:
-            continue
-        for pe in element["paragraph"].get("elements", []):
-            content = pe.get("textRun", {}).get("content", "")
-            if placeholder in content:
-                return pe["startIndex"] + content.index(placeholder)
-    return None
+    def _search_paragraphs(elements):
+        for el in elements:
+            if "paragraph" in el:
+                for pe in el["paragraph"].get("elements", []):
+                    content = pe.get("textRun", {}).get("content", "")
+                    if placeholder in content:
+                        return pe["startIndex"] + content.index(placeholder)
+            elif "table" in el:
+                for row in el["table"].get("tableRows", []):
+                    for cell in row.get("tableCells", []):
+                        result = _search_paragraphs(cell.get("content", []))
+                        if result is not None:
+                            return result
+        return None
+
+    return _search_paragraphs(document.get("body", {}).get("content", []))
 
 
 def _apply_content(docs, doc_id: str, segments: list):
@@ -184,6 +192,66 @@ def _apply_content(docs, doc_id: str, segments: list):
         ).execute()
 
 
+_TEMPLATE_ENV_BY_DOC_TYPE = {
+    "planning": "GDOCS_TEMPLATE_ID_PLANNING",
+    "review": "GDOCS_TEMPLATE_ID_REVIEW",
+    "retrospectiva": "GDOCS_TEMPLATE_ID_RETROSPECTIVA",
+}
+
+# Mapeamento: trecho do header markdown (lowercase) → nome do placeholder no template
+_SECTION_PLACEHOLDERS = {
+    "planning": {
+        "objetivo da sprint":  "OBJETIVO_SPRINT",
+        "backlog da sprint":   "BACKLOG",
+        "responsabilidades":   "RESPONSABILIDADES",
+        "riscos previstos":    "RISCOS",
+    },
+    "review": {
+        "o que foi planejado":              "PLANEJADO",
+        "o que foi efetivamente realizado": "REALIZADO",
+        "delta":                            "DELTA",
+        "decisões tomadas durante a sprint":"DECISOES",
+        "impedimentos enfrentados":         "IMPEDIMENTOS",
+        "aprendizados para próxima sprint": "APRENDIZADOS",
+        "itens que passam para a próxima":  "ITENS_PROXIMA_SPRINT",
+    },
+    "retrospectiva": {
+        "o que funcionou":           "O_QUE_FUNCIONOU",
+        "o que não funcionou":       "O_QUE_NAO_FUNCIONOU",
+        "causa raiz":                "CAUSA_RAIZ",
+        "ações de melhoria":         "ACOES_MELHORIA",
+        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO",
+    },
+}
+
+
+def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
+    """Parseia o markdown por headers ## e mapeia seções a placeholders do template."""
+    mapping = _SECTION_PLACEHOLDERS.get(doc_type, {})
+    if not mapping:
+        return {}
+
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+
+    for line in markdown.split("\n"):
+        stripped = line.lstrip("# ")
+        if line.startswith("## ") or line.startswith("# "):
+            current = stripped.lower()
+            sections.setdefault(current, [])
+        elif current is not None:
+            sections[current].append(line)
+
+    result: dict[str, str] = {}
+    for section_key, placeholder in mapping.items():
+        for header, lines in sections.items():
+            if section_key in header:
+                result[placeholder] = "\n".join(lines).strip()
+                break
+
+    return result
+
+
 def export_to_gdocs(
     markdown_content: str,
     doc_type_label: str,
@@ -191,8 +259,10 @@ def export_to_gdocs(
     cliente: str,
     sprint_numero: int | None,
     created_at: str,
+    doc_type: str = "",
 ) -> str:
-    template_id = os.environ.get("GDOCS_TEMPLATE_ID", "")
+    env_key = _TEMPLATE_ENV_BY_DOC_TYPE.get(doc_type, "")
+    template_id = (env_key and os.environ.get(env_key, "")) or os.environ.get("GDOCS_TEMPLATE_ID", "")
     folder_id = os.environ.get("GDRIVE_FOLDER_ID", "")
     if not template_id or not folder_id:
         raise RuntimeError("GDOCS_TEMPLATE_ID ou GDRIVE_FOLDER_ID não configurados")
@@ -215,9 +285,18 @@ def export_to_gdocs(
         "CLIENTE": cliente,
         "TIPO_DOC": doc_type_label,
         "SPRINT": sprint_label,
+        "SPRINT_NUM": str(sprint_numero) if sprint_numero else "—",
         "DATA": data_fmt,
+        "SQUAD": "[A definir]",
+        "PERIODO": "[A definir]",
     })
 
+    # Substitui placeholders de seção ({{BACKLOG}}, {{RISCOS}}, etc.) se o template os tiver
+    section_replacements = _extract_section_replacements(markdown_content, doc_type)
+    if section_replacements:
+        _replace_placeholders(docs, doc_id, section_replacements)
+
+    # {{CONTENT}} recebe o markdown completo como fallback (templates sem placeholders de seção)
     segments = _parse_markdown(markdown_content)
     _apply_content(docs, doc_id, segments)
 

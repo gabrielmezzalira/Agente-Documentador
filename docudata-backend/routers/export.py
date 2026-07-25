@@ -40,6 +40,7 @@ async def export_doc_to_gdocs(doc_id: str):
             cliente=project["client"],
             sprint_numero=doc.get("sprint_number"),
             created_at=doc["created_at"],
+            doc_type=doc["doc_type"],
         )
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
