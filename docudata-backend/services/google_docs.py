@@ -59,7 +59,11 @@ def _get_or_create_folder(drive, name: str, parent_id: str) -> str:
 def _clone_template(drive, template_id: str, title: str, folder_id: str) -> str:
     copy = drive.files().copy(
         fileId=template_id,
-        body={"name": title, "parents": [folder_id]},
+        body={
+            "name": title,
+            "parents": [folder_id],
+            "mimeType": "application/vnd.google-apps.document",
+        },
         supportsAllDrives=True,
     ).execute()
     return copy["id"]
