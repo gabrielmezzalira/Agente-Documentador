@@ -248,6 +248,25 @@ _SECTION_PLACEHOLDERS = {
 }
 
 
+def _format_backlog_items(raw: str) -> str:
+    """Extrai só os nomes dos itens do backlog, um por linha, sem anotações de campo.
+
+    O markdown de planning gera "- Item — Responsável: X — Prazo: Y — DoD: Z",
+    mas o template tem colunas separadas para cada campo. Aqui ficam só os itens.
+    """
+    items = []
+    for line in raw.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("- "):
+            line = line[2:]
+        item = line.split(" — ")[0].strip()
+        if item:
+            items.append(item)
+    return "\n".join(items)
+
+
 def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
     """Parseia o markdown por headers ## e mapeia seções a placeholders do template."""
     mapping = _SECTION_PLACEHOLDERS.get(doc_type, {})
@@ -269,7 +288,10 @@ def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
     for section_key, placeholder in mapping.items():
         for header, lines in sections.items():
             if section_key in header:
-                result[placeholder] = "\n".join(lines).strip()
+                content = "\n".join(lines).strip()
+                if placeholder == "BACKLOG":
+                    content = _format_backlog_items(content)
+                result[placeholder] = content
                 break
 
     return result
