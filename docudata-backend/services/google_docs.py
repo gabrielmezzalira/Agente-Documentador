@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -6,6 +7,7 @@ from datetime import datetime
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
@@ -57,16 +59,35 @@ def _get_or_create_folder(drive, name: str, parent_id: str) -> str:
 
 
 def _clone_template(drive, template_id: str, title: str, folder_id: str) -> str:
-    copy = drive.files().copy(
-        fileId=template_id,
+    meta = drive.files().get(
+        fileId=template_id, fields="mimeType", supportsAllDrives=True
+    ).execute()
+
+    if meta["mimeType"] == "application/vnd.google-apps.document":
+        copy = drive.files().copy(
+            fileId=template_id,
+            body={"name": title, "parents": [folder_id]},
+            supportsAllDrives=True,
+        ).execute()
+        return copy["id"]
+
+    # DOCX (ou outro Office): baixa e re-faz upload convertendo para Google Doc nativo.
+    # files.copy com mimeType diferente NÃO converte — só download+create faz a conversão.
+    content = drive.files().get_media(fileId=template_id).execute()
+    media = MediaIoBaseUpload(
+        io.BytesIO(content), mimetype=meta["mimeType"], resumable=False
+    )
+    new_file = drive.files().create(
         body={
             "name": title,
             "parents": [folder_id],
             "mimeType": "application/vnd.google-apps.document",
         },
+        media_body=media,
+        fields="id",
         supportsAllDrives=True,
     ).execute()
-    return copy["id"]
+    return new_file["id"]
 
 
 def _replace_placeholders(docs, doc_id: str, replacements: dict):
