@@ -201,10 +201,8 @@ _TEMPLATE_ENV_BY_DOC_TYPE = {
 # Mapeamento: trecho do header markdown (lowercase) → nome do placeholder no template
 _SECTION_PLACEHOLDERS = {
     "planning": {
-        "objetivo da sprint":  "OBJETIVO_SPRINT",
-        "backlog da sprint":   "BACKLOG",
-        "responsabilidades":   "RESPONSABILIDADES",
-        "riscos previstos":    "RISCOS",
+        "backlog da sprint": "BACKLOG",
+        "riscos previstos":  "RISCOS",
     },
     "review": {
         "o que foi planejado":              "PLANEJADO",
@@ -295,9 +293,9 @@ def export_to_gdocs(
     section_replacements = _extract_section_replacements(markdown_content, doc_type)
     if section_replacements:
         _replace_placeholders(docs, doc_id, section_replacements)
-
-    # {{CONTENT}} recebe o markdown completo como fallback (templates sem placeholders de seção)
-    segments = _parse_markdown(markdown_content)
-    _apply_content(docs, doc_id, segments)
+    else:
+        # {{CONTENT}} recebe o markdown completo como fallback (templates sem placeholders de seção)
+        segments = _parse_markdown(markdown_content)
+        _apply_content(docs, doc_id, segments)
 
     return f"https://docs.google.com/document/d/{doc_id}/edit"
