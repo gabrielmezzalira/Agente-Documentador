@@ -18,7 +18,7 @@ CREATE TABLE ingestions (
     sprint_number     int         NOT NULL,
     file_name         text,
     file_type         text,
-    tipo_documentacao text        CHECK (tipo_documentacao IS NULL OR tipo_documentacao IN ('planning','daily','review','outro')),
+    tipo_documentacao text        CHECK (tipo_documentacao IS NULL OR tipo_documentacao IN ('planning','daily','review','retrospectiva','commit','outro')),
     extracted_content jsonb,
     input_tokens      int         DEFAULT 0,
     output_tokens     int         DEFAULT 0,
@@ -39,6 +39,11 @@ CREATE TABLE ingestions (
 -- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS tipo_documentacao text;
 -- ALTER TABLE ingestions ADD CONSTRAINT ingestions_tipo_documentacao_check
 --   CHECK (tipo_documentacao IS NULL OR tipo_documentacao IN ('planning','daily','review','outro'));
+
+-- Migration v2: adicionar 'retrospectiva' e 'commit' ao tipo_documentacao
+-- ALTER TABLE ingestions DROP CONSTRAINT ingestions_tipo_documentacao_check;
+-- ALTER TABLE ingestions ADD CONSTRAINT ingestions_tipo_documentacao_check
+--   CHECK (tipo_documentacao IS NULL OR tipo_documentacao IN ('planning','daily','review','retrospectiva','commit','outro'));
 
 CREATE TABLE generated_docs (
     id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
