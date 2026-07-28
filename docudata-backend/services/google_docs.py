@@ -9,6 +9,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+from services.supabase_client import get_client
+
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive",
@@ -230,7 +232,7 @@ _SECTION_PLACEHOLDERS = {
         "riscos previstos":  "RISCOS",
     },
     "review": {
-        "o que foi planejado":              "PLANEJADO",
+        "o que foi planejado":              "PLANEJADO_ENTREGUE",
         "o que foi efetivamente realizado": "REALIZADO",
         "delta":                            "DELTA",
         "decisões tomadas durante a sprint":"DECISOES",
@@ -241,9 +243,9 @@ _SECTION_PLACEHOLDERS = {
     "retrospectiva": {
         "o que funcionou":           "O_QUE_FUNCIONOU",
         "o que não funcionou":       "O_QUE_NAO_FUNCIONOU",
-        "causa raiz":                "CAUSA_RAIZ",
+        "causa raiz":                "CAUSA_RAIZ_IMPACTO",
         "ações de melhoria":         "ACOES_MELHORIA",
-        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO",
+        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO_STATUS",
     },
 }
 
@@ -298,6 +300,7 @@ def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
 
 
 def export_to_gdocs(
+    project_id: str,
     markdown_content: str,
     doc_type_label: str,
     projeto_nome: str,
@@ -325,6 +328,69 @@ def export_to_gdocs(
     doc_id = _clone_template(drive, template_id, title, sprint_folder_id)
 
     data_fmt = datetime.fromisoformat(created_at.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+
+    # Busca campos_planning do Supabase quando disponíveis
+    campos_planning: dict = {}
+    campos_review: dict = {}
+    if doc_type == "planning" and sprint_numero is not None:
+        client = get_client()
+        resp = (
+            client.table("ingestions")
+            .select("extracted_content")
+            .eq("project_id", project_id)
+            .eq("sprint_number", sprint_numero)
+            .eq("tipo_documentacao", "planning")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            campos_planning = resp.data[0].get("extracted_content", {}).get("campos_planning", {}) or {}
+
+    if doc_type == "review" and sprint_numero is not None:
+        client = get_client()
+        resp = (
+            client.table("ingestions")
+            .select("extracted_content")
+            .eq("project_id", project_id)
+            .eq("sprint_number", sprint_numero)
+            .eq("tipo_documentacao", "review")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            campos_review = resp.data[0].get("extracted_content", {}).get("campos_review", {}) or {}
+
+    def _cp(source: dict, key: str) -> str:
+        return str(source.get(key) or "—")
+
+    if doc_type == "planning":
+        periodo_inicio = _cp(campos_planning, "periodo_inicio")
+        periodo_fim = _cp(campos_planning, "periodo_fim")
+        periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio != "—" and periodo_fim != "—" else periodo_inicio if periodo_inicio != "—" else periodo_fim
+        horas_reais = _cp(campos_planning, "horas_disponiveis")
+        horas_estimadas = _cp(campos_planning, "horas_estimadas")
+        squad = _cp(campos_planning, "squad")
+        dependencias = _cp(campos_planning, "dependencias_cliente")
+        carry_over = _cp(campos_planning, "carry_over")
+    else:
+        periodo = "—"
+        horas_reais = "—"
+        horas_estimadas = "—"
+        squad = "—"
+        dependencias = "—"
+        carry_over = "—"
+
+    if doc_type == "review":
+        percepcao_cliente = _cp(campos_review, "percepcao_cliente")
+        sinal_satisfacao = _cp(campos_review, "sinal_satisfacao")
+        pedidos_fora_escopo = _cp(campos_review, "pedidos_fora_escopo")
+    else:
+        percepcao_cliente = "—"
+        sinal_satisfacao = "—"
+        pedidos_fora_escopo = "—"
+
     _replace_placeholders(docs, doc_id, {
         "PROJETO": projeto_nome,
         "CLIENTE": cliente,
@@ -332,8 +398,15 @@ def export_to_gdocs(
         "SPRINT": sprint_label,
         "SPRINT_NUM": str(sprint_numero) if sprint_numero else "—",
         "DATA": data_fmt,
-        "SQUAD": "[A definir]",
-        "PERIODO": "[A definir]",
+        "SQUAD": squad,
+        "PERIODO": periodo,
+        "HORAS_REAIS": horas_reais,
+        "HORAS_ESTIMADAS": horas_estimadas,
+        "DEPENDENCIAS_CLIENTE": dependencias,
+        "CARRY_OVER": carry_over,
+        "PERCEPCAO_CLIENTE": percepcao_cliente,
+        "SINAL_SATISFACAO": sinal_satisfacao,
+        "PEDIDOS_FORA_ESCOPO": pedidos_fora_escopo,
     })
 
     # Substitui placeholders de seção ({{BACKLOG}}, {{RISCOS}}, etc.) se o template os tiver

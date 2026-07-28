@@ -34,6 +34,7 @@ async def export_doc_to_gdocs(doc_id: str):
 
     try:
         url = export_to_gdocs(
+            project_id=doc["project_id"],
             markdown_content=doc["content"],
             doc_type_label=_DOC_TYPE_LABELS.get(doc["doc_type"], doc["doc_type"]),
             projeto_nome=project["name"],
