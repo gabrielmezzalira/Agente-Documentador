@@ -328,6 +328,44 @@ def export_to_gdocs(
     doc_id = _clone_template(drive, template_id, title, sprint_folder_id)
 
     data_fmt = datetime.fromisoformat(created_at.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+
+    # Busca campos_planning do Supabase quando disponíveis
+    campos_planning: dict = {}
+    if doc_type == "planning" and sprint_numero is not None:
+        client = get_client()
+        resp = (
+            client.table("ingestions")
+            .select("extracted_content")
+            .eq("project_id", project_id)
+            .eq("sprint_number", sprint_numero)
+            .eq("tipo_documentacao", "planning")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            campos_planning = resp.data[0].get("extracted_content", {}).get("campos_planning", {}) or {}
+
+    def _cp(key: str) -> str:
+        return str(campos_planning.get(key) or "—")
+
+    if doc_type == "planning":
+        periodo_inicio = _cp("periodo_inicio")
+        periodo_fim = _cp("periodo_fim")
+        periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio != "—" and periodo_fim != "—" else periodo_inicio if periodo_inicio != "—" else periodo_fim
+        horas_reais = _cp("horas_disponiveis")
+        horas_estimadas = _cp("horas_estimadas")
+        squad = _cp("squad")
+        dependencias = _cp("dependencias_cliente")
+        carry_over = _cp("carry_over")
+    else:
+        periodo = "—"
+        horas_reais = "—"
+        horas_estimadas = "—"
+        squad = "—"
+        dependencias = "—"
+        carry_over = "—"
+
     _replace_placeholders(docs, doc_id, {
         "PROJETO": projeto_nome,
         "CLIENTE": cliente,
@@ -335,8 +373,12 @@ def export_to_gdocs(
         "SPRINT": sprint_label,
         "SPRINT_NUM": str(sprint_numero) if sprint_numero else "—",
         "DATA": data_fmt,
-        "SQUAD": "[A definir]",
-        "PERIODO": "[A definir]",
+        "SQUAD": squad,
+        "PERIODO": periodo,
+        "HORAS_REAIS": horas_reais,
+        "HORAS_ESTIMADAS": horas_estimadas,
+        "DEPENDENCIAS_CLIENTE": dependencias,
+        "CARRY_OVER": carry_over,
     })
 
     # Substitui placeholders de seção ({{BACKLOG}}, {{RISCOS}}, etc.) se o template os tiver
