@@ -126,6 +126,9 @@ export default function SprintDocModal({
 
   // Review state
   const [observacoes, setObservacoes] = useState("");
+  const [percepcaoCliente, setPercepcaoCliente] = useState("");
+  const [sinalSatisfacao, setSinalSatisfacao] = useState("");
+  const [pedidosForaEscopo, setPedidosForaEscopo] = useState("");
 
   // Common
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -150,6 +153,9 @@ export default function SprintDocModal({
       setProximo("");
       setImpedimentos("");
       setObservacoes("");
+      setPercepcaoCliente("");
+      setSinalSatisfacao("");
+      setPedidosForaEscopo("");
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
     }
@@ -197,6 +203,9 @@ export default function SprintDocModal({
           projetoId,
           sprintNumero,
           observacoes: observacoes || undefined,
+          percepcaoCliente: percepcaoCliente || undefined,
+          sinalSatisfacao: sinalSatisfacao || undefined,
+          pedidosForaEscopo: pedidosForaEscopo || undefined,
           anexo,
         });
       }
@@ -358,6 +367,34 @@ export default function SprintDocModal({
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Opcional — observações qualitativas. O delta planejado vs realizado será calculado automaticamente a partir do planning e das dailys da sprint."
+            />
+
+            <label style={labelStyle}>Percepção do cliente</label>
+            <textarea
+              style={textareaStyle}
+              value={percepcaoCliente}
+              onChange={(e) => setPercepcaoCliente(e.target.value)}
+              placeholder="Ex: Cliente satisfeito com a velocidade de entrega"
+            />
+
+            <label style={labelStyle}>Sinal de satisfação</label>
+            <select
+              style={{ ...inputStyle, cursor: "pointer" }}
+              value={sinalSatisfacao}
+              onChange={(e) => setSinalSatisfacao(e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              <option value="🟢 Verde">🟢 Verde</option>
+              <option value="🟡 Amarelo">🟡 Amarelo</option>
+              <option value="🔴 Vermelho">🔴 Vermelho</option>
+            </select>
+
+            <label style={labelStyle}>Pedidos fora do escopo</label>
+            <textarea
+              style={textareaStyle}
+              value={pedidosForaEscopo}
+              onChange={(e) => setPedidosForaEscopo(e.target.value)}
+              placeholder="Ex: Cliente solicitou relatório PDF — registrado para avaliação"
             />
           </>
         )}

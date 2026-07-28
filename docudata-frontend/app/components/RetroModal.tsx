@@ -6,7 +6,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   sprintNumero: number;
-  onSubmit: (observacoes: string, file: File | null) => Promise<void>;
+  onSubmit: (observacoes: string, pedidoForaEscopoStatus: string, file: File | null) => Promise<void>;
 }
 
 const overlayStyle: React.CSSProperties = {
@@ -78,6 +78,7 @@ const ghostBtn: React.CSSProperties = {
 
 export default function RetroModal({ open, onClose, sprintNumero, onSubmit }: Props) {
   const [observacoes, setObservacoes] = useState("");
+  const [pedidoForaEscopoStatus, setPedidoForaEscopoStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [anexoName, setAnexoName] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export default function RetroModal({ open, onClose, sprintNumero, onSubmit }: Pr
   useEffect(() => {
     if (!open) {
       setObservacoes("");
+      setPedidoForaEscopoStatus("");
       setSubmitting(false);
       setError(null);
       setAnexoName(null);
@@ -100,7 +102,7 @@ export default function RetroModal({ open, onClose, sprintNumero, onSubmit }: Pr
     setError(null);
     const file = fileRef.current?.files?.[0] ?? null;
     try {
-      await onSubmit(observacoes, file);
+      await onSubmit(observacoes, pedidoForaEscopoStatus, file);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao gerar retrospectiva");
@@ -125,6 +127,14 @@ export default function RetroModal({ open, onClose, sprintNumero, onSubmit }: Pr
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
           placeholder="Tópicos discutidos na reunião de retro, o que o time sentiu que travou, feedbacks internos, decisões de processo..."
+        />
+
+        <label style={labelStyle}>Pedido fora de escopo — status</label>
+        <textarea
+          style={textareaStyle}
+          value={pedidoForaEscopoStatus}
+          onChange={(e) => setPedidoForaEscopoStatus(e.target.value)}
+          placeholder="Ex: Solicitação de relatório PDF — aceita para Sprint 4"
         />
 
         <label style={labelStyle}>
