@@ -16,6 +16,7 @@ interface Props {
   tipo: SprintDocType;
   projetoId: string;
   sprintNumero: number;
+  initialCarryOver?: string;
 }
 
 const TITLES: Record<SprintDocType, string> = {
@@ -102,6 +103,7 @@ export default function SprintDocModal({
   tipo,
   projetoId,
   sprintNumero,
+  initialCarryOver,
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +111,13 @@ export default function SprintDocModal({
   // Planning state
   const [descricao, setDescricao] = useState("");
   const [itens, setItens] = useState<string[]>([""]);
+  const [squad, setSquad] = useState("");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
+  const [horasDisponiveis, setHorasDisponiveis] = useState<number | "">("");
+  const [horasEstimadas, setHorasEstimadas] = useState<number | "">("");
+  const [dependenciasCliente, setDependenciasCliente] = useState("");
+  const [carryOver, setCarryOver] = useState("");
 
   // Daily state
   const today = new Date().toISOString().slice(0, 10);
@@ -119,27 +128,43 @@ export default function SprintDocModal({
 
   // Review state
   const [observacoes, setObservacoes] = useState("");
+  const [percepcaoCliente, setPercepcaoCliente] = useState("");
+  const [sinalSatisfacao, setSinalSatisfacao] = useState("");
+  const [pedidosForaEscopo, setPedidosForaEscopo] = useState("");
 
   // Common
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [anexoName, setAnexoName] = useState<string | null>(null);
 
-  // Reset on close
+  // Reset on close / pre-fill on open
   useEffect(() => {
     if (!open) {
       setSubmitting(false);
       setError(null);
       setDescricao("");
       setItens([""]);
+      setSquad("");
+      setPeriodoInicio("");
+      setPeriodoFim("");
+      setHorasDisponiveis("");
+      setHorasEstimadas("");
+      setDependenciasCliente("");
+      setCarryOver("");
       setData(today);
       setFeito("");
       setProximo("");
       setImpedimentos("");
       setObservacoes("");
+      setPercepcaoCliente("");
+      setSinalSatisfacao("");
+      setPedidosForaEscopo("");
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
+    } else {
+      // Pre-fill carry-over when opening planning modal
+      setCarryOver(initialCarryOver ?? "");
     }
-  }, [open, today]);
+  }, [open, today, initialCarryOver]);
 
   if (!open) return null;
 
@@ -157,6 +182,13 @@ export default function SprintDocModal({
           sprintNumero,
           descricao,
           itensBacklog: cleanItens,
+          squad: squad || undefined,
+          periodoInicio: periodoInicio || undefined,
+          periodoFim: periodoFim || undefined,
+          horasDisponiveis: horasDisponiveis !== "" ? horasDisponiveis : undefined,
+          horasEstimadas: horasEstimadas !== "" ? horasEstimadas : undefined,
+          dependenciasCliente: dependenciasCliente || undefined,
+          carryOver: carryOver || undefined,
           anexo,
         });
       } else if (tipo === "daily") {
@@ -176,6 +208,9 @@ export default function SprintDocModal({
           projetoId,
           sprintNumero,
           observacoes: observacoes || undefined,
+          percepcaoCliente: percepcaoCliente || undefined,
+          sinalSatisfacao: sinalSatisfacao || undefined,
+          pedidosForaEscopo: pedidosForaEscopo || undefined,
           anexo,
         });
       }
@@ -235,6 +270,66 @@ export default function SprintDocModal({
             >
               + Adicionar item
             </button>
+
+            <label style={labelStyle}>Squad</label>
+            <input
+              style={inputStyle}
+              value={squad}
+              onChange={(e) => setSquad(e.target.value)}
+              placeholder="Ex: Backend, Data, Full-stack"
+            />
+
+            <label style={labelStyle}>Período da sprint</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="date"
+                style={{ ...inputStyle, flex: 1 }}
+                value={periodoInicio}
+                onChange={(e) => setPeriodoInicio(e.target.value)}
+              />
+              <input
+                type="date"
+                style={{ ...inputStyle, flex: 1 }}
+                value={periodoFim}
+                onChange={(e) => setPeriodoFim(e.target.value)}
+              />
+            </div>
+
+            <label style={labelStyle}>Capacidade vs. Estimativa</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="number"
+                min={0}
+                style={{ ...inputStyle, flex: 1 }}
+                value={horasDisponiveis}
+                onChange={(e) => setHorasDisponiveis(e.target.value ? Number(e.target.value) : "")}
+                placeholder="Horas disponíveis"
+              />
+              <input
+                type="number"
+                min={0}
+                style={{ ...inputStyle, flex: 1 }}
+                value={horasEstimadas}
+                onChange={(e) => setHorasEstimadas(e.target.value ? Number(e.target.value) : "")}
+                placeholder="Horas estimadas"
+              />
+            </div>
+
+            <label style={labelStyle}>Dependências do cliente</label>
+            <textarea
+              style={textareaStyle}
+              value={dependenciasCliente}
+              onChange={(e) => setDependenciasCliente(e.target.value)}
+              placeholder="Ex: Acesso ao banco de produção, aprovação do layout"
+            />
+
+            <label style={labelStyle}>Carry-over da sprint anterior</label>
+            <textarea
+              style={{ ...textareaStyle, minHeight: 60 }}
+              value={carryOver}
+              onChange={(e) => setCarryOver(e.target.value)}
+              placeholder="Itens não entregues na sprint anterior (pré-preenchido automaticamente)"
+            />
           </>
         )}
 
@@ -277,6 +372,34 @@ export default function SprintDocModal({
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Opcional — observações qualitativas. O delta planejado vs realizado será calculado automaticamente a partir do planning e das dailys da sprint."
+            />
+
+            <label style={labelStyle}>Percepção do cliente</label>
+            <textarea
+              style={textareaStyle}
+              value={percepcaoCliente}
+              onChange={(e) => setPercepcaoCliente(e.target.value)}
+              placeholder="Ex: Cliente satisfeito com a velocidade de entrega"
+            />
+
+            <label style={labelStyle}>Sinal de satisfação</label>
+            <select
+              style={{ ...inputStyle, cursor: "pointer" }}
+              value={sinalSatisfacao}
+              onChange={(e) => setSinalSatisfacao(e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              <option value="🟢 Verde">🟢 Verde</option>
+              <option value="🟡 Amarelo">🟡 Amarelo</option>
+              <option value="🔴 Vermelho">🔴 Vermelho</option>
+            </select>
+
+            <label style={labelStyle}>Pedidos fora do escopo</label>
+            <textarea
+              style={textareaStyle}
+              value={pedidosForaEscopo}
+              onChange={(e) => setPedidosForaEscopo(e.target.value)}
+              placeholder="Ex: Cliente solicitou relatório PDF — registrado para avaliação"
             />
           </>
         )}

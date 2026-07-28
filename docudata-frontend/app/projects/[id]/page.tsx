@@ -9,6 +9,7 @@ import {
   getProjectCost,
   updateApiKey,
   listIngestions,
+  listIngestionsBySprint,
   listDocs,
   listSprints,
   createSprint,
@@ -17,6 +18,7 @@ import {
   ingestFile,
   exportToGdocs,
   submitAtaUpload,
+  submitRetrospectiva,
   deleteProject,
   deleteDoc,
   toggleDelivered,
@@ -65,6 +67,9 @@ export default function ProjectDashboard() {
 
   // ---------- modal retrospectiva ----------
   const [retroModal, setRetroModal] = useState<{ sprintNumero: number } | null>(null);
+
+  // ---------- carry-over prefill ----------
+  const [carryOverPrefill, setCarryOverPrefill] = useState("");
 
   // ---------- geração ----------
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
@@ -222,15 +227,35 @@ export default function ProjectDashboard() {
     handleGenerate(tipoDoc, sprintNumero);
   }
 
-  async function handleRetroSubmit(observacoes: string, file: File | null) {
-    if (!retroModal) return;
-    const sprintNumero = retroModal.sprintNumero;
-    if (file) {
-      await ingestFile(id, sprintNumero, file);
+  async function fetchCarryOver(sprintNumero: number) {
+    if (sprintNumero <= 1) { setCarryOverPrefill(""); return; }
+    try {
+      const ingestions = await listIngestionsBySprint(id, sprintNumero - 1);
+      const review = ingestions.find((ing: Ingestion) => ing.tipo_documentacao === "review");
+      const items: string[] = (review?.extracted_content as any)?.campos_review?.itens_proxima_sprint
+        || review?.extracted_content?.proximos_passos
+        || [];
+      setCarryOverPrefill(Array.isArray(items) ? items.join("\n") : String(items));
+    } catch {
+      setCarryOverPrefill("");
     }
-    const doc = await generateDoc(id, "retrospectiva", sprintNumero, undefined, observacoes || undefined);
-    setGeneratedDoc(doc);
-    await refreshAll();
+  }
+
+  async function handleRetroSubmit(observacoes: string, pedidoForaEscopoStatus: string, file: File | null) {
+    if (!retroModal) return;
+    try {
+      const doc = await submitRetrospectiva({
+        projetoId: id,
+        sprintNumero: retroModal.sprintNumero,
+        observacoes: observacoes || undefined,
+        pedidoForaEscopoStatus: pedidoForaEscopoStatus || undefined,
+        anexo: file,
+      });
+      setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
+      setRetroModal(null);
+    } catch (e) {
+      console.error("Erro ao submeter retrospectiva:", e);
+    }
   }
 
   async function handleAtaUpload(sprintNumero: number, file: File) {
@@ -445,7 +470,10 @@ export default function ProjectDashboard() {
                 ingestions={ingestionsBySprint[s.numero] ?? []}
                 docs={docsBySprint[s.numero] ?? []}
                 generating={generating}
-                onOpenSprintDoc={(tipo, n) => setModal({ tipo, sprintNumero: n })}
+                onOpenSprintDoc={(tipo, n) => {
+                  setModal({ tipo, sprintNumero: n });
+                  if (tipo === "planning") fetchCarryOver(n);
+                }}
                 onUploadLivre={handleUploadLivre}
                 onGenerateSprintDoc={handleGenerateFromCard}
                 onOpenRetroModal={(n) => setRetroModal({ sprintNumero: n })}
@@ -721,6 +749,7 @@ export default function ProjectDashboard() {
         tipo={modal?.tipo ?? "planning"}
         projetoId={id}
         sprintNumero={modal?.sprintNumero ?? 1}
+        initialCarryOver={carryOverPrefill}
         onSubmitted={async () => {
           await refreshAll();
         }}
