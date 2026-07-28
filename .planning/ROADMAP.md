@@ -100,7 +100,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [ ] 04-03-PLAN.md — Export Google Docs com todos os placeholders CITi v2 preenchidos (busca campos do Supabase)
-- [ ] 04-04-PLAN.md — GitHub integration: POST /ingest/commit + script bash de git hook
+- [ ] 04-04-PLAN.md — GitHub integration: GET /current-sprint + POST /ingest/commit + GitHub Actions workflow + Python agent (detecção automática de sprint, override [sprint:N], commit status)
 
 ## Progress
 
