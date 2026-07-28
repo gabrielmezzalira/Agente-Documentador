@@ -1,0 +1,38 @@
+# DocuData Commit Tracker — GitHub Actions Workflow
+#
+# Instalação no repositório do projeto:
+#   mkdir -p .github/workflows scripts
+#   cp <caminho>/docudata_agent.py scripts/docudata_agent.py
+#   cp <caminho>/docudata.yml     .github/workflows/docudata.yml
+#   git add .github/workflows/docudata.yml scripts/docudata_agent.py
+#   git commit -m "chore: adicionar DocuData commit tracker"
+#
+# Configurar GitHub Secrets no repositório do projeto:
+#   DOCUDATA_API_URL     — https://docudata-backend.railway.app
+#   DOCUDATA_PROJECT_ID  — UUID do projeto no DocuData
+#
+# Override de sprint na mensagem do commit:
+#   git commit -m "feat: nova tela [sprint:4]"
+
+name: DocuData Commit Tracker
+
+on:
+  push:
+    branches: ['**']   # todo commit em toda branch é registrado
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write   # necessário para escrever commit status
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # precisa do commit anterior para o diff
+
+      - name: Registrar commit no DocuData
+        env:
+          DOCUDATA_API_URL:    ${{ secrets.DOCUDATA_API_URL }}
+          DOCUDATA_PROJECT_ID: ${{ secrets.DOCUDATA_PROJECT_ID }}
+          GITHUB_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/docudata_agent.py
