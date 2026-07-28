@@ -250,23 +250,35 @@ _SECTION_PLACEHOLDERS = {
 }
 
 
-def _format_backlog_items(raw: str) -> str:
-    """Extrai só os nomes dos itens do backlog, um por linha, sem anotações de campo.
+def _parse_backlog_columns(raw: str) -> tuple[str, str, str]:
+    """Parseia o markdown de backlog e retorna (itens, prazos, criterios) como strings multi-linha.
 
-    O markdown de planning gera "- Item — Responsável: X — Prazo: Y — DoD: Z",
-    mas o template tem colunas separadas para cada campo. Aqui ficam só os itens.
+    Formato esperado por linha: "- Item — Prazo: X — DoD: Y"
+    Cada coluna terá um valor por linha, alinhados pela posição da linha.
+    Se Prazo ou DoD estiverem ausentes, a linha correspondente fica em branco.
     """
-    items = []
+    nomes, prazos, criterios = [], [], []
     for line in raw.split("\n"):
         line = line.strip()
         if not line:
             continue
         if line.startswith("- "):
             line = line[2:]
-        item = line.split(" — ")[0].strip()
-        if item:
-            items.append(item)
-    return "\n".join(items)
+        partes = line.split(" — ")
+        nome = partes[0].strip()
+        if not nome:
+            continue
+        prazo = ""
+        criterio = ""
+        for parte in partes[1:]:
+            if parte.lower().startswith("prazo:"):
+                prazo = parte[len("prazo:"):].strip()
+            elif parte.lower().startswith("dod:"):
+                criterio = parte[len("dod:"):].strip()
+        nomes.append(nome)
+        prazos.append(prazo)
+        criterios.append(criterio)
+    return "\n".join(nomes), "\n".join(prazos), "\n".join(criterios)
 
 
 def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
@@ -292,7 +304,11 @@ def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
             if section_key in header:
                 content = "\n".join(lines).strip()
                 if placeholder == "BACKLOG":
-                    content = _format_backlog_items(content)
+                    nomes, prazos, criterios = _parse_backlog_columns(content)
+                    result["BACKLOG"] = nomes
+                    result["BACKLOG_PRAZO"] = prazos
+                    result["BACKLOG_DOD"] = criterios
+                    break
                 result[placeholder] = content
                 break
 
@@ -363,8 +379,8 @@ def export_to_gdocs(
         if resp.data:
             campos_review = resp.data[0].get("extracted_content", {}).get("campos_review", {}) or {}
 
-    def _cp(source: dict, key: str) -> str:
-        return str(source.get(key) or "—")
+    def _cp(source: dict, key: str, default: str = "Não informado") -> str:
+        return str(source.get(key) or default)
 
     if doc_type == "planning":
         periodo_inicio = _cp(campos_planning, "periodo_inicio")

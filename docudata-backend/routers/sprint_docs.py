@@ -211,7 +211,7 @@ async def submit_planning(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     descricao: str = Form(...),
-    itens_backlog: str = Form("[]"),  # JSON array de strings
+    itens_backlog: str = Form("[]"),  # JSON array de {item, prazo?, criterio?}
     squad: Optional[str] = Form(None),
     periodo_inicio: Optional[str] = Form(None),  # formato ISO date YYYY-MM-DD
     periodo_fim: Optional[str] = Form(None),      # formato ISO date YYYY-MM-DD
@@ -227,18 +227,40 @@ async def submit_planning(
         backlog = json.loads(itens_backlog)
         if not isinstance(backlog, list):
             raise ValueError("itens_backlog deve ser JSON array")
+        # Normaliza: aceita strings legacy ou objetos {item, prazo, criterio}
+        backlog_items = []
+        for entry in backlog:
+            if isinstance(entry, str):
+                backlog_items.append({"item": entry, "prazo": "", "criterio": ""})
+            elif isinstance(entry, dict):
+                backlog_items.append({
+                    "item": entry.get("item", ""),
+                    "prazo": entry.get("prazo", "") or "",
+                    "criterio": entry.get("criterio", "") or "",
+                })
     except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"itens_backlog inválido: {exc}")
 
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
+    # Formata tarefas como "item — Prazo: X — DoD: Y" para o contexto do LLM
+    def _fmt(b: dict) -> str:
+        s = b["item"]
+        if b["prazo"]:
+            s += f" — Prazo: {b['prazo']}"
+        if b["criterio"]:
+            s += f" — DoD: {b['criterio']}"
+        return s
+
+    tarefas_fmt = [_fmt(b) for b in backlog_items if b["item"]]
+
     base_content = {
         "resumo": descricao,
-        "tarefas": [str(item) for item in backlog],
+        "tarefas": tarefas_fmt,
         "decisoes": [],
         "problemas": [],
         "contexto_cliente": "",
-        "proximos_passos": [str(item) for item in backlog],
+        "proximos_passos": tarefas_fmt,
         "tecnologias": [],
         "campos_planning": {
             "squad": squad or "",
@@ -248,6 +270,7 @@ async def submit_planning(
             "horas_estimadas": horas_estimadas,
             "dependencias_cliente": dependencias_cliente or "",
             "carry_over": carry_over or "",
+            "backlog_items": backlog_items,
         },
     }
 

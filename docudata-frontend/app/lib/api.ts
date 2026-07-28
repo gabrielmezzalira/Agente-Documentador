@@ -270,7 +270,7 @@ export async function submitPlanning(input: {
   projetoId: string;
   sprintNumero: number;
   descricao: string;
-  itensBacklog: string[];
+  itensBacklog: { item: string; prazo?: string; criterio?: string }[];
   periodoInicio?: string;
   periodoFim?: string;
   horasDisponiveis?: number;

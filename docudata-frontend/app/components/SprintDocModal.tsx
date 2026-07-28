@@ -110,7 +110,9 @@ export default function SprintDocModal({
 
   // Planning state
   const [descricao, setDescricao] = useState("");
-  const [itens, setItens] = useState<string[]>([""]);
+  const [itens, setItens] = useState<{ item: string; prazo: string; criterio: string }[]>([
+    { item: "", prazo: "", criterio: "" },
+  ]);
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [horasDisponiveis, setHorasDisponiveis] = useState<number | "">("");
@@ -141,7 +143,7 @@ export default function SprintDocModal({
       setSubmitting(false);
       setError(null);
       setDescricao("");
-      setItens([""]);
+      setItens([{ item: "", prazo: "", criterio: "" }]);
       setPeriodoInicio("");
       setPeriodoFim("");
       setHorasDisponiveis("");
@@ -173,7 +175,7 @@ export default function SprintDocModal({
     try {
       let response: SprintDocResponse;
       if (tipo === "planning") {
-        const cleanItens = itens.map((i) => i.trim()).filter(Boolean);
+        const cleanItens = itens.filter((i) => i.item.trim());
         if (!descricao.trim()) throw new Error("Descrição é obrigatória");
         response = await submitPlanning({
           projetoId,
@@ -237,17 +239,43 @@ export default function SprintDocModal({
               placeholder="Ex: Sprint focada em finalizar o ETL e iniciar a camada de visualização"
             />
             <label style={labelStyle}>Itens do backlog</label>
-            {itens.map((item, idx) => (
-              <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr auto", gap: 6, marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Tarefa</span>
+              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Prazo</span>
+              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Critério de pronto</span>
+              <span />
+            </div>
+            {itens.map((row, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr auto", gap: 6, marginBottom: 6 }}>
                 <input
                   style={inputStyle}
-                  value={item}
+                  value={row.item}
                   onChange={(e) => {
                     const next = [...itens];
-                    next[idx] = e.target.value;
+                    next[idx] = { ...next[idx], item: e.target.value };
                     setItens(next);
                   }}
                   placeholder={`Item ${idx + 1}`}
+                />
+                <input
+                  style={inputStyle}
+                  value={row.prazo}
+                  onChange={(e) => {
+                    const next = [...itens];
+                    next[idx] = { ...next[idx], prazo: e.target.value };
+                    setItens(next);
+                  }}
+                  placeholder="Ex: 15/08"
+                />
+                <input
+                  style={inputStyle}
+                  value={row.criterio}
+                  onChange={(e) => {
+                    const next = [...itens];
+                    next[idx] = { ...next[idx], criterio: e.target.value };
+                    setItens(next);
+                  }}
+                  placeholder="Ex: PR aprovado e deploy feito"
                 />
                 {itens.length > 1 && (
                   <button
@@ -263,7 +291,7 @@ export default function SprintDocModal({
             <button
               type="button"
               style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setItens([...itens, ""])}
+              onClick={() => setItens([...itens, { item: "", prazo: "", criterio: "" }])}
             >
               + Adicionar item
             </button>
