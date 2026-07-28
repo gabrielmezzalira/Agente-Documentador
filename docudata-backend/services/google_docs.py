@@ -9,6 +9,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+from services.supabase_client import get_client
+
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive",
@@ -298,6 +300,7 @@ def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
 
 
 def export_to_gdocs(
+    project_id: str,
     markdown_content: str,
     doc_type_label: str,
     projeto_nome: str,
