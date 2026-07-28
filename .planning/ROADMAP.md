@@ -74,6 +74,34 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 4: Template v2 + GitHub Integration
+
+**Goal:** Os templates de Planning, Review e Retrospectiva são preenchidos corretamente com todos os campos dos novos templates CITi; novos campos estruturados (Squad, Período, Horas, Dependências, Percepção do cliente, Sinal de satisfação) são coletados nos modais e armazenados; integração com repositório GitHub via commit hook permite ingestão automática de mudanças por sprint sem depender do gerente.
+**Mode:** mvp
+**Depends on:** Phase 3
+**Requirements:** TMPL-01, TMPL-02, TMPL-03, FORM-01, FORM-02, GH-01, GH-02
+**Success Criteria** (what must be TRUE):
+
+  1. Export de Planning preenche `{{BACKLOG}}`, `{{RISCOS}}`, `{{SQUAD}}`, `{{PERIODO}}`, `{{HORAS_REAIS}}`, `{{HORAS_ESTIMADAS}}`, `{{DEPENDENCIAS_CLIENTE}}`, `{{CARRY_OVER}}` no template Google Docs
+  2. Export de Review preenche `{{PLANEJADO_ENTREGUE}}`, `{{PERCEPCAO_CLIENTE}}`, `{{SINAL_SATISFACAO}}`, `{{PEDIDOS_FORA_ESCOPO}}`, `{{ITENS_PROXIMA_SPRINT}}` no template
+  3. Export de Retrospectiva preenche `{{O_QUE_FUNCIONOU}}`, `{{O_QUE_NAO_FUNCIONOU}}`, `{{CAUSA_RAIZ_IMPACTO}}`, `{{ACOES_MELHORIA}}`, `{{PEDIDO_FORA_ESCOPO_STATUS}}`
+  4. Modal de Planning coleta: Squad, Período (início/fim), Horas disponíveis, Horas estimadas, Dependências do cliente
+  5. Modal de Review coleta: Percepção do cliente (frase), Sinal de satisfação (dropdown 3 opções: 🟢 Verde / 🟡 Amarelo / 🔴 Vermelho), Pedidos fora do escopo
+  6. Script de git hook envia payload estruturado ao `POST /ingest/commit` após commit com seção `[docudata]`
+  7. `POST /ingest/commit` salva ingestion com `tipo_documentacao=commit` e `extracted_content` com mudança, decisão, tecnologias, impacto no backlog
+
+**Plans:** 4 plans
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Backend: novos campos estruturados (campos_planning, campos_review, endpoint /retrospectiva, CHECK constraint)
+- [ ] 04-02-PLAN.md — Frontend: modais atualizados (SprintDocModal, RetroModal, api.ts, carry-over pre-fill)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-03-PLAN.md — Export Google Docs com todos os placeholders CITi v2 preenchidos (busca campos do Supabase)
+- [ ] 04-04-PLAN.md — GitHub integration: POST /ingest/commit + script bash de git hook
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -81,3 +109,4 @@ Plans:
 | 1. Backend Foundation + Extraction Proof | 0/3 | Not started | - |
 | 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
+| 4. Template v2 + GitHub Integration | 0/4 | Not started | - |
