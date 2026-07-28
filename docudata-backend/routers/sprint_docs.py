@@ -485,3 +485,64 @@ async def submit_review(
         content=doc["content"],
         created_at=doc["created_at"],
     )
+
+
+@router.post("/retrospectiva", response_model=SprintDocResponse, status_code=201)
+async def submit_retrospectiva(
+    projeto_id: str = Form(...),
+    sprint_numero: int = Form(...),
+    observacoes: Optional[str] = Form(None),
+    pedido_fora_escopo_status: Optional[str] = Form(None),  # aceito | recusado | postergado etc.
+    anexo: Optional[UploadFile] = File(None),
+):
+    """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
+
+    A retrospectiva consolida o que aconteceu na sprint (planning + dailys + review)
+    e captura o status dos pedidos fora de escopo recebidos durante o review.
+    """
+    project, api_key = _project_or_404(projeto_id)
+    ensure_sprint_row(get_client(), projeto_id, sprint_numero)
+
+    base_content = {
+        "resumo": observacoes or f"Retrospectiva da Sprint {sprint_numero}",
+        "tarefas": [],
+        "decisoes": [],
+        "problemas": [],
+        "contexto_cliente": "",
+        "proximos_passos": [],
+        "tecnologias": [],
+        "campos_retrospectiva": {
+            "pedido_fora_escopo_status": pedido_fora_escopo_status or "",
+        },
+    }
+
+    if anexo is not None:
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+        base_content = _merge_content(base_content, extra)
+
+    ingestion = _insert_ingestion(
+        project_id=projeto_id,
+        sprint_numero=sprint_numero,
+        file_name=f"retrospectiva-sprint-{sprint_numero}",
+        tipo_documentacao="retrospectiva",
+        extracted_content=base_content,
+    )
+
+    # Para retrospectiva, o generation_graph busca TODAS as ingestões da sprint
+    # para consolidar o que foi planejado vs realizado — ingestion_id não é usado nesse caminho
+    doc = await _run_generation(
+        project=project,
+        tipo_doc="retrospectiva",
+        sprint_numero=sprint_numero,
+        ingestion_id=None,
+        api_key=api_key,
+    )
+
+    return SprintDocResponse(
+        ingestion_id=ingestion["id"],
+        doc_id=doc["id"],
+        doc_type="retrospectiva",
+        sprint_number=sprint_numero,
+        content=doc["content"],
+        created_at=doc["created_at"],
+    )
