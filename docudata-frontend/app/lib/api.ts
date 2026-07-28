@@ -270,6 +270,13 @@ export async function submitPlanning(input: {
   sprintNumero: number;
   descricao: string;
   itensBacklog: string[];
+  squad?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
+  horasDisponiveis?: number;
+  horasEstimadas?: number;
+  dependenciasCliente?: string;
+  carryOver?: string;
   anexo?: File | null;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
@@ -277,6 +284,13 @@ export async function submitPlanning(input: {
   form.append("sprint_numero", String(input.sprintNumero));
   form.append("descricao", input.descricao);
   form.append("itens_backlog", JSON.stringify(input.itensBacklog));
+  if (input.squad) form.append("squad", input.squad);
+  if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
+  if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
+  if (input.horasDisponiveis != null) form.append("horas_disponiveis", String(input.horasDisponiveis));
+  if (input.horasEstimadas != null) form.append("horas_estimadas", String(input.horasEstimadas));
+  if (input.dependenciasCliente) form.append("dependencias_cliente", input.dependenciasCliente);
+  if (input.carryOver) form.append("carry_over", input.carryOver);
   if (input.anexo) form.append("anexo", input.anexo);
   return _postSprintDoc("planning", form);
 }
@@ -305,14 +319,36 @@ export async function submitReview(input: {
   projetoId: string;
   sprintNumero: number;
   observacoes?: string;
+  percepcaoCliente?: string;
+  sinalSatisfacao?: string;
+  pedidosForaEscopo?: string;
   anexo?: File | null;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
   form.append("sprint_numero", String(input.sprintNumero));
   if (input.observacoes) form.append("observacoes", input.observacoes);
+  if (input.percepcaoCliente) form.append("percepcao_cliente", input.percepcaoCliente);
+  if (input.sinalSatisfacao) form.append("sinal_satisfacao", input.sinalSatisfacao);
+  if (input.pedidosForaEscopo) form.append("pedidos_fora_escopo", input.pedidosForaEscopo);
   if (input.anexo) form.append("anexo", input.anexo);
   return _postSprintDoc("review", form);
+}
+
+export async function submitRetrospectiva(input: {
+  projetoId: string;
+  sprintNumero: number;
+  observacoes?: string;
+  pedidoForaEscopoStatus?: string;
+  anexo?: File | null;
+}): Promise<SprintDocResponse> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("sprint_numero", String(input.sprintNumero));
+  if (input.observacoes) form.append("observacoes", input.observacoes);
+  if (input.pedidoForaEscopoStatus) form.append("pedido_fora_escopo_status", input.pedidoForaEscopoStatus);
+  if (input.anexo) form.append("anexo", input.anexo);
+  return _postSprintDoc("retrospectiva", form);
 }
 
 export async function submitAtaUpload(input: {
@@ -375,6 +411,12 @@ export async function exportToGdocs(docId: string): Promise<{ url: string }> {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao exportar para Google Docs");
   }
+  return res.json();
+}
+
+export async function listIngestionsBySprint(projetoId: string, sprint: number): Promise<Ingestion[]> {
+  const res = await fetch(`${API}/ingestions/${projetoId}/${sprint}`);
+  if (!res.ok) throw new Error("Erro ao buscar ingestões da sprint");
   return res.json();
 }
 
