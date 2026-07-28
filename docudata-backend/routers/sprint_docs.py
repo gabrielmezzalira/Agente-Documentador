@@ -424,6 +424,9 @@ async def submit_review(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     observacoes: Optional[str] = Form(None),
+    percepcao_cliente: Optional[str] = Form(None),   # frase do gerente sobre percepção do cliente
+    sinal_satisfacao: Optional[str] = Form(None),    # "🟢 Verde" | "🟡 Amarelo" | "🔴 Vermelho"
+    pedidos_fora_escopo: Optional[str] = Form(None), # pedidos recebidos fora do escopo da sprint
     anexo: Optional[UploadFile] = File(None),
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
@@ -445,6 +448,11 @@ async def submit_review(
         "contexto_cliente": "",
         "proximos_passos": [],
         "tecnologias": [],
+        "campos_review": {
+            "percepcao_cliente": percepcao_cliente or "",
+            "sinal_satisfacao": sinal_satisfacao or "",
+            "pedidos_fora_escopo": pedidos_fora_escopo or "",
+        },
     }
 
     if anexo is not None:
