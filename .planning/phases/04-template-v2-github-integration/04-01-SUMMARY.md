@@ -30,7 +30,7 @@ decisions:
 metrics:
   duration: "~15min"
   completed_date: "2026-07-28"
-  tasks_completed: 4
+  tasks_completed: 5
   tasks_total: 5
   files_modified: 2
 ---
@@ -53,8 +53,8 @@ metrics:
 ### Task 4 — Endpoint POST /sprint-docs/retrospectiva (cecf7b8)
 Novo endpoint `submit_retrospectiva` seguindo o padrão de `submit_review`. Recebe `pedido_fora_escopo_status` e `observacoes` opcionais, mais `anexo` opcional. Armazena `campos_retrospectiva.pedido_fora_escopo_status` no JSONB. Insere com `tipo_documentacao="retrospectiva"` e chama `_run_generation` com `tipo_doc="retrospectiva"` e `ingestion_id=None`.
 
-### Task 5 — Checkpoint (pendente)
-Verificação manual no Supabase SQL Editor e testes de curl. Aguardando aprovação.
+### Task 5 — Checkpoint (APROVADO)
+Verificacao manual no Supabase SQL Editor e testes de curl realizados pelo usuario. Migration SQL executada no banco de producao. Campos confirmados no Supabase.
 
 ## Commits
 
