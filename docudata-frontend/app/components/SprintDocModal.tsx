@@ -16,6 +16,7 @@ interface Props {
   tipo: SprintDocType;
   projetoId: string;
   sprintNumero: number;
+  initialCarryOver?: string;
 }
 
 const TITLES: Record<SprintDocType, string> = {
@@ -102,6 +103,7 @@ export default function SprintDocModal({
   tipo,
   projetoId,
   sprintNumero,
+  initialCarryOver,
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function SprintDocModal({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [anexoName, setAnexoName] = useState<string | null>(null);
 
-  // Reset on close
+  // Reset on close / pre-fill on open
   useEffect(() => {
     if (!open) {
       setSubmitting(false);
@@ -158,8 +160,11 @@ export default function SprintDocModal({
       setPedidosForaEscopo("");
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
+    } else {
+      // Pre-fill carry-over when opening planning modal
+      setCarryOver(initialCarryOver ?? "");
     }
-  }, [open, today]);
+  }, [open, today, initialCarryOver]);
 
   if (!open) return null;
 
