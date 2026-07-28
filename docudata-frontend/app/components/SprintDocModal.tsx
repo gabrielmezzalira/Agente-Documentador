@@ -109,6 +109,13 @@ export default function SprintDocModal({
   // Planning state
   const [descricao, setDescricao] = useState("");
   const [itens, setItens] = useState<string[]>([""]);
+  const [squad, setSquad] = useState("");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
+  const [horasDisponiveis, setHorasDisponiveis] = useState<number | "">("");
+  const [horasEstimadas, setHorasEstimadas] = useState<number | "">("");
+  const [dependenciasCliente, setDependenciasCliente] = useState("");
+  const [carryOver, setCarryOver] = useState("");
 
   // Daily state
   const today = new Date().toISOString().slice(0, 10);
@@ -131,6 +138,13 @@ export default function SprintDocModal({
       setError(null);
       setDescricao("");
       setItens([""]);
+      setSquad("");
+      setPeriodoInicio("");
+      setPeriodoFim("");
+      setHorasDisponiveis("");
+      setHorasEstimadas("");
+      setDependenciasCliente("");
+      setCarryOver("");
       setData(today);
       setFeito("");
       setProximo("");
@@ -157,6 +171,13 @@ export default function SprintDocModal({
           sprintNumero,
           descricao,
           itensBacklog: cleanItens,
+          squad: squad || undefined,
+          periodoInicio: periodoInicio || undefined,
+          periodoFim: periodoFim || undefined,
+          horasDisponiveis: horasDisponiveis !== "" ? horasDisponiveis : undefined,
+          horasEstimadas: horasEstimadas !== "" ? horasEstimadas : undefined,
+          dependenciasCliente: dependenciasCliente || undefined,
+          carryOver: carryOver || undefined,
           anexo,
         });
       } else if (tipo === "daily") {
@@ -235,6 +256,66 @@ export default function SprintDocModal({
             >
               + Adicionar item
             </button>
+
+            <label style={labelStyle}>Squad</label>
+            <input
+              style={inputStyle}
+              value={squad}
+              onChange={(e) => setSquad(e.target.value)}
+              placeholder="Ex: Backend, Data, Full-stack"
+            />
+
+            <label style={labelStyle}>Período da sprint</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="date"
+                style={{ ...inputStyle, flex: 1 }}
+                value={periodoInicio}
+                onChange={(e) => setPeriodoInicio(e.target.value)}
+              />
+              <input
+                type="date"
+                style={{ ...inputStyle, flex: 1 }}
+                value={periodoFim}
+                onChange={(e) => setPeriodoFim(e.target.value)}
+              />
+            </div>
+
+            <label style={labelStyle}>Capacidade vs. Estimativa</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="number"
+                min={0}
+                style={{ ...inputStyle, flex: 1 }}
+                value={horasDisponiveis}
+                onChange={(e) => setHorasDisponiveis(e.target.value ? Number(e.target.value) : "")}
+                placeholder="Horas disponíveis"
+              />
+              <input
+                type="number"
+                min={0}
+                style={{ ...inputStyle, flex: 1 }}
+                value={horasEstimadas}
+                onChange={(e) => setHorasEstimadas(e.target.value ? Number(e.target.value) : "")}
+                placeholder="Horas estimadas"
+              />
+            </div>
+
+            <label style={labelStyle}>Dependências do cliente</label>
+            <textarea
+              style={textareaStyle}
+              value={dependenciasCliente}
+              onChange={(e) => setDependenciasCliente(e.target.value)}
+              placeholder="Ex: Acesso ao banco de produção, aprovação do layout"
+            />
+
+            <label style={labelStyle}>Carry-over da sprint anterior</label>
+            <textarea
+              style={{ ...textareaStyle, minHeight: 60 }}
+              value={carryOver}
+              onChange={(e) => setCarryOver(e.target.value)}
+              placeholder="Itens não entregues na sprint anterior (pré-preenchido automaticamente)"
+            />
           </>
         )}
 
