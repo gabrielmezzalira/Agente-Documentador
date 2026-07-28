@@ -308,6 +308,7 @@ def export_to_gdocs(
     sprint_numero: int | None,
     created_at: str,
     doc_type: str = "",
+    squad: str = "—",
 ) -> str:
     env_key = _TEMPLATE_ENV_BY_DOC_TYPE.get(doc_type, "")
     template_id = (env_key and os.environ.get(env_key, "")) or os.environ.get("GDOCS_TEMPLATE_ID", "")
@@ -371,14 +372,12 @@ def export_to_gdocs(
         periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio != "—" and periodo_fim != "—" else periodo_inicio if periodo_inicio != "—" else periodo_fim
         horas_reais = _cp(campos_planning, "horas_disponiveis")
         horas_estimadas = _cp(campos_planning, "horas_estimadas")
-        squad = _cp(campos_planning, "squad")
         dependencias = _cp(campos_planning, "dependencias_cliente")
         carry_over = _cp(campos_planning, "carry_over")
     else:
         periodo = "—"
         horas_reais = "—"
         horas_estimadas = "—"
-        squad = "—"
         dependencias = "—"
         carry_over = "—"
 

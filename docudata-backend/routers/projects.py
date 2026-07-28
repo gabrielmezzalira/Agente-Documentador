@@ -27,7 +27,7 @@ class ApiKeyUpdate(BaseModel):
 async def create_project(data: ProjectCreate):
     """Create a new project. Returns the inserted row with its generated UUID."""
     client = get_client()
-    payload = {"name": data.name, "client": data.client, "description": data.description}
+    payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
     if data.budget_usd is not None:
         payload["budget_usd"] = data.budget_usd
     if data.gemini_api_key:

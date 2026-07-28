@@ -139,6 +139,7 @@ export async function createProject(data: {
   name: string;
   client: string;
   description?: string;
+  squad?: string;
   budget_usd?: number | null;
   gemini_api_key?: string;
 }): Promise<Project> {

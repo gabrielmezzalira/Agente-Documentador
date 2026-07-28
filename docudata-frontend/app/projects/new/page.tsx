@@ -10,6 +10,7 @@ export default function NewProject() {
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [description, setDescription] = useState("");
+  const [squad, setSquad] = useState("");
   const [budgetStr, setBudgetStr] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function NewProject() {
     setLoading(true);
     const budget_usd = budgetStr.trim() ? parseFloat(budgetStr) : null;
     try {
-      const project = await createProject({ name, client, description, budget_usd, gemini_api_key: apiKey || undefined });
+      const project = await createProject({ name, client, description, squad: squad || undefined, budget_usd, gemini_api_key: apiKey || undefined });
       router.push(`/projects/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar projeto");
@@ -50,6 +51,14 @@ export default function NewProject() {
         <div>
           <label style={labelStyle}>Cliente *</label>
           <input style={inputStyle} value={client} onChange={(e) => setClient(e.target.value)} placeholder="Ex: Empresa XYZ" required />
+        </div>
+
+        <div>
+          <label style={labelStyle}>
+            Squad{" "}
+            <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+          </label>
+          <input style={inputStyle} value={squad} onChange={(e) => setSquad(e.target.value)} placeholder="Ex: Gabriel, Julia, Pedro" />
         </div>
 
         <div>

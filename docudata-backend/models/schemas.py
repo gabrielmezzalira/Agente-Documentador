@@ -19,6 +19,7 @@ class ProjectCreate(BaseModel):
     name: str
     client: str
     description: Optional[str] = None
+    squad: Optional[str] = None
     budget_usd: Optional[float] = None
     gemini_api_key: Optional[str] = None
 
@@ -28,6 +29,7 @@ class ProjectResponse(BaseModel):
     name: str
     client: str
     description: Optional[str] = None
+    squad: Optional[str] = None
     budget_usd: Optional[float] = None
     has_api_key: bool = False
     is_delivered: bool = False

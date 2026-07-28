@@ -39,6 +39,7 @@ async def export_doc_to_gdocs(doc_id: str):
             doc_type_label=_DOC_TYPE_LABELS.get(doc["doc_type"], doc["doc_type"]),
             projeto_nome=project["name"],
             cliente=project["client"],
+            squad=project.get("squad") or "—",
             sprint_numero=doc.get("sprint_number"),
             created_at=doc["created_at"],
             doc_type=doc["doc_type"],
