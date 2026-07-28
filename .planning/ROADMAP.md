@@ -94,13 +94,13 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Backend: novos campos estruturados (campos_planning, campos_review, endpoint /retrospectiva, CHECK constraint)
-- [ ] 04-02-PLAN.md — Frontend: modais atualizados (SprintDocModal, RetroModal, api.ts, carry-over pre-fill)
+- [x] 04-01-PLAN.md — Backend: novos campos estruturados (campos_planning, campos_review, endpoint /retrospectiva, CHECK constraint)
+- [x] 04-02-PLAN.md — Frontend: modais atualizados (SprintDocModal, RetroModal, api.ts, carry-over pre-fill)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-03-PLAN.md — Export Google Docs com todos os placeholders CITi v2 preenchidos (busca campos do Supabase)
-- [ ] 04-04-PLAN.md — GitHub integration: GET /current-sprint + POST /ingest/commit + GitHub Actions workflow + Python agent (detecção automática de sprint, override [sprint:N], commit status)
+- [x] 04-03-PLAN.md — Export Google Docs com todos os placeholders CITi v2 preenchidos (busca campos do Supabase)
+- [x] 04-04-PLAN.md — GitHub integration: GET /current-sprint + POST /ingest/commit + GitHub Actions workflow + Python agent (detecção automática de sprint, override [sprint:N], commit status)
 
 ## Progress
 
@@ -109,4 +109,4 @@ Plans:
 | 1. Backend Foundation + Extraction Proof | 0/3 | Not started | - |
 | 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
-| 4. Template v2 + GitHub Integration | 0/4 | Not started | - |
+| 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
