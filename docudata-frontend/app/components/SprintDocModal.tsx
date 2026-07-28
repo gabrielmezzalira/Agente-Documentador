@@ -111,7 +111,6 @@ export default function SprintDocModal({
   // Planning state
   const [descricao, setDescricao] = useState("");
   const [itens, setItens] = useState<string[]>([""]);
-  const [squad, setSquad] = useState("");
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [horasDisponiveis, setHorasDisponiveis] = useState<number | "">("");
@@ -143,7 +142,6 @@ export default function SprintDocModal({
       setError(null);
       setDescricao("");
       setItens([""]);
-      setSquad("");
       setPeriodoInicio("");
       setPeriodoFim("");
       setHorasDisponiveis("");
@@ -182,7 +180,6 @@ export default function SprintDocModal({
           sprintNumero,
           descricao,
           itensBacklog: cleanItens,
-          squad: squad || undefined,
           periodoInicio: periodoInicio || undefined,
           periodoFim: periodoFim || undefined,
           horasDisponiveis: horasDisponiveis !== "" ? horasDisponiveis : undefined,
@@ -270,14 +267,6 @@ export default function SprintDocModal({
             >
               + Adicionar item
             </button>
-
-            <label style={labelStyle}>Squad</label>
-            <input
-              style={inputStyle}
-              value={squad}
-              onChange={(e) => setSquad(e.target.value)}
-              placeholder="Ex: Backend, Data, Full-stack"
-            />
 
             <label style={labelStyle}>Período da sprint</label>
             <div style={{ display: "flex", gap: 8 }}>

@@ -270,7 +270,6 @@ export async function submitPlanning(input: {
   sprintNumero: number;
   descricao: string;
   itensBacklog: string[];
-  squad?: string;
   periodoInicio?: string;
   periodoFim?: string;
   horasDisponiveis?: number;
@@ -284,7 +283,6 @@ export async function submitPlanning(input: {
   form.append("sprint_numero", String(input.sprintNumero));
   form.append("descricao", input.descricao);
   form.append("itens_backlog", JSON.stringify(input.itensBacklog));
-  if (input.squad) form.append("squad", input.squad);
   if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
   if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
   if (input.horasDisponiveis != null) form.append("horas_disponiveis", String(input.horasDisponiveis));
