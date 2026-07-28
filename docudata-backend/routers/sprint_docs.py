@@ -212,6 +212,13 @@ async def submit_planning(
     sprint_numero: int = Form(...),
     descricao: str = Form(...),
     itens_backlog: str = Form("[]"),  # JSON array de strings
+    squad: Optional[str] = Form(None),
+    periodo_inicio: Optional[str] = Form(None),  # formato ISO date YYYY-MM-DD
+    periodo_fim: Optional[str] = Form(None),      # formato ISO date YYYY-MM-DD
+    horas_disponiveis: Optional[int] = Form(None),  # horas reais disponíveis do squad
+    horas_estimadas: Optional[int] = Form(None),    # horas estimadas necessárias
+    dependencias_cliente: Optional[str] = Form(None),
+    carry_over: Optional[str] = Form(None),  # itens não entregues da sprint anterior
     anexo: Optional[UploadFile] = File(None),
 ):
     """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc."""
@@ -233,6 +240,15 @@ async def submit_planning(
         "contexto_cliente": "",
         "proximos_passos": [str(item) for item in backlog],
         "tecnologias": [],
+        "campos_planning": {
+            "squad": squad or "",
+            "periodo_inicio": periodo_inicio or "",
+            "periodo_fim": periodo_fim or "",
+            "horas_disponiveis": horas_disponiveis,
+            "horas_estimadas": horas_estimadas,
+            "dependencias_cliente": dependencias_cliente or "",
+            "carry_over": carry_over or "",
+        },
     }
 
     if anexo is not None:
