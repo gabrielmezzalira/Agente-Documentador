@@ -230,7 +230,7 @@ _SECTION_PLACEHOLDERS = {
         "riscos previstos":  "RISCOS",
     },
     "review": {
-        "o que foi planejado":              "PLANEJADO",
+        "o que foi planejado":              "PLANEJADO_ENTREGUE",
         "o que foi efetivamente realizado": "REALIZADO",
         "delta":                            "DELTA",
         "decisões tomadas durante a sprint":"DECISOES",
@@ -241,9 +241,9 @@ _SECTION_PLACEHOLDERS = {
     "retrospectiva": {
         "o que funcionou":           "O_QUE_FUNCIONOU",
         "o que não funcionou":       "O_QUE_NAO_FUNCIONOU",
-        "causa raiz":                "CAUSA_RAIZ",
+        "causa raiz":                "CAUSA_RAIZ_IMPACTO",
         "ações de melhoria":         "ACOES_MELHORIA",
-        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO",
+        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO_STATUS",
     },
 }
 
