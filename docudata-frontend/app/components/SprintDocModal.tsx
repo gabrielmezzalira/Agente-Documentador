@@ -110,15 +110,22 @@ export default function SprintDocModal({
 
   // Planning state
   const [descricao, setDescricao] = useState("");
-  const [itens, setItens] = useState<{ item: string; prazo: string; criterio: string }[]>([
-    { item: "", prazo: "", criterio: "" },
+  const [itens, setItens] = useState<{ item: string; responsavel: string; prazo: string; criterio: string }[]>([
+    { item: "", responsavel: "", prazo: "", criterio: "" },
   ]);
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [horasDisponiveis, setHorasDisponiveis] = useState<number | "">("");
   const [horasEstimadas, setHorasEstimadas] = useState<number | "">("");
-  const [dependenciasCliente, setDependenciasCliente] = useState("");
-  const [carryOver, setCarryOver] = useState("");
+  const [dependencias, setDependencias] = useState<{ item: string; prazo: string; consequencia: string; confianca: string }[]>([
+    { item: "", prazo: "", consequencia: "", confianca: "" },
+  ]);
+  const [riscos, setRiscos] = useState<{ risco: string; consequencia: string }[]>([
+    { risco: "", consequencia: "" },
+  ]);
+  const [carryOverItems, setCarryOverItems] = useState<{ item: string; causa_raiz: string }[]>([
+    { item: "", causa_raiz: "" },
+  ]);
 
   // Daily state
   const today = new Date().toISOString().slice(0, 10);
@@ -143,13 +150,14 @@ export default function SprintDocModal({
       setSubmitting(false);
       setError(null);
       setDescricao("");
-      setItens([{ item: "", prazo: "", criterio: "" }]);
+      setItens([{ item: "", responsavel: "", prazo: "", criterio: "" }]);
       setPeriodoInicio("");
       setPeriodoFim("");
       setHorasDisponiveis("");
       setHorasEstimadas("");
-      setDependenciasCliente("");
-      setCarryOver("");
+      setDependencias([{ item: "", prazo: "", consequencia: "", confianca: "" }]);
+      setRiscos([{ risco: "", consequencia: "" }]);
+      setCarryOverItems([{ item: "", causa_raiz: "" }]);
       setData(today);
       setFeito("");
       setProximo("");
@@ -161,8 +169,11 @@ export default function SprintDocModal({
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
     } else {
-      // Pre-fill carry-over when opening planning modal
-      setCarryOver(initialCarryOver ?? "");
+      // Pre-fill carry-over quando abrir o modal de planning
+      if (initialCarryOver) {
+        const lines = initialCarryOver.split("\n").filter(Boolean);
+        setCarryOverItems(lines.length ? lines.map((l) => ({ item: l, causa_raiz: "" })) : [{ item: "", causa_raiz: "" }]);
+      }
     }
   }, [open, today, initialCarryOver]);
 
@@ -186,8 +197,9 @@ export default function SprintDocModal({
           periodoFim: periodoFim || undefined,
           horasDisponiveis: horasDisponiveis !== "" ? horasDisponiveis : undefined,
           horasEstimadas: horasEstimadas !== "" ? horasEstimadas : undefined,
-          dependenciasCliente: dependenciasCliente || undefined,
-          carryOver: carryOver || undefined,
+          dependenciasItems: dependencias.filter((d) => d.item.trim()),
+          riscosItems: riscos.filter((r) => r.risco.trim()),
+          carryOverItems: carryOverItems.filter((c) => c.item.trim()),
           anexo,
         });
       } else if (tipo === "daily") {
@@ -239,60 +251,28 @@ export default function SprintDocModal({
               placeholder="Ex: Sprint focada em finalizar o ETL e iniciar a camada de visualização"
             />
             <label style={labelStyle}>Itens do backlog</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr auto", gap: 6, marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Tarefa</span>
-              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Prazo</span>
-              <span style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>Critério de pronto</span>
-              <span />
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 4 }}>
+              {["Tarefa", "Responsável", "Prazo", "Critério de pronto", ""].map((h, i) => (
+                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+              ))}
             </div>
             {itens.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr auto", gap: 6, marginBottom: 6 }}>
-                <input
-                  style={inputStyle}
-                  value={row.item}
-                  onChange={(e) => {
-                    const next = [...itens];
-                    next[idx] = { ...next[idx], item: e.target.value };
-                    setItens(next);
-                  }}
-                  placeholder={`Item ${idx + 1}`}
-                />
-                <input
-                  style={inputStyle}
-                  value={row.prazo}
-                  onChange={(e) => {
-                    const next = [...itens];
-                    next[idx] = { ...next[idx], prazo: e.target.value };
-                    setItens(next);
-                  }}
-                  placeholder="Ex: 15/08"
-                />
-                <input
-                  style={inputStyle}
-                  value={row.criterio}
-                  onChange={(e) => {
-                    const next = [...itens];
-                    next[idx] = { ...next[idx], criterio: e.target.value };
-                    setItens(next);
-                  }}
-                  placeholder="Ex: PR aprovado e deploy feito"
-                />
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 6 }}>
+                <input style={inputStyle} value={row.item} placeholder={`Item ${idx + 1}`}
+                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], item: e.target.value }; setItens(n); }} />
+                <input style={inputStyle} value={row.responsavel} placeholder="Ex: Gabriel"
+                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], responsavel: e.target.value }; setItens(n); }} />
+                <input style={inputStyle} value={row.prazo} placeholder="15/08"
+                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], prazo: e.target.value }; setItens(n); }} />
+                <input style={inputStyle} value={row.criterio} placeholder="Ex: PR aprovado"
+                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], criterio: e.target.value }; setItens(n); }} />
                 {itens.length > 1 && (
-                  <button
-                    type="button"
-                    style={ghostBtn}
-                    onClick={() => setItens(itens.filter((_, i) => i !== idx))}
-                  >
-                    −
-                  </button>
+                  <button type="button" style={ghostBtn} onClick={() => setItens(itens.filter((_, i) => i !== idx))}>−</button>
                 )}
               </div>
             ))}
-            <button
-              type="button"
-              style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setItens([...itens, { item: "", prazo: "", criterio: "" }])}
-            >
+            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+              onClick={() => setItens([...itens, { item: "", responsavel: "", prazo: "", criterio: "" }])}>
               + Adicionar item
             </button>
 
@@ -333,20 +313,79 @@ export default function SprintDocModal({
             </div>
 
             <label style={labelStyle}>Dependências do cliente</label>
-            <textarea
-              style={textareaStyle}
-              value={dependenciasCliente}
-              onChange={(e) => setDependenciasCliente(e.target.value)}
-              placeholder="Ex: Acesso ao banco de produção, aprovação do layout"
-            />
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 4 }}>
+              {["O que precisa entregar", "Prazo", "Consequência se atrasar", "Confiança", ""].map((h, i) => (
+                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+              ))}
+            </div>
+            {dependencias.map((row, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 6 }}>
+                <input style={inputStyle} value={row.item} placeholder="Ex: Acesso ao banco"
+                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], item: e.target.value }; setDependencias(n); }} />
+                <input style={inputStyle} value={row.prazo} placeholder="15/08"
+                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], prazo: e.target.value }; setDependencias(n); }} />
+                <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint atrasada"
+                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], consequencia: e.target.value }; setDependencias(n); }} />
+                <select style={{ ...inputStyle, cursor: "pointer" }} value={row.confianca}
+                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], confianca: e.target.value }; setDependencias(n); }}>
+                  <option value="">—</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Média">Média</option>
+                  <option value="Baixa">Baixa</option>
+                </select>
+                {dependencias.length > 1 && (
+                  <button type="button" style={ghostBtn} onClick={() => setDependencias(dependencias.filter((_, i) => i !== idx))}>−</button>
+                )}
+              </div>
+            ))}
+            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+              onClick={() => setDependencias([...dependencias, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
+              + Adicionar dependência
+            </button>
+
+            <label style={labelStyle}>Riscos identificados</label>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 4 }}>
+              {["O que pode dar errado", "Consequência se acontecer", ""].map((h, i) => (
+                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+              ))}
+            </div>
+            {riscos.map((row, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 6 }}>
+                <input style={inputStyle} value={row.risco} placeholder="Ex: Atraso no dado do cliente"
+                  onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], risco: e.target.value }; setRiscos(n); }} />
+                <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint comprometida"
+                  onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], consequencia: e.target.value }; setRiscos(n); }} />
+                {riscos.length > 1 && (
+                  <button type="button" style={ghostBtn} onClick={() => setRiscos(riscos.filter((_, i) => i !== idx))}>−</button>
+                )}
+              </div>
+            ))}
+            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+              onClick={() => setRiscos([...riscos, { risco: "", consequencia: "" }])}>
+              + Adicionar risco
+            </button>
 
             <label style={labelStyle}>Carry-over da sprint anterior</label>
-            <textarea
-              style={{ ...textareaStyle, minHeight: 60 }}
-              value={carryOver}
-              onChange={(e) => setCarryOver(e.target.value)}
-              placeholder="Itens não entregues na sprint anterior (pré-preenchido automaticamente)"
-            />
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
+              {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
+                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+              ))}
+            </div>
+            {carryOverItems.map((row, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 6 }}>
+                <input style={inputStyle} value={row.item} placeholder="Ex: Integração com API do cliente"
+                  onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], item: e.target.value }; setCarryOverItems(n); }} />
+                <input style={inputStyle} value={row.causa_raiz} placeholder="1–7"
+                  onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], causa_raiz: e.target.value }; setCarryOverItems(n); }} />
+                {carryOverItems.length > 1 && (
+                  <button type="button" style={ghostBtn} onClick={() => setCarryOverItems(carryOverItems.filter((_, i) => i !== idx))}>−</button>
+                )}
+              </div>
+            ))}
+            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+              onClick={() => setCarryOverItems([...carryOverItems, { item: "", causa_raiz: "" }])}>
+              + Adicionar item
+            </button>
           </>
         )}
 

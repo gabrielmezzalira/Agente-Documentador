@@ -382,20 +382,41 @@ def export_to_gdocs(
     def _cp(source: dict, key: str, default: str = "Não informado") -> str:
         return str(source.get(key) or default)
 
+    def _col(items: list, key: str) -> str:
+        return "\n".join(str(it.get(key, "") or "") for it in items)
+
     if doc_type == "planning":
         periodo_inicio = _cp(campos_planning, "periodo_inicio")
         periodo_fim = _cp(campos_planning, "periodo_fim")
-        periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio != "—" and periodo_fim != "—" else periodo_inicio if periodo_inicio != "—" else periodo_fim
+        periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio not in ("—", "Não informado") and periodo_fim not in ("—", "Não informado") else periodo_inicio
         horas_reais = _cp(campos_planning, "horas_disponiveis")
         horas_estimadas = _cp(campos_planning, "horas_estimadas")
-        dependencias = _cp(campos_planning, "dependencias_cliente")
-        carry_over = _cp(campos_planning, "carry_over")
+
+        bl = campos_planning.get("backlog_items") or []
+        dep = campos_planning.get("dependencias_items") or []
+        ris = campos_planning.get("riscos_items") or []
+        co  = campos_planning.get("carry_over_items") or []
+
+        backlog_item      = _col(bl, "item")
+        backlog_resp      = _col(bl, "responsavel")
+        backlog_prazo     = _col(bl, "prazo")
+        backlog_dod       = _col(bl, "criterio")
+        dep_item          = _col(dep, "item")
+        dep_prazo         = _col(dep, "prazo")
+        dep_consequencia  = _col(dep, "consequencia")
+        dep_confianca     = _col(dep, "confianca")
+        riscos_risco      = _col(ris, "risco")
+        riscos_cons       = _col(ris, "consequencia")
+        co_item           = _col(co, "item")
+        co_causa          = _col(co, "causa_raiz")
     else:
         periodo = "—"
         horas_reais = "—"
         horas_estimadas = "—"
-        dependencias = "—"
-        carry_over = "—"
+        backlog_item = backlog_resp = backlog_prazo = backlog_dod = ""
+        dep_item = dep_prazo = dep_consequencia = dep_confianca = ""
+        riscos_risco = riscos_cons = ""
+        co_item = co_causa = ""
 
     if doc_type == "review":
         percepcao_cliente = _cp(campos_review, "percepcao_cliente")
@@ -417,8 +438,22 @@ def export_to_gdocs(
         "PERIODO": periodo,
         "HORAS_REAIS": horas_reais,
         "HORAS_ESTIMADAS": horas_estimadas,
-        "DEPENDENCIAS_CLIENTE": dependencias,
-        "CARRY_OVER": carry_over,
+        # Backlog
+        "BACKLOG": backlog_item,
+        "BACKLOG_RESPONSAVEL": backlog_resp,
+        "BACKLOG_PRAZO": backlog_prazo,
+        "BACKLOG_DOD": backlog_dod,
+        # Dependências
+        "DEPENDENCIAS_CLIENTE": dep_item,
+        "DEPENDENCIAS_PRAZO": dep_prazo,
+        "DEPENDENCIAS_CONSEQUENCIA": dep_consequencia,
+        "DEPENDENCIAS_CONFIANCA": dep_confianca,
+        # Riscos
+        "RISCOS": riscos_risco,
+        "RISCOS_CONSEQUENCIA": riscos_cons,
+        # Carry-over
+        "CARRY_OVER": co_item,
+        "CARRY_OVER_CAUSA_RAIZ": co_causa,
         "PERCEPCAO_CLIENTE": percepcao_cliente,
         "SINAL_SATISFACAO": sinal_satisfacao,
         "PEDIDOS_FORA_ESCOPO": pedidos_fora_escopo,

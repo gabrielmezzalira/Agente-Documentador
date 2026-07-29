@@ -270,7 +270,10 @@ export async function submitPlanning(input: {
   projetoId: string;
   sprintNumero: number;
   descricao: string;
-  itensBacklog: { item: string; prazo?: string; criterio?: string }[];
+  itensBacklog: { item: string; responsavel?: string; prazo?: string; criterio?: string }[];
+  dependenciasItems?: { item: string; prazo?: string; consequencia?: string; confianca?: string }[];
+  riscosItems?: { risco: string; consequencia?: string }[];
+  carryOverItems?: { item: string; causa_raiz?: string }[];
   periodoInicio?: string;
   periodoFim?: string;
   horasDisponiveis?: number;
@@ -288,8 +291,9 @@ export async function submitPlanning(input: {
   if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
   if (input.horasDisponiveis != null) form.append("horas_disponiveis", String(input.horasDisponiveis));
   if (input.horasEstimadas != null) form.append("horas_estimadas", String(input.horasEstimadas));
-  if (input.dependenciasCliente) form.append("dependencias_cliente", input.dependenciasCliente);
-  if (input.carryOver) form.append("carry_over", input.carryOver);
+  if (input.dependenciasItems?.length) form.append("dependencias_items", JSON.stringify(input.dependenciasItems));
+  if (input.riscosItems?.length) form.append("riscos_items", JSON.stringify(input.riscosItems));
+  if (input.carryOverItems?.length) form.append("carry_over_items", JSON.stringify(input.carryOverItems));
   if (input.anexo) form.append("anexo", input.anexo);
   return _postSprintDoc("planning", form);
 }

@@ -217,8 +217,9 @@ async def submit_planning(
     periodo_fim: Optional[str] = Form(None),      # formato ISO date YYYY-MM-DD
     horas_disponiveis: Optional[int] = Form(None),  # horas reais disponíveis do squad
     horas_estimadas: Optional[int] = Form(None),    # horas estimadas necessárias
-    dependencias_cliente: Optional[str] = Form(None),
-    carry_over: Optional[str] = Form(None),  # itens não entregues da sprint anterior
+    dependencias_items: str = Form("[]"),   # [{item, prazo?, consequencia?, confianca?}]
+    riscos_items: str = Form("[]"),         # [{risco, consequencia?}]
+    carry_over_items: str = Form("[]"),     # [{item, causa_raiz?}]
     anexo: Optional[UploadFile] = File(None),
 ):
     """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc."""
@@ -227,38 +228,41 @@ async def submit_planning(
         backlog = json.loads(itens_backlog)
         if not isinstance(backlog, list):
             raise ValueError("itens_backlog deve ser JSON array")
-        # Normaliza: aceita strings legacy ou objetos {item, prazo, criterio}
+        # Normaliza: aceita strings legacy ou objetos {item, responsavel, prazo, criterio}
         backlog_items = []
         for entry in backlog:
             if isinstance(entry, str):
-                backlog_items.append({"item": entry, "prazo": "", "criterio": ""})
+                backlog_items.append({"item": entry, "responsavel": "", "prazo": "", "criterio": ""})
             elif isinstance(entry, dict):
                 backlog_items.append({
                     "item": entry.get("item", ""),
+                    "responsavel": entry.get("responsavel", "") or "",
                     "prazo": entry.get("prazo", "") or "",
                     "criterio": entry.get("criterio", "") or "",
                 })
+        dep_items = json.loads(dependencias_items) if isinstance(dependencias_items, str) else []
+        risco_items = json.loads(riscos_items) if isinstance(riscos_items, str) else []
+        co_items = json.loads(carry_over_items) if isinstance(carry_over_items, str) else []
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"itens_backlog inválido: {exc}")
+        raise HTTPException(status_code=422, detail=f"Payload inválido: {exc}")
 
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
-    # Formata tarefas como "item — Prazo: X — DoD: Y" para o contexto do LLM
     def _fmt(b: dict) -> str:
         s = b["item"]
-        if b["prazo"]:
-            s += f" — Prazo: {b['prazo']}"
-        if b["criterio"]:
-            s += f" — DoD: {b['criterio']}"
+        if b.get("responsavel"): s += f" — Responsável: {b['responsavel']}"
+        if b.get("prazo"): s += f" — Prazo: {b['prazo']}"
+        if b.get("criterio"): s += f" — DoD: {b['criterio']}"
         return s
 
     tarefas_fmt = [_fmt(b) for b in backlog_items if b["item"]]
+    riscos_fmt = [f"{r['risco']} — Consequência: {r.get('consequencia','')}" for r in risco_items if r.get("risco")]
 
     base_content = {
         "resumo": descricao,
         "tarefas": tarefas_fmt,
         "decisoes": [],
-        "problemas": [],
+        "problemas": riscos_fmt,
         "contexto_cliente": "",
         "proximos_passos": tarefas_fmt,
         "tecnologias": [],
@@ -268,9 +272,10 @@ async def submit_planning(
             "periodo_fim": periodo_fim or "",
             "horas_disponiveis": horas_disponiveis,
             "horas_estimadas": horas_estimadas,
-            "dependencias_cliente": dependencias_cliente or "",
-            "carry_over": carry_over or "",
             "backlog_items": backlog_items,
+            "dependencias_items": dep_items,
+            "riscos_items": risco_items,
+            "carry_over_items": co_items,
         },
     }
 
