@@ -858,8 +858,17 @@ async def gerar_documento(state: GenerationState) -> dict:
     in_tok = usage.get("input_tokens", 0) or 0
     out_tok = usage.get("output_tokens", 0) or 0
 
+    # Gemini 3.x pode retornar content como lista de blocos em vez de string
+    raw = response.content
+    if isinstance(raw, list):
+        documento = "".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in raw
+        )
+    else:
+        documento = raw
+
     return {
-        "documento": response.content,
+        "documento": documento,
         "input_tokens": in_tok,
         "output_tokens": out_tok,
     }
