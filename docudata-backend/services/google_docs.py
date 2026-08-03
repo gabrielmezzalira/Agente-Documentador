@@ -198,41 +198,42 @@ def _apply_content(docs, doc_id: str, segments: list):
         end_idx = idx + len(line_text)
         text_end = end_idx - 1  # exclui o \n ao aplicar bold em texto
 
-        # Fonte Calibri para todo texto inserido (heading ou normal)
-        style_requests.append({"updateTextStyle": {
-            "range": {"startIndex": idx, "endIndex": text_end},
-            "textStyle": {"weightedFontFamily": {"fontFamily": "Calibri"}},
-            "fields": "weightedFontFamily",
-        }})
-
-        if seg["heading"]:
-            named = {1: "HEADING_1", 2: "HEADING_2", 3: "HEADING_3"}[seg["heading"]]
-            style_requests.append({"updateParagraphStyle": {
-                "range": {"startIndex": idx, "endIndex": end_idx},
-                "paragraphStyle": {"namedStyleType": named},
-                "fields": "namedStyleType",
-            }})
-            # Negrito, cor preta e Calibri (sobrescreve a cor azul do estilo Heading)
+        if idx < text_end:  # ignora linhas vazias (range vazio causa erro na API)
+            # Fonte Calibri para todo texto inserido (heading ou normal)
             style_requests.append({"updateTextStyle": {
                 "range": {"startIndex": idx, "endIndex": text_end},
-                "textStyle": {
-                    "bold": True,
-                    "foregroundColor": {"color": {"rgbColor": {"red": 0.0, "green": 0.0, "blue": 0.0}}},
-                    "weightedFontFamily": {"fontFamily": "Calibri"},
-                },
-                "fields": "bold,foregroundColor,weightedFontFamily",
+                "textStyle": {"weightedFontFamily": {"fontFamily": "Calibri"}},
+                "fields": "weightedFontFamily",
             }})
-        if seg["bullet"]:
-            style_requests.append({"createParagraphBullets": {
-                "range": {"startIndex": idx, "endIndex": end_idx},
-                "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
-            }})
-        for bstart, bend in seg["bold_ranges"]:
-            style_requests.append({"updateTextStyle": {
-                "range": {"startIndex": idx + bstart, "endIndex": idx + bend},
-                "textStyle": {"bold": True},
-                "fields": "bold",
-            }})
+
+            if seg["heading"]:
+                named = {1: "HEADING_1", 2: "HEADING_2", 3: "HEADING_3"}[seg["heading"]]
+                style_requests.append({"updateParagraphStyle": {
+                    "range": {"startIndex": idx, "endIndex": end_idx},
+                    "paragraphStyle": {"namedStyleType": named},
+                    "fields": "namedStyleType",
+                }})
+                style_requests.append({"updateTextStyle": {
+                    "range": {"startIndex": idx, "endIndex": text_end},
+                    "textStyle": {
+                        "bold": True,
+                        "foregroundColor": {"color": {"rgbColor": {"red": 0.0, "green": 0.0, "blue": 0.0}}},
+                        "weightedFontFamily": {"fontFamily": "Calibri"},
+                    },
+                    "fields": "bold,foregroundColor,weightedFontFamily",
+                }})
+            if seg["bullet"]:
+                style_requests.append({"createParagraphBullets": {
+                    "range": {"startIndex": idx, "endIndex": end_idx},
+                    "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                }})
+            for bstart, bend in seg["bold_ranges"]:
+                if idx + bstart < idx + bend:
+                    style_requests.append({"updateTextStyle": {
+                        "range": {"startIndex": idx + bstart, "endIndex": idx + bend},
+                        "textStyle": {"bold": True},
+                        "fields": "bold",
+                    }})
 
         idx = end_idx
 
