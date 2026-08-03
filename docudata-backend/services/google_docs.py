@@ -225,94 +225,6 @@ _TEMPLATE_ENV_BY_DOC_TYPE = {
     "retrospectiva": "GDOCS_TEMPLATE_ID_RETROSPECTIVA",
 }
 
-# Mapeamento: trecho do header markdown (lowercase) → nome do placeholder no template
-_SECTION_PLACEHOLDERS = {
-    "planning": {
-        "backlog da sprint": "BACKLOG",
-        "riscos previstos":  "RISCOS",
-    },
-    "review": {
-        "o que foi planejado":              "PLANEJADO_ENTREGUE",
-        "o que foi efetivamente realizado": "REALIZADO",
-        "delta":                            "DELTA",
-        "decisões tomadas durante a sprint":"DECISOES",
-        "impedimentos enfrentados":         "IMPEDIMENTOS",
-        "aprendizados para próxima sprint": "APRENDIZADOS",
-        "itens que passam para a próxima":  "ITENS_PROXIMA_SPRINT",
-    },
-    "retrospectiva": {
-        "o que funcionou":           "O_QUE_FUNCIONOU",
-        "o que não funcionou":       "O_QUE_NAO_FUNCIONOU",
-        "causa raiz":                "CAUSA_RAIZ_IMPACTO",
-        "ações de melhoria":         "ACOES_MELHORIA",
-        "pedido fora de escopo":     "PEDIDO_FORA_ESCOPO_STATUS",
-    },
-}
-
-
-def _parse_backlog_columns(raw: str) -> tuple[str, str, str]:
-    """Parseia o markdown de backlog e retorna (itens, prazos, criterios) como strings multi-linha.
-
-    Formato esperado por linha: "- Item — Prazo: X — DoD: Y"
-    Cada coluna terá um valor por linha, alinhados pela posição da linha.
-    Se Prazo ou DoD estiverem ausentes, a linha correspondente fica em branco.
-    """
-    nomes, prazos, criterios = [], [], []
-    for line in raw.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("- "):
-            line = line[2:]
-        partes = line.split(" — ")
-        nome = partes[0].strip()
-        if not nome:
-            continue
-        prazo = ""
-        criterio = ""
-        for parte in partes[1:]:
-            if parte.lower().startswith("prazo:"):
-                prazo = parte[len("prazo:"):].strip()
-            elif parte.lower().startswith("dod:"):
-                criterio = parte[len("dod:"):].strip()
-        nomes.append(nome)
-        prazos.append(prazo)
-        criterios.append(criterio)
-    return "\n".join(nomes), "\n".join(prazos), "\n".join(criterios)
-
-
-def _extract_section_replacements(markdown: str, doc_type: str) -> dict:
-    """Parseia o markdown por headers ## e mapeia seções a placeholders do template."""
-    mapping = _SECTION_PLACEHOLDERS.get(doc_type, {})
-    if not mapping:
-        return {}
-
-    sections: dict[str, list[str]] = {}
-    current: str | None = None
-
-    for line in markdown.split("\n"):
-        stripped = line.lstrip("# ")
-        if line.startswith("## ") or line.startswith("# "):
-            current = stripped.lower()
-            sections.setdefault(current, [])
-        elif current is not None:
-            sections[current].append(line)
-
-    result: dict[str, str] = {}
-    for section_key, placeholder in mapping.items():
-        for header, lines in sections.items():
-            if section_key in header:
-                content = "\n".join(lines).strip()
-                if placeholder == "BACKLOG":
-                    nomes, prazos, criterios = _parse_backlog_columns(content)
-                    result["BACKLOG"] = nomes
-                    result["BACKLOG_PRAZO"] = prazos
-                    result["BACKLOG_DOD"] = criterios
-                    break
-                result[placeholder] = content
-                break
-
-    return result
 
 
 def export_to_gdocs(
@@ -459,13 +371,7 @@ def export_to_gdocs(
         "PEDIDOS_FORA_ESCOPO": pedidos_fora_escopo,
     })
 
-    # Substitui placeholders de seção ({{BACKLOG}}, {{RISCOS}}, etc.) se o template os tiver
-    section_replacements = _extract_section_replacements(markdown_content, doc_type)
-    if section_replacements:
-        _replace_placeholders(docs, doc_id, section_replacements)
-    else:
-        # {{CONTENT}} recebe o markdown completo como fallback (templates sem placeholders de seção)
-        segments = _parse_markdown(markdown_content)
-        _apply_content(docs, doc_id, segments)
+    segments = _parse_markdown(markdown_content)
+    _apply_content(docs, doc_id, segments)
 
     return f"https://docs.google.com/document/d/{doc_id}/edit"

@@ -393,7 +393,7 @@ export default function SprintDocModal({
                 onClick={() => { setError(null); setStep("form"); }}
                 disabled={enriching}
               >
-                Pular — preencher manualmente
+                Preencher manualmente
               </button>
               <button
                 type="button"

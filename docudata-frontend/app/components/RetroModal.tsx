@@ -211,7 +211,7 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
               <button type="button" style={ghostBtn} onClick={onClose} disabled={enriching}>Cancelar</button>
               <button type="button" style={ghostBtn} onClick={() => { setError(null); setStep("form"); }} disabled={enriching}>
-                Pular — preencher manualmente
+                Preencher manualmente
               </button>
               <button
                 type="button"
