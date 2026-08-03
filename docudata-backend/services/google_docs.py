@@ -288,6 +288,34 @@ def _fill_dynamic_table(docs, doc_id: str, marker: str, rows_data: list[list[str
     ]
     docs.documents().batchUpdate(documentId=doc_id, body={"requests": insert_requests}).execute()
 
+    # 2b. Resetar estilo das linhas inseridas: fundo branco, texto normal
+    num_cols = max(len(r) for r in rows_data) if rows_data else 0
+    style_requests = []
+    for row_offset in range(len(rows_data)):
+        actual_row_idx = row_idx + row_offset
+        for col_idx in range(num_cols):
+            style_requests.append({
+                "updateTableCellStyle": {
+                    "tableCellStyle": {
+                        "backgroundColor": {
+                            "color": {"rgbColor": {"red": 1.0, "green": 1.0, "blue": 1.0}}
+                        }
+                    },
+                    "tableRange": {
+                        "tableCellLocation": {
+                            "tableStartLocation": {"index": table_start},
+                            "rowIndex": actual_row_idx,
+                            "columnIndex": col_idx,
+                        },
+                        "rowSpan": 1,
+                        "columnSpan": 1,
+                    },
+                    "fields": "backgroundColor",
+                }
+            })
+    if style_requests:
+        docs.documents().batchUpdate(documentId=doc_id, body={"requests": style_requests}).execute()
+
     # 3. Re-buscar documento e preencher células
     document = docs.documents().get(documentId=doc_id).execute()
     target_table = next(
@@ -323,6 +351,40 @@ def _fill_dynamic_table(docs, doc_id: str, marker: str, rows_data: list[list[str
             {"insertText": {"location": {"index": idx}, "text": val}}
             for idx, val in fill
         ]}).execute()
+
+        # Resetar negrito e cor do texto inserido (re-busca índices após insertText)
+        document = docs.documents().get(documentId=doc_id).execute()
+        target_table = next(
+            (el["table"] for el in document.get("body", {}).get("content", [])
+             if "table" in el and el.get("startIndex") == table_start),
+            None,
+        )
+        text_style_requests = []
+        if target_table:
+            for row_offset in range(len(rows_data)):
+                actual_row_idx = row_idx + row_offset
+                if actual_row_idx >= len(target_table["tableRows"]):
+                    break
+                for cell in target_table["tableRows"][actual_row_idx].get("tableCells", []):
+                    for para in cell.get("content", []):
+                        for pe in para.get("paragraph", {}).get("elements", []):
+                            content = pe.get("textRun", {}).get("content", "")
+                            if content.strip():
+                                end = pe["endIndex"] - (1 if content.endswith("\n") else 0)
+                                text_style_requests.append({
+                                    "updateTextStyle": {
+                                        "range": {"startIndex": pe["startIndex"], "endIndex": end},
+                                        "textStyle": {
+                                            "bold": False,
+                                            "foregroundColor": {
+                                                "color": {"rgbColor": {"red": 0.0, "green": 0.0, "blue": 0.0}}
+                                            },
+                                        },
+                                        "fields": "bold,foregroundColor",
+                                    }
+                                })
+        if text_style_requests:
+            docs.documents().batchUpdate(documentId=doc_id, body={"requests": text_style_requests}).execute()
 
 
 _TEMPLATE_ENV_BY_DOC_TYPE = {
