@@ -544,6 +544,25 @@ def export_to_gdocs(
         _fill_dynamic_table(docs, doc_id, "{{CARRY_OVER}}",
             [[c.get("item",""), c.get("causa_raiz","")] for c in co])
 
+    # Append structured fields to content so templates only need {{CONTENT}}
+    if doc_type == "review":
+        addendum = ""
+        if percepcao_cliente not in ("—", "Não informado", ""):
+            addendum += f"\n\n## Percepção do Cliente\n\n{percepcao_cliente}"
+        if sinal_satisfacao not in ("—", "Não informado", ""):
+            addendum += f"\n\n## Sinal de Satisfação do Cliente\n\n{sinal_satisfacao}"
+        if pedidos_fora_escopo not in ("—", "Não informado", ""):
+            addendum += f"\n\n## Pedidos Fora do Escopo\n\n{pedidos_fora_escopo}"
+        markdown_content = markdown_content + addendum
+
+    if doc_type == "retrospectiva":
+        addendum = ""
+        if pedido_fora_escopo_status not in ("—", "Não informado", ""):
+            addendum += f"\n\n## Houve Pedido Fora de Escopo Nesta Sprint?\n\n{pedido_fora_escopo_status}"
+        if retro_observacoes not in ("—", "Não informado", ""):
+            addendum += f"\n\n## Observações\n\n{retro_observacoes}"
+        markdown_content = markdown_content + addendum
+
     segments = _parse_markdown(markdown_content)
     _apply_content(docs, doc_id, segments)
 
