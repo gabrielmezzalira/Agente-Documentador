@@ -175,22 +175,20 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
 
         content = parsed.model_dump()
 
-        # Completeness guardrail — block empty/null extractions before saving
-        # tecnologias is optional (not all docs mention a stack), so excluded from the null check
-        fields = ["resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"]
+        # Completeness guardrail — rejeita extrações completamente vazias
         all_lists = ["tarefas", "decisoes", "problemas", "proximos_passos", "tecnologias"]
         has_any_content = (
-            content.get("resumo", "").strip()
-            or content.get("contexto_cliente", "").strip()
+            (content.get("resumo") or "").strip()
+            or (content.get("contexto_cliente") or "").strip()
             or any(len(content.get(f) or []) > 0 for f in all_lists)
         )
-        if any(content.get(f) is None for f in fields) or not has_any_content:
+        if not has_any_content:
             return {
                 "valido": False,
                 "tentativas": tentativas + 1,
                 "input_tokens": in_tok,
                 "output_tokens": out_tok,
-                "erro": "Completeness check failed: required fields are empty or null",
+                "erro": "Completeness check failed: all extracted fields are empty",
             }
 
         return {

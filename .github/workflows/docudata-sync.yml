@@ -22,7 +22,7 @@ jobs:
           echo -e "\n\n--- ARQUIVOS ALTERADOS ---\n" >> commit_info.txt
           git diff HEAD~1 HEAD --name-status >> commit_info.txt
           echo -e "\n\n--- DIFF (primeiras 500 linhas) ---\n" >> commit_info.txt
-          git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' | head -500 >> commit_info.txt
+          git diff HEAD~1 HEAD | head -500 >> commit_info.txt
 
       - name: Enviar para DocuData
         run: |
