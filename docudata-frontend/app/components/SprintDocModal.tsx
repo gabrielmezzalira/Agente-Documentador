@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   submitPlanning,
   submitDaily,
@@ -27,7 +27,7 @@ const TITLES: Record<SprintDocType, string> = {
   review: "Adicionar Review",
 };
 
-const overlayStyle: React.CSSProperties = {
+const overlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(15, 23, 42, 0.55)",
@@ -38,7 +38,7 @@ const overlayStyle: React.CSSProperties = {
   padding: 16,
 };
 
-const modalStyle: React.CSSProperties = {
+const modalStyle: CSSProperties = {
   background: "#fff",
   borderRadius: 12,
   width: "100%",
@@ -49,7 +49,7 @@ const modalStyle: React.CSSProperties = {
   boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   fontSize: 13,
   fontWeight: 600,
@@ -58,7 +58,7 @@ const labelStyle: React.CSSProperties = {
   marginTop: 14,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   border: "1px solid #e2e8f0",
   borderRadius: 8,
@@ -69,14 +69,14 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const textareaStyle: React.CSSProperties = {
+const textareaStyle: CSSProperties = {
   ...inputStyle,
   resize: "vertical",
   minHeight: 80,
   fontFamily: "inherit",
 };
 
-const primaryBtn: React.CSSProperties = {
+const primaryBtn: CSSProperties = {
   background: "#4ade80",
   color: "#052e16",
   border: "none",
@@ -87,7 +87,7 @@ const primaryBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const ghostBtn: React.CSSProperties = {
+const ghostBtn: CSSProperties = {
   background: "#f7f7fa",
   color: "#475569",
   border: "1px solid #e2e8f0",
@@ -98,7 +98,7 @@ const ghostBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const aiBadgeStyle: React.CSSProperties = {
+const aiBadgeStyle: CSSProperties = {
   fontSize: 11,
   background: "#eff6ff",
   color: "#2563eb",
