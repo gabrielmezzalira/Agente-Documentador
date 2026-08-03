@@ -448,13 +448,13 @@ def export_to_gdocs(
 
     # Tabelas dinâmicas — uma linha por item (planning only)
     if doc_type == "planning":
-        _fill_dynamic_table(docs, doc_id, "{{BACKLOG_ROW}}",
+        _fill_dynamic_table(docs, doc_id, "{{BACKLOG}}",
             [[i.get("item",""), i.get("responsavel",""), i.get("prazo",""), i.get("criterio","")] for i in bl])
-        _fill_dynamic_table(docs, doc_id, "{{DEP_ROW}}",
+        _fill_dynamic_table(docs, doc_id, "{{DEPENDENCIAS_CLIENTE}}",
             [[d.get("item",""), d.get("prazo",""), d.get("consequencia",""), d.get("confianca","")] for d in dep])
-        _fill_dynamic_table(docs, doc_id, "{{RISCOS_ROW}}",
+        _fill_dynamic_table(docs, doc_id, "{{RISCOS}}",
             [[r.get("risco",""), r.get("consequencia","")] for r in ris])
-        _fill_dynamic_table(docs, doc_id, "{{CO_ROW}}",
+        _fill_dynamic_table(docs, doc_id, "{{CARRY_OVER}}",
             [[c.get("item",""), c.get("causa_raiz","")] for c in co])
 
     segments = _parse_markdown(markdown_content)
