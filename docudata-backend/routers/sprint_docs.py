@@ -484,8 +484,11 @@ async def submit_review(
     }
 
     if anexo is not None:
-        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
-        base_content = _merge_content(base_content, extra)
+        try:
+            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+            base_content = _merge_content(base_content, extra)
+        except HTTPException as exc:
+            print(f"[submit_review] Anexo extraction failed (non-fatal): {exc.detail}")
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,
@@ -545,8 +548,11 @@ async def submit_retrospectiva(
     }
 
     if anexo is not None:
-        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
-        base_content = _merge_content(base_content, extra)
+        try:
+            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+            base_content = _merge_content(base_content, extra)
+        except HTTPException as exc:
+            print(f"[submit_retrospectiva] Anexo extraction failed (non-fatal): {exc.detail}")
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,

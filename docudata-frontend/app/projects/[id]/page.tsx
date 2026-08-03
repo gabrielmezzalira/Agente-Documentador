@@ -781,6 +781,7 @@ export default function ProjectDashboard() {
       <RetroModal
         open={retroModal !== null}
         onClose={() => setRetroModal(null)}
+        projetoId={id}
         sprintNumero={retroModal?.sprintNumero ?? 1}
         onSubmit={handleRetroSubmit}
       />

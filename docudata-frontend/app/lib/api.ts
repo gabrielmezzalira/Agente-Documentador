@@ -423,6 +423,48 @@ export async function listIngestionsBySprint(projetoId: string, sprint: number):
   return res.json();
 }
 
+export interface EnrichResult {
+  // planning
+  descricao?: string;
+  itens_backlog?: { item: string; responsavel: string; prazo: string; criterio: string }[];
+  horas_disponiveis?: number | null;
+  horas_estimadas?: number | null;
+  dependencias_items?: { item: string; prazo: string; consequencia: string; confianca: string }[];
+  riscos_items?: { risco: string; consequencia: string }[];
+  carry_over_items?: { item: string; causa_raiz: string }[];
+  // daily
+  data?: string | null;
+  feito?: string;
+  proximo?: string;
+  impedimentos?: string | null;
+  // review
+  observacoes?: string | null;
+  percepcao_cliente?: string | null;
+  sinal_satisfacao?: string | null;
+  pedidos_fora_escopo?: string | null;
+  // retrospectiva
+  pedido_fora_escopo_status?: string | null;
+}
+
+export async function enrichContent(input: {
+  projetoId: string;
+  docType: string;
+  texto?: string;
+  arquivo?: File | null;
+}): Promise<EnrichResult> {
+  const form = new FormData();
+  form.append("projeto_id", input.projetoId);
+  form.append("doc_type", input.docType);
+  if (input.texto) form.append("texto", input.texto);
+  if (input.arquivo) form.append("arquivo", input.arquivo);
+  const res = await fetch(`${API}/enrich`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao analisar conteúdo");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

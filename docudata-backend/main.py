@@ -3,7 +3,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich
 
 app = FastAPI(title="DocuData API", version="1.0.0")
 
@@ -24,6 +24,7 @@ app.include_router(ingestions.router)
 app.include_router(search.router)
 app.include_router(export.router)
 app.include_router(commit_ingest.router)
+app.include_router(enrich.router)
 
 
 @app.get("/health")

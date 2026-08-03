@@ -5,8 +5,10 @@ import {
   submitPlanning,
   submitDaily,
   submitReview,
+  enrichContent,
   type SprintDocResponse,
   type SprintDocType,
+  type EnrichResult,
 } from "../lib/api";
 
 interface Props {
@@ -96,6 +98,17 @@ const ghostBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const aiBadgeStyle: React.CSSProperties = {
+  fontSize: 11,
+  background: "#eff6ff",
+  color: "#2563eb",
+  border: "1px solid #bfdbfe",
+  borderRadius: 4,
+  padding: "1px 6px",
+  marginLeft: 6,
+  fontWeight: 500,
+};
+
 export default function SprintDocModal({
   open,
   onClose,
@@ -105,6 +118,15 @@ export default function SprintDocModal({
   sprintNumero,
   initialCarryOver,
 }: Props) {
+  // Enrichment step state
+  const [step, setStep] = useState<"input" | "form">("input");
+  const [enrichText, setEnrichText] = useState("");
+  const enrichFileRef = useRef<HTMLInputElement | null>(null);
+  const [enrichFileName, setEnrichFileName] = useState<string | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const [aiFields, setAiFields] = useState<Set<string>>(new Set());
+
+  // Form state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,9 +166,13 @@ export default function SprintDocModal({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [anexoName, setAnexoName] = useState<string | null>(null);
 
-  // Reset on close / pre-fill on open
   useEffect(() => {
     if (!open) {
+      setStep("input");
+      setEnrichText("");
+      setEnrichFileName(null);
+      setEnriching(false);
+      setAiFields(new Set());
       setSubmitting(false);
       setError(null);
       setDescricao("");
@@ -168,8 +194,8 @@ export default function SprintDocModal({
       setPedidosForaEscopo("");
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
+      if (enrichFileRef.current) enrichFileRef.current.value = "";
     } else {
-      // Pre-fill carry-over quando abrir o modal de planning
       if (initialCarryOver) {
         const lines = initialCarryOver.split("\n").filter(Boolean);
         setCarryOverItems(lines.length ? lines.map((l) => ({ item: l, causa_raiz: "" })) : [{ item: "", causa_raiz: "" }]);
@@ -178,6 +204,72 @@ export default function SprintDocModal({
   }, [open, today, initialCarryOver]);
 
   if (!open) return null;
+
+  const AiBadge = ({ field }: { field: string }) =>
+    aiFields.has(field) ? <span style={aiBadgeStyle}>IA</span> : null;
+
+  const applyEnrichResult = (result: EnrichResult, fields: Set<string>) => {
+    if (tipo === "planning") {
+      if (result.descricao) { setDescricao(result.descricao); fields.add("descricao"); }
+      if (result.itens_backlog?.length) {
+        setItens(result.itens_backlog.map((i) => ({
+          item: i.item || "",
+          responsavel: i.responsavel || "",
+          prazo: i.prazo || "",
+          criterio: i.criterio || "",
+        })));
+        fields.add("itens_backlog");
+      }
+      if (result.horas_disponiveis != null) { setHorasDisponiveis(result.horas_disponiveis); fields.add("horas_disponiveis"); }
+      if (result.horas_estimadas != null) { setHorasEstimadas(result.horas_estimadas); fields.add("horas_estimadas"); }
+      if (result.dependencias_items?.length) {
+        setDependencias(result.dependencias_items.map((d) => ({
+          item: d.item || "", prazo: d.prazo || "", consequencia: d.consequencia || "", confianca: d.confianca || "",
+        })));
+        fields.add("dependencias");
+      }
+      if (result.riscos_items?.length) {
+        setRiscos(result.riscos_items.map((r) => ({ risco: r.risco || "", consequencia: r.consequencia || "" })));
+        fields.add("riscos");
+      }
+      if (result.carry_over_items?.length) {
+        setCarryOverItems(result.carry_over_items.map((c) => ({ item: c.item || "", causa_raiz: c.causa_raiz || "" })));
+        fields.add("carryOver");
+      }
+    } else if (tipo === "daily") {
+      if (result.feito) { setFeito(result.feito); fields.add("feito"); }
+      if (result.proximo) { setProximo(result.proximo); fields.add("proximo"); }
+      if (result.impedimentos) { setImpedimentos(result.impedimentos); fields.add("impedimentos"); }
+      if (result.data) { setData(result.data); fields.add("data"); }
+    } else {
+      if (result.observacoes) { setObservacoes(result.observacoes); fields.add("observacoes"); }
+      if (result.percepcao_cliente) { setPercepcaoCliente(result.percepcao_cliente); fields.add("percepcaoCliente"); }
+      if (result.sinal_satisfacao) { setSinalSatisfacao(result.sinal_satisfacao); fields.add("sinalSatisfacao"); }
+      if (result.pedidos_fora_escopo) { setPedidosForaEscopo(result.pedidos_fora_escopo); fields.add("pedidosForaEscopo"); }
+    }
+  };
+
+  const handleEnrich = async () => {
+    setEnriching(true);
+    setError(null);
+    const arquivo = enrichFileRef.current?.files?.[0] ?? null;
+    try {
+      const result = await enrichContent({
+        projetoId,
+        docType: tipo,
+        texto: enrichText.trim() || undefined,
+        arquivo: arquivo || undefined,
+      });
+      const newAiFields = new Set<string>();
+      applyEnrichResult(result, newAiFields);
+      setAiFields(newAiFields);
+      setStep("form");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao analisar conteúdo");
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -237,282 +329,366 @@ export default function SprintDocModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
-          {TITLES[tipo]} — Sprint {sprintNumero}
-        </h2>
-
-        {tipo === "planning" && (
-          <>
-            <label style={labelStyle}>Descrição do planejamento</label>
-            <textarea
-              style={textareaStyle}
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              placeholder="Ex: Sprint focada em finalizar o ETL e iniciar a camada de visualização"
-            />
-            <label style={labelStyle}>Itens do backlog</label>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 4 }}>
-              {["Tarefa", "Responsável", "Prazo", "Critério de pronto", ""].map((h, i) => (
-                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-            {itens.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 6 }}>
-                <input style={inputStyle} value={row.item} placeholder={`Item ${idx + 1}`}
-                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], item: e.target.value }; setItens(n); }} />
-                <input style={inputStyle} value={row.responsavel} placeholder="Ex: Gabriel"
-                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], responsavel: e.target.value }; setItens(n); }} />
-                <input style={inputStyle} value={row.prazo} placeholder="15/08"
-                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], prazo: e.target.value }; setItens(n); }} />
-                <input style={inputStyle} value={row.criterio} placeholder="Ex: PR aprovado"
-                  onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], criterio: e.target.value }; setItens(n); }} />
-                {itens.length > 1 && (
-                  <button type="button" style={ghostBtn} onClick={() => setItens(itens.filter((_, i) => i !== idx))}>−</button>
-                )}
-              </div>
-            ))}
-            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setItens([...itens, { item: "", responsavel: "", prazo: "", criterio: "" }])}>
-              + Adicionar item
-            </button>
-
-            <label style={labelStyle}>Período da sprint</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="date"
-                style={{ ...inputStyle, flex: 1 }}
-                value={periodoInicio}
-                onChange={(e) => setPeriodoInicio(e.target.value)}
-              />
-              <input
-                type="date"
-                style={{ ...inputStyle, flex: 1 }}
-                value={periodoFim}
-                onChange={(e) => setPeriodoFim(e.target.value)}
-              />
-            </div>
-
-            <label style={labelStyle}>Capacidade vs. Estimativa</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="number"
-                min={0}
-                style={{ ...inputStyle, flex: 1 }}
-                value={horasDisponiveis}
-                onChange={(e) => setHorasDisponiveis(e.target.value ? Number(e.target.value) : "")}
-                placeholder="Horas disponíveis"
-              />
-              <input
-                type="number"
-                min={0}
-                style={{ ...inputStyle, flex: 1 }}
-                value={horasEstimadas}
-                onChange={(e) => setHorasEstimadas(e.target.value ? Number(e.target.value) : "")}
-                placeholder="Horas estimadas"
-              />
-            </div>
-
-            <label style={labelStyle}>Dependências do cliente</label>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 4 }}>
-              {["O que precisa entregar", "Prazo", "Consequência se atrasar", "Confiança", ""].map((h, i) => (
-                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-            {dependencias.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 6 }}>
-                <input style={inputStyle} value={row.item} placeholder="Ex: Acesso ao banco"
-                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], item: e.target.value }; setDependencias(n); }} />
-                <input style={inputStyle} value={row.prazo} placeholder="15/08"
-                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], prazo: e.target.value }; setDependencias(n); }} />
-                <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint atrasada"
-                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], consequencia: e.target.value }; setDependencias(n); }} />
-                <select style={{ ...inputStyle, cursor: "pointer" }} value={row.confianca}
-                  onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], confianca: e.target.value }; setDependencias(n); }}>
-                  <option value="">—</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Média">Média</option>
-                  <option value="Baixa">Baixa</option>
-                </select>
-                {dependencias.length > 1 && (
-                  <button type="button" style={ghostBtn} onClick={() => setDependencias(dependencias.filter((_, i) => i !== idx))}>−</button>
-                )}
-              </div>
-            ))}
-            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setDependencias([...dependencias, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
-              + Adicionar dependência
-            </button>
-
-            <label style={labelStyle}>Riscos identificados</label>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 4 }}>
-              {["O que pode dar errado", "Consequência se acontecer", ""].map((h, i) => (
-                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-            {riscos.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 6 }}>
-                <input style={inputStyle} value={row.risco} placeholder="Ex: Atraso no dado do cliente"
-                  onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], risco: e.target.value }; setRiscos(n); }} />
-                <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint comprometida"
-                  onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], consequencia: e.target.value }; setRiscos(n); }} />
-                {riscos.length > 1 && (
-                  <button type="button" style={ghostBtn} onClick={() => setRiscos(riscos.filter((_, i) => i !== idx))}>−</button>
-                )}
-              </div>
-            ))}
-            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setRiscos([...riscos, { risco: "", consequencia: "" }])}>
-              + Adicionar risco
-            </button>
-
-            <label style={labelStyle}>Carry-over da sprint anterior</label>
-            <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
-              {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
-                <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-            {carryOverItems.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 6 }}>
-                <input style={inputStyle} value={row.item} placeholder="Ex: Integração com API do cliente"
-                  onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], item: e.target.value }; setCarryOverItems(n); }} />
-                <input style={inputStyle} value={row.causa_raiz} placeholder="1–7"
-                  onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], causa_raiz: e.target.value }; setCarryOverItems(n); }} />
-                {carryOverItems.length > 1 && (
-                  <button type="button" style={ghostBtn} onClick={() => setCarryOverItems(carryOverItems.filter((_, i) => i !== idx))}>−</button>
-                )}
-              </div>
-            ))}
-            <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-              onClick={() => setCarryOverItems([...carryOverItems, { item: "", causa_raiz: "" }])}>
-              + Adicionar item
-            </button>
-          </>
-        )}
-
-        {tipo === "daily" && (
-          <>
-            <label style={labelStyle}>Data</label>
-            <input
-              type="date"
-              style={inputStyle}
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-            />
-            <label style={labelStyle}>O que foi feito desde a última Daily?</label>
-            <textarea
-              style={textareaStyle}
-              value={feito}
-              onChange={(e) => setFeito(e.target.value)}
-            />
-            <label style={labelStyle}>O que será feito até a próxima Daily?</label>
-            <textarea
-              style={textareaStyle}
-              value={proximo}
-              onChange={(e) => setProximo(e.target.value)}
-            />
-            <label style={labelStyle}>Existe algum impedimento ou risco?</label>
-            <textarea
-              style={textareaStyle}
-              value={impedimentos}
-              onChange={(e) => setImpedimentos(e.target.value)}
-              placeholder="Opcional"
-            />
-          </>
-        )}
-
-        {tipo === "review" && (
-          <>
-            <label style={labelStyle}>Observações do gerente sobre a sprint</label>
-            <textarea
-              style={{ ...textareaStyle, minHeight: 120 }}
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Opcional — observações qualitativas. O delta planejado vs realizado será calculado automaticamente a partir do planning e das dailys da sprint."
-            />
-
-            <label style={labelStyle}>Percepção do cliente</label>
-            <textarea
-              style={textareaStyle}
-              value={percepcaoCliente}
-              onChange={(e) => setPercepcaoCliente(e.target.value)}
-              placeholder="Ex: Cliente satisfeito com a velocidade de entrega"
-            />
-
-            <label style={labelStyle}>Sinal de satisfação</label>
-            <select
-              style={{ ...inputStyle, cursor: "pointer" }}
-              value={sinalSatisfacao}
-              onChange={(e) => setSinalSatisfacao(e.target.value)}
-            >
-              <option value="">Selecione...</option>
-              <option value="🟢 Verde">🟢 Verde</option>
-              <option value="🟡 Amarelo">🟡 Amarelo</option>
-              <option value="🔴 Vermelho">🔴 Vermelho</option>
-            </select>
-
-            <label style={labelStyle}>Pedidos fora do escopo</label>
-            <textarea
-              style={textareaStyle}
-              value={pedidosForaEscopo}
-              onChange={(e) => setPedidosForaEscopo(e.target.value)}
-              placeholder="Ex: Cliente solicitou relatório PDF — registrado para avaliação"
-            />
-          </>
-        )}
-
-        <label style={labelStyle}>
-          Anexo (opcional)
-          {tipo === "planning" && (
-            <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
-              — PDF ou print do kanban; tasks visíveis na imagem são extraídas como itens do backlog
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+            {TITLES[tipo]} — Sprint {sprintNumero}
+          </h2>
+          {step === "form" && (
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              Etapa 2 de 2 — Revise e confirme
             </span>
           )}
-          {tipo !== "planning" && (
-            <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
-              — PDF
-            </span>
-          )}
-        </label>
-        <input
-          ref={fileRef}
-          type="file"
-          accept={tipo === "planning" ? "application/pdf,image/png,image/jpeg,image/jpg,image/webp" : "application/pdf"}
-          onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)}
-        />
-        {anexoName && (
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-            Anexo: {anexoName}
-          </div>
-        )}
-
-        {error && (
-          <div
-            style={{
-              marginTop: 14,
-              padding: 10,
-              background: "#fef2f2",
-              color: "#b91c1c",
-              borderRadius: 8,
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
-          <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? "Gerando…" : `Gerar ${tipo === "planning" ? "Planning" : tipo === "daily" ? "Daily" : "Review"}`}
-          </button>
         </div>
+
+        {/* ── ETAPA 1: Forneça a matéria-prima ─────────────────────────── */}
+        {step === "input" && (
+          <>
+            <p style={{ fontSize: 13, color: "#64748b", marginTop: 12, marginBottom: 0 }}>
+              Cole a matéria-prima abaixo ou faça upload de um arquivo. A IA vai preencher
+              os campos automaticamente para você revisar antes de gerar o documento.
+            </p>
+
+            <label style={labelStyle}>Texto (cole aqui)</label>
+            <textarea
+              style={{ ...textareaStyle, minHeight: 160 }}
+              value={enrichText}
+              onChange={(e) => setEnrichText(e.target.value)}
+              placeholder={
+                tipo === "planning"
+                  ? "Ex: pauta de reunião, lista de tarefas do Planner, documento de escopo..."
+                  : tipo === "daily"
+                  ? "Ex: atualização no WhatsApp, mensagem de status, notas da daily..."
+                  : tipo === "review"
+                  ? "Ex: transcrição da reunião de review, anotações de feedback do cliente..."
+                  : "Cole aqui a matéria-prima..."
+              }
+            />
+
+            <label style={labelStyle}>Ou faça upload de arquivo</label>
+            <input
+              ref={enrichFileRef}
+              type="file"
+              accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+              onChange={(e) => setEnrichFileName(e.target.files?.[0]?.name ?? null)}
+            />
+            {enrichFileName && (
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                Arquivo: {enrichFileName}
+              </div>
+            )}
+
+            {error && (
+              <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+              <button type="button" style={ghostBtn} onClick={onClose} disabled={enriching}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                style={ghostBtn}
+                onClick={() => { setError(null); setStep("form"); }}
+                disabled={enriching}
+              >
+                Pular — preencher manualmente
+              </button>
+              <button
+                type="button"
+                style={{ ...primaryBtn, opacity: enriching || (!enrichText.trim() && !enrichFileName) ? 0.6 : 1 }}
+                onClick={handleEnrich}
+                disabled={enriching || (!enrichText.trim() && !enrichFileName)}
+              >
+                {enriching ? "Analisando..." : "Analisar com IA"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── ETAPA 2: Formulário (pre-preenchido ou manual) ─────────────── */}
+        {step === "form" && (
+          <>
+            {aiFields.size > 0 && (
+              <div style={{
+                marginTop: 12,
+                padding: "8px 12px",
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                borderRadius: 8,
+                fontSize: 13,
+                color: "#1e40af",
+              }}>
+                Campos marcados com <strong>IA</strong> foram preenchidos automaticamente — revise antes de confirmar.
+              </div>
+            )}
+
+            {tipo === "planning" && (
+              <>
+                <label style={labelStyle}>
+                  Descrição do planejamento
+                  <AiBadge field="descricao" />
+                </label>
+                <textarea
+                  style={textareaStyle}
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  placeholder="Ex: Sprint focada em finalizar o ETL e iniciar a camada de visualização"
+                />
+
+                <label style={labelStyle}>
+                  Itens do backlog
+                  <AiBadge field="itens_backlog" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 4 }}>
+                  {["Tarefa", "Responsável", "Prazo", "Critério de pronto", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {itens.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.item} placeholder={`Item ${idx + 1}`}
+                      onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], item: e.target.value }; setItens(n); }} />
+                    <input style={inputStyle} value={row.responsavel} placeholder="Ex: Gabriel"
+                      onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], responsavel: e.target.value }; setItens(n); }} />
+                    <input style={inputStyle} value={row.prazo} placeholder="15/08"
+                      onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], prazo: e.target.value }; setItens(n); }} />
+                    <input style={inputStyle} value={row.criterio} placeholder="Ex: PR aprovado"
+                      onChange={(e) => { const n = [...itens]; n[idx] = { ...n[idx], criterio: e.target.value }; setItens(n); }} />
+                    {itens.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setItens(itens.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setItens([...itens, { item: "", responsavel: "", prazo: "", criterio: "" }])}>
+                  + Adicionar item
+                </button>
+
+                <label style={labelStyle}>Período da sprint</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={periodoInicio}
+                    onChange={(e) => setPeriodoInicio(e.target.value)} />
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={periodoFim}
+                    onChange={(e) => setPeriodoFim(e.target.value)} />
+                </div>
+
+                <label style={labelStyle}>
+                  Capacidade vs. Estimativa
+                  <AiBadge field="horas_disponiveis" />
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="number" min={0} style={{ ...inputStyle, flex: 1 }} value={horasDisponiveis}
+                    onChange={(e) => setHorasDisponiveis(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="Horas disponíveis" />
+                  <input type="number" min={0} style={{ ...inputStyle, flex: 1 }} value={horasEstimadas}
+                    onChange={(e) => setHorasEstimadas(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="Horas estimadas" />
+                </div>
+
+                <label style={labelStyle}>
+                  Dependências do cliente
+                  <AiBadge field="dependencias" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 4 }}>
+                  {["O que precisa entregar", "Prazo", "Consequência se atrasar", "Confiança", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {dependencias.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.item} placeholder="Ex: Acesso ao banco"
+                      onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], item: e.target.value }; setDependencias(n); }} />
+                    <input style={inputStyle} value={row.prazo} placeholder="15/08"
+                      onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], prazo: e.target.value }; setDependencias(n); }} />
+                    <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint atrasada"
+                      onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], consequencia: e.target.value }; setDependencias(n); }} />
+                    <select style={{ ...inputStyle, cursor: "pointer" }} value={row.confianca}
+                      onChange={(e) => { const n = [...dependencias]; n[idx] = { ...n[idx], confianca: e.target.value }; setDependencias(n); }}>
+                      <option value="">—</option>
+                      <option value="Alta">Alta</option>
+                      <option value="Média">Média</option>
+                      <option value="Baixa">Baixa</option>
+                    </select>
+                    {dependencias.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setDependencias(dependencias.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setDependencias([...dependencias, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
+                  + Adicionar dependência
+                </button>
+
+                <label style={labelStyle}>
+                  Riscos identificados
+                  <AiBadge field="riscos" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 4 }}>
+                  {["O que pode dar errado", "Consequência se acontecer", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {riscos.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.risco} placeholder="Ex: Atraso no dado do cliente"
+                      onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], risco: e.target.value }; setRiscos(n); }} />
+                    <input style={inputStyle} value={row.consequencia} placeholder="Ex: Sprint comprometida"
+                      onChange={(e) => { const n = [...riscos]; n[idx] = { ...n[idx], consequencia: e.target.value }; setRiscos(n); }} />
+                    {riscos.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setRiscos(riscos.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setRiscos([...riscos, { risco: "", consequencia: "" }])}>
+                  + Adicionar risco
+                </button>
+
+                <label style={labelStyle}>
+                  Carry-over da sprint anterior
+                  <AiBadge field="carryOver" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
+                  {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {carryOverItems.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.item} placeholder="Ex: Integração com API do cliente"
+                      onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], item: e.target.value }; setCarryOverItems(n); }} />
+                    <input style={inputStyle} value={row.causa_raiz} placeholder="1–7"
+                      onChange={(e) => { const n = [...carryOverItems]; n[idx] = { ...n[idx], causa_raiz: e.target.value }; setCarryOverItems(n); }} />
+                    {carryOverItems.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setCarryOverItems(carryOverItems.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setCarryOverItems([...carryOverItems, { item: "", causa_raiz: "" }])}>
+                  + Adicionar item
+                </button>
+              </>
+            )}
+
+            {tipo === "daily" && (
+              <>
+                <label style={labelStyle}>
+                  Data
+                  <AiBadge field="data" />
+                </label>
+                <input type="date" style={inputStyle} value={data} onChange={(e) => setData(e.target.value)} />
+
+                <label style={labelStyle}>
+                  O que foi feito desde a última Daily?
+                  <AiBadge field="feito" />
+                </label>
+                <textarea style={textareaStyle} value={feito} onChange={(e) => setFeito(e.target.value)} />
+
+                <label style={labelStyle}>
+                  O que será feito até a próxima Daily?
+                  <AiBadge field="proximo" />
+                </label>
+                <textarea style={textareaStyle} value={proximo} onChange={(e) => setProximo(e.target.value)} />
+
+                <label style={labelStyle}>
+                  Existe algum impedimento ou risco?
+                  <AiBadge field="impedimentos" />
+                </label>
+                <textarea style={textareaStyle} value={impedimentos} onChange={(e) => setImpedimentos(e.target.value)} placeholder="Opcional" />
+              </>
+            )}
+
+            {tipo === "review" && (
+              <>
+                <label style={labelStyle}>
+                  Observações do gerente sobre a sprint
+                  <AiBadge field="observacoes" />
+                </label>
+                <textarea
+                  style={{ ...textareaStyle, minHeight: 120 }}
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Opcional — observações qualitativas. O delta planejado vs realizado será calculado automaticamente."
+                />
+
+                <label style={labelStyle}>
+                  Percepção do cliente
+                  <AiBadge field="percepcaoCliente" />
+                </label>
+                <textarea style={textareaStyle} value={percepcaoCliente}
+                  onChange={(e) => setPercepcaoCliente(e.target.value)}
+                  placeholder="Ex: Cliente satisfeito com a velocidade de entrega" />
+
+                <label style={labelStyle}>
+                  Sinal de satisfação
+                  <AiBadge field="sinalSatisfacao" />
+                </label>
+                <select style={{ ...inputStyle, cursor: "pointer" }} value={sinalSatisfacao}
+                  onChange={(e) => setSinalSatisfacao(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option value="🟢 Verde">🟢 Verde</option>
+                  <option value="🟡 Amarelo">🟡 Amarelo</option>
+                  <option value="🔴 Vermelho">🔴 Vermelho</option>
+                </select>
+
+                <label style={labelStyle}>
+                  Pedidos fora do escopo
+                  <AiBadge field="pedidosForaEscopo" />
+                </label>
+                <textarea style={textareaStyle} value={pedidosForaEscopo}
+                  onChange={(e) => setPedidosForaEscopo(e.target.value)}
+                  placeholder="Ex: Cliente solicitou relatório PDF — registrado para avaliação" />
+              </>
+            )}
+
+            <label style={labelStyle}>
+              Anexo (opcional)
+              {tipo === "planning" && (
+                <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
+                  — PDF ou print do kanban
+                </span>
+              )}
+              {tipo !== "planning" && (
+                <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>— PDF</span>
+              )}
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept={tipo === "planning" ? "application/pdf,image/png,image/jpeg,image/jpg,image/webp" : "application/pdf"}
+              onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)}
+            />
+            {anexoName && (
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Anexo: {anexoName}</div>
+            )}
+
+            {error && (
+              <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+              <button type="button" style={ghostBtn} onClick={() => { setError(null); setStep("input"); }} disabled={submitting}>
+                Voltar
+              </button>
+              <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? "Gerando…" : `Gerar ${tipo === "planning" ? "Planning" : tipo === "daily" ? "Daily" : "Review"}`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

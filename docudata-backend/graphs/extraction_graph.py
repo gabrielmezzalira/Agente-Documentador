@@ -161,8 +161,13 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
     try:
         structured_llm = _make_structured_llm(state["gemini_api_key"])
         raw_result = await structured_llm.ainvoke(messages)
-        parsed: ConteudoEstruturado = raw_result["parsed"]
+        parsed: Optional[ConteudoEstruturado] = raw_result.get("parsed")
         raw_msg = raw_result["raw"]
+
+        if parsed is None:
+            pe = raw_result.get("parsing_error")
+            print(f"[extrair_conteudo] Structured output parsing failed: {pe}")
+            return {"valido": False, "tentativas": tentativas + 1, "erro": f"Structured output parsing failed: {pe}"}
 
         usage = getattr(raw_msg, "usage_metadata", None) or {}
         in_tok = usage.get("input_tokens", 0) or 0
