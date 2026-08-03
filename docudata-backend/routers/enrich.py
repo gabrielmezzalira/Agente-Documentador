@@ -46,6 +46,8 @@ class PlanningEnrichment(BaseModel):
     itens_backlog: list[BacklogItem] = Field(default_factory=list)
     horas_disponiveis: Optional[int] = None
     horas_estimadas: Optional[int] = None
+    periodo_inicio: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
+    periodo_fim: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
     dependencias_items: list[DependenciaItem] = Field(default_factory=list)
     riscos_items: list[RiscoItem] = Field(default_factory=list)
     carry_over_items: list[CarryOverItem] = Field(default_factory=list)
@@ -93,6 +95,8 @@ _PROMPTS = {
         "- itens_backlog: cada tarefa/atividade com responsável, prazo e critério de aceite se visíveis\n"
         "- horas_disponiveis: capacidade do squad em horas (inteiro), null se não mencionado\n"
         "- horas_estimadas: estimativa de horas necessárias, null se não mencionada\n"
+        "- periodo_inicio: data de início da sprint (formato DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
+        "- periodo_fim: data de fim da sprint (formato DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
         "- dependencias_items: dependências externas que o squad precisa de terceiros\n"
         "- riscos_items: riscos identificados para a sprint\n"
         "- carry_over_items: itens não entregues de sprints anteriores mencionados"

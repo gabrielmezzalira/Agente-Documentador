@@ -429,6 +429,8 @@ export interface EnrichResult {
   itens_backlog?: { item: string; responsavel: string; prazo: string; criterio: string }[];
   horas_disponiveis?: number | null;
   horas_estimadas?: number | null;
+  periodo_inicio?: string | null;
+  periodo_fim?: string | null;
   dependencias_items?: { item: string; prazo: string; consequencia: string; confianca: string }[];
   riscos_items?: { risco: string; consequencia: string }[];
   carry_over_items?: { item: string; causa_raiz: string }[];

@@ -113,6 +113,19 @@ def _parse_markdown(text: str) -> list:
     for line in text.split("\n"):
         seg = {"text": "", "heading": None, "bullet": False, "bold_ranges": []}
 
+        # Linhas separadoras de tabela (|---|---|) — ignora
+        if re.match(r"^\|[\s\-|:]+\|?\s*$", line):
+            continue
+
+        # Linhas de tabela (| col | col |) — converte em bullet "col — col"
+        if line.startswith("|") and line.count("|") >= 2:
+            cells = [c.strip() for c in line.strip("|").split("|") if c.strip()]
+            if cells:
+                seg["text"] = " — ".join(cells)
+                seg["bullet"] = True
+                result.append(seg)
+            continue
+
         for lvl, prefix in [(1, "# "), (2, "## "), (3, "### ")]:
             if line.startswith(prefix):
                 line = line[len(prefix):]

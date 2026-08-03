@@ -222,6 +222,12 @@ export default function SprintDocModal({
       }
       if (result.horas_disponiveis != null) { setHorasDisponiveis(result.horas_disponiveis); fields.add("horas_disponiveis"); }
       if (result.horas_estimadas != null) { setHorasEstimadas(result.horas_estimadas); fields.add("horas_estimadas"); }
+      const toInputDate = (s: string) => {
+        const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+      };
+      if (result.periodo_inicio) { setPeriodoInicio(toInputDate(result.periodo_inicio)); fields.add("periodo"); }
+      if (result.periodo_fim) { setPeriodoFim(toInputDate(result.periodo_fim)); fields.add("periodo"); }
       if (result.dependencias_items?.length) {
         setDependencias(result.dependencias_items.map((d) => ({
           item: d.item || "", prazo: d.prazo || "", consequencia: d.consequencia || "", confianca: d.confianca || "",
@@ -466,7 +472,10 @@ export default function SprintDocModal({
                   + Adicionar item
                 </button>
 
-                <label style={labelStyle}>Período da sprint</label>
+                <label style={labelStyle}>
+                  Período da sprint
+                  <AiBadge field="periodo" />
+                </label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input type="date" style={{ ...inputStyle, flex: 1 }} value={periodoInicio}
                     onChange={(e) => setPeriodoInicio(e.target.value)} />
