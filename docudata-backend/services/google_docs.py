@@ -426,9 +426,10 @@ def export_to_gdocs(
 
     data_fmt = datetime.fromisoformat(created_at.replace("Z", "+00:00")).strftime("%d/%m/%Y")
 
-    # Busca campos_planning do Supabase quando disponíveis
+    # Busca campos estruturados do Supabase conforme o tipo de doc
     campos_planning: dict = {}
     campos_review: dict = {}
+    campos_retrospectiva: dict = {}
     if doc_type == "planning" and sprint_numero is not None:
         client = get_client()
         resp = (
@@ -458,6 +459,21 @@ def export_to_gdocs(
         )
         if resp.data:
             campos_review = resp.data[0].get("extracted_content", {}).get("campos_review", {}) or {}
+
+    if doc_type == "retrospectiva" and sprint_numero is not None:
+        client = get_client()
+        resp = (
+            client.table("ingestions")
+            .select("extracted_content")
+            .eq("project_id", project_id)
+            .eq("sprint_number", sprint_numero)
+            .eq("tipo_documentacao", "retrospectiva")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            campos_retrospectiva = resp.data[0].get("extracted_content", {}).get("campos_retrospectiva", {}) or {}
 
     def _cp(source: dict, key: str, default: str = "Não informado") -> str:
         return str(source.get(key) or default)
@@ -492,6 +508,13 @@ def export_to_gdocs(
         sinal_satisfacao = "—"
         pedidos_fora_escopo = "—"
 
+    if doc_type == "retrospectiva":
+        retro_observacoes = _cp(campos_retrospectiva, "observacoes")
+        pedido_fora_escopo_status = _cp(campos_retrospectiva, "pedido_fora_escopo_status")
+    else:
+        retro_observacoes = "—"
+        pedido_fora_escopo_status = "—"
+
     _replace_placeholders(docs, doc_id, {
         "PROJETO": projeto_nome,
         "CLIENTE": cliente,
@@ -504,6 +527,8 @@ def export_to_gdocs(
         "HORAS_REAIS": horas_reais,
         "HORAS_ESTIMADAS": horas_estimadas,
         "PERCEPCAO_CLIENTE": percepcao_cliente,
+        "PEDIDO_FORA_ESCOPO_STATUS": pedido_fora_escopo_status,
+        "OBSERVACOES_RETRO": retro_observacoes,
         "SINAL_SATISFACAO": sinal_satisfacao,
         "PEDIDOS_FORA_ESCOPO": pedidos_fora_escopo,
     })
