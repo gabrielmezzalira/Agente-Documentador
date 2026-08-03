@@ -232,6 +232,99 @@ def _apply_content(docs, doc_id: str, segments: list):
         ).execute()
 
 
+def _fmt_date(s: str) -> str:
+    """Converte YYYY-MM-DD para DD/MM/AAAA."""
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", s)
+    return f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else s
+
+
+def _find_table_marker(document: dict, marker: str) -> tuple[int | None, int | None]:
+    """Retorna (table_start_index, row_index) da linha que contém o marker."""
+    for el in document.get("body", {}).get("content", []):
+        if "table" not in el:
+            continue
+        for r_idx, row in enumerate(el["table"].get("tableRows", [])):
+            for cell in row.get("tableCells", []):
+                for para in cell.get("content", []):
+                    for pe in para.get("paragraph", {}).get("elements", []):
+                        if marker in pe.get("textRun", {}).get("content", ""):
+                            return el["startIndex"], r_idx
+    return None, None
+
+
+def _fill_dynamic_table(docs, doc_id: str, marker: str, rows_data: list[list[str]]) -> None:
+    """Deleta a linha de template com `marker`, insere uma linha por item e preenche as células."""
+    document = docs.documents().get(documentId=doc_id).execute()
+    table_start, row_idx = _find_table_marker(document, marker)
+    if table_start is None:
+        return
+
+    # 1. Deletar linha de template
+    docs.documents().batchUpdate(documentId=doc_id, body={"requests": [{
+        "deleteTableRow": {
+            "tableCellLocation": {
+                "tableStartLocation": {"index": table_start},
+                "rowIndex": row_idx,
+            }
+        }
+    }]}).execute()
+
+    if not rows_data:
+        return
+
+    # 2. Inserir N linhas em sequência (rowIndex incrementa para manter a ordem)
+    header_row = max(0, row_idx - 1)
+    insert_requests = [
+        {
+            "insertTableRow": {
+                "tableCellLocation": {
+                    "tableStartLocation": {"index": table_start},
+                    "rowIndex": header_row + i,
+                },
+                "insertBelow": True,
+            }
+        }
+        for i in range(len(rows_data))
+    ]
+    docs.documents().batchUpdate(documentId=doc_id, body={"requests": insert_requests}).execute()
+
+    # 3. Re-buscar documento e preencher células
+    document = docs.documents().get(documentId=doc_id).execute()
+    target_table = next(
+        (el["table"] for el in document.get("body", {}).get("content", [])
+         if "table" in el and el.get("startIndex") == table_start),
+        None,
+    )
+    if target_table is None:
+        return
+
+    fill: list[tuple[int, str]] = []
+    for row_offset, row_values in enumerate(rows_data):
+        actual_row_idx = row_idx + row_offset
+        if actual_row_idx >= len(target_table["tableRows"]):
+            break
+        row = target_table["tableRows"][actual_row_idx]
+        for col_idx, cell_value in enumerate(row_values):
+            if not cell_value or col_idx >= len(row["tableCells"]):
+                continue
+            elements = (
+                row["tableCells"][col_idx]
+                .get("content", [{}])[0]
+                .get("paragraph", {})
+                .get("elements", [])
+            )
+            if elements:
+                fill.append((elements[0]["startIndex"], cell_value))
+
+    # Preencher de trás pra frente para não deslocar índices
+    fill.sort(key=lambda x: x[0], reverse=True)
+    if fill:
+        docs.documents().batchUpdate(documentId=doc_id, body={"requests": [
+            {"insertText": {"location": {"index": idx}, "text": val}}
+            for idx, val in fill
+        ]}).execute()
+
+
 _TEMPLATE_ENV_BY_DOC_TYPE = {
     "planning": "GDOCS_TEMPLATE_ID_PLANNING",
     "review": "GDOCS_TEMPLATE_ID_REVIEW",
@@ -311,37 +404,22 @@ def export_to_gdocs(
         return "\n".join(str(it.get(key, "") or "") for it in items)
 
     if doc_type == "planning":
-        periodo_inicio = _cp(campos_planning, "periodo_inicio")
-        periodo_fim = _cp(campos_planning, "periodo_fim")
-        periodo = f"{periodo_inicio} a {periodo_fim}" if periodo_inicio not in ("—", "Não informado") and periodo_fim not in ("—", "Não informado") else periodo_inicio
+        pi_raw = _cp(campos_planning, "periodo_inicio")
+        pf_raw = _cp(campos_planning, "periodo_fim")
+        pi = _fmt_date(pi_raw) if pi_raw not in ("—", "Não informado") else pi_raw
+        pf = _fmt_date(pf_raw) if pf_raw not in ("—", "Não informado") else pf_raw
+        periodo = f"{pi} a {pf}" if pi not in ("—", "Não informado") and pf not in ("—", "Não informado") else pi
         horas_reais = _cp(campos_planning, "horas_disponiveis")
         horas_estimadas = _cp(campos_planning, "horas_estimadas")
-
-        bl = campos_planning.get("backlog_items") or []
+        bl  = campos_planning.get("backlog_items") or []
         dep = campos_planning.get("dependencias_items") or []
         ris = campos_planning.get("riscos_items") or []
         co  = campos_planning.get("carry_over_items") or []
-
-        backlog_item      = _col(bl, "item")
-        backlog_resp      = _col(bl, "responsavel")
-        backlog_prazo     = _col(bl, "prazo")
-        backlog_dod       = _col(bl, "criterio")
-        dep_item          = _col(dep, "item")
-        dep_prazo         = _col(dep, "prazo")
-        dep_consequencia  = _col(dep, "consequencia")
-        dep_confianca     = _col(dep, "confianca")
-        riscos_risco      = _col(ris, "risco")
-        riscos_cons       = _col(ris, "consequencia")
-        co_item           = _col(co, "item")
-        co_causa          = _col(co, "causa_raiz")
     else:
         periodo = "—"
         horas_reais = "—"
         horas_estimadas = "—"
-        backlog_item = backlog_resp = backlog_prazo = backlog_dod = ""
-        dep_item = dep_prazo = dep_consequencia = dep_confianca = ""
-        riscos_risco = riscos_cons = ""
-        co_item = co_causa = ""
+        bl = dep = ris = co = []
 
     if doc_type == "review":
         percepcao_cliente = _cp(campos_review, "percepcao_cliente")
@@ -363,26 +441,21 @@ def export_to_gdocs(
         "PERIODO": periodo,
         "HORAS_REAIS": horas_reais,
         "HORAS_ESTIMADAS": horas_estimadas,
-        # Backlog
-        "BACKLOG": backlog_item,
-        "BACKLOG_RESPONSAVEL": backlog_resp,
-        "BACKLOG_PRAZO": backlog_prazo,
-        "BACKLOG_DOD": backlog_dod,
-        # Dependências
-        "DEPENDENCIAS_CLIENTE": dep_item,
-        "DEPENDENCIAS_PRAZO": dep_prazo,
-        "DEPENDENCIAS_CONSEQUENCIA": dep_consequencia,
-        "DEPENDENCIAS_CONFIANCA": dep_confianca,
-        # Riscos
-        "RISCOS": riscos_risco,
-        "RISCOS_CONSEQUENCIA": riscos_cons,
-        # Carry-over
-        "CARRY_OVER": co_item,
-        "CARRY_OVER_CAUSA_RAIZ": co_causa,
         "PERCEPCAO_CLIENTE": percepcao_cliente,
         "SINAL_SATISFACAO": sinal_satisfacao,
         "PEDIDOS_FORA_ESCOPO": pedidos_fora_escopo,
     })
+
+    # Tabelas dinâmicas — uma linha por item (planning only)
+    if doc_type == "planning":
+        _fill_dynamic_table(docs, doc_id, "{{BACKLOG_ROW}}",
+            [[i.get("item",""), i.get("responsavel",""), i.get("prazo",""), i.get("criterio","")] for i in bl])
+        _fill_dynamic_table(docs, doc_id, "{{DEP_ROW}}",
+            [[d.get("item",""), d.get("prazo",""), d.get("consequencia",""), d.get("confianca","")] for d in dep])
+        _fill_dynamic_table(docs, doc_id, "{{RISCOS_ROW}}",
+            [[r.get("risco",""), r.get("consequencia","")] for r in ris])
+        _fill_dynamic_table(docs, doc_id, "{{CO_ROW}}",
+            [[c.get("item",""), c.get("causa_raiz","")] for c in co])
 
     segments = _parse_markdown(markdown_content)
     _apply_content(docs, doc_id, segments)
