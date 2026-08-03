@@ -638,9 +638,12 @@ export default function SprintDocModal({
                 <select style={{ ...inputStyle, cursor: "pointer" }} value={sinalSatisfacao}
                   onChange={(e) => setSinalSatisfacao(e.target.value)}>
                   <option value="">Selecione...</option>
-                  <option value="🟢 Verde">🟢 Verde</option>
-                  <option value="🟡 Amarelo">🟡 Amarelo</option>
-                  <option value="🔴 Vermelho">🔴 Vermelho</option>
+                  <option value="Elogio espontâneo">Elogio espontâneo</option>
+                  <option value="Neutro / sem sinal">Neutro / sem sinal</option>
+                  <option value="Reclamação pontual, resolvida na própria Review">Reclamação pontual, resolvida na própria Review</option>
+                  <option value="Reclamação não resolvida ao final da Review">Reclamação não resolvida ao final da Review</option>
+                  <option value="Reclamação recorrente sobre o mesmo tema (2ª vez)">Reclamação recorrente sobre o mesmo tema (2ª vez)</option>
+                  <option value="Cliente solicitou reunião de escalonamento">Cliente solicitou reunião de escalonamento</option>
                 </select>
 
                 <label style={labelStyle}>

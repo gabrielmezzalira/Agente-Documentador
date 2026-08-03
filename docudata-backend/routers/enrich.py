@@ -65,7 +65,14 @@ class ReviewEnrichment(BaseModel):
     percepcao_cliente: Optional[str] = None
     sinal_satisfacao: Optional[str] = Field(
         default=None,
-        description="Exatamente '🟢 Verde', '🟡 Amarelo' ou '🔴 Vermelho', ou null",
+        description=(
+            "Escolha exatamente uma das opções abaixo conforme o tom do cliente, ou null se não for possível inferir: "
+            "'Elogio espontâneo', 'Neutro / sem sinal', "
+            "'Reclamação pontual, resolvida na própria Review', "
+            "'Reclamação não resolvida ao final da Review', "
+            "'Reclamação recorrente sobre o mesmo tema (2ª vez)', "
+            "'Cliente solicitou reunião de escalonamento'"
+        ),
     )
     pedidos_fora_escopo: Optional[str] = None
 
@@ -119,9 +126,14 @@ _PROMPTS = {
         "Campos a extrair:\n"
         "- observacoes: resumo geral da sprint do ponto de vista do gerente\n"
         "- percepcao_cliente: como o cliente reagiu ou avaliou a entrega, null se não mencionado\n"
-        "- sinal_satisfacao: avalie o sentimento como exatamente '🟢 Verde' (cliente satisfeito), "
-        "'🟡 Amarelo' (preocupações menores presentes) ou '🔴 Vermelho' (insatisfação grave). "
-        "null se não for possível inferir com segurança pelo contexto\n"
+        "- sinal_satisfacao: classifique o sinal do cliente escolhendo EXATAMENTE uma das opções: "
+        "'Elogio espontâneo' (cliente elogiou proativamente), "
+        "'Neutro / sem sinal' (sem elogio nem reclamação), "
+        "'Reclamação pontual, resolvida na própria Review' (problema levantado e resolvido na reunião), "
+        "'Reclamação não resolvida ao final da Review' (problema aberto ao fim da reunião), "
+        "'Reclamação recorrente sobre o mesmo tema (2ª vez)' (mesmo problema já reportado antes), "
+        "'Cliente solicitou reunião de escalonamento' (cliente pediu escalada). "
+        "null se não for possível inferir com segurança\n"
         "- pedidos_fora_escopo: pedidos do cliente fora do escopo combinado, null se nenhum"
     ),
     "retrospectiva": (
