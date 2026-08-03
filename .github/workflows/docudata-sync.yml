@@ -1,0 +1,32 @@
+name: DocuData Sync
+
+on:
+  push:
+    branches: [main]
+
+env:
+  DOCUDATA_PROJECT_ID: 77915ce7-04d3-44a8-8103-89945cc3b7c7
+  DOCUDATA_SPRINT_NUMERO: 2
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Gerar resumo do commit
+        run: |
+          git log -1 --pretty=format:"Commit: %H%nAutor: %an%nData: %ad%nMensagem: %s%n%n%b" > commit_info.txt
+          echo -e "\n\n--- ARQUIVOS ALTERADOS ---\n" >> commit_info.txt
+          git diff HEAD~1 HEAD --name-status >> commit_info.txt
+          echo -e "\n\n--- DIFF (primeiras 500 linhas) ---\n" >> commit_info.txt
+          git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' | head -500 >> commit_info.txt
+
+      - name: Enviar para DocuData
+        run: |
+          curl -f -X POST "${{ secrets.DOCUDATA_API_URL }}/ingest" \
+            -F "projeto_id=${{ env.DOCUDATA_PROJECT_ID }}" \
+            -F "sprint_numero=${{ env.DOCUDATA_SPRINT_NUMERO }}" \
+            -F "arquivo=@commit_info.txt;type=text/plain"
