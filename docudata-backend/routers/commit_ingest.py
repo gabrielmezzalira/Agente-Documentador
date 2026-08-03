@@ -106,7 +106,7 @@ async def ingest_commit(payload: CommitPayload):
     user_content += f"\nDiff das mudancas (arquivos modificados):\n{payload.diff or 'nao informado'}\n"
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
+        model="gemini-3.5-flash",
         temperature=0,
         max_tokens=2048,
         google_api_key=api_key,
