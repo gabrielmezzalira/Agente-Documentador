@@ -26,9 +26,10 @@ jobs:
 
       - name: Enviar para DocuData
         run: |
-          echo "URL: ${{ secrets.DOCUDATA_API_URL }}/ingest"
-          curl -v -X POST "${{ secrets.DOCUDATA_API_URL }}/ingest" \
+          RAW_URL="${{ secrets.DOCUDATA_API_URL }}"
+          API_URL="https://${RAW_URL#*://}"
+          echo "URL: $API_URL/ingest"
+          curl -f -X POST "$API_URL/ingest" \
             -F "projeto_id=${{ env.DOCUDATA_PROJECT_ID }}" \
             -F "sprint_numero=${{ env.DOCUDATA_SPRINT_NUMERO }}" \
             -F "arquivo=@commit_info.txt;type=text/plain"
-          echo "Exit code: $?"
