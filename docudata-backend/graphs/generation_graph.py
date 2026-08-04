@@ -32,7 +32,7 @@ class GenerationState(TypedDict):
 
 def _make_llm(api_key: str):
     return ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash",
+        model="gemini-2.5-flash",
         temperature=0,
         max_tokens=4096,
         google_api_key=api_key,
