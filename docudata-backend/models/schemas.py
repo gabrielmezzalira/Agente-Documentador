@@ -73,6 +73,7 @@ class IngestionResponse(BaseModel):
     sprint_number: int
     file_name: Optional[str] = None
     file_type: Optional[str] = None
+    tipo_documentacao: Optional[str] = None
     extracted_content: Optional[dict] = None
     input_tokens: int = 0
     output_tokens: int = 0
