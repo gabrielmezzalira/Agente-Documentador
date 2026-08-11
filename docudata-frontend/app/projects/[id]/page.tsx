@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -18,7 +18,6 @@ import {
   ingestFile,
   exportToGdocs,
   submitAtaUpload,
-  submitRetrospectiva,
   deleteProject,
   deleteDoc,
   toggleDelivered,
@@ -238,23 +237,6 @@ export default function ProjectDashboard() {
       setCarryOverPrefill(Array.isArray(items) ? items.join("\n") : String(items));
     } catch {
       setCarryOverPrefill("");
-    }
-  }
-
-  async function handleRetroSubmit(observacoes: string, pedidoForaEscopoStatus: string, file: File | null) {
-    if (!retroModal) return;
-    try {
-      const doc = await submitRetrospectiva({
-        projetoId: id,
-        sprintNumero: retroModal.sprintNumero,
-        observacoes: observacoes || undefined,
-        pedidoForaEscopoStatus: pedidoForaEscopoStatus || undefined,
-        anexo: file,
-      });
-      setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
-      setRetroModal(null);
-    } catch (e) {
-      console.error("Erro ao submeter retrospectiva:", e);
     }
   }
 
@@ -783,7 +765,10 @@ export default function ProjectDashboard() {
         onClose={() => setRetroModal(null)}
         projetoId={id}
         sprintNumero={retroModal?.sprintNumero ?? 1}
-        onSubmit={handleRetroSubmit}
+        onSubmitted={(doc) => {
+          setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
+          setRetroModal(null);
+        }}
       />
     </main>
   );

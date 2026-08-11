@@ -60,6 +60,24 @@ class DailyEnrichment(BaseModel):
     impedimentos: Optional[str] = None
 
 
+class ItemEntregue(BaseModel):
+    item: str = ""
+    entregue: str = ""        # "S" ou "N"
+    motivo_nao: str = ""      # causa raiz nº se não entregue
+    causa_raiz_num: str = ""  # número da causa raiz (1-7)
+
+
+class PedidoForaEscopoItem(BaseModel):
+    data: str = ""
+    descricao: str = ""
+    status: str = ""          # "Insistência" ou "Sugestão pontual"
+
+
+class ItemProximaSprint(BaseModel):
+    item: str = ""
+    causa_raiz_num: str = ""  # número da causa raiz (1-7)
+
+
 class ReviewEnrichment(BaseModel):
     observacoes: Optional[str] = None
     percepcao_cliente: Optional[str] = None
@@ -75,11 +93,42 @@ class ReviewEnrichment(BaseModel):
         ),
     )
     pedidos_fora_escopo: Optional[str] = None
+    # Campos Template 2 CITi
+    squad: Optional[str] = None
+    periodo_inicio: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
+    periodo_fim: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
+    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados' ou 'produto'")
+    itens_planejados_entregues: list[ItemEntregue] = Field(default_factory=list)
+    percentual_itens_prontos: Optional[str] = Field(default=None, description="Ex: '8 de 10 = 80%'")
+    pedidos_fora_escopo_itens: list[PedidoForaEscopoItem] = Field(default_factory=list)
+    itens_proxima_sprint: list[ItemProximaSprint] = Field(default_factory=list)
+
+
+class CausaRaizImpacto(BaseModel):
+    causa_raiz_num: str = ""   # número da causa raiz (1-7) e nome da categoria
+    impacto: str = ""          # "Baixo", "Médio" ou "Alto"
+
+
+class AcaoMelhoria(BaseModel):
+    acao: str = ""
+    responsavel: str = ""
+    prazo: str = ""
 
 
 class RetrospectivaEnrichment(BaseModel):
     observacoes: Optional[str] = None
     pedido_fora_escopo_status: Optional[str] = None
+    # Campos Template 3 CITi
+    squad: Optional[str] = None
+    periodo_inicio: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
+    periodo_fim: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
+    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados' ou 'produto'")
+    o_que_funcionou: list[str] = Field(default_factory=list, description="Mínimo 1 item específico")
+    o_que_nao_funcionou: list[str] = Field(default_factory=list, description="Mínimo 1 item específico")
+    causa_raiz_impacto: list[CausaRaizImpacto] = Field(default_factory=list)
+    acoes_melhoria: list[AcaoMelhoria] = Field(default_factory=list, description="Máximo 2 ações")
+    houve_pedido_fora_escopo: Optional[str] = Field(default=None, description="'sim' ou 'nao'")
+    status_pedido_fora_escopo: Optional[str] = None
 
 
 _SCHEMA_MAP = {
@@ -122,28 +171,59 @@ _PROMPTS = {
     "review": (
         "Você é um assistente de documentação do CITi. Analise a matéria-prima abaixo "
         "(pode ser transcrição da reunião de review, relato do gerente, feedback do cliente, "
-        "anotações pós-sprint, etc.) e extraia os campos da Review de Sprint.\n\n"
+        "anotações pós-sprint, etc.) e extraia os campos da Review de Sprint seguindo o Template 2 CITi.\n\n"
+        "Extraia apenas o que está explicitamente presente — nunca invente. Deixe null ou lista vazia quando a informação não estiver presente.\n\n"
         "Campos a extrair:\n"
         "- observacoes: resumo geral da sprint do ponto de vista do gerente\n"
-        "- percepcao_cliente: como o cliente reagiu ou avaliou a entrega, null se não mencionado\n"
-        "- sinal_satisfacao: classifique o sinal do cliente escolhendo EXATAMENTE uma das opções: "
-        "'Elogio espontâneo' (cliente elogiou proativamente), "
-        "'Neutro / sem sinal' (sem elogio nem reclamação), "
-        "'Reclamação pontual, resolvida na própria Review' (problema levantado e resolvido na reunião), "
-        "'Reclamação não resolvida ao final da Review' (problema aberto ao fim da reunião), "
-        "'Reclamação recorrente sobre o mesmo tema (2ª vez)' (mesmo problema já reportado antes), "
-        "'Cliente solicitou reunião de escalonamento' (cliente pediu escalada). "
-        "null se não for possível inferir com segurança\n"
-        "- pedidos_fora_escopo: pedidos do cliente fora do escopo combinado, null se nenhum"
+        "- percepcao_cliente: frase literal ou paráfrase objetiva do que o cliente disse/comunicou (NÃO interprete — transcreva), null se não mencionado\n"
+        "- sinal_satisfacao: classifique o sinal escolhendo EXATAMENTE uma das opções: "
+        "'Elogio espontâneo', 'Neutro / sem sinal', "
+        "'Reclamação pontual, resolvida na própria Review', "
+        "'Reclamação não resolvida ao final da Review', "
+        "'Reclamação recorrente sobre o mesmo tema (2ª vez)', "
+        "'Cliente solicitou reunião de escalonamento'. null se não for possível inferir\n"
+        "- pedidos_fora_escopo: pedidos do cliente fora do escopo (texto livre), null se nenhum\n"
+        "- squad: membros do time e seus papéis mencionados no texto, null se não identificado\n"
+        "- periodo_inicio: data de início da sprint (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
+        "- periodo_fim: data de fim da sprint (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
+        "- subarea: 'desenvolvimento', 'dados' ou 'produto' se mencionado, null caso contrário\n"
+        "- itens_planejados_entregues: lista de itens planejados com status de entrega. Para cada item: "
+        "item (nome da tarefa), entregue ('S' ou 'N'), motivo_nao (motivo se não entregue), "
+        "causa_raiz_num (número 1-7 da causa raiz se não entregue). Lista vazia se não identificado\n"
+        "- percentual_itens_prontos: percentual de itens entregues (ex: '8 de 10 = 80%'), null se não calculável\n"
+        "- pedidos_fora_escopo_itens: lista de pedidos fora do escopo com data, descricao e status "
+        "('Insistência' ou 'Sugestão pontual'). Lista vazia se não houver pedidos\n"
+        "- itens_proxima_sprint: itens não entregues que passam para a próxima sprint. Para cada item: "
+        "item (nome) e causa_raiz_num (número 1-7). Lista vazia se não identificado\n\n"
+        "Categorias de causa raiz: 1=Especificação incompleta no Planning, 2=Dependência do cliente atrasada, "
+        "3=Pedido de escopo novo, 4=Estimativa equivocada, 5=Bloqueio técnico, "
+        "6=Ausência/rotatividade de membro, 7=Outro"
     ),
     "retrospectiva": (
         "Você é um assistente de documentação do CITi. Analise a matéria-prima abaixo "
         "(pode ser anotações de retrospectiva, relato pós-sprint, transcrição da retro, etc.) "
-        "e extraia os campos da Retrospectiva.\n\n"
+        "e extraia os campos da Retrospectiva seguindo o Template 3 CITi.\n\n"
+        "Extraia apenas o que está explicitamente presente — nunca invente. Deixe null ou lista vazia quando a informação não estiver presente.\n\n"
         "Campos a extrair:\n"
         "- observacoes: reflexão geral sobre o que aconteceu na sprint\n"
-        "- pedido_fora_escopo_status: status dos pedidos fora do escopo recebidos "
-        "(ex: 'aceito para próxima sprint', 'recusado', 'postergado'), null se não houver"
+        "- squad: membros do time e seus papéis mencionados, null se não identificado\n"
+        "- periodo_inicio: data de início (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
+        "- periodo_fim: data de fim (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
+        "- subarea: 'desenvolvimento', 'dados' ou 'produto' se mencionado, null caso contrário\n"
+        "- o_que_funcionou: lista de itens específicos que funcionaram bem (processo, entrega, decisão acertada). "
+        "Mínimo 1 se identificável. Lista vazia se não houver\n"
+        "- o_que_nao_funcionou: lista de itens que não funcionaram (bloqueio, estimativa errada, problema de processo). "
+        "Mínimo 1 se identificável. Lista vazia se não houver\n"
+        "- causa_raiz_impacto: para cada problema de 'o_que_nao_funcionou', a causa raiz e impacto. "
+        "Para cada item: causa_raiz_num (número 1-7 e nome da categoria) e impacto ('Baixo', 'Médio' ou 'Alto')\n"
+        "- acoes_melhoria: máximo 2 ações concretas para próxima sprint. Para cada uma: acao, responsavel, prazo\n"
+        "- houve_pedido_fora_escopo: 'sim' ou 'nao' se identificável, null caso contrário\n"
+        "- status_pedido_fora_escopo: se houve pedido, descreva o status do registro "
+        "(ex: 'lista informal', 'CR formalizado', 'aceito para Sprint X', 'recusado'), null se não houver\n"
+        "- pedido_fora_escopo_status: igual ao status_pedido_fora_escopo (campo backward-compat)\n\n"
+        "Categorias de causa raiz: 1=Especificação incompleta no Planning, 2=Dependência do cliente atrasada, "
+        "3=Pedido de escopo novo, 4=Estimativa equivocada, 5=Bloqueio técnico, "
+        "6=Ausência/rotatividade de membro, 7=Outro"
     ),
 }
 

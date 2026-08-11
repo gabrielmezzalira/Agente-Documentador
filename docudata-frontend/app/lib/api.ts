@@ -325,6 +325,15 @@ export async function submitReview(input: {
   percepcaoCliente?: string;
   sinalSatisfacao?: string;
   pedidosForaEscopo?: string;
+  // Template 2 CITi
+  squad?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
+  subarea?: string;
+  itensPlanejadasEntregues?: { item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[];
+  percentualItensProntos?: string;
+  pedidosForaEscopoItens?: { data: string; descricao: string; status: string }[];
+  itensProximaSprint?: { item: string; causa_raiz_num: string }[];
   anexo?: File | null;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
@@ -334,6 +343,14 @@ export async function submitReview(input: {
   if (input.percepcaoCliente) form.append("percepcao_cliente", input.percepcaoCliente);
   if (input.sinalSatisfacao) form.append("sinal_satisfacao", input.sinalSatisfacao);
   if (input.pedidosForaEscopo) form.append("pedidos_fora_escopo", input.pedidosForaEscopo);
+  if (input.squad) form.append("squad", input.squad);
+  if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
+  if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
+  if (input.subarea) form.append("subarea", input.subarea);
+  if (input.itensPlanejadasEntregues?.length) form.append("itens_planejados_entregues", JSON.stringify(input.itensPlanejadasEntregues));
+  if (input.percentualItensProntos) form.append("percentual_itens_prontos", input.percentualItensProntos);
+  if (input.pedidosForaEscopoItens?.length) form.append("pedidos_fora_escopo_itens", JSON.stringify(input.pedidosForaEscopoItens));
+  if (input.itensProximaSprint?.length) form.append("itens_proxima_sprint", JSON.stringify(input.itensProximaSprint));
   if (input.anexo) form.append("anexo", input.anexo);
   return _postSprintDoc("review", form);
 }
@@ -343,6 +360,17 @@ export async function submitRetrospectiva(input: {
   sprintNumero: number;
   observacoes?: string;
   pedidoForaEscopoStatus?: string;
+  // Template 3 CITi
+  squad?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
+  subarea?: string;
+  oQueFuncionou?: string[];
+  oQueNaoFuncionou?: string[];
+  causaRaizImpacto?: { causa_raiz_num: string; impacto: string }[];
+  acoesMelhoria?: { acao: string; responsavel: string; prazo: string }[];
+  houvePedidoForaEscopo?: string;
+  statusPedidoForaEscopo?: string;
   anexo?: File | null;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
@@ -350,6 +378,16 @@ export async function submitRetrospectiva(input: {
   form.append("sprint_numero", String(input.sprintNumero));
   if (input.observacoes) form.append("observacoes", input.observacoes);
   if (input.pedidoForaEscopoStatus) form.append("pedido_fora_escopo_status", input.pedidoForaEscopoStatus);
+  if (input.squad) form.append("squad", input.squad);
+  if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
+  if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
+  if (input.subarea) form.append("subarea", input.subarea);
+  if (input.oQueFuncionou?.length) form.append("o_que_funcionou", JSON.stringify(input.oQueFuncionou));
+  if (input.oQueNaoFuncionou?.length) form.append("o_que_nao_funcionou", JSON.stringify(input.oQueNaoFuncionou));
+  if (input.causaRaizImpacto?.length) form.append("causa_raiz_impacto", JSON.stringify(input.causaRaizImpacto));
+  if (input.acoesMelhoria?.length) form.append("acoes_melhoria", JSON.stringify(input.acoesMelhoria));
+  if (input.houvePedidoForaEscopo) form.append("houve_pedido_fora_escopo", input.houvePedidoForaEscopo);
+  if (input.statusPedidoForaEscopo) form.append("status_pedido_fora_escopo", input.statusPedidoForaEscopo);
   if (input.anexo) form.append("anexo", input.anexo);
   return _postSprintDoc("retrospectiva", form);
 }
@@ -439,13 +477,27 @@ export interface EnrichResult {
   feito?: string;
   proximo?: string;
   impedimentos?: string | null;
-  // review
+  // review — campos base
   observacoes?: string | null;
   percepcao_cliente?: string | null;
   sinal_satisfacao?: string | null;
   pedidos_fora_escopo?: string | null;
-  // retrospectiva
+  // review — Template 2 CITi
+  squad?: string | null;
+  subarea?: string | null;
+  itens_planejados_entregues?: { item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[];
+  percentual_itens_prontos?: string | null;
+  pedidos_fora_escopo_itens?: { data: string; descricao: string; status: string }[];
+  itens_proxima_sprint?: { item: string; causa_raiz_num: string }[];
+  // retrospectiva — campos base
   pedido_fora_escopo_status?: string | null;
+  // retrospectiva — Template 3 CITi
+  o_que_funcionou?: string[];
+  o_que_nao_funcionou?: string[];
+  causa_raiz_impacto?: { causa_raiz_num: string; impacto: string }[];
+  acoes_melhoria?: { acao: string; responsavel: string; prazo: string }[];
+  houve_pedido_fora_escopo?: string | null;
+  status_pedido_fora_escopo?: string | null;
 }
 
 export async function enrichContent(input: {

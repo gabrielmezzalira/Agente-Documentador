@@ -110,45 +110,61 @@ Contexto das ingestões da Sprint {sprint_numero}:
 
     # ── RETROSPECTIVA ─────────────────────────────────────────────────────────
     # Escopo: sprint-scoped
-    # Insumos: TODAS as ingestões da sprint (planning, dailys, review, uploads livres)
-    # Campos usados: resumo, tarefas, decisoes, problemas, proximos_passos, contexto_cliente
-    # Seções exportadas como placeholders: O_QUE_FUNCIONOU, O_QUE_NAO_FUNCIONOU,
-    #   CAUSA_RAIZ, ACOES_MELHORIA, PEDIDO_FORA_ESCOPO
+    # Insumos: TODAS as ingestões da sprint + campos_retrospectiva do gerente
+    # Segue Template 3 CITi exatamente.
+    # Campos do gerente ficam em DADOS ESTRUTURADOS DA RETROSPECTIVA no contexto — USE-OS DIRETO.
     "retrospectiva": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto das ingestões abaixo, gere a Retrospectiva da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
+Com base no contexto das ingestões abaixo, gere a Retrospectiva da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}), seguindo o Template 3 oficial do CITi.
 
-Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente como estão abaixo):
+REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA RETROSPECTIVA", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, review, uploads).
+
+Categorias de causa raiz: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada/não entregue · 3. Pedido de escopo novo (potencial CR) · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro
+
+Siga EXATAMENTE esta estrutura em markdown:
 
 # Retrospectiva — Sprint {sprint_numero}
-**Projeto:** {projeto_nome} · **Cliente:** {cliente} · **Data:** {data_atual}
+**Projeto / Cliente:** {projeto_nome} / {cliente}
+**Data:** {data_atual}
+[Se "Squad (membros e papéis)" disponível nos dados estruturados: **Squad:** <valor>]
+[Se "Período início" e "Período fim" disponíveis: **Período:** <início> – <fim>]
+[Se "Subárea" disponível: **Subárea:** <valor>]
 
 ## O que Funcionou
 
-[Liste ao menos 1 item específico que funcionou bem nesta sprint — processo, entrega, colaboração ou decisão acertada. Seja concreto, não genérico.]
+[Use "O que funcionou" dos dados estruturados se disponível. Mínimo 1 item específico — processo, entrega, colaboração ou decisão acertada. Seja concreto, não genérico.]
 
 - [Item que funcionou]
 
 ## O que Não Funcionou
 
-[Liste ao menos 1 item específico que não funcionou — bloqueio, estimativa errada, problema de processo ou comunicação.]
+[Use "O que não funcionou" dos dados estruturados se disponível. Mínimo 1 item específico.]
 
 - [Item que não funcionou]
 
-## Causa Raiz
+## Causa Raiz × Impacto
 
-[Para cada problema identificado em "O que Não Funcionou", classifique a causa raiz usando as categorias: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada · 3. Pedido de escopo novo · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro]
+[Use "Causa raiz × Impacto" dos dados estruturados se disponível. Caso contrário, derive de "O que Não Funcionou".]
 
-- [Problema] → Causa raiz nº [N]: [nome da categoria]
+| Causa raiz (nº) | Impacto (Baixo / Médio / Alto) |
+|---|---|
+| [nº: nome da categoria] | [Baixo / Médio / Alto] |
 
-## Ações de Melhoria
+## Ações de Melhoria (máx. 2)
 
-[Liste no máximo 2 ações concretas para a próxima sprint, com responsável e prazo se identificável no contexto.]
+[Use "Ações de melhoria" dos dados estruturados se disponível. Máximo 2 ações concretas.]
 
-- [Ação] — Responsável: [nome ou papel] — Prazo: [quando]
+| Ação | Responsável | Prazo |
+|---|---|---|
+| [ação] | [responsável ou A definir] | [prazo ou A definir] |
 
-## Pedido Fora de Escopo
+## Houve Pedido Fora de Escopo Nesta Sprint?
 
-[Houve pedido fora do escopo combinado nesta sprint? Se sim, descreva o pedido e se foi registrado formalmente. Se não identificado no contexto: "Nenhum pedido fora de escopo identificado nesta sprint."]
+[Use "Houve pedido fora de escopo?" dos dados estruturados se disponível. Responda Sim ou Não.]
+
+**Resposta:** [Sim / Não]
+
+**Se sim, status do registro (lista informal ou CR formalizado):**
+[Use "Status do pedido fora de escopo" dos dados estruturados se disponível. Se Não houve pedido: omita esta linha.]
 
 ---
 Contexto das ingestões da Sprint {sprint_numero}:
@@ -383,65 +399,66 @@ Insumos:
 
     # ── REVIEW ────────────────────────────────────────────────────────────────
     # Escopo: sprint-scoped — busca TODAS as ingestões da sprint selecionada
-    # Insumos: planning da sprint (tipo_documentacao="planning") + dailys + uploads livres
-    # Campos usados: tarefas (do planning → planejado), resumo+problemas (das dailys → realizado)
-    # Nota: o modelo compara o planning (o que foi prometido) vs dailys/uploads (o que foi feito).
-    #       A ingestão de review em si é criada pelo endpoint /sprint-docs/review mas
-    #       o generation_graph usa ingestion_id=None e busca tudo da sprint.
-    # Seções exportadas como placeholders: PLANEJADO, REALIZADO, DELTA,
-    #   DECISOES, IMPEDIMENTOS, APRENDIZADOS, ITENS_PROXIMA_SPRINT
+    # Insumos: planning da sprint + dailys + uploads livres + campos_review do gerente
+    # Segue Template 2 CITi exatamente.
+    # Campos do gerente ficam em DADOS ESTRUTURADOS DA REVIEW no contexto — USE-OS DIRETO.
     "review": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
-Com base no contexto da Sprint {sprint_numero} (planning, dailys e ingestões livres) do projeto "{projeto_nome}" (cliente: {cliente}), gere uma Review da Sprint.
+Com base no contexto da Sprint {sprint_numero} do projeto "{projeto_nome}" (cliente: {cliente}), gere a Review da Sprint seguindo o Template 2 oficial do CITi.
 
-A Review precisa explicitar o DELTA: o que foi planejado vs. o que foi efetivamente entregue. Use o documento de Planning desta sprint como referência do planejado, e o conjunto de Dailys + ingestões livres como evidência do realizado.
+REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA REVIEW", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, uploads).
 
-Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente como estão abaixo):
+Categorias de causa raiz: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada/não entregue · 3. Pedido de escopo novo (potencial CR) · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro
 
-# Review — Sprint {sprint_numero}
-**Projeto:** {projeto_nome}
-**Cliente:** {cliente}
+Siga EXATAMENTE esta estrutura em markdown:
+
+# Sprint Review — Sprint {sprint_numero}
+**Projeto / Cliente:** {projeto_nome} / {cliente}
 **Data:** {data_atual}
+[Se "Squad (membros e papéis)" disponível nos dados estruturados: **Squad:** <valor>]
+[Se "Período início" e "Período fim" disponíveis: **Período:** <início> – <fim>]
+[Se "Subárea" disponível: **Subárea:** <valor>]
 
-## O que foi planejado
+## Planejado vs Entregue
 
-[Liste os itens do backlog identificados no documento de Planning da sprint. Se não houver planning na sprint, escreva: "Planning desta sprint não foi registrado — review baseada apenas em evidências de execução."]
+[Use "Planejado vs Entregue" dos dados estruturados se disponível. Caso contrário, compare o planning com as dailys da sprint.]
 
-- [Item planejado]
+| Item | Entregue (S/N) | Motivo se não (causa raiz nº) |
+|---|---|---|
+| [item] | [S ou N] | [causa raiz nº ou —] |
 
-## O que foi efetivamente realizado
+## % de Itens com "Pronto" Cumprido Integralmente
 
-[Liste o que aparece como concluído/em andamento nas dailys e ingestões da sprint. Use bullets factuais — não invente.]
+[Use "% de itens com Pronto cumprido" dos dados estruturados se disponível. Caso contrário, calcule com base na tabela acima.]
 
-- [Item realizado — status: Entregue / Em andamento / Bloqueado]
+Resultado: [N prontos] de [N total] itens = [%]%
 
-## Delta — diferenças entre planejado e realizado
+## Pedidos do Cliente Fora do Escopo
 
-**Entregue como planejado:**
-- [Item planejado que apareceu como concluído]
+[Use "Pedidos fora do escopo (tabela)" dos dados estruturados se disponível. Use "Pedidos fora do escopo (texto)" como fallback. Se não houver nenhum: escreva "Nenhum pedido fora de escopo nesta sprint".]
 
-**Não entregue / adiado:**
-- [Item do planning que NÃO foi concluído] — Causa raiz nº [N]: [categoria]
+| Data | Descrição do pedido | Insistência ou sugestão pontual |
+|---|---|---|
+| [data ou N/D] | [descrição] | [Insistência / Sugestão pontual] |
 
-**Entregue além do escopo:**
-- [Algo concluído que não estava no planning] (se nenhum: "—")
+## Percepção do Cliente Registrada
 
-## Decisões tomadas durante a sprint
+[Use "Percepção do cliente" dos dados estruturados se disponível — frase literal ou paráfrase objetiva do que o cliente disse. NÃO interprete: transcreva o que foi informado.]
 
-- [Decisão técnica ou de escopo identificada nas dailys/ingestões]
+## Sinal de Satisfação do Cliente
 
-## Impedimentos enfrentados
+[Use "Sinal de satisfação" dos dados estruturados se disponível. Marque a categoria que se aplica:]
 
-- [Impedimento reportado em alguma daily ou ingestão]
+Categorias: Elogio espontâneo · Neutro / sem sinal · Reclamação pontual resolvida na própria Review · Reclamação não resolvida ao final da Review · Reclamação recorrente sobre o mesmo tema (2ª vez) · Cliente solicitou reunião de escalonamento
 
-## Aprendizados para próxima sprint
+**Categoria:** [categoria identificada]
 
-- [Padrão observado que vale propagar ou evitar]
+## Itens que Passam para a Próxima Sprint
 
-## Itens que passam para a próxima sprint
+[Use "Itens para a próxima sprint" dos dados estruturados se disponível. Caso contrário, derive dos itens não entregues da tabela "Planejado vs Entregue". Se não houver: "Nenhum item pendente para próxima sprint".]
 
-- [Item não entregue que deve ser carregado — Motivo: causa raiz nº N]
-
-(Se não houver carry-over: "Nenhum item pendente para próxima sprint.")
+| Item | Motivo (causa raiz nº) |
+|---|---|
+| [item] | [causa raiz nº] |
 
 ---
 Contexto completo da Sprint {sprint_numero}:
@@ -797,6 +814,62 @@ def buscar_ingestions(state: GenerationState) -> dict:
     return {"ingestions": ingestions, "erro_contexto": None}
 
 
+_CAMPOS_LABELS = {
+    "campos_review": "DADOS ESTRUTURADOS DA REVIEW (preenchidos pelo gerente)",
+    "campos_retrospectiva": "DADOS ESTRUTURADOS DA RETROSPECTIVA (preenchidos pelo gerente)",
+    "campos_planning": "DADOS ESTRUTURADOS DO PLANNING (preenchidos pelo gerente)",
+    "campos_daily": "DADOS ESTRUTURADOS DA DAILY (preenchidos pelo gerente)",
+}
+
+_CAMPOS_FIELD_LABELS = {
+    # review
+    "percepcao_cliente": "Percepção do cliente",
+    "sinal_satisfacao": "Sinal de satisfação",
+    "pedidos_fora_escopo": "Pedidos fora do escopo (texto)",
+    "squad": "Squad (membros e papéis)",
+    "periodo_inicio": "Período início",
+    "periodo_fim": "Período fim",
+    "subarea": "Subárea",
+    "itens_planejados_entregues": "Planejado vs Entregue",
+    "percentual_itens_prontos": "% de itens com Pronto cumprido",
+    "pedidos_fora_escopo_itens": "Pedidos fora do escopo (tabela)",
+    "itens_proxima_sprint": "Itens para a próxima sprint",
+    # retrospectiva
+    "o_que_funcionou": "O que funcionou",
+    "o_que_nao_funcionou": "O que não funcionou",
+    "causa_raiz_impacto": "Causa raiz × Impacto",
+    "acoes_melhoria": "Ações de melhoria",
+    "houve_pedido_fora_escopo": "Houve pedido fora de escopo?",
+    "status_pedido_fora_escopo": "Status do pedido fora de escopo",
+    "pedido_fora_escopo_status": "Status do pedido fora de escopo",
+}
+
+
+def _serialize_campos(tipo: str, campos: dict) -> str:
+    """Serializa um sub-dict campos_* em bloco de texto legível para o LLM."""
+    label = _CAMPOS_LABELS.get(tipo, tipo.upper())
+    lines = [f"[{label}]"]
+    for field, value in campos.items():
+        if value is None or value == "" or value == []:
+            continue
+        field_label = _CAMPOS_FIELD_LABELS.get(field, field)
+        if isinstance(value, list):
+            if not value:
+                continue
+            formatted = []
+            for item in value:
+                if isinstance(item, dict):
+                    formatted.append(" | ".join(
+                        f"{k}: {v}" for k, v in item.items() if v is not None and v != ""
+                    ))
+                else:
+                    formatted.append(str(item))
+            lines.append(f"{field_label}: {'; '.join(formatted)}")
+        else:
+            lines.append(f"{field_label}: {value}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
 def compilar_contexto(state: GenerationState) -> dict:
     partes = []
     for ing in state["ingestions"]:
@@ -815,7 +888,7 @@ def compilar_contexto(state: GenerationState) -> dict:
             header += f" | TIPO: {tipo_doc.upper()}"
         header += " ---"
 
-        partes.append(
+        bloco = (
             f"{header}\n"
             f"Resumo: {content.get('resumo', '')}\n"
             f"Tarefas: {tarefas}\n"
@@ -824,6 +897,16 @@ def compilar_contexto(state: GenerationState) -> dict:
             f"Contexto do cliente: {content.get('contexto_cliente', '')}\n"
             f"Proximos passos: {proximos}"
         )
+
+        # Serializa sub-dicts campos_* para que o LLM os veja durante a geração
+        for campo_key in ("campos_review", "campos_retrospectiva", "campos_planning", "campos_daily"):
+            campos = content.get(campo_key)
+            if campos:
+                serialized = _serialize_campos(campo_key, campos)
+                if serialized:
+                    bloco += f"\n{serialized}"
+
+        partes.append(bloco)
 
     changes = _detect_changes(state["ingestions"])
     if changes:

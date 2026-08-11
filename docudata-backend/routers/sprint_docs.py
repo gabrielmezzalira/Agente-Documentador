@@ -452,9 +452,18 @@ async def submit_review(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     observacoes: Optional[str] = Form(None),
-    percepcao_cliente: Optional[str] = Form(None),   # frase do gerente sobre percepção do cliente
-    sinal_satisfacao: Optional[str] = Form(None),    # "🟢 Verde" | "🟡 Amarelo" | "🔴 Vermelho"
-    pedidos_fora_escopo: Optional[str] = Form(None), # pedidos recebidos fora do escopo da sprint
+    percepcao_cliente: Optional[str] = Form(None),   # frase literal ou paráfrase objetiva do cliente
+    sinal_satisfacao: Optional[str] = Form(None),    # categoria de satisfação do cliente
+    pedidos_fora_escopo: Optional[str] = Form(None), # texto livre backward-compat
+    # Campos Template 2 CITi
+    squad: Optional[str] = Form(None),               # membros e papéis do squad
+    periodo_inicio: Optional[str] = Form(None),      # ISO date YYYY-MM-DD
+    periodo_fim: Optional[str] = Form(None),         # ISO date YYYY-MM-DD
+    subarea: Optional[str] = Form(None),             # "desenvolvimento" | "dados" | "produto"
+    itens_planejados_entregues: str = Form("[]"),     # [{item, entregue, motivo_nao, causa_raiz_num}]
+    percentual_itens_prontos: Optional[str] = Form(None),  # ex: "8 de 10 = 80%"
+    pedidos_fora_escopo_itens: str = Form("[]"),     # [{data, descricao, status}]
+    itens_proxima_sprint: str = Form("[]"),          # [{item, causa_raiz_num}]
     anexo: Optional[UploadFile] = File(None),
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
@@ -468,6 +477,13 @@ async def submit_review(
 
     observacoes_clean = (observacoes or "").strip()
 
+    try:
+        ipe_parsed = json.loads(itens_planejados_entregues) if isinstance(itens_planejados_entregues, str) else []
+        pfe_parsed = json.loads(pedidos_fora_escopo_itens) if isinstance(pedidos_fora_escopo_itens, str) else []
+        ips_parsed = json.loads(itens_proxima_sprint) if isinstance(itens_proxima_sprint, str) else []
+    except (json.JSONDecodeError, ValueError):
+        ipe_parsed, pfe_parsed, ips_parsed = [], [], []
+
     base_content = {
         "resumo": observacoes_clean or f"Review da Sprint {sprint_numero}",
         "tarefas": [],
@@ -477,9 +493,23 @@ async def submit_review(
         "proximos_passos": [],
         "tecnologias": [],
         "campos_review": {
+            # Campos de percepção (Template 2 — Percepção do Cliente / Sinal de Satisfação)
             "percepcao_cliente": percepcao_cliente or "",
             "sinal_satisfacao": sinal_satisfacao or "",
-            "pedidos_fora_escopo": pedidos_fora_escopo or "",
+            "pedidos_fora_escopo": pedidos_fora_escopo or "",  # texto livre backward-compat
+            # Campos de cabeçalho (Template 2)
+            "squad": squad or "",
+            "periodo_inicio": periodo_inicio or "",
+            "periodo_fim": periodo_fim or "",
+            "subarea": subarea or "",
+            # Tabela Planejado vs Entregue — [{item, entregue, motivo_nao, causa_raiz_num}]
+            "itens_planejados_entregues": ipe_parsed,
+            # % de Itens com "Pronto" Cumprido Integralmente
+            "percentual_itens_prontos": percentual_itens_prontos or "",
+            # Tabela Pedidos Fora do Escopo — [{data, descricao, status}]
+            "pedidos_fora_escopo_itens": pfe_parsed,
+            # Tabela Itens que Passam para a Próxima Sprint — [{item, causa_raiz_num}]
+            "itens_proxima_sprint": ips_parsed,
         },
     }
 
@@ -523,7 +553,18 @@ async def submit_retrospectiva(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     observacoes: Optional[str] = Form(None),
-    pedido_fora_escopo_status: Optional[str] = Form(None),  # aceito | recusado | postergado etc.
+    pedido_fora_escopo_status: Optional[str] = Form(None),  # backward-compat
+    # Campos Template 3 CITi
+    squad: Optional[str] = Form(None),              # membros e papéis do squad
+    periodo_inicio: Optional[str] = Form(None),     # ISO date YYYY-MM-DD
+    periodo_fim: Optional[str] = Form(None),        # ISO date YYYY-MM-DD
+    subarea: Optional[str] = Form(None),            # "desenvolvimento" | "dados" | "produto"
+    o_que_funcionou: str = Form("[]"),              # list[str] — mínimo 1 item
+    o_que_nao_funcionou: str = Form("[]"),          # list[str] — mínimo 1 item
+    causa_raiz_impacto: str = Form("[]"),           # [{causa_raiz_num, impacto}]
+    acoes_melhoria: str = Form("[]"),               # [{acao, responsavel, prazo}] — máx 2
+    houve_pedido_fora_escopo: Optional[str] = Form(None),   # "sim" | "nao"
+    status_pedido_fora_escopo: Optional[str] = Form(None),  # lista informal | CR formalizado
     anexo: Optional[UploadFile] = File(None),
 ):
     """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
@@ -534,6 +575,14 @@ async def submit_retrospectiva(
     project, api_key = _project_or_404(projeto_id)
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
+    try:
+        oqf_parsed = json.loads(o_que_funcionou) if isinstance(o_que_funcionou, str) else []
+        oqnf_parsed = json.loads(o_que_nao_funcionou) if isinstance(o_que_nao_funcionou, str) else []
+        cri_parsed = json.loads(causa_raiz_impacto) if isinstance(causa_raiz_impacto, str) else []
+        am_parsed = json.loads(acoes_melhoria) if isinstance(acoes_melhoria, str) else []
+    except (json.JSONDecodeError, ValueError):
+        oqf_parsed, oqnf_parsed, cri_parsed, am_parsed = [], [], [], []
+
     base_content = {
         "resumo": observacoes or f"Retrospectiva da Sprint {sprint_numero}",
         "tarefas": [],
@@ -543,7 +592,24 @@ async def submit_retrospectiva(
         "proximos_passos": [],
         "tecnologias": [],
         "campos_retrospectiva": {
-            "pedido_fora_escopo_status": pedido_fora_escopo_status or "",
+            "pedido_fora_escopo_status": pedido_fora_escopo_status or "",  # backward-compat
+            # Cabeçalho (Template 3)
+            "squad": squad or "",
+            "periodo_inicio": periodo_inicio or "",
+            "periodo_fim": periodo_fim or "",
+            "subarea": subarea or "",
+            # O que Funcionou — list[str]
+            "o_que_funcionou": oqf_parsed,
+            # O que Não Funcionou — list[str]
+            "o_que_nao_funcionou": oqnf_parsed,
+            # Causa Raiz × Impacto — [{causa_raiz_num, impacto: "Baixo"|"Médio"|"Alto"}]
+            "causa_raiz_impacto": cri_parsed,
+            # Ações de Melhoria — [{acao, responsavel, prazo}] máx 2
+            "acoes_melhoria": am_parsed,
+            # Houve Pedido Fora de Escopo? — "sim" | "nao"
+            "houve_pedido_fora_escopo": houve_pedido_fora_escopo or "",
+            # Status do registro — "lista informal" | "CR formalizado"
+            "status_pedido_fora_escopo": status_pedido_fora_escopo or "",
         },
     }
 

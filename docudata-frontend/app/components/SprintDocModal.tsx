@@ -156,11 +156,26 @@ export default function SprintDocModal({
   const [proximo, setProximo] = useState("");
   const [impedimentos, setImpedimentos] = useState("");
 
-  // Review state
+  // Review state — campos base
   const [observacoes, setObservacoes] = useState("");
   const [percepcaoCliente, setPercepcaoCliente] = useState("");
   const [sinalSatisfacao, setSinalSatisfacao] = useState("");
   const [pedidosForaEscopo, setPedidosForaEscopo] = useState("");
+  // Review state — Template 2 CITi
+  const [reviewSquad, setReviewSquad] = useState("");
+  const [reviewPeriodoInicio, setReviewPeriodoInicio] = useState("");
+  const [reviewPeriodoFim, setReviewPeriodoFim] = useState("");
+  const [reviewSubarea, setReviewSubarea] = useState("");
+  const [itensPlanejadasEntregues, setItensPlanejadasEntregues] = useState<
+    { item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[]
+  >([{ item: "", entregue: "", motivo_nao: "", causa_raiz_num: "" }]);
+  const [percentualItensProntos, setPercentualItensProntos] = useState("");
+  const [pedidosForaEscopoItens, setPedidosForaEscopoItens] = useState<
+    { data: string; descricao: string; status: string }[]
+  >([{ data: "", descricao: "", status: "" }]);
+  const [itensProximaSprint, setItensProximaSprint] = useState<
+    { item: string; causa_raiz_num: string }[]
+  >([{ item: "", causa_raiz_num: "" }]);
 
   // Common
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -192,6 +207,14 @@ export default function SprintDocModal({
       setPercepcaoCliente("");
       setSinalSatisfacao("");
       setPedidosForaEscopo("");
+      setReviewSquad("");
+      setReviewPeriodoInicio("");
+      setReviewPeriodoFim("");
+      setReviewSubarea("");
+      setItensPlanejadasEntregues([{ item: "", entregue: "", motivo_nao: "", causa_raiz_num: "" }]);
+      setPercentualItensProntos("");
+      setPedidosForaEscopoItens([{ data: "", descricao: "", status: "" }]);
+      setItensProximaSprint([{ item: "", causa_raiz_num: "" }]);
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
       if (enrichFileRef.current) enrichFileRef.current.value = "";
@@ -252,6 +275,15 @@ export default function SprintDocModal({
       if (result.percepcao_cliente) { setPercepcaoCliente(result.percepcao_cliente); fields.add("percepcaoCliente"); }
       if (result.sinal_satisfacao) { setSinalSatisfacao(result.sinal_satisfacao); fields.add("sinalSatisfacao"); }
       if (result.pedidos_fora_escopo) { setPedidosForaEscopo(result.pedidos_fora_escopo); fields.add("pedidosForaEscopo"); }
+      if (result.squad) { setReviewSquad(result.squad); fields.add("reviewSquad"); }
+      if (result.subarea) { setReviewSubarea(result.subarea); fields.add("reviewSubarea"); }
+      const toDate = (s: string) => { const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : s; };
+      if (result.periodo_inicio) { setReviewPeriodoInicio(toDate(result.periodo_inicio)); fields.add("reviewPeriodo"); }
+      if (result.periodo_fim) { setReviewPeriodoFim(toDate(result.periodo_fim)); fields.add("reviewPeriodo"); }
+      if (result.itens_planejados_entregues?.length) { setItensPlanejadasEntregues(result.itens_planejados_entregues); fields.add("itensEntregues"); }
+      if (result.percentual_itens_prontos) { setPercentualItensProntos(result.percentual_itens_prontos); fields.add("percentual"); }
+      if (result.pedidos_fora_escopo_itens?.length) { setPedidosForaEscopoItens(result.pedidos_fora_escopo_itens); fields.add("pedidosItens"); }
+      if (result.itens_proxima_sprint?.length) { setItensProximaSprint(result.itens_proxima_sprint); fields.add("itensProxima"); }
     }
   };
 
@@ -313,6 +345,9 @@ export default function SprintDocModal({
           anexo,
         });
       } else {
+        const cleanIPE = itensPlanejadasEntregues.filter((i) => i.item.trim());
+        const cleanPFE = pedidosForaEscopoItens.filter((i) => i.descricao.trim());
+        const cleanIPS = itensProximaSprint.filter((i) => i.item.trim());
         response = await submitReview({
           projetoId,
           sprintNumero,
@@ -320,6 +355,14 @@ export default function SprintDocModal({
           percepcaoCliente: percepcaoCliente || undefined,
           sinalSatisfacao: sinalSatisfacao || undefined,
           pedidosForaEscopo: pedidosForaEscopo || undefined,
+          squad: reviewSquad || undefined,
+          periodoInicio: reviewPeriodoInicio || undefined,
+          periodoFim: reviewPeriodoFim || undefined,
+          subarea: reviewSubarea || undefined,
+          itensPlanejadasEntregues: cleanIPE.length ? cleanIPE : undefined,
+          percentualItensProntos: percentualItensProntos || undefined,
+          pedidosForaEscopoItens: cleanPFE.length ? cleanPFE : undefined,
+          itensProximaSprint: cleanIPS.length ? cleanIPS : undefined,
           anexo,
         });
       }
@@ -647,12 +690,132 @@ export default function SprintDocModal({
                 </select>
 
                 <label style={labelStyle}>
-                  Pedidos fora do escopo
+                  Pedidos fora do escopo (texto livre)
                   <AiBadge field="pedidosForaEscopo" />
                 </label>
                 <textarea style={textareaStyle} value={pedidosForaEscopo}
                   onChange={(e) => setPedidosForaEscopo(e.target.value)}
                   placeholder="Ex: Cliente solicitou relatório PDF — registrado para avaliação" />
+
+                <label style={labelStyle}>
+                  Squad (membros e papéis)
+                  <AiBadge field="reviewSquad" />
+                </label>
+                <input style={inputStyle} value={reviewSquad} onChange={(e) => setReviewSquad(e.target.value)}
+                  placeholder="Ex: Gabriel (Gerente), Ana (Analista), João (Analista)" />
+
+                <label style={labelStyle}>
+                  Período da sprint
+                  <AiBadge field="reviewPeriodo" />
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={reviewPeriodoInicio} onChange={(e) => setReviewPeriodoInicio(e.target.value)} />
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={reviewPeriodoFim} onChange={(e) => setReviewPeriodoFim(e.target.value)} />
+                </div>
+
+                <label style={labelStyle}>Subárea</label>
+                <select style={{ ...inputStyle, cursor: "pointer" }} value={reviewSubarea} onChange={(e) => setReviewSubarea(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option value="dados">Dados</option>
+                  <option value="desenvolvimento">Desenvolvimento</option>
+                  <option value="produto">Produto</option>
+                </select>
+
+                <label style={labelStyle}>
+                  Planejado vs Entregue
+                  <AiBadge field="itensEntregues" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "3fr 60px 2fr 80px auto", gap: 6, marginBottom: 4 }}>
+                  {["Item", "Entregue", "Motivo se não", "Causa raiz", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {itensPlanejadasEntregues.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "3fr 60px 2fr 80px auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.item} placeholder={`Item ${idx + 1}`}
+                      onChange={(e) => { const n = [...itensPlanejadasEntregues]; n[idx] = { ...n[idx], item: e.target.value }; setItensPlanejadasEntregues(n); }} />
+                    <select style={{ ...inputStyle, cursor: "pointer" }} value={row.entregue}
+                      onChange={(e) => { const n = [...itensPlanejadasEntregues]; n[idx] = { ...n[idx], entregue: e.target.value }; setItensPlanejadasEntregues(n); }}>
+                      <option value="">—</option>
+                      <option value="S">S</option>
+                      <option value="N">N</option>
+                    </select>
+                    <input style={inputStyle} value={row.motivo_nao} placeholder="Motivo se N"
+                      onChange={(e) => { const n = [...itensPlanejadasEntregues]; n[idx] = { ...n[idx], motivo_nao: e.target.value }; setItensPlanejadasEntregues(n); }} />
+                    <input style={inputStyle} value={row.causa_raiz_num} placeholder="1–7"
+                      onChange={(e) => { const n = [...itensPlanejadasEntregues]; n[idx] = { ...n[idx], causa_raiz_num: e.target.value }; setItensPlanejadasEntregues(n); }} />
+                    {itensPlanejadasEntregues.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setItensPlanejadasEntregues(itensPlanejadasEntregues.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setItensPlanejadasEntregues([...itensPlanejadasEntregues, { item: "", entregue: "", motivo_nao: "", causa_raiz_num: "" }])}>
+                  + Adicionar item
+                </button>
+
+                <label style={labelStyle}>
+                  % de itens com Pronto cumprido
+                  <AiBadge field="percentual" />
+                </label>
+                <input style={inputStyle} value={percentualItensProntos} onChange={(e) => setPercentualItensProntos(e.target.value)}
+                  placeholder="Ex: 8 de 10 = 80%" />
+
+                <label style={labelStyle}>
+                  Pedidos fora do escopo (tabela)
+                  <AiBadge field="pedidosItens" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "80px 3fr 2fr auto", gap: 6, marginBottom: 4 }}>
+                  {["Data", "Descrição do pedido", "Insistência ou sugestão", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {pedidosForaEscopoItens.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "80px 3fr 2fr auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.data} placeholder="DD/MM"
+                      onChange={(e) => { const n = [...pedidosForaEscopoItens]; n[idx] = { ...n[idx], data: e.target.value }; setPedidosForaEscopoItens(n); }} />
+                    <input style={inputStyle} value={row.descricao} placeholder="Ex: Relatório PDF"
+                      onChange={(e) => { const n = [...pedidosForaEscopoItens]; n[idx] = { ...n[idx], descricao: e.target.value }; setPedidosForaEscopoItens(n); }} />
+                    <select style={{ ...inputStyle, cursor: "pointer" }} value={row.status}
+                      onChange={(e) => { const n = [...pedidosForaEscopoItens]; n[idx] = { ...n[idx], status: e.target.value }; setPedidosForaEscopoItens(n); }}>
+                      <option value="">—</option>
+                      <option value="Insistência">Insistência</option>
+                      <option value="Sugestão pontual">Sugestão pontual</option>
+                    </select>
+                    {pedidosForaEscopoItens.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setPedidosForaEscopoItens(pedidosForaEscopoItens.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setPedidosForaEscopoItens([...pedidosForaEscopoItens, { data: "", descricao: "", status: "" }])}>
+                  + Adicionar pedido
+                </button>
+
+                <label style={labelStyle}>
+                  Itens para a próxima sprint
+                  <AiBadge field="itensProxima" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
+                  {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  ))}
+                </div>
+                {itensProximaSprint.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 6 }}>
+                    <input style={inputStyle} value={row.item} placeholder="Ex: Integração com API"
+                      onChange={(e) => { const n = [...itensProximaSprint]; n[idx] = { ...n[idx], item: e.target.value }; setItensProximaSprint(n); }} />
+                    <input style={inputStyle} value={row.causa_raiz_num} placeholder="1–7"
+                      onChange={(e) => { const n = [...itensProximaSprint]; n[idx] = { ...n[idx], causa_raiz_num: e.target.value }; setItensProximaSprint(n); }} />
+                    {itensProximaSprint.length > 1 && (
+                      <button type="button" style={ghostBtn} onClick={() => setItensProximaSprint(itensProximaSprint.filter((_, i) => i !== idx))}>−</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
+                  onClick={() => setItensProximaSprint([...itensProximaSprint, { item: "", causa_raiz_num: "" }])}>
+                  + Adicionar item
+                </button>
               </>
             )}
 
