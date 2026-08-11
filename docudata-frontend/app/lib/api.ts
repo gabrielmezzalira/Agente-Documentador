@@ -39,7 +39,7 @@ export interface Ingestion {
   sprint_number: number;
   file_name?: string;
   file_type?: string;
-  tipo_documentacao?: "planning" | "daily" | "review" | "outro" | null;
+  tipo_documentacao?: "planning" | "daily" | "review" | "outro" | "commit" | null;
   extracted_content?: {
     resumo?: string;
     tarefas?: string[];
@@ -48,6 +48,10 @@ export interface Ingestion {
     contexto_cliente?: string;
     proximos_passos?: string[];
     tecnologias?: string[];
+    _meta_autor?: string;
+    _meta_data_commit?: string;
+    _meta_commit_msg?: string;
+    _meta_branch?: string;
   };
   input_tokens: number;
   output_tokens: number;

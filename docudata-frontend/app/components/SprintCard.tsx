@@ -557,9 +557,57 @@ export default function SprintCard({
             </div>
           )}
 
+          {/* COMMITS — log compacto do GitHub Actions */}
+          {(() => {
+            const commits = ingestions.filter((i) => i.tipo_documentacao === "commit");
+            if (commits.length === 0) return null;
+            return (
+              <>
+                <p style={{ ...subTitleStyle, marginTop: 18 }}>
+                  Commits ({commits.length})
+                  <span style={{ ...muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+                    — via GitHub Actions
+                  </span>
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 18 }}>
+                  {commits.map((ing) => {
+                    const hash = (ing.file_name ?? "").replace("commit:", "");
+                    const meta = ing.extracted_content ?? {};
+                    const autor = meta._meta_autor ?? "—";
+                    const branch = meta._meta_branch;
+                    const msg = meta._meta_commit_msg?.split("\n")[0] ?? meta.resumo ?? "";
+                    const when = new Date(ing.created_at).toLocaleString("pt-BR", {
+                      day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                    });
+                    return (
+                      <div key={ing.id} style={{
+                        display: "flex", alignItems: "flex-start", gap: 8,
+                        padding: "7px 10px", background: "#f8fafc",
+                        border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12,
+                      }}>
+                        <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>✓</span>
+                        <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
+                        {branch && (
+                          <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
+                            {branch}
+                          </span>
+                        )}
+                        <span style={{ color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {msg}
+                        </span>
+                        <span style={{ color: "#94a3b8", flexShrink: 0 }}>{autor}</span>
+                        <span style={{ color: "#94a3b8", flexShrink: 0 }}>{when}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+
           {/* INGESTÕES — material bruto, secundário */}
           <p style={subTitleStyle}>
-            Ingestões da sprint ({ingestions.length})
+            Ingestões da sprint ({ingestions.filter((i) => i.tipo_documentacao !== "commit").length})
             <span style={{
               ...muted,
               fontWeight: 400,
@@ -570,13 +618,13 @@ export default function SprintCard({
               — material bruto que alimenta as docs
             </span>
           </p>
-          {ingestions.length === 0 ? (
+          {ingestions.filter((i) => i.tipo_documentacao !== "commit").length === 0 ? (
             <p style={{ color: "#9696a0", fontSize: 13, margin: 0 }}>
               Nenhuma ingestão nesta sprint.
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ingestions.map((ing) => {
+              {ingestions.filter((i) => i.tipo_documentacao !== "commit").map((ing) => {
                 const isIngExpanded = expandedIngId === ing.id;
                 const content = ing.extracted_content;
                 const hasDetails = content && (

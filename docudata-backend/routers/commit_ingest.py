@@ -30,6 +30,7 @@ class CommitPayload(BaseModel):
     commit_message: str
     author: str
     date: str
+    branch: Optional[str] = None
     diff_stat: Optional[str] = None
     diff: Optional[str] = None
 
@@ -132,6 +133,11 @@ async def ingest_commit(payload: CommitPayload):
     cost = in_tok * _COST_PER_INPUT_TOKEN + out_tok * _COST_PER_OUTPUT_TOKEN
 
     content = parsed.model_dump()
+    content["_meta_autor"] = payload.author
+    content["_meta_data_commit"] = payload.date
+    content["_meta_commit_msg"] = payload.commit_message
+    if payload.branch:
+        content["_meta_branch"] = payload.branch
 
     # Salva ingestion com tipo_documentacao='commit'
     try:
