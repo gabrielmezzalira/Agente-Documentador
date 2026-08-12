@@ -2,7 +2,7 @@ name: DocuData Sync
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
 
 env:
   DOCUDATA_PROJECT_ID: 77915ce7-04d3-44a8-8103-89945cc3b7c7

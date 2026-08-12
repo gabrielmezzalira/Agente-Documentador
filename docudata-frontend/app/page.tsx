@@ -13,6 +13,57 @@ function isStale(project: Project): boolean {
   return diff > STALE_DAYS * 24 * 60 * 60 * 1000;
 }
 
+function ProjectCard({ p }: { p: Project }) {
+  const [expanded, setExpanded] = useState(false);
+  const stale = isStale(p);
+
+  return (
+    <Link href={`/projects/${p.id}`}>
+      <div style={{ ...cardStyle, borderColor: stale ? "#fecaca" : "#e8e8ed" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {stale && (
+                <span style={staleDotStyle} title="Sem ingestão nos últimos 7 dias" />
+              )}
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: "#111116" }}>{p.name}</h2>
+              {p.is_delivered && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#9696a0", background: "#f0f0f4",
+                  borderRadius: 4, padding: "2px 7px", letterSpacing: "0.04em" }}>
+                  ENTREGUE
+                </span>
+              )}
+            </div>
+            <p style={{ marginTop: 4, fontSize: 13, color: "#22c55e", fontWeight: 500 }}>{p.client}</p>
+            {p.description && (
+              <>
+                {expanded && (
+                  <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>{p.description}</p>
+                )}
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpanded((v) => !v); }}
+                  style={{ marginTop: 6, fontSize: 12, color: "#9696a0", background: "none", border: "none",
+                    cursor: "pointer", padding: 0, fontWeight: 500 }}
+                >
+                  {expanded ? "▲ ocultar" : "▼ ver detalhes"}
+                </button>
+              </>
+            )}
+            {stale && (
+              <p style={{ marginTop: 6, fontSize: 12, color: "#dc2626", fontWeight: 500 }}>
+                Sem insumo nos últimos 7 dias
+              </p>
+            )}
+          </div>
+          <span style={{ color: "#b8b8c0", fontSize: 12, whiteSpace: "nowrap", marginLeft: 20, marginTop: 2 }}>
+            {new Date(p.created_at).toLocaleDateString("pt-BR")}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,43 +183,7 @@ export default function Home() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {projects.map((p) => {
-          const stale = isStale(p);
-          return (
-            <Link key={p.id} href={`/projects/${p.id}`}>
-              <div style={{ ...cardStyle, borderColor: stale ? "#fecaca" : "#e8e8ed" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {stale && (
-                        <span style={staleDotStyle} title="Sem ingestão nos últimos 7 dias" />
-                      )}
-                      <h2 style={{ fontSize: 15, fontWeight: 600, color: "#111116" }}>{p.name}</h2>
-                      {p.is_delivered && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#9696a0", background: "#f0f0f4",
-                          borderRadius: 4, padding: "2px 7px", letterSpacing: "0.04em" }}>
-                          ENTREGUE
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ marginTop: 4, fontSize: 13, color: "#22c55e", fontWeight: 500 }}>{p.client}</p>
-                    {p.description && (
-                      <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>{p.description}</p>
-                    )}
-                    {stale && (
-                      <p style={{ marginTop: 6, fontSize: 12, color: "#dc2626", fontWeight: 500 }}>
-                        Sem insumo nos últimos 7 dias
-                      </p>
-                    )}
-                  </div>
-                  <span style={{ color: "#b8b8c0", fontSize: 12, whiteSpace: "nowrap", marginLeft: 20, marginTop: 2 }}>
-                    {new Date(p.created_at).toLocaleDateString("pt-BR")}
-                  </span>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+        {projects.map((p) => <ProjectCard key={p.id} p={p} />)}
       </div>
     </main>
   );
