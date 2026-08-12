@@ -73,7 +73,12 @@ _COMMIT_SYSTEM_PROMPT = (
     "bugs corrigidos, contexto do cliente (se mencionado), proximos passos visiveis no diff, "
     "e tecnologias utilizadas. "
     "Extraia apenas informacoes explicitamente presentes no conteudo. "
-    "Nao infira ou invente informacoes ausentes."
+    "Nao infira ou invente informacoes ausentes. "
+    "Para o campo tecnologias_removidas: inclua SOMENTE tecnologias que foram explicitamente "
+    "deletadas neste commit — por exemplo, pacote removido de requirements.txt ou package.json, "
+    "diretorio inteiro excluido, ou imports completamente removidos de todos os arquivos do projeto. "
+    "Nao inclua tecnologia apenas por nao ser mencionada no commit. "
+    "Se nao houver remocao explicita e completa, deixe tecnologias_removidas como lista vazia."
 )
 
 

@@ -13,6 +13,7 @@ class ConteudoEstruturado(BaseModel):
     contexto_cliente: str = Field(description="Informacoes sobre o cliente ou requisitos de negocio")
     proximos_passos: list[str] = Field(description="Lista de proximos passos identificados")
     tecnologias: list[str] = Field(description="Tecnologias, ferramentas e stacks mencionadas no documento (ex: Python, K-means, Supabase, FastAPI)")
+    tecnologias_removidas: list[str] = Field(default_factory=list, description="Tecnologias explicitamente removidas neste commit: pacote deletado de requirements.txt/package.json, diretorio inteiro excluido, imports completamente removidos de todos os arquivos. So inclua se a remocao for explicita e completa no diff — nunca infira.")
 
 
 class ProjectCreate(BaseModel):
