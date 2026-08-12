@@ -2,11 +2,10 @@ name: DocuData Sync
 
 on:
   push:
-    branches: ['**']
 
 env:
-  DOCUDATA_PROJECT_ID: d6d97965-8d7b-4d10-8e34-fd6b20ab7a9f
-  DOCUDATA_SPRINT_NUMERO: 2
+  DOCUDATA_PROJECT_ID: SUBSTITUIR_PELO_ID_DO_PROJETO
+  DOCUDATA_API_URL: https://agente-documentador-production.up.railway.app
 
 jobs:
   sync:
@@ -16,25 +15,32 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Extrair info do commit
+      - name: Buscar sprint atual do DocuData
+        id: sprint
         run: |
-          git log -1 --pretty=format:'%s%n%b' > commit_msg.txt
-          git diff HEAD~1 HEAD --stat > diff_stat.txt
-          git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' | head -500 > diff.txt
+          SPRINT=$(curl -sf "$DOCUDATA_API_URL/projects/$DOCUDATA_PROJECT_ID/current-sprint" | jq -r '.sprint_number // 1')
+          echo "numero=$SPRINT" >> $GITHUB_OUTPUT
 
-      - name: Enviar para DocuData
+      - name: Enviar commit para DocuData
         run: |
-          JSON=$(jq -n \
-            --arg project_id "${{ env.DOCUDATA_PROJECT_ID }}" \
-            --argjson sprint_number ${{ env.DOCUDATA_SPRINT_NUMERO }} \
-            --arg commit_hash "$(git log -1 --pretty=format:'%H')" \
-            --arg author "$(git log -1 --pretty=format:'%an')" \
-            --arg date "$(git log -1 --pretty=format:'%ad')" \
-            --arg branch "${{ github.ref_name }}" \
-            --rawfile commit_message commit_msg.txt \
-            --rawfile diff_stat diff_stat.txt \
-            --rawfile diff diff.txt \
-            '{project_id: $project_id, sprint_number: $sprint_number, commit_hash: $commit_hash, commit_message: $commit_message, author: $author, date: $date, branch: $branch, diff_stat: $diff_stat, diff: $diff}')
-          curl -f -X POST "${{ secrets.DOCUDATA_API_URL }}/ingest/commit" \
+          COMMIT_HASH=$(git log -1 --pretty=format:"%H")
+          COMMIT_MSG=$(git log -1 --pretty=format:"%B")
+          AUTHOR=$(git log -1 --pretty=format:"%an")
+          DATE=$(git log -1 --pretty=format:"%ad")
+          BRANCH="${GITHUB_REF_NAME}"
+          DIFF_STAT=$(git diff HEAD~1 HEAD --stat)
+          DIFF=$(git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' '*.sql' | head -500)
+
+          curl -f -X POST "$DOCUDATA_API_URL/ingest/commit" \
             -H "Content-Type: application/json" \
-            -d "$JSON"
+            -d "$(jq -n \
+              --arg project_id "$DOCUDATA_PROJECT_ID" \
+              --argjson sprint "${{ steps.sprint.outputs.numero }}" \
+              --arg hash "$COMMIT_HASH" \
+              --arg msg "$COMMIT_MSG" \
+              --arg author "$AUTHOR" \
+              --arg date "$DATE" \
+              --arg branch "$BRANCH" \
+              --arg stat "$DIFF_STAT" \
+              --arg diff "$DIFF" \
+              '{project_id: $project_id, sprint_number: $sprint, commit_hash: $hash, commit_message: $msg, author: $author, date: $date, branch: $branch, diff_stat: $stat, diff: $diff}')"
