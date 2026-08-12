@@ -16,17 +16,25 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Gerar resumo do commit
+      - name: Extrair info do commit
         run: |
-          git log -1 --pretty=format:"Commit: %H%nAutor: %an%nData: %ad%nMensagem: %s%n%n%b" > commit_info.txt
-          echo -e "\n\n--- ARQUIVOS ALTERADOS ---\n" >> commit_info.txt
-          git diff HEAD~1 HEAD --name-status >> commit_info.txt
-          echo -e "\n\n--- DIFF (primeiras 500 linhas) ---\n" >> commit_info.txt
-          git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' | head -500 >> commit_info.txt
+          git log -1 --pretty=format:'%s%n%b' > commit_msg.txt
+          git diff HEAD~1 HEAD --stat > diff_stat.txt
+          git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' | head -500 > diff.txt
 
       - name: Enviar para DocuData
         run: |
-          curl -f -X POST "${{ secrets.DOCUDATA_API_URL }}/ingest" \
-            -F "projeto_id=${{ env.DOCUDATA_PROJECT_ID }}" \
-            -F "sprint_numero=${{ env.DOCUDATA_SPRINT_NUMERO }}" \
-            -F "arquivo=@commit_info.txt;type=text/plain"
+          JSON=$(jq -n \
+            --arg project_id "${{ env.DOCUDATA_PROJECT_ID }}" \
+            --argjson sprint_number ${{ env.DOCUDATA_SPRINT_NUMERO }} \
+            --arg commit_hash "$(git log -1 --pretty=format:'%H')" \
+            --arg author "$(git log -1 --pretty=format:'%an')" \
+            --arg date "$(git log -1 --pretty=format:'%ad')" \
+            --arg branch "${{ github.ref_name }}" \
+            --rawfile commit_message commit_msg.txt \
+            --rawfile diff_stat diff_stat.txt \
+            --rawfile diff diff.txt \
+            '{project_id: $project_id, sprint_number: $sprint_number, commit_hash: $commit_hash, commit_message: $commit_message, author: $author, date: $date, branch: $branch, diff_stat: $diff_stat, diff: $diff}')
+          curl -f -X POST "${{ secrets.DOCUDATA_API_URL }}/ingest/commit" \
+            -H "Content-Type: application/json" \
+            -d "$JSON"
