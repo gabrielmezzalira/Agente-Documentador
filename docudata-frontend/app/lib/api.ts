@@ -1,5 +1,21 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+export interface ValidationError422 {
+  tipo_detectado: string;
+  tipo_esperado: string;
+  mensagem: string;
+  pode_forcar: boolean;
+}
+
+export class ValidationError extends Error {
+  readonly detail: ValidationError422;
+  constructor(detail: ValidationError422) {
+    super(detail.mensagem);
+    this.name = "ValidationError";
+    this.detail = detail;
+  }
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -159,17 +175,22 @@ export async function createProject(data: {
 export async function ingestFile(
   projectId: string,
   sprintNumber: number,
-  file: File
+  file: File,
+  force?: boolean
 ): Promise<{ status: string; sprint: number; tentativas: number }> {
   const form = new FormData();
   form.append("arquivo", file);
   form.append("sprint_numero", String(sprintNumber));
   form.append("projeto_id", projectId);
+  if (force) form.append("force", "true");
 
   const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro ao processar arquivo");
+    if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
+      throw new ValidationError(err.detail as ValidationError422);
+    }
+    throw new Error(typeof err.detail === "string" ? err.detail : "Erro ao processar arquivo");
   }
   return res.json();
 }
@@ -265,7 +286,10 @@ async function _postSprintDoc(path: string, form: FormData): Promise<SprintDocRe
   const res = await fetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro ao registrar documento de sprint");
+    if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
+      throw new ValidationError(err.detail as ValidationError422);
+    }
+    throw new Error(typeof err.detail === "string" ? err.detail : "Erro ao registrar documento de sprint");
   }
   return res.json();
 }
@@ -285,6 +309,7 @@ export async function submitPlanning(input: {
   dependenciasCliente?: string;
   carryOver?: string;
   anexo?: File | null;
+  force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
@@ -299,6 +324,7 @@ export async function submitPlanning(input: {
   if (input.riscosItems?.length) form.append("riscos_items", JSON.stringify(input.riscosItems));
   if (input.carryOverItems?.length) form.append("carry_over_items", JSON.stringify(input.carryOverItems));
   if (input.anexo) form.append("anexo", input.anexo);
+  if (input.force) form.append("force", "true");
   return _postSprintDoc("planning", form);
 }
 
@@ -310,6 +336,7 @@ export async function submitDaily(input: {
   proximo: string;
   impedimentos?: string;
   anexo?: File | null;
+  force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
@@ -319,6 +346,7 @@ export async function submitDaily(input: {
   form.append("proximo", input.proximo);
   if (input.impedimentos) form.append("impedimentos", input.impedimentos);
   if (input.anexo) form.append("anexo", input.anexo);
+  if (input.force) form.append("force", "true");
   return _postSprintDoc("daily", form);
 }
 
@@ -339,6 +367,7 @@ export async function submitReview(input: {
   pedidosForaEscopoItens?: { data: string; descricao: string; status: string }[];
   itensProximaSprint?: { item: string; causa_raiz_num: string }[];
   anexo?: File | null;
+  force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
@@ -356,6 +385,7 @@ export async function submitReview(input: {
   if (input.pedidosForaEscopoItens?.length) form.append("pedidos_fora_escopo_itens", JSON.stringify(input.pedidosForaEscopoItens));
   if (input.itensProximaSprint?.length) form.append("itens_proxima_sprint", JSON.stringify(input.itensProximaSprint));
   if (input.anexo) form.append("anexo", input.anexo);
+  if (input.force) form.append("force", "true");
   return _postSprintDoc("review", form);
 }
 
@@ -376,6 +406,7 @@ export async function submitRetrospectiva(input: {
   houvePedidoForaEscopo?: string;
   statusPedidoForaEscopo?: string;
   anexo?: File | null;
+  force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
@@ -393,6 +424,7 @@ export async function submitRetrospectiva(input: {
   if (input.houvePedidoForaEscopo) form.append("houve_pedido_fora_escopo", input.houvePedidoForaEscopo);
   if (input.statusPedidoForaEscopo) form.append("status_pedido_fora_escopo", input.statusPedidoForaEscopo);
   if (input.anexo) form.append("anexo", input.anexo);
+  if (input.force) form.append("force", "true");
   return _postSprintDoc("retrospectiva", form);
 }
 
@@ -400,11 +432,13 @@ export async function submitAtaUpload(input: {
   projetoId: string;
   sprintNumero: number;
   anexo: File;       // obrigatório — PDF da transcrição
+  force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
   form.append("sprint_numero", String(input.sprintNumero));
   form.append("anexo", input.anexo);
+  if (input.force) form.append("force", "true");
   return _postSprintDoc("ata", form);
 }
 

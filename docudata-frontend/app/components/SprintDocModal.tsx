@@ -6,6 +6,8 @@ import {
   submitDaily,
   submitReview,
   enrichContent,
+  ValidationError,
+  type ValidationError422,
   type SprintDocResponse,
   type SprintDocType,
   type EnrichResult,
@@ -129,6 +131,7 @@ export default function SprintDocModal({
   // Form state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErr, setValidationErr] = useState<ValidationError422 | null>(null);
 
   // Planning state
   const [descricao, setDescricao] = useState("");
@@ -190,6 +193,7 @@ export default function SprintDocModal({
       setAiFields(new Set());
       setSubmitting(false);
       setError(null);
+      setValidationErr(null);
       setDescricao("");
       setItens([{ item: "", responsavel: "", prazo: "", criterio: "" }]);
       setPeriodoInicio("");
@@ -309,9 +313,10 @@ export default function SprintDocModal({
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (force = false) => {
     setSubmitting(true);
     setError(null);
+    setValidationErr(null);
     const anexo = fileRef.current?.files?.[0] ?? null;
     try {
       let response: SprintDocResponse;
@@ -331,6 +336,7 @@ export default function SprintDocModal({
           riscosItems: riscos.filter((r) => r.risco.trim()),
           carryOverItems: carryOverItems.filter((c) => c.item.trim()),
           anexo,
+          force,
         });
       } else if (tipo === "daily") {
         if (!feito.trim() || !proximo.trim())
@@ -343,6 +349,7 @@ export default function SprintDocModal({
           proximo,
           impedimentos: impedimentos || undefined,
           anexo,
+          force,
         });
       } else {
         const cleanIPE = itensPlanejadasEntregues.filter((i) => i.item.trim());
@@ -364,12 +371,17 @@ export default function SprintDocModal({
           pedidosForaEscopoItens: cleanPFE.length ? cleanPFE : undefined,
           itensProximaSprint: cleanIPS.length ? cleanIPS : undefined,
           anexo,
+          force,
         });
       }
       onSubmitted?.(response);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao submeter");
+      if (e instanceof ValidationError) {
+        setValidationErr(e.detail);
+      } else {
+        setError(e instanceof Error ? e.message : "Erro ao submeter");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -840,6 +852,26 @@ export default function SprintDocModal({
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Anexo: {anexoName}</div>
             )}
 
+            {validationErr && (
+              <div style={{ marginTop: 14, padding: 12, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Tipo de conteúdo diferente do esperado</div>
+                <div>{validationErr.mensagem}</div>
+                <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button type="button" style={ghostBtn} onClick={() => setValidationErr(null)} disabled={submitting}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...primaryBtn, background: "#f59e0b", color: "#1c1917", opacity: submitting ? 0.6 : 1 }}
+                    onClick={() => handleSubmit(true)}
+                    disabled={submitting}
+                  >
+                    {submitting ? "Gerando…" : "Ingerir mesmo assim"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>
                 {error}
@@ -847,7 +879,7 @@ export default function SprintDocModal({
             )}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
-              <button type="button" style={ghostBtn} onClick={() => { setError(null); setStep("input"); }} disabled={submitting}>
+              <button type="button" style={ghostBtn} onClick={() => { setError(null); setValidationErr(null); setStep("input"); }} disabled={submitting}>
                 Voltar
               </button>
               <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
@@ -856,7 +888,7 @@ export default function SprintDocModal({
               <button
                 type="button"
                 style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 disabled={submitting}
               >
                 {submitting ? "Gerando…" : `Gerar ${tipo === "planning" ? "Planning" : tipo === "daily" ? "Daily" : "Review"}`}

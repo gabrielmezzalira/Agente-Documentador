@@ -126,6 +126,22 @@ Plans:
 
 - [x] 05-02-PLAN.md — Router wiring: ingest.py + sprint_docs.py accept force field, pass tipo_esperado + project context, surface structured 422 on validation failure
 
+### Phase 6: Token Usage Panel
+
+**Goal:** Gerentes conseguem ver, por projeto, o custo real (em tokens e USD) de cada ação — ingestão, geração e commit — com acumulado mensal. Os valores são os números reais retornados pelo Gemini via `usage_metadata`, já salvos nas colunas `input_tokens`, `output_tokens` e `cost_usd` das tabelas `ingestions` e `generated_docs`. Nada é inferido: só o que o banco registrou.
+**Mode:** mvp
+**Depends on:** Phase 5
+**Requirements:** USAGE-01, USAGE-02, USAGE-03
+**Success Criteria** (what must be TRUE):
+
+  1. `GET /projects/{id}/usage?month=YYYY-MM` retorna soma de `cost_usd`, `input_tokens` e `output_tokens` de `ingestions` + `generated_docs` do projeto, com breakdown por `tipo_documentacao` / `doc_type`
+  2. O endpoint usa apenas os valores já salvos no banco (`cost_usd`, `input_tokens`, `output_tokens`) — sem recalcular nem inferir
+  3. O dashboard do projeto exibe custo total do mês atual, custo separado por tipo de ação (ingestão, geração, commit), e uma lista cronológica das últimas ações com tokens e custo individuais
+  4. Ações com `cost_usd = 0` (docs manuais) aparecem na lista mas com custo zerado — sem omitir
+  5. O seletor de mês permite navegar para meses anteriores sem recarregar a página
+
+**Plans:** TBD
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -135,3 +151,4 @@ Plans:
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
+| 6. Token Usage Panel | 0/TBD | Not started | - |

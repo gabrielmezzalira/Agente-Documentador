@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ingestFile } from "../lib/api";
+import { ingestFile, ValidationError, type ValidationError422 } from "../lib/api";
 
 interface Props {
   open: boolean;
@@ -154,6 +154,7 @@ export default function UploadLivreModal({
 
   const [ingesting, setIngesting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [validationErr, setValidationErr] = useState<ValidationError422 | null>(null);
 
   const [folderProgress, setFolderProgress] = useState<
     { done: number; total: number; errors: string[]; cancelled?: boolean } | null
@@ -168,6 +169,7 @@ export default function UploadLivreModal({
       setFolderFiles([]);
       setFolderProgress(null);
       setMsg(null);
+      setValidationErr(null);
       cancelRef.current = false;
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (folderInputRef.current) folderInputRef.current.value = "";
@@ -176,22 +178,31 @@ export default function UploadLivreModal({
 
   if (!open) return null;
 
-  async function handleSingle(e: React.FormEvent) {
-    e.preventDefault();
+  async function doIngest(force = false) {
     if (!file) return;
     setIngesting(true);
     setMsg(null);
+    setValidationErr(null);
     try {
-      await ingestFile(projetoId, sprintNumero, await resizeImageIfNeeded(file));
+      await ingestFile(projetoId, sprintNumero, await resizeImageIfNeeded(file), force);
       setMsg({ ok: true, text: `"${file.name}" processado com sucesso.` });
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       onCompleted?.();
     } catch (err) {
-      setMsg({ ok: false, text: err instanceof Error ? err.message : "Erro desconhecido" });
+      if (err instanceof ValidationError) {
+        setValidationErr(err.detail);
+      } else {
+        setMsg({ ok: false, text: err instanceof Error ? err.message : "Erro desconhecido" });
+      }
     } finally {
       setIngesting(false);
     }
+  }
+
+  async function handleSingle(e: React.FormEvent) {
+    e.preventDefault();
+    await doIngest();
   }
 
   function handleFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -284,6 +295,25 @@ export default function UploadLivreModal({
               }}>
                 {msg.text}
               </p>
+            )}
+            {validationErr && (
+              <div style={{ marginTop: 12, padding: 12, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Tipo de conteúdo diferente do esperado</div>
+                <div>{validationErr.mensagem}</div>
+                <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button type="button" style={ghostBtn} onClick={() => setValidationErr(null)} disabled={ingesting}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...primaryBtn, background: "#f59e0b", color: "#1c1917", opacity: ingesting ? 0.6 : 1 }}
+                    onClick={() => doIngest(true)}
+                    disabled={ingesting}
+                  >
+                    {ingesting ? "Processando…" : "Ingerir mesmo assim"}
+                  </button>
+                </div>
+              </div>
             )}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
               <button type="button" style={ghostBtn} onClick={onClose} disabled={ingesting}>
