@@ -34,6 +34,9 @@ async def _extract_anexo_to_content(
     sprint_numero: int,
     api_key: str,
     anexo: UploadFile,
+    tipo_esperado: str = "upload_livre",
+    force: bool = False,
+    project: dict = None,
 ) -> dict:
     """Roda o extraction_graph no anexo (PDF ou imagem) e devolve o `extracted_content`.
 
@@ -49,6 +52,7 @@ async def _extract_anexo_to_content(
             detail=f"Anexo deve ser PDF ou imagem (PNG/JPG/WEBP). Recebido: {anexo.content_type}",
         )
 
+    _project = project or {}
     file_bytes = await anexo.read()
     state: ExtractionState = {
         "arquivo_bytes": file_bytes,
@@ -66,8 +70,26 @@ async def _extract_anexo_to_content(
         "input_tokens": 0,
         "output_tokens": 0,
         "ingestion_id": None,
+        "tipo_esperado": tipo_esperado,
+        "force": force,
+        "projeto_nome": _project.get("name", ""),
+        "cliente": _project.get("client", ""),
+        "projeto_descricao": _project.get("description", "") or "",
+        "tipo_detectado": "",
+        "mensagem_validacao": "",
+        "valido_tipo": False,
     }
     result = await extraction_graph.ainvoke(state)
+    if result.get("valido_tipo") is False and not result.get("valido"):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "tipo_detectado": result.get("tipo_detectado", ""),
+                "tipo_esperado": tipo_esperado,
+                "mensagem": result.get("mensagem_validacao", ""),
+                "pode_forcar": True,
+            },
+        )
     if not result.get("valido"):
         raise HTTPException(
             status_code=502,
@@ -221,6 +243,7 @@ async def submit_planning(
     riscos_items: str = Form("[]"),         # [{risco, consequencia?}]
     carry_over_items: str = Form("[]"),     # [{item, causa_raiz?}]
     anexo: Optional[UploadFile] = File(None),
+    force: bool = Form(False),
 ):
     """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc."""
     project, api_key = _project_or_404(projeto_id)
@@ -280,7 +303,7 @@ async def submit_planning(
     }
 
     if anexo is not None:
-        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo, tipo_esperado="planning", force=force, project=project)
         base_content = _merge_content(base_content, extra)
 
     ingestion = _insert_ingestion(
@@ -318,6 +341,7 @@ async def submit_daily(
     proximo: str = Form(...),
     impedimentos: Optional[str] = Form(None),
     anexo: Optional[UploadFile] = File(None),
+    force: bool = Form(False),
 ):
     """Submete uma Daily. Cria ingestion + dispara geração do doc."""
     project, api_key = _project_or_404(projeto_id)
@@ -350,7 +374,7 @@ async def submit_daily(
     }
 
     if anexo is not None:
-        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+        extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo, tipo_esperado="daily", force=force, project=project)
         base_content = _merge_content(base_content, extra)
 
     ingestion = _insert_ingestion(
@@ -384,6 +408,7 @@ async def submit_ata_with_upload(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     anexo: UploadFile = File(...),
+    force: bool = Form(False),
 ):
     """Gera Ata de Reunião a partir de uma transcrição em PDF (upload + extração + geração em uma chamada).
 
@@ -418,8 +443,26 @@ async def submit_ata_with_upload(
         "input_tokens": 0,
         "output_tokens": 0,
         "ingestion_id": None,
+        "tipo_esperado": "ata_reuniao",
+        "force": force,
+        "projeto_nome": project.get("name", ""),
+        "cliente": project.get("client", ""),
+        "projeto_descricao": project.get("description", "") or "",
+        "tipo_detectado": "",
+        "mensagem_validacao": "",
+        "valido_tipo": False,
     }
     result = await extraction_graph.ainvoke(state)
+    if result.get("valido_tipo") is False and not result.get("valido"):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "tipo_detectado": result.get("tipo_detectado", ""),
+                "tipo_esperado": "ata_reuniao",
+                "mensagem": result.get("mensagem_validacao", ""),
+                "pode_forcar": True,
+            },
+        )
     if not result.get("valido"):
         raise HTTPException(
             status_code=502,
@@ -465,6 +508,7 @@ async def submit_review(
     pedidos_fora_escopo_itens: str = Form("[]"),     # [{data, descricao, status}]
     itens_proxima_sprint: str = Form("[]"),          # [{item, causa_raiz_num}]
     anexo: Optional[UploadFile] = File(None),
+    force: bool = Form(False),
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
 
@@ -515,9 +559,11 @@ async def submit_review(
 
     if anexo is not None:
         try:
-            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo, tipo_esperado="review", force=force, project=project)
             base_content = _merge_content(base_content, extra)
         except HTTPException as exc:
+            if exc.status_code == 422:
+                raise
             print(f"[submit_review] Anexo extraction failed (non-fatal): {exc.detail}")
 
     ingestion = _insert_ingestion(
@@ -566,6 +612,7 @@ async def submit_retrospectiva(
     houve_pedido_fora_escopo: Optional[str] = Form(None),   # "sim" | "nao"
     status_pedido_fora_escopo: Optional[str] = Form(None),  # lista informal | CR formalizado
     anexo: Optional[UploadFile] = File(None),
+    force: bool = Form(False),
 ):
     """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
 
@@ -615,9 +662,11 @@ async def submit_retrospectiva(
 
     if anexo is not None:
         try:
-            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo)
+            extra = await _extract_anexo_to_content(projeto_id, sprint_numero, api_key, anexo, tipo_esperado="retrospectiva", force=force, project=project)
             base_content = _merge_content(base_content, extra)
         except HTTPException as exc:
+            if exc.status_code == 422:
+                raise
             print(f"[submit_retrospectiva] Anexo extraction failed (non-fatal): {exc.detail}")
 
     ingestion = _insert_ingestion(
