@@ -329,6 +329,8 @@ async def enrich(
 
     try:
         raw_result = await llm.ainvoke(messages)
+        raw_msg = raw_result.get("raw")
+        print(f"[enrich] response_metadata: {getattr(raw_msg, 'response_metadata', 'N/A')}", flush=True)
         parsed = raw_result.get("parsed")
         if parsed is None:
             pe = raw_result.get("parsing_error")
