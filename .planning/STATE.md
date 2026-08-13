@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-current_phase_name: content-type-validation-on-ingestion
-status: verifying
-stopped_at: context exhaustion at 84% (2026-08-13)
-last_updated: "2026-08-13T17:25:57.205Z"
+current_phase: 06
+current_phase_name: token-usage-panel
+status: in-progress
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-08-13T18:04:33Z"
 last_activity: 2026-08-13
-last_activity_desc: Wave 2 complete (05-01, 05-02 done) — pending verification
+last_activity_desc: Phase 06 Plan 01 complete — tracer slice GET /usage + aba Custos
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** O fluxo de ingestão + geração precisa funcionar de ponta a ponta — subir um arquivo, extrair conteúdo estruturado e gerar um documento útil.
-**Current focus:** Phase 05 — content-type-validation-on-ingestion
+**Current focus:** Phase 06 — token-usage-panel
 
 ## Current Position
 
-Phase: 05 (content-type-validation-on-ingestion) — ALL PLANS COMPLETE
-Plan: 2 of 2
-Status: All 2 plans executed — pending phase verification
-Last activity: 2026-08-13 — Wave 2 complete (05-01, 05-02 done)
+Phase: 06 (token-usage-panel) — Plan 01 of N complete
+Plan: 1 of N
+Status: Plan 01 executed — tracer slice done
+Last activity: 2026-08-13 — GET /projects/{id}/usage endpoint + aba Custos implementados
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -89,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-13T17:25:57.031Z
-Stopped at: context exhaustion at 84% (2026-08-13)
+Last session: 2026-08-13T18:04:33Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
