@@ -49,6 +49,14 @@ export interface ProjectCost {
   output_tokens: number;
 }
 
+export interface ProjectUsage {
+  project_id: string;
+  month: string;          // formato YYYY-MM
+  total_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
 export interface Ingestion {
   id: string;
   project_id: string;
@@ -142,6 +150,13 @@ export async function getProject(id: string): Promise<Project> {
 export async function getProjectCost(projectId: string): Promise<ProjectCost> {
   const res = await fetch(`${API}/projects/${projectId}/cost`);
   if (!res.ok) throw new Error("Erro ao buscar custo do projeto");
+  return res.json();
+}
+
+export async function getProjectUsage(projectId: string, month?: string): Promise<ProjectUsage> {
+  const url = `${API}/projects/${projectId}/usage${month ? `?month=${month}` : ""}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Erro ao buscar uso mensal do projeto");
   return res.json();
 }
 

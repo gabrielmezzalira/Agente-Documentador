@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import {
   getProject,
   getProjectCost,
+  getProjectUsage,
   updateApiKey,
   listIngestions,
   listIngestionsBySprint,
@@ -25,6 +26,7 @@ import {
   type Ingestion,
   type GeneratedDoc,
   type ProjectCost,
+  type ProjectUsage,
   type SprintWithStatus,
   type SprintDocType,
 } from "../../lib/api";
@@ -38,7 +40,7 @@ import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "config";
+type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +53,20 @@ export default function ProjectDashboard() {
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
   const [cost, setCost] = useState<ProjectCost | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ---------- custos mensais ----------
+  const [usage, setUsage] = useState<ProjectUsage | null>(null);
+  const [currentMonth] = useState<string>(() => {
+    // Calcula o mês atual em America/Sao_Paulo no formato YYYY-MM
+    const parts = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(new Date());
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    return `${year}-${month}`;
+  });
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
@@ -102,6 +118,13 @@ export default function ProjectDashboard() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Carrega uso mensal ao entrar na aba Custos
+  useEffect(() => {
+    if (activeTab === "custos") {
+      getProjectUsage(id, currentMonth).then(setUsage).catch(() => {});
+    }
+  }, [activeTab, id, currentMonth]);
 
   function refreshCost() {
     getProjectCost(id).then(setCost).catch(() => {});
@@ -395,6 +418,7 @@ export default function ProjectDashboard() {
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
+          { id: "custos", label: "Custos" },
           { id: "config", label: "Configurações" },
         ]}
         active={activeTab}
@@ -654,6 +678,36 @@ export default function ProjectDashboard() {
             </>
           )}
         </>
+      )}
+
+      {/* ABA: CUSTOS — custo mensal via GET /projects/{id}/usage */}
+      {activeTab === "custos" && (
+        <section style={sectionStyle}>
+          <h2 style={sectionTitle}>Custo do mês {currentMonth}</h2>
+          {usage ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: "#111116" }}>
+                  ${usage.total_usd < 0.001 && usage.total_usd > 0
+                    ? usage.total_usd.toFixed(6)
+                    : usage.total_usd.toFixed(4)}
+                </span>
+                <span style={{ color: "#9696a0", fontSize: 13 }}>
+                  {usage.input_tokens.toLocaleString("pt-BR")} in
+                  {" · "}
+                  {usage.output_tokens.toLocaleString("pt-BR")} out tokens
+                </span>
+              </div>
+              {usage.total_usd === 0 && (
+                <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>
+                  Nenhum custo registrado neste mês.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Carregando...</p>
+          )}
+        </section>
       )}
 
       {/* ABA: CONFIG */}

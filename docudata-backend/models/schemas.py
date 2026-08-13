@@ -46,6 +46,14 @@ class ProjectCostResponse(BaseModel):
     output_tokens: int
 
 
+class ProjectUsageResponse(BaseModel):
+    project_id: str
+    month: str          # formato YYYY-MM
+    total_usd: float
+    input_tokens: int
+    output_tokens: int
+
+
 class IngestResponse(BaseModel):
     status: str          # "ok" | "error"
     sprint: int
