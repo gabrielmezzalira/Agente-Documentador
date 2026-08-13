@@ -308,7 +308,7 @@ async def enrich(
 
     schema_model = _SCHEMA_MAP[doc_type]
     llm = ChatGoogleGenerativeAI(
-        model="gemini-flash-latest",
+        model="gemini-3-flash",
         temperature=0,
         google_api_key=api_key,
     ).with_structured_output(schema_model, method="json_schema", include_raw=True)
@@ -329,8 +329,6 @@ async def enrich(
 
     try:
         raw_result = await llm.ainvoke(messages)
-        raw_msg = raw_result.get("raw")
-        print(f"[enrich] response_metadata: {getattr(raw_msg, 'response_metadata', 'N/A')}", flush=True)
         parsed = raw_result.get("parsed")
         if parsed is None:
             pe = raw_result.get("parsing_error")

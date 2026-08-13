@@ -38,13 +38,13 @@ class ExtractionState(TypedDict):
     valido_tipo: Optional[bool]
 
 
-_COST_PER_INPUT_TOKEN = 0.15 / 1_000_000   # USD — Gemini 2.5 Flash
-_COST_PER_OUTPUT_TOKEN = 0.60 / 1_000_000  # USD — Gemini 2.5 Flash
+_COST_PER_INPUT_TOKEN = 0.50 / 1_000_000   # USD — Gemini 3 Flash
+_COST_PER_OUTPUT_TOKEN = 3.00 / 1_000_000  # USD — Gemini 3 Flash
 
 
 def _make_structured_llm(api_key: str):
     llm = ChatGoogleGenerativeAI(
-        model="gemini-flash-latest",
+        model="gemini-3-flash",
         temperature=0,
         max_tokens=2048,
         google_api_key=api_key,
@@ -140,7 +140,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
             projeto_descricao=projeto_descricao,
         )
         llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-latest",
+            model="gemini-3-flash",
             temperature=0,
             max_tokens=256,
             google_api_key=gemini_api_key,
@@ -348,7 +348,7 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
         usage = getattr(raw_msg, "usage_metadata", None) or {}
         in_tok = usage.get("input_tokens", 0) or 0
         out_tok = usage.get("output_tokens", 0) or 0
-        print(f"[extrair_conteudo] response_metadata: {getattr(raw_msg, 'response_metadata', 'N/A')}", flush=True)
+
 
         content = parsed.model_dump()
 
