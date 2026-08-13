@@ -9,17 +9,22 @@ VALID_PAYLOAD = {
     "problemas": ["API do cliente retornou CPF inconsistente"],
     "contexto_cliente": "Cliente do setor financeiro",
     "proximos_passos": ["Validar com o cliente"],
+    "tecnologias": ["Python", "FastAPI"],
 }
+
+REQUIRED_FIELDS = {"resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos", "tecnologias"}
 
 
 def test_valid_payload_constructs():
     obj = ConteudoEstruturado(**VALID_PAYLOAD)
     keys = set(obj.model_dump().keys())
-    assert keys == {"resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"}
+    assert REQUIRED_FIELDS.issubset(keys)
+    # tecnologias_removidas has a default so it will also be present
+    assert "tecnologias_removidas" in keys
 
 
 @pytest.mark.parametrize("missing_field", [
-    "resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"
+    "resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos", "tecnologias"
 ])
 def test_missing_field_raises(missing_field):
     payload = {k: v for k, v in VALID_PAYLOAD.items() if k != missing_field}

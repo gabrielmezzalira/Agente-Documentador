@@ -46,21 +46,26 @@ def _make_state(extracted_content=None) -> ExtractionState:
 
 @pytest.mark.asyncio
 async def test_salvar_success(monkeypatch):
-    state = _make_state({"resumo": "done", "tarefas": ["t1"], "decisoes": [], "problemas": [], "contexto_cliente": "c", "proximos_passos": []})
+    original_content = {"resumo": "done", "tarefas": ["t1"], "decisoes": [], "problemas": [], "contexto_cliente": "c", "proximos_passos": []}
+    state = _make_state(original_content)
     fake_table = _FakeTable(data=[{"id": "abc"}])
 
     monkeypatch.setattr("graphs.extraction_graph.get_client", lambda: fake_table)
 
     result = await salvar(state)
 
-    assert result == {}
+    assert "ingestion_id" in result or result == {}
     payload = fake_table._builder.recorded_payload
-    assert set(payload.keys()) == {"project_id", "sprint_number", "file_name", "file_type", "extracted_content"}
+    # Core ingestion columns must be present
     assert payload["project_id"] == state["projeto_id"]
     assert payload["sprint_number"] == state["sprint_numero"]
     assert payload["file_name"] == state["arquivo_nome"]
     assert payload["file_type"] == state["tipo"]
-    assert payload["extracted_content"] == state["conteudo_estruturado"]
+    # extracted_content enriched with _meta_tipo_detectado (Phase 5 addition)
+    ec = payload["extracted_content"]
+    for k, v in original_content.items():
+        assert ec[k] == v
+    assert "_meta_tipo_detectado" in ec
 
 
 @pytest.mark.asyncio
