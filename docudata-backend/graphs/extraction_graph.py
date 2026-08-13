@@ -348,6 +348,8 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
         usage = getattr(raw_msg, "usage_metadata", None) or {}
         in_tok = usage.get("input_tokens", 0) or 0
         out_tok = usage.get("output_tokens", 0) or 0
+        model_used = getattr(raw_msg, "response_metadata", {}).get("model_name", "desconhecido")
+        print(f"[extrair_conteudo] modelo real usado: {model_used}")
 
         content = parsed.model_dump()
 

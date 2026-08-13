@@ -230,6 +230,8 @@ async def get_project_usage(
     # 7. Construir lista cronológica de itens (limit 100)
     raw_items: list[UsageItem] = []
     for row in ing_rows:
+        if not row.get("id") or not row.get("created_at"):
+            continue
         raw_items.append(UsageItem(
             source="ingestion",
             id=row["id"],
@@ -240,6 +242,8 @@ async def get_project_usage(
             cost_usd=float(row.get("cost_usd") or 0),
         ))
     for row in gen_rows:
+        if not row.get("id") or not row.get("created_at"):
+            continue
         raw_items.append(UsageItem(
             source="generated_doc",
             id=row["id"],
