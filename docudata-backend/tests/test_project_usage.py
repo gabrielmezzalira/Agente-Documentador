@@ -128,3 +128,103 @@ def test_usage_month_invalido_retorna_422(monkeypatch):
     assert "Formato invalido" in detail or "YYYY-MM" in detail, (
         f"Esperava mensagem sobre formato inválido, obteve: {detail!r}"
     )
+
+
+# ─── Teste 4: breakdown por tipo ─────────────────────────────────────────────
+
+def _make_mock_client_full(ingestions_data=None, generated_docs_data=None):
+    """Mock com dados completos (id, created_at, tipo_documentacao/doc_type)."""
+    client = _make_mock_client(
+        ingestions_data=ingestions_data,
+        generated_docs_data=generated_docs_data,
+    )
+    return client
+
+
+def test_usage_breakdown_by_type(monkeypatch):
+    ingestions = [
+        {"id": "i1", "created_at": "2026-05-01T10:00:00+00:00", "tipo_documentacao": "commit",   "cost_usd": 0.001, "input_tokens": 100, "output_tokens": 50},
+        {"id": "i2", "created_at": "2026-05-02T10:00:00+00:00", "tipo_documentacao": "planning",  "cost_usd": 0.002, "input_tokens": 200, "output_tokens": 80},
+    ]
+    generated_docs = [
+        {"id": "g1", "created_at": "2026-05-03T10:00:00+00:00", "doc_type": "repasse_semanal", "cost_usd": 0.005, "input_tokens": 300, "output_tokens": 120},
+        {"id": "g2", "created_at": "2026-05-04T10:00:00+00:00", "doc_type": "planning",        "cost_usd": 0.0,   "input_tokens": 0,   "output_tokens": 0},
+    ]
+    mock_sb = _make_mock_client_full(ingestions_data=ingestions, generated_docs_data=generated_docs)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/projects/test-project-id/usage?month=2026-05")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    bd = data["breakdown"]
+    assert "ingestion:commit" in bd
+    assert "ingestion:planning" in bd
+    assert "generation:repasse_semanal" in bd
+    assert "generation:manual" in bd
+
+    assert bd["ingestion:commit"]["count"] == 1
+    assert bd["ingestion:planning"]["count"] == 1
+    assert bd["generation:repasse_semanal"]["count"] == 1
+    assert bd["generation:manual"]["count"] == 1
+
+    # Somatório do breakdown deve bater com total_usd
+    soma = sum(v["cost_usd"] for v in bd.values())
+    assert soma == pytest.approx(data["total_usd"], abs=1e-6)
+
+
+# ─── Teste 5: items cronológicos + zeros incluídos ────────────────────────────
+
+def test_usage_items_ordered_and_zero_shown(monkeypatch):
+    ingestions = [
+        {"id": "i1", "created_at": "2026-05-01T10:00:00+00:00", "tipo_documentacao": "commit",  "cost_usd": 0.001, "input_tokens": 100, "output_tokens": 50},
+        {"id": "i2", "created_at": "2026-05-02T10:00:00+00:00", "tipo_documentacao": "planning", "cost_usd": 0.002, "input_tokens": 200, "output_tokens": 80},
+    ]
+    generated_docs = [
+        {"id": "g1", "created_at": "2026-05-03T10:00:00+00:00", "doc_type": "repasse_semanal", "cost_usd": 0.005, "input_tokens": 300, "output_tokens": 120},
+        {"id": "g2", "created_at": "2026-05-04T10:00:00+00:00", "doc_type": "planning",        "cost_usd": 0.0,   "input_tokens": 0,   "output_tokens": 0},
+    ]
+    mock_sb = _make_mock_client_full(ingestions_data=ingestions, generated_docs_data=generated_docs)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/projects/test-project-id/usage?month=2026-05")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    items = data["items"]
+    assert len(items) == 4
+
+    # Ordenação desc por created_at — mais recente primeiro
+    created_ats = [item["created_at"] for item in items]
+    assert created_ats == sorted(created_ats, reverse=True)
+
+    # Item com cost_usd=0 está presente (não filtrado)
+    zero_items = [it for it in items if it["cost_usd"] == 0.0]
+    assert len(zero_items) >= 1, "Doc manual com custo 0 deve aparecer na lista"
+
+    assert data["truncated"] is False
+
+
+# ─── Teste 6: truncation acima de 100 ────────────────────────────────────────
+
+def test_usage_truncation(monkeypatch):
+    ingestions = [
+        {
+            "id": f"i{n}",
+            "created_at": f"2026-05-{(n % 28) + 1:02d}T10:00:00+00:00",
+            "tipo_documentacao": "commit",
+            "cost_usd": 0.001,
+            "input_tokens": 100,
+            "output_tokens": 50,
+        }
+        for n in range(105)
+    ]
+    mock_sb = _make_mock_client_full(ingestions_data=ingestions, generated_docs_data=[])
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/projects/test-project-id/usage?month=2026-05")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert len(data["items"]) == 100
+    assert data["truncated"] is True

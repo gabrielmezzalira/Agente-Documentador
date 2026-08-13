@@ -49,12 +49,32 @@ export interface ProjectCost {
   output_tokens: number;
 }
 
+export interface UsageBucket {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  count: number;
+}
+
+export interface UsageItem {
+  source: "ingestion" | "generated_doc";
+  id: string;
+  label: string;
+  created_at: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
 export interface ProjectUsage {
   project_id: string;
   month: string;          // formato YYYY-MM
   total_usd: number;
   input_tokens: number;
   output_tokens: number;
+  breakdown: Record<string, UsageBucket>;
+  items: UsageItem[];
+  truncated: boolean;
 }
 
 export interface Ingestion {

@@ -42,6 +42,41 @@ import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
 type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
+function shiftMonth(yyyymm: string, delta: number): string {
+  const year = parseInt(yyyymm.slice(0, 4), 10);
+  const month = parseInt(yyyymm.slice(5, 7), 10) - 1; // 0-indexed
+  const d = new Date(year, month + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(new Date(y, m - 1, 1));
+}
+
+function humanizeLabel(label: string): string {
+  const map: Record<string, string> = {
+    "ingestion:commit": "Ingestão: Commit",
+    "ingestion:planning": "Ingestão: Planning",
+    "ingestion:daily": "Ingestão: Daily",
+    "ingestion:review": "Ingestão: Review",
+    "ingestion:retrospectiva": "Ingestão: Retrospectiva",
+    "ingestion:ata": "Ingestão: Ata",
+    "ingestion:upload": "Ingestão: Upload livre",
+    "generation:repasse_semanal": "Geração: Repasse Semanal",
+    "generation:retrospectiva": "Geração: Retrospectiva",
+    "generation:log_decisoes": "Geração: Log de Decisões",
+    "generation:documentacao_final": "Geração: Documentação Final",
+    "generation:onboarding": "Geração: Onboarding",
+    "generation:ata_reuniao": "Geração: Ata de Reunião",
+    "generation:planning": "Geração: Planning",
+    "generation:daily": "Geração: Daily",
+    "generation:review": "Geração: Review",
+    "generation:manual": "Doc Manual",
+  };
+  return map[label] ?? label.split(":").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(": ");
+}
+
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -56,8 +91,9 @@ export default function ProjectDashboard() {
 
   // ---------- custos mensais ----------
   const [usage, setUsage] = useState<ProjectUsage | null>(null);
-  const [currentMonth] = useState<string>(() => {
-    // Calcula o mês atual em America/Sao_Paulo no formato YYYY-MM
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState("");
+  const todayMonth = (() => {
     const parts = new Intl.DateTimeFormat("pt-BR", {
       timeZone: "America/Sao_Paulo",
       year: "numeric",
@@ -66,7 +102,8 @@ export default function ProjectDashboard() {
     const year = parts.find((p) => p.type === "year")?.value ?? "";
     const month = parts.find((p) => p.type === "month")?.value ?? "";
     return `${year}-${month}`;
-  });
+  })();
+  const [currentMonth, setCurrentMonth] = useState<string>(todayMonth);
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
@@ -119,10 +156,15 @@ export default function ProjectDashboard() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Carrega uso mensal ao entrar na aba Custos
+  // Carrega uso mensal ao entrar na aba Custos ou trocar de mês
   useEffect(() => {
     if (activeTab === "custos") {
-      getProjectUsage(id, currentMonth).then(setUsage).catch(() => {});
+      setUsageLoading(true);
+      setUsageError("");
+      getProjectUsage(id, currentMonth)
+        .then(setUsage)
+        .catch(() => setUsageError("Não foi possível carregar os dados."))
+        .finally(() => setUsageLoading(false));
     }
   }, [activeTab, id, currentMonth]);
 
@@ -680,34 +722,113 @@ export default function ProjectDashboard() {
         </>
       )}
 
-      {/* ABA: CUSTOS — custo mensal via GET /projects/{id}/usage */}
+      {/* ABA: CUSTOS */}
       {activeTab === "custos" && (
-        <section style={sectionStyle}>
-          <h2 style={sectionTitle}>Custo do mês {currentMonth}</h2>
-          {usage ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: "#111116" }}>
-                  ${usage.total_usd < 0.001 && usage.total_usd > 0
-                    ? usage.total_usd.toFixed(6)
-                    : usage.total_usd.toFixed(4)}
-                </span>
-                <span style={{ color: "#9696a0", fontSize: 13 }}>
-                  {usage.input_tokens.toLocaleString("pt-BR")} in
-                  {" · "}
-                  {usage.output_tokens.toLocaleString("pt-BR")} out tokens
-                </span>
-              </div>
-              {usage.total_usd === 0 && (
-                <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>
-                  Nenhum custo registrado neste mês.
-                </p>
+        <>
+          {/* Seletor de mês */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+            <button
+              onClick={() => setCurrentMonth(shiftMonth(currentMonth, -1))}
+              style={btnSecondary}
+            >‹</button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#111116", minWidth: 100, textAlign: "center" }}>
+              {formatMonthLabel(currentMonth)}
+            </span>
+            <button
+              onClick={() => setCurrentMonth(shiftMonth(currentMonth, 1))}
+              disabled={shiftMonth(currentMonth, 1) > todayMonth}
+              style={{ ...btnSecondary, opacity: shiftMonth(currentMonth, 1) > todayMonth ? 0.4 : 1 }}
+            >›</button>
+          </div>
+
+          {usageLoading && <p style={{ fontSize: 13, color: "#9696a0" }}>Carregando dados do mês...</p>}
+          {usageError && <p style={{ fontSize: 13, color: "#dc2626" }}>{usageError}</p>}
+
+          {!usageLoading && usage && (
+            <>
+              {/* SUMMARY */}
+              <section style={sectionStyle}>
+                <h2 style={sectionTitle}>Resumo — {formatMonthLabel(currentMonth)}</h2>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 24, fontWeight: 800, color: "#111116" }}>
+                    ${usage.total_usd < 0.001 && usage.total_usd > 0 ? usage.total_usd.toFixed(6) : usage.total_usd.toFixed(4)}
+                  </span>
+                  <span style={{ color: "#9696a0", fontSize: 13 }}>
+                    {usage.input_tokens.toLocaleString("pt-BR")} in · {usage.output_tokens.toLocaleString("pt-BR")} out tokens
+                  </span>
+                </div>
+                {usage.total_usd === 0 && (
+                  <p style={{ fontSize: 13, color: "#9696a0", marginTop: 8, marginBottom: 0 }}>Nenhum custo registrado neste mês.</p>
+                )}
+              </section>
+
+              {/* BREAKDOWN */}
+              {Object.keys(usage.breakdown).length > 0 && (
+                <section style={sectionStyle}>
+                  <h2 style={sectionTitle}>Por tipo de ação</h2>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {Object.entries(usage.breakdown)
+                      .sort(([, a], [, b]) => b.cost_usd - a.cost_usd)
+                      .map(([label, bucket]) => (
+                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f4" }}>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{humanizeLabel(label)}</span>
+                            <span style={{ marginLeft: 8, fontSize: 12, color: "#94a3b8" }}>{bucket.count} {bucket.count === 1 ? "ação" : "ações"}</span>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: "#111116" }}>
+                              ${bucket.cost_usd < 0.001 && bucket.cost_usd > 0 ? bucket.cost_usd.toFixed(6) : bucket.cost_usd.toFixed(4)}
+                            </span>
+                            <span style={{ marginLeft: 8, fontSize: 11, color: "#94a3b8" }}>
+                              {bucket.input_tokens.toLocaleString("pt-BR")} in / {bucket.output_tokens.toLocaleString("pt-BR")} out
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </section>
               )}
-            </div>
-          ) : (
-            <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Carregando...</p>
+
+              {/* HISTÓRICO */}
+              {usage.items.length > 0 && (
+                <section style={sectionStyle}>
+                  <h2 style={sectionTitle}>Histórico de ações</h2>
+                  {usage.truncated && (
+                    <p style={{ fontSize: 12, color: "#2563eb", marginBottom: 10 }}>
+                      Mostrando as 100 ações mais recentes deste mês.
+                    </p>
+                  )}
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "#94a3b8", textAlign: "left" }}>
+                        <th style={{ paddingBottom: 8, fontWeight: 600 }}>Data</th>
+                        <th style={{ paddingBottom: 8, fontWeight: 600 }}>Tipo</th>
+                        <th style={{ paddingBottom: 8, fontWeight: 600, textAlign: "right" }}>Tokens</th>
+                        <th style={{ paddingBottom: 8, fontWeight: 600, textAlign: "right" }}>Custo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usage.items.map((item) => (
+                        <tr key={item.id} style={{ borderTop: "1px solid #f0f0f4" }}>
+                          <td style={{ padding: "6px 0", color: "#6a6a7a" }}>
+                            {new Date(item.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td style={{ padding: "6px 8px", color: "#0f172a" }}>{humanizeLabel(item.label)}</td>
+                          <td style={{ padding: "6px 0", color: "#6a6a7a", textAlign: "right" }}>
+                            {item.input_tokens.toLocaleString("pt-BR")} / {item.output_tokens.toLocaleString("pt-BR")}
+                          </td>
+                          <td style={{ padding: "6px 0", fontWeight: 600, color: "#111116", textAlign: "right" }}>
+                            ${item.cost_usd < 0.001 && item.cost_usd > 0 ? item.cost_usd.toFixed(6) : item.cost_usd.toFixed(4)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              )}
+            </>
           )}
-        </section>
+        </>
       )}
 
       {/* ABA: CONFIG */}

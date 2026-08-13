@@ -10,6 +10,8 @@ from models.schemas import (
     ProjectResponse,
     ProjectCostResponse,
     ProjectUsageResponse,
+    UsageBucket,
+    UsageItem,
     TechTimelineResponse,
 )
 from services.supabase_client import get_client
@@ -176,7 +178,7 @@ async def get_project_usage(
     # 4. Buscar linhas de ingestions e generated_docs no intervalo
     ing_resp = (
         client.table("ingestions")
-        .select("input_tokens, output_tokens, cost_usd")
+        .select("id, created_at, tipo_documentacao, input_tokens, output_tokens, cost_usd")
         .eq("project_id", project_id)
         .gte("created_at", start_iso)
         .lt("created_at", end_iso)
@@ -184,18 +186,72 @@ async def get_project_usage(
     )
     gen_resp = (
         client.table("generated_docs")
-        .select("input_tokens, output_tokens, cost_usd")
+        .select("id, created_at, doc_type, input_tokens, output_tokens, cost_usd")
         .eq("project_id", project_id)
         .gte("created_at", start_iso)
         .lt("created_at", end_iso)
         .execute()
     )
 
-    # 5. Agregar — apenas soma de colunas pré-existentes, sem recalculo
-    rows = (ing_resp.data or []) + (gen_resp.data or [])
-    total_usd = round(sum(r.get("cost_usd") or 0.0 for r in rows), 6)
-    total_in = sum(r.get("input_tokens") or 0 for r in rows)
-    total_out = sum(r.get("output_tokens") or 0 for r in rows)
+    ing_rows = ing_resp.data or []
+    gen_rows = gen_resp.data or []
+
+    # 5. Agregar totais — apenas colunas pré-existentes, sem recalculo
+    all_rows = ing_rows + gen_rows
+    total_usd = round(sum(r.get("cost_usd") or 0.0 for r in all_rows), 6)
+    total_in = sum(r.get("input_tokens") or 0 for r in all_rows)
+    total_out = sum(r.get("output_tokens") or 0 for r in all_rows)
+
+    # 6. Construir breakdown por tipo
+    def _label_ing(row: dict) -> str:
+        return f"ingestion:{row.get('tipo_documentacao') or 'upload'}"
+
+    def _label_gen(row: dict) -> str:
+        if (row.get("input_tokens") or 0) == 0 and (row.get("output_tokens") or 0) == 0 and float(row.get("cost_usd") or 0) == 0.0:
+            return "generation:manual"
+        return f"generation:{row.get('doc_type')}"
+
+    breakdown: dict[str, UsageBucket] = {}
+    for row in ing_rows:
+        k = _label_ing(row)
+        b = breakdown.setdefault(k, UsageBucket(input_tokens=0, output_tokens=0, cost_usd=0.0, count=0))
+        b.input_tokens += row.get("input_tokens") or 0
+        b.output_tokens += row.get("output_tokens") or 0
+        b.cost_usd = round(b.cost_usd + float(row.get("cost_usd") or 0), 8)
+        b.count += 1
+    for row in gen_rows:
+        k = _label_gen(row)
+        b = breakdown.setdefault(k, UsageBucket(input_tokens=0, output_tokens=0, cost_usd=0.0, count=0))
+        b.input_tokens += row.get("input_tokens") or 0
+        b.output_tokens += row.get("output_tokens") or 0
+        b.cost_usd = round(b.cost_usd + float(row.get("cost_usd") or 0), 8)
+        b.count += 1
+
+    # 7. Construir lista cronológica de itens (limit 100)
+    raw_items: list[UsageItem] = []
+    for row in ing_rows:
+        raw_items.append(UsageItem(
+            source="ingestion",
+            id=row["id"],
+            label=_label_ing(row),
+            created_at=row["created_at"],
+            input_tokens=row.get("input_tokens") or 0,
+            output_tokens=row.get("output_tokens") or 0,
+            cost_usd=float(row.get("cost_usd") or 0),
+        ))
+    for row in gen_rows:
+        raw_items.append(UsageItem(
+            source="generated_doc",
+            id=row["id"],
+            label=_label_gen(row),
+            created_at=row["created_at"],
+            input_tokens=row.get("input_tokens") or 0,
+            output_tokens=row.get("output_tokens") or 0,
+            cost_usd=float(row.get("cost_usd") or 0),
+        ))
+    raw_items.sort(key=lambda x: str(x.created_at), reverse=True)
+    truncated = len(raw_items) > 100
+    items = raw_items[:100]
 
     return ProjectUsageResponse(
         project_id=project_id,
@@ -203,6 +259,9 @@ async def get_project_usage(
         total_usd=total_usd,
         input_tokens=total_in,
         output_tokens=total_out,
+        breakdown=breakdown,
+        items=items,
+        truncated=truncated,
     )
 
 

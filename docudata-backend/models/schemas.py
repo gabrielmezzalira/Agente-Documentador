@@ -46,12 +46,32 @@ class ProjectCostResponse(BaseModel):
     output_tokens: int
 
 
+class UsageBucket(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    count: int
+
+
+class UsageItem(BaseModel):
+    source: str          # "ingestion" | "generated_doc"
+    id: str
+    label: str
+    created_at: datetime
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
 class ProjectUsageResponse(BaseModel):
     project_id: str
     month: str          # formato YYYY-MM
     total_usd: float
     input_tokens: int
     output_tokens: int
+    breakdown: dict[str, UsageBucket] = {}
+    items: list[UsageItem] = []
+    truncated: bool = False
 
 
 class IngestResponse(BaseModel):
