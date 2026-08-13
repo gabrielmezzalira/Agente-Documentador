@@ -118,6 +118,7 @@ Adicionar uma camada de validação semântica que roda **antes** de qualquer in
 - Alterações no frontend para exibir o botão "Ingerir mesmo assim" e consumir o novo formato de erro 422 — próxima fase de frontend
 - Validação de campos de formulário (sem anexo) — escopo reduzido conscientemente: formulários têm tipo definido pelo endpoint
 - Log de overrides para auditoria (quantas vezes gerentes forçaram ingestão de conteúdo bloqueado) — feature de analytics futura
+- Validação no `commit_ingest.py` — **excluído conscientemente**: commits chegam como payload JSON estruturado (hash, diff, mensagem), sem arquivo livre; o tipo é implícito pela rota (`/ingest/commit`). Validação semântica de diff de código não se aplica ao mesmo modelo das 8 categorias.
 
 </deferred>
 

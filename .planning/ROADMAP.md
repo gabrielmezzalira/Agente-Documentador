@@ -104,7 +104,7 @@ Plans:
 
 ### Phase 5: Content-Type Validation on Ingestion
 
-**Goal:** Every ingestion endpoint (upload livre, planning, daily, review, retrospectiva, commit) validates whether the content actually corresponds to the document type being requested — and returns a diagnostic error that identifies what the content looks like instead.
+**Goal:** Every file-based ingestion endpoint (upload livre, planning, daily, ata, review, retrospectiva — when a file attachment is present) validates whether the content corresponds to the expected document type and returns a diagnostic error identifying what the content looks like instead. Commit ingestion is excluded (structured JSON payload, no free-form file).
 **Mode:** mvp
 **Depends on:** Phase 4
 **Requirements:** VAL-01, VAL-02, VAL-03
@@ -112,8 +112,8 @@ Plans:
 
   1. Uploading an ML lecture PDF when creating a planning returns a 422 with a message indicating the content is unrelated to project management (e.g., "Conteúdo parece ser material educacional, não um planejamento de sprint")
   2. Uploading a review-like document when creating a planning returns a 422 that identifies the mismatch (e.g., "Conteúdo parece ser uma Review, não um Planning")
-  3. All 6 ingestion types (upload livre, planning, daily, review, retrospectiva, commit) have type validation
-  4. Upload livre bypasses strict validation (accepts anything) but still classifies what it detected
+  3. All 5 file-based ingestion endpoints (upload livre, planning, daily, ata, review/retrospectiva with attachment) have type validation — commit excluded (structured payload, no file)
+  4. Upload livre blocks only clearly irrelevant content (nao_relacionado) with override available; any project document passes
   5. Validation runs via a Gemini call before extraction — rejected content is never saved to Supabase
 
 **Plans:** 2 plans
