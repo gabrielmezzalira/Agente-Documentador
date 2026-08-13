@@ -29,6 +29,7 @@ async def ingest(
     arquivo: UploadFile = File(...),
     sprint_numero: int = Form(...),
     projeto_id: str = Form(...),
+    force: bool = Form(False),
 ):
     if not _is_accepted(arquivo.content_type):
         raise HTTPException(
@@ -41,10 +42,13 @@ async def ingest(
         )
 
     db = get_client()
-    project_resp = db.table("projects").select("gemini_api_key").eq("id", projeto_id).execute()
+    project_resp = db.table("projects").select("gemini_api_key, name, client, description").eq("id", projeto_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
     api_key = project_resp.data[0].get("gemini_api_key") or ""
+    projeto_nome = project_resp.data[0].get("name", "")
+    cliente = project_resp.data[0].get("client", "")
+    projeto_descricao = project_resp.data[0].get("description", "") or ""
     if not api_key:
         raise HTTPException(
             status_code=422,
@@ -70,8 +74,27 @@ async def ingest(
         "input_tokens": 0,
         "output_tokens": 0,
         "ingestion_id": None,
+        "tipo_esperado": "upload_livre",
+        "force": force,
+        "projeto_nome": projeto_nome,
+        "cliente": cliente,
+        "projeto_descricao": projeto_descricao,
+        "tipo_detectado": "",
+        "mensagem_validacao": "",
+        "valido_tipo": False,
     }
     result = await extraction_graph.ainvoke(state)
+
+    if result.get("valido_tipo") is False and not result.get("valido"):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "tipo_detectado": result.get("tipo_detectado", ""),
+                "tipo_esperado": "upload_livre",
+                "mensagem": result.get("mensagem_validacao", "Conteúdo não reconhecido como documento de projeto."),
+                "pode_forcar": True,
+            },
+        )
 
     if not result.get("valido"):
         raise HTTPException(
