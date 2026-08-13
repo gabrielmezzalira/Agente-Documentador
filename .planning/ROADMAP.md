@@ -102,6 +102,23 @@ Plans:
 - [x] 04-03-PLAN.md — Export Google Docs com todos os placeholders CITi v2 preenchidos (busca campos do Supabase)
 - [x] 04-04-PLAN.md — GitHub integration: GET /current-sprint + POST /ingest/commit + GitHub Actions workflow + Python agent (detecção automática de sprint, override [sprint:N], commit status)
 
+### Phase 5: Content-Type Validation on Ingestion
+
+**Goal:** Every ingestion endpoint (upload livre, planning, daily, review, retrospectiva, commit) validates whether the content actually corresponds to the document type being requested — and returns a diagnostic error that identifies what the content looks like instead.
+**Mode:** mvp
+**Depends on:** Phase 4
+**Requirements:** VAL-01, VAL-02, VAL-03
+**Success Criteria** (what must be TRUE):
+
+  1. Uploading an ML lecture PDF when creating a planning returns a 422 with a message indicating the content is unrelated to project management (e.g., "Conteúdo parece ser material educacional, não um planejamento de sprint")
+  2. Uploading a review-like document when creating a planning returns a 422 that identifies the mismatch (e.g., "Conteúdo parece ser uma Review, não um Planning")
+  3. All 6 ingestion types (upload livre, planning, daily, review, retrospectiva, commit) have type validation
+  4. Upload livre bypasses strict validation (accepts anything) but still classifies what it detected
+  5. Validation runs via a Gemini call before extraction — rejected content is never saved to Supabase
+
+**Plans**: TBD
+**UI hint**: no
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -110,3 +127,4 @@ Plans:
 | 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
+| 5. Content-Type Validation on Ingestion | 0/TBD | Not started | - |
