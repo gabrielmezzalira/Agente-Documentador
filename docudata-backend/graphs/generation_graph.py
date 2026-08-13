@@ -8,8 +8,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from services.supabase_client import get_client
 
-_COST_PER_INPUT_TOKEN = 0.50 / 1_000_000   # USD — Gemini 3 Flash
-_COST_PER_OUTPUT_TOKEN = 3.00 / 1_000_000  # USD — Gemini 3 Flash
+_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
+_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
 
 
 class GenerationState(TypedDict):
@@ -32,8 +32,7 @@ class GenerationState(TypedDict):
 
 def _make_llm(api_key: str):
     return ChatGoogleGenerativeAI(
-        model="gemini-3.0-flash",
-        temperature=0,
+        model="gemini-3.5-flash-lite",
         max_tokens=4096,
         google_api_key=api_key,
     )

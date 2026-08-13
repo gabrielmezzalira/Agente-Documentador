@@ -308,8 +308,7 @@ async def enrich(
 
     schema_model = _SCHEMA_MAP[doc_type]
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.0-flash",
-        temperature=0,
+        model="gemini-3.5-flash-lite",
         google_api_key=api_key,
     ).with_structured_output(schema_model, method="json_schema", include_raw=True)
 

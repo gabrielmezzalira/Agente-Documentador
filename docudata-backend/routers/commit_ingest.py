@@ -19,8 +19,8 @@ from services.sprints import ensure_sprint_row
 
 router = APIRouter(tags=["commit-ingest"])
 
-_COST_PER_INPUT_TOKEN = 0.50 / 1_000_000   # USD — Gemini 3 Flash
-_COST_PER_OUTPUT_TOKEN = 3.00 / 1_000_000  # USD — Gemini 3 Flash
+_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
+_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
 
 
 class CommitPayload(BaseModel):
@@ -112,8 +112,7 @@ async def ingest_commit(payload: CommitPayload):
     user_content += f"\nDiff das mudancas (arquivos modificados):\n{payload.diff or 'nao informado'}\n"
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.0-flash",
-        temperature=0,
+        model="gemini-3.5-flash-lite",
         max_tokens=2048,
         google_api_key=api_key,
         thinking={"type": "disabled"},

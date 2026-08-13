@@ -38,14 +38,13 @@ class ExtractionState(TypedDict):
     valido_tipo: Optional[bool]
 
 
-_COST_PER_INPUT_TOKEN = 0.50 / 1_000_000   # USD — Gemini 3 Flash
-_COST_PER_OUTPUT_TOKEN = 3.00 / 1_000_000  # USD — Gemini 3 Flash
+_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
+_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
 
 
 def _make_structured_llm(api_key: str):
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.0-flash",
-        temperature=0,
+        model="gemini-3.5-flash-lite",
         max_tokens=2048,
         google_api_key=api_key,
     )
@@ -140,8 +139,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
             projeto_descricao=projeto_descricao,
         )
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3.0-flash",
-            temperature=0,
+            model="gemini-3.5-flash-lite",
             max_tokens=256,
             google_api_key=gemini_api_key,
         )
