@@ -44,7 +44,7 @@ _COST_PER_OUTPUT_TOKEN = 3.00 / 1_000_000  # USD — Gemini 3 Flash
 
 def _make_structured_llm(api_key: str):
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3-flash",
+        model="gemini-3.0-flash",
         temperature=0,
         max_tokens=2048,
         google_api_key=api_key,
@@ -140,7 +140,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
             projeto_descricao=projeto_descricao,
         )
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3-flash",
+            model="gemini-3.0-flash",
             temperature=0,
             max_tokens=256,
             google_api_key=gemini_api_key,
