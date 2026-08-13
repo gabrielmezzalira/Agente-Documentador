@@ -120,11 +120,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — validar_tipo node in extraction_graph.py: new ExtractionState fields, classification prompt, conditional edge, _meta annotations in salvar
+- [x] 05-01-PLAN.md — validar_tipo node in extraction_graph.py: new ExtractionState fields, classification prompt, conditional edge, _meta annotations in salvar
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-02-PLAN.md — Router wiring: ingest.py + sprint_docs.py accept force field, pass tipo_esperado + project context, surface structured 422 on validation failure
+- [x] 05-02-PLAN.md — Router wiring: ingest.py + sprint_docs.py accept force field, pass tipo_esperado + project context, surface structured 422 on validation failure
 
 ## Progress
 
@@ -134,4 +134,4 @@ Plans:
 | 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
-| 5. Content-Type Validation on Ingestion | 0/TBD | Not started | - |
+| 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |

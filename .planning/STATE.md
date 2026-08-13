@@ -2,16 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
+current_phase: 05
+current_phase_name: content-type-validation-on-ingestion
 status: verifying
-stopped_at: context exhaustion at 78% (2026-08-03)
-last_updated: "2026-08-03T01:34:42.617Z"
-last_activity: 2026-07-28 -- Wave 2 complete (04-03, 04-04 merged)
+stopped_at: ""
+last_updated: "2026-08-13T00:00:00.000Z"
+last_activity: 2026-08-13
+last_activity_desc: Wave 2 complete (05-01, 05-02 done) — pending verification
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 7
+  total_plans: 9
   completed_plans: 5
-  percent: 25
 ---
 
 # Project State
@@ -21,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** O fluxo de ingestão + geração precisa funcionar de ponta a ponta — subir um arquivo, extrair conteúdo estruturado e gerar um documento útil.
-**Current focus:** Phase 04 — template-v2-github-integration
+**Current focus:** Phase 05 — content-type-validation-on-ingestion
 
 ## Current Position
 
-Phase: 04 (template-v2-github-integration) — COMPLETE
-Plan: 4 of 4
-Status: All 4 plans executed — pending phase verification
-Last activity: 2026-07-28 -- Wave 2 complete (04-03, 04-04 merged)
+Phase: 05 (content-type-validation-on-ingestion) — ALL PLANS COMPLETE
+Plan: 2 of 2
+Status: All 2 plans executed — pending phase verification
+Last activity: 2026-08-13 — Wave 2 complete (05-01, 05-02 done)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -87,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-03T01:34:42.565Z
-Stopped at: context exhaustion at 78% (2026-08-03)
+Last session: 2026-08-13T15:12:07.257Z
+Stopped at: context exhaustion at 75% (2026-08-13)
 Resume file: None
