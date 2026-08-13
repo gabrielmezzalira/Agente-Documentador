@@ -384,6 +384,11 @@ async def salvar(state: ExtractionState) -> dict:
     cost = in_tok * _COST_PER_INPUT_TOKEN + out_tok * _COST_PER_OUTPUT_TOKEN
     print(f"[salvar] tokens in={in_tok} out={out_tok} cost=${cost:.6f}")
     try:
+        # Enrich extracted_content with validation metadata for traceability
+        content_to_save = dict(state["conteudo_estruturado"])
+        content_to_save["_meta_tipo_detectado"] = state.get("tipo_detectado") or ""
+        if state.get("force"):
+            content_to_save["_meta_force_override"] = True
         response = (
             client.table("ingestions")
             .insert({
@@ -391,7 +396,7 @@ async def salvar(state: ExtractionState) -> dict:
                 "sprint_number": state["sprint_numero"],
                 "file_name": state["arquivo_nome"],
                 "file_type": state["tipo"],
-                "extracted_content": state["conteudo_estruturado"],
+                "extracted_content": content_to_save,
                 "input_tokens": in_tok,
                 "output_tokens": out_tok,
                 "cost_usd": round(cost, 8),
