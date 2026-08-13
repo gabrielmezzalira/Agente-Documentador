@@ -1,4 +1,5 @@
 import os
+import json
 from typing import TypedDict, Optional
 
 from langgraph.graph import StateGraph, START, END
@@ -25,6 +26,16 @@ class ExtractionState(TypedDict):
     input_tokens: int
     output_tokens: int
     ingestion_id: Optional[str]
+    # Validation fields — set by router before invoke
+    tipo_esperado: Optional[str]
+    force: Optional[bool]
+    projeto_nome: Optional[str]
+    cliente: Optional[str]
+    projeto_descricao: Optional[str]
+    # Validation outputs — written by validar_tipo node
+    tipo_detectado: Optional[str]
+    mensagem_validacao: Optional[str]
+    valido_tipo: Optional[bool]
 
 
 _COST_PER_INPUT_TOKEN = 0.15 / 1_000_000   # USD — Gemini 2.5 Flash
@@ -56,6 +67,171 @@ _SYSTEM_PROMPT = (
     "Nao infira ou invente informacoes ausentes."
 )
 _HARDENED_SUFFIX = "\n\nRetorne APENAS JSON valido, sem texto antes ou depois, sem markdown, sem backticks."
+
+_VALIDATION_SYSTEM_PROMPT = (
+    "Voce e um classificador de documentos para um sistema de gestao de projetos de dados do CITi. "
+    "Seu trabalho e identificar o tipo de documento enviado por gerentes de projeto de dados. "
+    "O projeto se chama '{projeto_nome}', o cliente e '{cliente}' e a descricao do projeto e: '{projeto_descricao}'. "
+    "\n\n"
+    "Classifique o documento em uma das seguintes 8 categorias:\n"
+    "- planning: backlog da sprint, lista de tarefas, registro de riscos, definicao de escopo para proxima sprint\n"
+    "- daily: atualizacao de standup (feito / fazendo / impedimentos), nota breve de status\n"
+    "- review: review da sprint, relatorio de entrega, satisfacao do cliente, tabela planejado vs entregue\n"
+    "- retrospectiva: retrospectiva, o que funcionou / nao funcionou, acoes de melhoria\n"
+    "- ata_reuniao: ata de reuniao, transcricao de reuniao, agenda com notas\n"
+    "- commit: diff de git, mudanca de codigo, mensagem de commit com alteracoes tecnicas\n"
+    "- upload_livre: qualquer outro documento relacionado ao projeto que nao se encaixa nas categorias acima\n"
+    "- nao_relacionado: material claramente nao relacionado a gestao de projetos: aula academica, documento pessoal, conteudo aleatorio\n"
+    "\n"
+    "Retorne um JSON com os campos:\n"
+    "- tipo_detectado: string (uma das 8 categorias acima)\n"
+    "- nao_bloquear: boolean (true quando ha incerteza sobre a classificacao)\n"
+    "- explicacao: string (uma frase em portugues explicando a classificacao)\n"
+    "\n"
+    "IMPORTANTE: Em caso de duvida ou conteudo ambiguo, retorne nao_bloquear: true — "
+    "nunca bloqueie quando nao tiver alta confianca de que o conteudo e incompativel. "
+    "Retorne APENAS o JSON, sem texto antes ou depois, sem markdown, sem backticks."
+)
+
+_CATEGORY_LABELS = {
+    "planning": "Planning",
+    "daily": "Daily",
+    "review": "Review",
+    "retrospectiva": "Retrospectiva",
+    "ata_reuniao": "Ata de Reuniao",
+    "commit": "Commit",
+    "upload_livre": "Upload Livre",
+    "nao_relacionado": "Conteudo Nao Relacionado",
+}
+
+
+async def validar_tipo(state: ExtractionState) -> dict:
+    tipo_esperado = state.get("tipo_esperado") or "upload_livre"
+    force = state.get("force") or False
+    projeto_nome = state.get("projeto_nome") or ""
+    cliente = state.get("cliente") or ""
+    projeto_descricao = state.get("projeto_descricao") or ""
+    gemini_api_key = state.get("gemini_api_key") or ""
+    arquivo_nome = state.get("arquivo_nome") or ""
+    arquivo_bytes = state.get("arquivo_bytes") or b""
+    mime_type = state.get("mime_type") or ""
+
+    # Build a short preview from arquivo_bytes (preprocessar_arquivo has not run yet)
+    try:
+        preview = arquivo_bytes[:3000].decode("utf-8", errors="replace")
+    except Exception:
+        preview = f"[binary content — mime: {mime_type}]"
+
+    if force:
+        return {
+            "tipo_detectado": "",
+            "mensagem_validacao": "Override forcado pelo gerente",
+            "valido_tipo": True,
+        }
+
+    tipo_detectado = "upload_livre"
+    nao_bloquear = True
+    explicacao = ""
+
+    try:
+        system_prompt = _VALIDATION_SYSTEM_PROMPT.format(
+            projeto_nome=projeto_nome,
+            cliente=cliente,
+            projeto_descricao=projeto_descricao,
+        )
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-flash-latest",
+            temperature=0,
+            max_tokens=256,
+            google_api_key=gemini_api_key,
+        )
+        human_content = (
+            f"Arquivo: {arquivo_nome}\n"
+            f"Tipo MIME: {mime_type}\n\n"
+            f"Conteudo (primeiros 3000 caracteres):\n{preview}"
+        )
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=human_content),
+        ]
+        print(f"[validar_tipo] Classificando '{arquivo_nome}' | tipo_esperado={tipo_esperado}")
+        response = await llm.ainvoke(messages)
+        response_text = response.content.strip()
+        # Strip markdown fences if present
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            response_text = "\n".join(
+                line for line in lines if not line.startswith("```")
+            ).strip()
+        parsed = json.loads(response_text)
+        tipo_detectado = parsed.get("tipo_detectado", "upload_livre")
+        nao_bloquear = parsed.get("nao_bloquear", True)
+        explicacao = parsed.get("explicacao", "")
+    except Exception as exc:
+        # Safe fallback: never block on parse or API error
+        print(f"[validar_tipo] Error during classification — defaulting to nao_bloquear=True: {exc}")
+        nao_bloquear = True
+
+    # Apply blocking logic
+    if nao_bloquear:
+        return {
+            "tipo_detectado": tipo_detectado,
+            "mensagem_validacao": explicacao,
+            "valido_tipo": True,
+        }
+
+    if tipo_esperado == "upload_livre":
+        # Upload livre: only block nao_relacionado
+        if tipo_detectado == "nao_relacionado":
+            msg = (
+                f"Conteudo parece ser {explicacao} — "
+                "o sistema aceita documentos de projeto (atas, plannings, reviews, etc.)."
+            )
+            return {
+                "tipo_detectado": tipo_detectado,
+                "mensagem_validacao": msg,
+                "valido_tipo": False,
+            }
+        return {
+            "tipo_detectado": tipo_detectado,
+            "mensagem_validacao": explicacao,
+            "valido_tipo": True,
+        }
+
+    # Specific type expected
+    if tipo_detectado == tipo_esperado or tipo_detectado == "upload_livre":
+        return {
+            "tipo_detectado": tipo_detectado,
+            "mensagem_validacao": explicacao,
+            "valido_tipo": True,
+        }
+
+    # Mismatch detected
+    label_detectado = _CATEGORY_LABELS.get(tipo_detectado, tipo_detectado)
+    label_esperado = _CATEGORY_LABELS.get(tipo_esperado, tipo_esperado)
+
+    if tipo_detectado == "nao_relacionado":
+        msg = (
+            f"Conteudo parece ser {explicacao} — "
+            "o sistema aceita documentos de projeto (atas, plannings, reviews, etc.)."
+        )
+    else:
+        msg = (
+            f"Esse arquivo parece ser uma {label_detectado}, nao um(a) {label_esperado}. "
+            f"Para ingerir como {label_detectado}, use o botao {label_detectado} da sprint."
+        )
+
+    return {
+        "tipo_detectado": tipo_detectado,
+        "mensagem_validacao": msg,
+        "valido_tipo": False,
+    }
+
+
+def _roteador_validacao(state: ExtractionState):
+    if state.get("valido_tipo", True):
+        return "detectar_tipo"
+    return END
 
 
 def detectar_tipo(state: ExtractionState) -> dict:
@@ -238,12 +414,14 @@ def _roteador(state: ExtractionState):
 
 
 _builder = StateGraph(ExtractionState)
+_builder.add_node("validar_tipo", validar_tipo)
 _builder.add_node("detectar_tipo", detectar_tipo)
 _builder.add_node("preprocessar_arquivo", preprocessar_arquivo)
 _builder.add_node("extrair_conteudo", extrair_conteudo)
 _builder.add_node("salvar", salvar)
 
-_builder.add_edge(START, "detectar_tipo")
+_builder.add_edge(START, "validar_tipo")
+_builder.add_conditional_edges("validar_tipo", _roteador_validacao, {"detectar_tipo": "detectar_tipo", END: END})
 _builder.add_edge("detectar_tipo", "preprocessar_arquivo")
 _builder.add_edge("preprocessar_arquivo", "extrair_conteudo")
 _builder.add_conditional_edges("extrair_conteudo", _roteador)
