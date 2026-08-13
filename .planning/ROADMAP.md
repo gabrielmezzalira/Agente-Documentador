@@ -116,8 +116,15 @@ Plans:
   4. Upload livre bypasses strict validation (accepts anything) but still classifies what it detected
   5. Validation runs via a Gemini call before extraction — rejected content is never saved to Supabase
 
-**Plans**: TBD
-**UI hint**: no
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — validar_tipo node in extraction_graph.py: new ExtractionState fields, classification prompt, conditional edge, _meta annotations in salvar
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md — Router wiring: ingest.py + sprint_docs.py accept force field, pass tipo_esperado + project context, surface structured 422 on validation failure
 
 ## Progress
 
