@@ -41,25 +41,40 @@ class CommitPayload(BaseModel):
 
 @router.get("/projects/{project_id}/current-sprint")
 async def get_current_sprint(project_id: str):
-    """Retorna a sprint atual do projeto baseada na última ingestion de tipo 'planning'."""
+    """Retorna a sprint atual do projeto baseada na última ingestion de planning
+    cujo sprint_number ainda existe na tabela sprints."""
     client = get_client()
-    # Verifica que projeto existe
     proj = client.table("projects").select("id").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    # Busca última ingestion de planning
-    resp = (
+
+    # Sprints que ainda existem para este projeto
+    sprints_resp = (
+        client.table("sprints")
+        .select("numero")
+        .eq("project_id", project_id)
+        .execute()
+    )
+    existing_sprint_numbers = {row["numero"] for row in (sprints_resp.data or [])}
+
+    if not existing_sprint_numbers:
+        return {"sprint_number": 1, "started_at": None}
+
+    # Última planning em uma sprint que ainda existe
+    plannings = (
         client.table("ingestions")
         .select("sprint_number, created_at")
         .eq("project_id", project_id)
         .eq("tipo_documentacao", "planning")
         .order("created_at", desc=True)
-        .limit(1)
         .execute()
     )
-    sprint_number = resp.data[0]["sprint_number"] if resp.data else 1
-    started_at = resp.data[0]["created_at"] if resp.data else None
-    return {"sprint_number": sprint_number, "started_at": started_at}
+    for row in (plannings.data or []):
+        if row["sprint_number"] in existing_sprint_numbers:
+            return {"sprint_number": row["sprint_number"], "started_at": row["created_at"]}
+
+    # Fallback: maior sprint existente
+    return {"sprint_number": max(existing_sprint_numbers), "started_at": None}
 
 
 # ─────────────────────────────────────────────
