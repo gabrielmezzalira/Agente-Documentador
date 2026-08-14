@@ -115,7 +115,6 @@ async def ingest_commit(payload: CommitPayload):
         model="gemini-3.5-flash-lite",
         max_tokens=2048,
         google_api_key=api_key,
-        thinking={"type": "disabled"},
     )
     structured_llm = llm.with_structured_output(ConteudoEstruturado, method="json_schema", include_raw=True)
 
