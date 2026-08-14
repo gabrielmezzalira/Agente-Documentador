@@ -299,6 +299,7 @@ export default function ProjectDashboard() {
     try {
       await deleteIngestion(ingestionId);
       setIngestions((prev) => prev.filter((i) => i.id !== ingestionId));
+      refreshSprints();
     } catch {
       alert("Erro ao excluir ingestão.");
     }
@@ -308,6 +309,7 @@ export default function ProjectDashboard() {
     try {
       const updated = await moveIngestion(ingestionId, sprintNumber);
       setIngestions((prev) => prev.map((i) => i.id === ingestionId ? updated : i));
+      refreshSprints();
     } catch {
       alert("Erro ao mover ingestão.");
     }
