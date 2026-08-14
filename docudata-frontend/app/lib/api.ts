@@ -592,6 +592,37 @@ export async function enrichContent(input: {
   return res.json();
 }
 
+export async function deleteIngestion(ingestionId: string): Promise<void> {
+  const res = await fetch(`${API}/ingestions/${ingestionId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Erro ao excluir ingestão");
+}
+
+export async function moveIngestion(ingestionId: string, sprintNumber: number): Promise<Ingestion> {
+  const res = await fetch(`${API}/ingestions/${ingestionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sprint_number: sprintNumber }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao mover ingestão");
+  }
+  return res.json();
+}
+
+export async function moveDoc(docId: string, sprintNumber: number | null): Promise<GeneratedDoc> {
+  const res = await fetch(`${API}/docs/${docId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sprint_number: sprintNumber }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao mover documento");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

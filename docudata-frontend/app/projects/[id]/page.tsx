@@ -21,6 +21,9 @@ import {
   submitAtaUpload,
   deleteProject,
   deleteDoc,
+  deleteIngestion,
+  moveIngestion,
+  moveDoc,
   toggleDelivered,
   type Project,
   type Ingestion,
@@ -283,6 +286,33 @@ export default function ProjectDashboard() {
     }
   }
 
+  async function handleMoveDoc(docId: string, sprintNumber: number | null) {
+    try {
+      const updated = await moveDoc(docId, sprintNumber);
+      setDocs((prev) => prev.map((d) => d.id === docId ? updated : d));
+    } catch {
+      alert("Erro ao mover documento.");
+    }
+  }
+
+  async function handleDeleteIngestion(ingestionId: string) {
+    try {
+      await deleteIngestion(ingestionId);
+      setIngestions((prev) => prev.filter((i) => i.id !== ingestionId));
+    } catch {
+      alert("Erro ao excluir ingestão.");
+    }
+  }
+
+  async function handleMoveIngestion(ingestionId: string, sprintNumber: number) {
+    try {
+      const updated = await moveIngestion(ingestionId, sprintNumber);
+      setIngestions((prev) => prev.map((i) => i.id === ingestionId ? updated : i));
+    } catch {
+      alert("Erro ao mover ingestão.");
+    }
+  }
+
   function handleUploadLivre(sprintNumero: number) {
     setUploadModal({ sprintNumero });
   }
@@ -348,43 +378,22 @@ export default function ProjectDashboard() {
 
   function renderDocRow(doc: GeneratedDoc) {
     return (
-      <div key={doc.id} style={ingestionCard}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{docTypeLabel(doc.doc_type)}</span>
-            {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
-            <span style={{ color: "#94a3b8", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
-              {expandedDocId === doc.id ? "Fechar" : "Ver"}
-            </button>
-            <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
-              Copiar
-            </button>
-            <button
-              onClick={() => handleExportGdocs(doc.id)}
-              disabled={exportingDocId === doc.id}
-              style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px", opacity: exportingDocId === doc.id ? 0.6 : 1 }}
-            >
-              {exportingDocId === doc.id ? "Exportando…" : "Google Docs"}
-            </button>
-            <button onClick={() => {
-              if (confirm("Excluir este documento?")) handleDeleteDoc(doc.id);
-            }} style={{ ...btnDanger, fontSize: 12, padding: "6px 12px" }}>
-              Excluir
-            </button>
-            {exportError[doc.id] && (
-              <span style={{ fontSize: 11, color: "#dc2626" }}>{exportError[doc.id]}</span>
-            )}
-          </div>
-        </div>
-        {expandedDocId === doc.id && (
-          <div style={{ ...markdownContainer, marginTop: 14 }}>
-            <ReactMarkdown>{doc.content}</ReactMarkdown>
-          </div>
-        )}
-      </div>
+      <DocRow
+        key={doc.id}
+        doc={doc}
+        expandedDocId={expandedDocId}
+        exportingDocId={exportingDocId}
+        exportError={exportError}
+        onToggleExpand={(id: string) => setExpandedDocId(expandedDocId === id ? null : id)}
+        onExport={handleExportGdocs}
+        onDelete={handleDeleteDoc}
+        onMove={handleMoveDoc}
+        ingestionCard={ingestionCard}
+        tagStyle={tagStyle}
+        btnSecondary={btnSecondary}
+        btnDanger={btnDanger}
+        markdownContainer={markdownContainer}
+      />
     );
   }
 
@@ -529,6 +538,9 @@ export default function ProjectDashboard() {
                 onExportGdocs={handleExportGdocs}
                 exportingDocId={exportingDocId}
                 onDeleteDoc={handleDeleteDoc}
+                onMoveDoc={handleMoveDoc}
+                onDeleteIngestion={handleDeleteIngestion}
+                onMoveIngestion={handleMoveIngestion}
                 onDeleteSprint={handleDeleteSprint}
                 onHealthChanged={refreshSprints}
               />
@@ -997,6 +1009,97 @@ const btnPrimary: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
+function DocRow({
+  doc,
+  expandedDocId,
+  exportingDocId,
+  exportError,
+  onToggleExpand,
+  onExport,
+  onDelete,
+  onMove,
+  ingestionCard,
+  tagStyle,
+  btnSecondary: btnSec,
+  btnDanger: btnDng,
+  markdownContainer: mdContainer,
+}: {
+  doc: GeneratedDoc;
+  expandedDocId: string | null;
+  exportingDocId: string | null;
+  exportError: Record<string, string>;
+  onToggleExpand: (id: string) => void;
+  onExport: (id: string) => void;
+  onDelete: (id: string) => void;
+  onMove: (id: string, sprint: number | null) => void;
+  ingestionCard: React.CSSProperties;
+  tagStyle: React.CSSProperties;
+  btnSecondary: React.CSSProperties;
+  btnDanger: React.CSSProperties;
+  markdownContainer: React.CSSProperties;
+}) {
+  const [movingDoc, setMovingDoc] = useState(false);
+  const [moveToSprint, setMoveToSprint] = useState("");
+  return (
+    <div style={ingestionCard}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{docTypeLabel(doc.doc_type)}</span>
+          {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
+          <span style={{ color: "#94a3b8", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={() => onToggleExpand(doc.id)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
+            {expandedDocId === doc.id ? "Fechar" : "Ver"}
+          </button>
+          <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
+            Copiar
+          </button>
+          <button
+            onClick={() => onExport(doc.id)}
+            disabled={exportingDocId === doc.id}
+            style={{ ...btnSec, fontSize: 12, padding: "6px 12px", opacity: exportingDocId === doc.id ? 0.6 : 1 }}
+          >
+            {exportingDocId === doc.id ? "Exportando…" : "Google Docs"}
+          </button>
+          <button onClick={() => { setMovingDoc(true); setMoveToSprint(""); }} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
+            Mover sprint
+          </button>
+          <button onClick={() => { if (confirm("Excluir este documento?")) onDelete(doc.id); }} style={{ ...btnDng, fontSize: 12, padding: "6px 12px" }}>
+            Excluir
+          </button>
+          {exportError[doc.id] && <span style={{ fontSize: 11, color: "#dc2626" }}>{exportError[doc.id]}</span>}
+        </div>
+      </div>
+      {movingDoc && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+          <span style={{ fontSize: 13, color: "#64748b" }}>Mover para sprint:</span>
+          <input
+            type="number"
+            min={1}
+            value={moveToSprint}
+            onChange={(e) => setMoveToSprint(e.target.value)}
+            style={{ width: 70, padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13 }}
+            autoFocus
+          />
+          <button
+            style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+            onClick={() => { const n = parseInt(moveToSprint); if (!isNaN(n) && n > 0) { onMove(doc.id, n); setMovingDoc(false); } }}
+          >
+            Confirmar
+          </button>
+          <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} onClick={() => setMovingDoc(false)}>Cancelar</button>
+        </div>
+      )}
+      {expandedDocId === doc.id && (
+        <div style={{ ...mdContainer, marginTop: 14 }}>
+          <ReactMarkdown>{doc.content}</ReactMarkdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const btnSecondary: React.CSSProperties = {
   background: "#f7f7fa",
   color: "#374151",

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Form, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
@@ -188,3 +189,25 @@ async def delete_doc(doc_id: str):
     if not response.data:
         raise HTTPException(status_code=404, detail="Document not found")
     client.table("generated_docs").delete().eq("id", doc_id).execute()
+
+
+class UpdateDocSprint(BaseModel):
+    sprint_number: Optional[int] = None
+
+
+@router.patch("/docs/{doc_id}", response_model=GenerateResponse)
+async def update_doc_sprint(doc_id: str, body: UpdateDocSprint):
+    """Move um documento gerado para outra sprint (ou sem sprint quando None)."""
+    client = get_client()
+    response = client.table("generated_docs").select("id").eq("id", doc_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    result = (
+        client.table("generated_docs")
+        .update({"sprint_number": body.sprint_number})
+        .eq("id", doc_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to update document")
+    return result.data[0]

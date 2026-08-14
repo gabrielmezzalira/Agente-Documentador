@@ -28,6 +28,9 @@ interface Props {
   onExportGdocs: (docId: string) => void;
   exportingDocId: string | null;
   onDeleteDoc: (docId: string) => void;
+  onMoveDoc: (docId: string, sprintNumber: number | null) => void;
+  onDeleteIngestion: (ingestionId: string) => void;
+  onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
   onHealthChanged: () => void;
 }
@@ -276,6 +279,9 @@ export default function SprintCard({
   onExportGdocs,
   exportingDocId,
   onDeleteDoc,
+  onMoveDoc,
+  onDeleteIngestion,
+  onMoveIngestion,
   onDeleteSprint,
   onHealthChanged,
 }: Props) {
@@ -284,6 +290,10 @@ export default function SprintCard({
   const [expandedSourcesId, setExpandedSourcesId] = useState<string | null>(null);
   const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
   const [pendingGen, setPendingGen] = useState<SprintGenType | null>(null);
+  const [movingIngId, setMovingIngId] = useState<string | null>(null);
+  const [moveIngSprint, setMoveIngSprint] = useState<string>("");
+  const [movingDocId, setMovingDocId] = useState<string | null>(null);
+  const [moveDocSprint, setMoveDocSprint] = useState<string>("");
 
   function confirmGenerate() {
     if (pendingGen) {
@@ -487,7 +497,7 @@ export default function SprintCard({
                         {new Date(d.created_at).toLocaleDateString("pt-BR")}
                       </span>
                     </span>
-                    <div style={{ display: "flex", gap: 5 }}>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                       <button
                         style={tinyBtn}
                         onClick={() => setExpandedDocId(expandedDocId === d.id ? null : d.id)}
@@ -508,6 +518,12 @@ export default function SprintCard({
                         {exportingDocId === d.id ? "Exportando…" : "Google Docs"}
                       </button>
                       <button
+                        style={tinyBtn}
+                        onClick={() => { setMovingDocId(d.id); setMoveDocSprint(""); }}
+                      >
+                        Mover sprint
+                      </button>
+                      <button
                         style={tinyBtnDanger}
                         onClick={() => {
                           if (confirm("Excluir este documento?")) onDeleteDoc(d.id);
@@ -517,6 +533,29 @@ export default function SprintCard({
                       </button>
                     </div>
                   </div>
+                  {movingDocId === d.id && (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
+                      <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={moveDocSprint}
+                        onChange={(e) => setMoveDocSprint(e.target.value)}
+                        style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                        autoFocus
+                      />
+                      <button
+                        style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                        onClick={() => {
+                          const n = parseInt(moveDocSprint);
+                          if (!isNaN(n) && n > 0) { onMoveDoc(d.id, n); setMovingDocId(null); }
+                        }}
+                      >
+                        Confirmar
+                      </button>
+                      <button style={tinyBtn} onClick={() => setMovingDocId(null)}>Cancelar</button>
+                    </div>
+                  )}
                   {expandedDocId === d.id && (
                     <div style={markdownContainer}>
                       <ReactMarkdown>{d.content}</ReactMarkdown>
@@ -581,22 +620,58 @@ export default function SprintCard({
                     });
                     return (
                       <div key={ing.id} style={{
-                        display: "flex", alignItems: "flex-start", gap: 8,
                         padding: "7px 10px", background: "#f8fafc",
                         border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12,
                       }}>
-                        <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>✓</span>
-                        <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
-                        {branch && (
-                          <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
-                            {branch}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>✓</span>
+                          <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
+                          {branch && (
+                            <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
+                              {branch}
+                            </span>
+                          )}
+                          <span style={{ color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {msg}
                           </span>
+                          <span style={{ color: "#94a3b8", flexShrink: 0 }}>{autor}</span>
+                          <span style={{ color: "#94a3b8", flexShrink: 0 }}>{when}</span>
+                          <button
+                            style={{ ...tinyBtn, fontSize: 11, padding: "2px 7px", flexShrink: 0 }}
+                            onClick={() => { setMovingIngId(ing.id); setMoveIngSprint(""); }}
+                          >
+                            Mover
+                          </button>
+                          <button
+                            style={{ ...tinyBtnDanger, fontSize: 11, padding: "2px 7px", flexShrink: 0 }}
+                            onClick={() => { if (confirm("Excluir este commit?")) onDeleteIngestion(ing.id); }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {movingIngId === ing.id && (
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+                            <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={moveIngSprint}
+                              onChange={(e) => setMoveIngSprint(e.target.value)}
+                              style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                              autoFocus
+                            />
+                            <button
+                              style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                              onClick={() => {
+                                const n = parseInt(moveIngSprint);
+                                if (!isNaN(n) && n > 0) { onMoveIngestion(ing.id, n); setMovingIngId(null); }
+                              }}
+                            >
+                              Confirmar
+                            </button>
+                            <button style={tinyBtn} onClick={() => setMovingIngId(null)}>Cancelar</button>
+                          </div>
                         )}
-                        <span style={{ color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {msg}
-                        </span>
-                        <span style={{ color: "#94a3b8", flexShrink: 0 }}>{autor}</span>
-                        <span style={{ color: "#94a3b8", flexShrink: 0 }}>{when}</span>
                       </div>
                     );
                   })}
@@ -647,10 +722,47 @@ export default function SprintCard({
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                       <span style={{ fontWeight: 600 }}>{ing.file_name}</span>
-                      {ing.tipo_documentacao && (
-                        <span style={tagStyle}>{ing.tipo_documentacao}</span>
-                      )}
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        {ing.tipo_documentacao && (
+                          <span style={tagStyle}>{ing.tipo_documentacao}</span>
+                        )}
+                        <button
+                          style={{ ...tinyBtn, fontSize: 11, padding: "3px 8px" }}
+                          onClick={() => { setMovingIngId(ing.id); setMoveIngSprint(""); }}
+                        >
+                          Mover
+                        </button>
+                        <button
+                          style={{ ...tinyBtnDanger, fontSize: 11, padding: "3px 8px" }}
+                          onClick={() => { if (confirm("Excluir esta ingestão?")) onDeleteIngestion(ing.id); }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
+                    {movingIngId === ing.id && (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={moveIngSprint}
+                          onChange={(e) => setMoveIngSprint(e.target.value)}
+                          style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                          autoFocus
+                        />
+                        <button
+                          style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                          onClick={() => {
+                            const n = parseInt(moveIngSprint);
+                            if (!isNaN(n) && n > 0) { onMoveIngestion(ing.id, n); setMovingIngId(null); }
+                          }}
+                        >
+                          Confirmar
+                        </button>
+                        <button style={tinyBtn} onClick={() => setMovingIngId(null)}>Cancelar</button>
+                      </div>
+                    )}
                     {content?.resumo && (
                       <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 12, lineHeight: 1.5 }}>
                         {content.resumo}
