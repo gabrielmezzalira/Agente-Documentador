@@ -5,6 +5,6 @@
 
 - **Feature:** Agente Documentador v2 — Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto (Phase 7)
 - **Etapa atual:** Plano de implementação (gsd-plan-phase)
-- **Última sessão:** 2026-08-22T21:56:42Z
+- **Última sessão:** 2026-08-22T22:02:55Z
 
 Para retomar: `/feature-flow` — a skill vai detectar o estado automaticamente.
