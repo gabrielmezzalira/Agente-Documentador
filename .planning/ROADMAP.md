@@ -140,7 +140,122 @@ Plans:
   4. Ações com `cost_usd = 0` (docs manuais) aparecem na lista mas com custo zerado — sem omitir
   5. O seletor de mês permite navegar para meses anteriores sem recarregar a página
 
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Tracer end-to-end: GET /projects/{id}/usage?month=YYYY-MM (agregacao mensal sem recalculo) + aba Custos minima no dashboard mostrando total do mes atual
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02-PLAN.md — Expansao: breakdown por tipo de acao (ingestao/geracao/commit/manual) + lista cronologica dos items + seletor de mes navegavel sem reload
+
+### Phase 7: Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto
+
+**Goal:** O gerente pode cadastrar funcionalidades com critérios de aceite em EARS, importar em massa do texto do contrato via IA, e o sistema registra automaticamente o tempo por fase (TransicaoStatus) desde o primeiro dia — garantindo histórico completo para todos os projetos novos.
+**Mode:** mvp
+**Depends on:** Phase 6
+**Requirements:** M1 (§5), §4.1 (Funcionalidade), §4.2 (máquina de estados), §4.3 (TransicaoStatus), §4.6 (campos novos em Projeto)
+**Success Criteria** (what must be TRUE):
+
+  1. `POST /funcionalidades` cria funcionalidade com ao menos um critério de aceite — sem critério, retorna 422 com mensagem explicativa
+  2. `POST /funcionalidades/importar` recebe texto do contrato, propõe quebra em funcionalidades com critérios EARS para revisão — não salva nada sem confirmação
+  3. `POST /funcionalidades/importar/confirmar` cria as funcionalidades confirmadas e descarta as rejeitadas
+  4. Toda transição de `status` ou `status_cliente` de uma funcionalidade grava um registro `TransicaoStatus` com autor, timestamp e duração da fase anterior calculada
+  5. `PATCH /projetos/{id}` aceita os campos novos: `data_inicio`, `data_fim_contratada`, `tolerancia_desvio_pontos`, `periodo_garantia_dias`
+  6. Projetos sem funcionalidades cadastradas continuam funcionando exatamente como hoje — sem erro, sem bloqueio
+
 **Plans:** TBD
+**UI hint:** yes
+
+### Phase 8: Painel do Gerente + Kanban de Sprint
+
+**Goal:** O gerente vê, na home do projeto, o painel com as 4 seções (Tempo × Escopo, Itens travados, Métricas de fluxo, Tempo por fase) e um kanban de sprint com as funcionalidades distribuídas por status.
+**Mode:** mvp
+**Depends on:** Phase 7
+**Requirements:** M2 Blocos A, B, C, D (§5), M3 (§5)
+**Success Criteria** (what must be TRUE):
+
+  1. Bloco A exibe % prazo consumido, % escopo concluído e % aprovado pelo cliente quando `data_inicio` e `data_fim_contratada` estiverem preenchidos; exibe "sem dados" quando não estiverem
+  2. Quando (% prazo − % escopo aprovado) exceder `tolerancia_desvio_pontos`, aparece alerta visual e o desvio é registrado
+  3. Bloco B lista funcionalidades travadas (em_andamento > 7 dias sem mudança), aguardando cliente (enviado > 5 dias úteis) e que voltaram para em_ajuste
+  4. Bloco C exibe throughput, WIP e cycle time (p50, p85) sempre agregados por squad
+  5. Bloco D exibe tempo médio e p85 por fase de status e eficiência de fluxo do projeto; detalhe individual por funcionalidade disponível
+  6. Kanban de sprint exibe funcionalidades nas colunas Planejado / Em andamento / Concluído / Transbordou sem persistir estado próprio
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 9: Revisor Diário Generalizado
+
+**Goal:** O revisor diário opera em todos os repositórios da organização via workflow reutilizável central; achados chegam ao Agente Documentador como registros RevisaoDiaria e alimentam o painel.
+**Mode:** mvp
+**Depends on:** Phase 6 (independente de 7 e 8)
+**Requirements:** M7 (§5)
+**Success Criteria** (what must be TRUE):
+
+  1. Prompt de revisão vive versionado num repositório central; projetos aderem com workflow de 3 linhas + `.citi/revisao.yml`
+  2. Revisor opera em modo somente leitura — não cria, edita, renomeia nem apaga arquivo; não escreve código nem roda comando que altere estado
+  3. Quando não há mudança relevante na janela, o revisor emite uma frase e para — não inventa achado
+  4. Toda afirmação técnica carrega referência `arquivo:linha`; sem referência, não entra no relatório
+  5. Gera duas saídas: versão gerente (macro, sem arquivo:linha) e versão time técnico (com arquivo:linha em tudo)
+  6. Ao concluir, envia achados ao Agente Documentador criando registro RevisaoDiaria; achados CRITICA/ALTA com confiança ALTA aparecem no Bloco B do painel
+
+**Plans:** TBD
+**UI hint:** no
+
+### Phase 10: Composer de Planning
+
+**Goal:** O gerente compõe o planning da sprint em 4 passos guiados (seleção, recorte, alocação, composição), com estado salvo entre sessões, e o sistema preenche automaticamente o template de Planning com os campos derivados.
+**Mode:** mvp
+**Depends on:** Phase 7
+**Requirements:** M4 (§5)
+**Success Criteria** (what must be TRUE):
+
+  1. Gerente pode sair e voltar ao composer sem perder o progresso — estado salvo após cada passo
+  2. Funcionalidades transbordadas da sprint anterior aparecem no topo marcadas como tal
+  3. O sistema exibe throughput das últimas 3 sprints e indica se a seleção está acima dele — como informação, nunca como bloqueio
+  4. Recorte é campo obrigatório por funcionalidade; o gerente pode marcar quais critérios de aceite entram nesta sprint
+  5. Template de Planning preenchido automaticamente com itens, recortes, responsáveis, transbordos e throughput de referência
+  6. Rascunho nunca vira Planning oficial sem confirmação humana explícita
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 11: Suíte de Verificação de Aceite
+
+**Goal:** Quando o gerente marcar uma funcionalidade como concluída, o sistema dispara em paralelo a suíte de aceite (build, testes, e2e, acessibilidade, performance) e registra o resultado em ExecucaoAceite — sem poder de alterar o status.
+**Mode:** mvp
+**Depends on:** Phase 7
+**Requirements:** M5 (§5), §4.4 (ExecucaoAceite)
+**Success Criteria** (what must be TRUE):
+
+  1. Ao marcar `status = concluida`, o status muda imediatamente e a suíte dispara em paralelo — nenhum resultado de gate reverte ou atrasa a transição
+  2. Resultado de cada gate (passou / falhou / erro / sem_cobertura) fica registrado em ExecucaoAceite com commit_sha do HEAD no momento do disparo
+  3. Funcionalidade concluída com suíte falhando ou sem cobertura aparece sinalizada no Bloco B do painel sem alterar seu peso no % de escopo concluído
+  4. O sistema exibe, por projeto, o % de funcionalidades concluídas com cobertura de aceite
+  5. Quando não existir teste E2E vinculado ao id_funcional, registra `resultado = sem_cobertura` e sinaliza
+
+**Plans:** TBD
+**UI hint:** no
+
+### Phase 12: Boletim de Aceite, Encerramento e Resumo Semanal
+
+**Goal:** O gerente gera boletins de aceite para envio ao cliente, registra o retorno (aprovado / ajuste pedido com categorização bug vs mudança de escopo), e quando 100% das funcionalidades estiverem aprovadas pode gerar o Termo de Encerramento; o resumo semanal de anomalias é gerado automaticamente.
+**Mode:** mvp
+**Depends on:** Phase 7, Phase 8
+**Requirements:** M6 (§5), M8 (§5), §4.5 (RevisaoDiaria)
+**Success Criteria** (what must be TRUE):
+
+  1. Gerente seleciona funcionalidades em `concluida` e gera boletim com título, critérios em linguagem de negócio, link de deploy preview e espaço para evidência visual
+  2. Ao marcar boletim como enviado, funcionalidades movem para `status_cliente = enviado` com data registrada
+  3. Ao registrar retorno do cliente como "ajuste pedido", o sistema exige classificação: bug (dentro do escopo) ou solicitação de mudança (escopo novo, lista separada)
+  4. Quando 100% das funcionalidades estiverem `aprovado`, o sistema habilita geração do Termo de Encerramento com todas as funcionalidades, critérios, datas de aprovação e período de garantia
+  5. Ao final de cada semana, o sistema gera por projeto um resumo de exceções (travadas, aguardando cliente, concluídas com suíte falhando, achados críticos, decisões pendentes, leitura tempo × escopo)
+  6. Quando não houver anomalia, o resumo declara explicitamente que não há
+
+**Plans:** TBD
+**UI hint:** yes
 
 ## Progress
 
@@ -151,4 +266,10 @@ Plans:
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
-| 6. Token Usage Panel | 0/TBD | Not started | - |
+| 6. Token Usage Panel | 0/2 | Not started | - |
+| 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 0/TBD | Not started | - |
+| 8. Painel do Gerente + Kanban de Sprint | 0/TBD | Not started | - |
+| 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
+| 10. Composer de Planning | 0/TBD | Not started | - |
+| 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
+| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
