@@ -162,10 +162,23 @@ Plans:
   2. `POST /funcionalidades/importar` recebe texto do contrato, propõe quebra em funcionalidades com critérios EARS para revisão — não salva nada sem confirmação
   3. `POST /funcionalidades/importar/confirmar` cria as funcionalidades confirmadas e descarta as rejeitadas
   4. Toda transição de `status` ou `status_cliente` de uma funcionalidade grava um registro `TransicaoStatus` com autor, timestamp e duração da fase anterior calculada
-  5. `PATCH /projetos/{id}` aceita os campos novos: `data_inicio`, `data_fim_contratada`, `tolerancia_desvio_pontos`, `periodo_garantia_dias`
+  5. `PATCH /projects/{id}/contrato` aceita os campos novos: `data_inicio`, `data_fim_contratada`, `tolerancia_desvio_pontos`, `periodo_garantia_dias`
   6. Projetos sem funcionalidades cadastradas continuam funcionando exatamente como hoje — sem erro, sem bloqueio
 
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Tracer: Migration SQL + schemas (FuncionalidadeCreate/Response, ContratoUpdate, Import schemas) + GET/POST /funcionalidades CRUD + main.py wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md — PATCH /funcionalidades/{id} state machine + TransicaoStatus recording; PATCH /projects/{id}/contrato contract fields
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-03-PLAN.md — graphs/import_graph.py (LangGraph, no salvar node) + POST /funcionalidades/importar + POST /funcionalidades/importar/confirmar
+
 **UI hint:** yes
 
 ### Phase 8: Painel do Gerente + Kanban de Sprint
@@ -267,7 +280,7 @@ Plans:
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
 | 6. Token Usage Panel | 0/2 | Not started | - |
-| 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 0/TBD | Not started | - |
+| 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 0/3 | Not started | - |
 | 8. Painel do Gerente + Kanban de Sprint | 0/TBD | Not started | - |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 0/TBD | Not started | - |
