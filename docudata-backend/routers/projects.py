@@ -13,6 +13,7 @@ from models.schemas import (
     UsageBucket,
     UsageItem,
     TechTimelineResponse,
+    ContratoUpdate,
 )
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
@@ -312,3 +313,22 @@ async def delete_project(project_id: str):
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
     client.table("projects").delete().eq("id", project_id).execute()
+
+
+@router.patch("/{project_id}/contrato", response_model=ProjectResponse)
+async def update_contrato(project_id: str, data: ContratoUpdate):
+    """Atualiza campos de contrato do projeto: datas, tolerancia e garantia."""
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    payload = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not payload:
+        raise HTTPException(status_code=422, detail="Nenhum campo fornecido")
+    for k, v in list(payload.items()):
+        if hasattr(v, "isoformat"):
+            payload[k] = v.isoformat()
+    response = client.table("projects").update(payload).eq("id", project_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update contract fields")
+    return _sanitize(response.data[0])
