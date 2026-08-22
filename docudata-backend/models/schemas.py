@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 
 class ConteudoEstruturado(BaseModel):
@@ -36,6 +36,10 @@ class ProjectResponse(BaseModel):
     is_delivered: bool = False
     created_at: datetime
     last_ingestion_at: Optional[datetime] = None
+    data_inicio: Optional[date] = None
+    data_fim_contratada: Optional[date] = None
+    tolerancia_desvio_pontos: Optional[int] = None
+    periodo_garantia_dias: Optional[int] = None
 
 
 class ProjectCostResponse(BaseModel):
@@ -166,3 +170,119 @@ class TechTimelineEntry(BaseModel):
 class TechTimelineResponse(BaseModel):
     em_uso_atual: list[str]
     timeline: list[TechTimelineEntry]
+
+
+class FuncionalidadeCreate(BaseModel):
+    project_id: str
+    id_funcional: str
+    titulo: str
+    descricao: Optional[str] = None
+    criterios_aceite: list[str]
+    prioridade: str = "should"
+    responsavel: Optional[str] = None
+    sprint_alvo: Optional[str] = None
+
+    @field_validator("criterios_aceite")
+    @classmethod
+    def criterios_nao_vazios(cls, v: list[str]) -> list[str]:
+        filtered = [c for c in v if c.strip()]
+        if not filtered:
+            raise ValueError("Ao menos um critério de aceite é obrigatório")
+        return filtered
+
+    @field_validator("prioridade")
+    @classmethod
+    def prioridade_valida(cls, v: str) -> str:
+        if v not in {"must", "should", "could", "wont"}:
+            raise ValueError("prioridade deve ser must | should | could | wont")
+        return v
+
+
+class FuncionalidadeUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    criterios_aceite: Optional[list[str]] = None
+    prioridade: Optional[str] = None
+    status: Optional[str] = None
+    status_cliente: Optional[str] = None
+    responsavel: Optional[str] = None
+    sprint_alvo: Optional[str] = None
+    data_aprovacao_cliente: Optional[date] = None
+    autor: Optional[str] = None
+    motivo: Optional[str] = None
+
+    @field_validator("criterios_aceite")
+    @classmethod
+    def criterios_nao_vazios(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        if v is None:
+            return v
+        filtered = [c for c in v if c.strip()]
+        if not filtered:
+            raise ValueError("Ao menos um critério de aceite é obrigatório")
+        return filtered
+
+    @field_validator("prioridade")
+    @classmethod
+    def prioridade_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in {"must", "should", "could", "wont"}:
+            raise ValueError("prioridade deve ser must | should | could | wont")
+        return v
+
+
+class FuncionalidadeResponse(BaseModel):
+    id: str
+    project_id: str
+    id_funcional: str
+    titulo: str
+    descricao: Optional[str] = None
+    criterios_aceite: list[str]
+    prioridade: str
+    status: str
+    status_cliente: str
+    data_aprovacao_cliente: Optional[date] = None
+    responsavel: Optional[str] = None
+    sprint_alvo: Optional[str] = None
+    created_at: datetime
+
+
+class TransicaoStatusResponse(BaseModel):
+    id: str
+    funcionalidade_id: str
+    campo: str
+    de: str
+    para: str
+    autor: Optional[str] = None
+    timestamp: datetime
+    motivo: Optional[str] = None
+    duracao_fase_anterior_segundos: Optional[int] = None
+
+
+class FuncionalidadeProposta(BaseModel):
+    id_funcional: str
+    titulo: str
+    descricao: Optional[str] = None
+    criterios_aceite: list[str]
+    prioridade: str = "should"
+
+
+class ImportPropostaResponse(BaseModel):
+    propostas: list[FuncionalidadeProposta]
+
+
+class ImportConfirmarItem(BaseModel):
+    proposta: FuncionalidadeProposta
+    confirmed: bool
+
+
+class ImportConfirmarRequest(BaseModel):
+    project_id: str
+    itens: list[ImportConfirmarItem]
+
+
+class ContratoUpdate(BaseModel):
+    data_inicio: Optional[date] = None
+    data_fim_contratada: Optional[date] = None
+    tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
+    periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
