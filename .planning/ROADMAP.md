@@ -230,7 +230,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 10-01-PLAN.md — Backend tracer: migration SQL planning_rascunhos + GET/PATCH /composer/rascunho + POST /composer/confirmar + main.py wiring
+- [x] 10-01-PLAN.md — Backend tracer: migration SQL planning_rascunhos + GET/PATCH /composer/rascunho + POST /composer/confirmar + main.py wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
