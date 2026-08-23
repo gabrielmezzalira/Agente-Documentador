@@ -126,35 +126,11 @@ Plans:
 
 - [x] 05-02-PLAN.md — Router wiring: ingest.py + sprint_docs.py accept force field, pass tipo_esperado + project context, surface structured 422 on validation failure
 
-### Phase 6: Token Usage Panel
-
-**Goal:** Gerentes conseguem ver, por projeto, o custo real (em tokens e USD) de cada ação — ingestão, geração e commit — com acumulado mensal. Os valores são os números reais retornados pelo Gemini via `usage_metadata`, já salvos nas colunas `input_tokens`, `output_tokens` e `cost_usd` das tabelas `ingestions` e `generated_docs`. Nada é inferido: só o que o banco registrou.
-**Mode:** mvp
-**Depends on:** Phase 5
-**Requirements:** USAGE-01, USAGE-02, USAGE-03
-**Success Criteria** (what must be TRUE):
-
-  1. `GET /projects/{id}/usage?month=YYYY-MM` retorna soma de `cost_usd`, `input_tokens` e `output_tokens` de `ingestions` + `generated_docs` do projeto, com breakdown por `tipo_documentacao` / `doc_type`
-  2. O endpoint usa apenas os valores já salvos no banco (`cost_usd`, `input_tokens`, `output_tokens`) — sem recalcular nem inferir
-  3. O dashboard do projeto exibe custo total do mês atual, custo separado por tipo de ação (ingestão, geração, commit), e uma lista cronológica das últimas ações com tokens e custo individuais
-  4. Ações com `cost_usd = 0` (docs manuais) aparecem na lista mas com custo zerado — sem omitir
-  5. O seletor de mês permite navegar para meses anteriores sem recarregar a página
-
-**Plans:** 2 plans
-Plans:
-**Wave 1**
-
-- [ ] 06-01-PLAN.md — Tracer end-to-end: GET /projects/{id}/usage?month=YYYY-MM (agregacao mensal sem recalculo) + aba Custos minima no dashboard mostrando total do mes atual
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [ ] 06-02-PLAN.md — Expansao: breakdown por tipo de acao (ingestao/geracao/commit/manual) + lista cronologica dos items + seletor de mes navegavel sem reload
-
 ### Phase 7: Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto
 
 **Goal:** O gerente pode cadastrar funcionalidades com critérios de aceite em EARS, importar em massa do texto do contrato via IA, e o sistema registra automaticamente o tempo por fase (TransicaoStatus) desde o primeiro dia — garantindo histórico completo para todos os projetos novos.
 **Mode:** mvp
-**Depends on:** Phase 6
+**Depends on:** Phase 5
 **Requirements:** M1 (§5), §4.1 (Funcionalidade), §4.2 (máquina de estados), §4.3 (TransicaoStatus), §4.6 (campos novos em Projeto)
 **Success Criteria** (what must be TRUE):
 
@@ -210,20 +186,29 @@ Plans:
 
 ### Phase 9: Revisor Diário Generalizado
 
-**Goal:** O revisor diário opera em todos os repositórios da organização via workflow reutilizável central; achados chegam ao Agente Documentador como registros RevisaoDiaria e alimentam o painel.
+**Goal:** O revisor diário opera nos repositórios cadastrados no DocuData via workflow configurável por projeto; achados chegam ao Agente Documentador como registros RevisaoDiaria e alimentam o painel.
 **Mode:** mvp
-**Depends on:** Phase 6 (independente de 7 e 8)
+**Depends on:** Phase 8
 **Requirements:** M7 (§5)
 **Success Criteria** (what must be TRUE):
 
-  1. Prompt de revisão vive versionado num repositório central; projetos aderem com workflow de 3 linhas + `.citi/revisao.yml`
+  1. Prompt de revisão vive versionado num repositório central; projetos aderem com workflow de 3 linhas + `.citi/revisao.yml` — somente repos vinculados a um projeto no DocuData enviam achados
   2. Revisor opera em modo somente leitura — não cria, edita, renomeia nem apaga arquivo; não escreve código nem roda comando que altere estado
   3. Quando não há mudança relevante na janela, o revisor emite uma frase e para — não inventa achado
   4. Toda afirmação técnica carrega referência `arquivo:linha`; sem referência, não entra no relatório
   5. Gera duas saídas: versão gerente (macro, sem arquivo:linha) e versão time técnico (com arquivo:linha em tudo)
   6. Ao concluir, envia achados ao Agente Documentador criando registro RevisaoDiaria; achados CRITICA/ALTA com confiança ALTA aparecem no Bloco B do painel
 
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — Backend tracer: migration SQL revisoes_diarias + POST /ingest/revisao + calcular_bloco_b expandido com achados_criticos
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 09-02-PLAN.md — Agente cliente: revisor_agent.py + revisor.yml + PainelTab.tsx com achados + toggle gerente/técnico
+
 **UI hint:** no
 
 ### Phase 10: Composer de Planning
@@ -288,9 +273,9 @@ Plans:
 | 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
-| 6. Token Usage Panel | 0/2 | Not started | - |
-| 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | In Progress|  |
-| 8. Painel do Gerente + Kanban de Sprint | 2/2 | In Progress|  |
+| ~~6. Token Usage Panel~~ | — | Removed | — |
+| 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | Complete | 2026-08-22 |
+| 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 0/TBD | Not started | - |
 | 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
