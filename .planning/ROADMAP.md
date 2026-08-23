@@ -290,6 +290,6 @@ Plans:
 | 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | Complete | 2026-08-22 |
 | 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
-| 10. Composer de Planning | 3/3 | Complete   | 2026-08-23 |
+| 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
 | 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
 | 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
