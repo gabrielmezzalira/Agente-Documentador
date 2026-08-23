@@ -256,7 +256,16 @@ Plans:
   4. O sistema exibe, por projeto, o % de funcionalidades concluídas com cobertura de aceite
   5. Quando não existir teste E2E vinculado ao id_funcional, registra `resultado = sem_cobertura` e sinaliza
 
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 11-01-PLAN.md — Backend tracer: migration SQL + schemas + POST /ingest/aceite + BackgroundTasks dispatch em patch_funcionalidade + GET /execucoes_aceite + main.py wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 11-02-PLAN.md — GitHub Actions agent (aceite_agent.py + aceite.yml) + painel.py cobertura_aceite + PainelTab badge Kanban + Bloco B sub-seção + api.ts types
+
 **UI hint:** no
 
 ### Phase 12: Boletim de Aceite, Encerramento e Resumo Semanal
