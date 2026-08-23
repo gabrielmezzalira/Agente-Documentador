@@ -647,3 +647,77 @@ export async function generateDoc(
   }
   return res.json();
 }
+
+export interface FuncionalidadeResponse {
+  id: string;
+  project_id: string;
+  id_funcional: string;
+  titulo: string;
+  descricao?: string;
+  criterios_aceite: string[];
+  prioridade: string;
+  status: "nao_iniciada" | "em_andamento" | "em_ajuste" | "concluida";
+  status_cliente: "nao_enviado" | "enviado" | "aprovado" | "rejeitado";
+  data_aprovacao_cliente?: string | null;
+  responsavel?: string | null;
+  sprint_alvo?: string | null;
+  created_at: string;
+}
+
+export interface BlocoA {
+  sem_dados: boolean;
+  pct_prazo_consumido?: number;
+  pct_escopo_concluido?: number;
+  pct_aprovado_cliente?: number;
+  desvio_detectado?: boolean;
+  desvio_pontos?: number;
+}
+
+export interface BlocoB {
+  travadas: Array<{ id: string; titulo: string; dias: number }>;
+  aguardando_cliente: Array<{ id: string; titulo: string; dias_uteis: number }>;
+  em_ajuste: Array<{ id: string; titulo: string }>;
+}
+
+export interface BlocoC {
+  throughput_por_semana: number | null;
+  wip: number;
+  cycle_time_p50_dias: number | null;
+  cycle_time_p85_dias: number | null;
+  total_concluidas: number;
+}
+
+export interface FaseResumo {
+  media_dias: number;
+  p85_dias: number | null;
+  amostras: number;
+}
+
+export interface BlocoD {
+  fases_resumo: Record<string, FaseResumo>;
+  eficiencia_fluxo_pct: number | null;
+  detalhe_por_funcionalidade: Array<{
+    id: string;
+    titulo: string;
+    tempos_por_fase: Record<string, number>;
+  }>;
+}
+
+export interface PainelData {
+  bloco_a: BlocoA;
+  bloco_b: BlocoB;
+  bloco_c: BlocoC;
+  bloco_d: BlocoD;
+}
+
+export async function getPainel(projectId: string): Promise<PainelData> {
+  const res = await fetch(`${API}/projects/${projectId}/painel`);
+  if (!res.ok) throw new Error("Erro ao buscar painel");
+  return res.json();
+}
+
+export async function listFuncionalidades(projectId: string): Promise<FuncionalidadeResponse[]> {
+  const res = await fetch(`${API}/funcionalidades?project_id=${projectId}`);
+  if (!res.ok) throw new Error("Erro ao buscar funcionalidades");
+  return res.json();
+}

@@ -37,13 +37,14 @@ import Tabs from "../../components/Tabs";
 import SprintCard from "../../components/SprintCard";
 import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
+import PainelTab from "../../components/PainelTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -468,6 +469,7 @@ export default function ProjectDashboard() {
       <Tabs
         tabs={[
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
+          { id: "painel", label: "Painel" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
@@ -549,6 +551,15 @@ export default function ProjectDashboard() {
             ))
           )}
         </>
+      )}
+
+      {/* ABA: PAINEL */}
+      {activeTab === "painel" && (
+        <PainelTab
+          projectId={id}
+          sprints={sprints}
+          onNavigateToConfig={() => setActiveTab("config" as TabId)}
+        />
       )}
 
       {/* ABA: TECNOLOGIAS */}
