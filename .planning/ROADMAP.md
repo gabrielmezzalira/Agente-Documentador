@@ -190,11 +190,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. Bloco A exibe % prazo consumido, % escopo concluído e % aprovado pelo cliente quando `data_inicio` e `data_fim_contratada` estiverem preenchidos; exibe "sem dados" quando não estiverem
-  2. Quando (% prazo − % escopo aprovado) exceder `tolerancia_desvio_pontos`, aparece alerta visual e o desvio é registrado
+  2. Quando (% prazo − % escopo aprovado) exceder `tolerancia_desvio_pontos`, aparece alerta visual (desvio_detectado: bool no response do endpoint — sem persistência no banco, decisão D-05)
   3. Bloco B lista funcionalidades travadas (em_andamento > 7 dias sem mudança), aguardando cliente (enviado > 5 dias úteis) e que voltaram para em_ajuste
   4. Bloco C exibe throughput, WIP e cycle time (p50, p85) sempre agregados por squad
   5. Bloco D exibe tempo médio e p85 por fase de status e eficiência de fluxo do projeto; detalhe individual por funcionalidade disponível
-  6. Kanban de sprint exibe funcionalidades nas colunas Planejado / Em andamento / Concluído / Transbordou sem persistir estado próprio
+  6. Kanban de sprint exibe funcionalidades em 3 colunas (Planejado / Em andamento / Concluído) sem persistir estado próprio — coluna Transbordou removida por decisão D-07; funcionalidades multi-sprint têm badge com sprint planejada
 
 **Plans:** 2 plans
 Plans:
