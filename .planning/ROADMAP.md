@@ -226,7 +226,7 @@ Plans:
   5. Template de Planning preenchido automaticamente com itens, recortes, responsáveis, transbordos e throughput de referência
   6. Rascunho nunca vira Planning oficial sem confirmação humana explícita
 
-**Plans:** 3 plans (2 executed + 1 gap closure)
+**Plans:** 3/3 plans complete
 Plans:
 **Wave 1**
 
@@ -238,7 +238,7 @@ Plans:
 
 **Wave 3** *(gap closure — blocked on Wave 2 completion)*
 
-- [ ] 10-03-PLAN.md — Fix CR-01: upsert ignore_duplicates=True + SELECT explícito em get_rascunho (fecha SC-1 e P1-1)
+- [x] 10-03-PLAN.md — Fix CR-01: upsert ignore_duplicates=True + SELECT explícito em get_rascunho (fecha SC-1 e P1-1)
 
 **UI hint:** yes
 
@@ -290,6 +290,6 @@ Plans:
 | 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | Complete | 2026-08-22 |
 | 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
-| 10. Composer de Planning | 2/2 | In Progress|  |
+| 10. Composer de Planning | 3/3 | Complete   | 2026-08-23 |
 | 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
 | 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
