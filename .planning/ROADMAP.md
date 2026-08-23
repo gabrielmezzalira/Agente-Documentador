@@ -226,7 +226,16 @@ Plans:
   5. Template de Planning preenchido automaticamente com itens, recortes, responsáveis, transbordos e throughput de referência
   6. Rascunho nunca vira Planning oficial sem confirmação humana explícita
 
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 10-01-PLAN.md — Backend tracer: migration SQL planning_rascunhos + GET/PATCH /composer/rascunho + POST /composer/confirmar + main.py wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 10-02-PLAN.md — POST /composer/gerar (Gemini) + PlanningTab.tsx wizard 4 passos + api.ts funções + page.tsx tab wiring
+
 **UI hint:** yes
 
 ### Phase 11: Suíte de Verificação de Aceite
