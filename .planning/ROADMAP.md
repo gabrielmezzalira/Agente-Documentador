@@ -226,7 +226,7 @@ Plans:
   5. Template de Planning preenchido automaticamente com itens, recortes, responsáveis, transbordos e throughput de referência
   6. Rascunho nunca vira Planning oficial sem confirmação humana explícita
 
-**Plans:** 2/2 plans executed
+**Plans:** 3 plans (2 executed + 1 gap closure)
 Plans:
 **Wave 1**
 
@@ -235,6 +235,10 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 10-02-PLAN.md — POST /composer/gerar (Gemini) + PlanningTab.tsx wizard 4 passos + api.ts funções + page.tsx tab wiring
+
+**Wave 3** *(gap closure — blocked on Wave 2 completion)*
+
+- [ ] 10-03-PLAN.md — Fix CR-01: upsert ignore_duplicates=True + SELECT explícito em get_rascunho (fecha SC-1 e P1-1)
 
 **UI hint:** yes
 
