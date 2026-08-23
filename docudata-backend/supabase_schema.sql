@@ -110,3 +110,27 @@ CREATE INDEX IF NOT EXISTS idx_revisoes_diarias_project_created
 -- INSERT INTO sprints (project_id, numero)
 -- SELECT DISTINCT project_id, sprint_number FROM ingestions
 -- ON CONFLICT (project_id, numero) DO NOTHING;
+
+-- Phase 10: Composer de Planning
+CREATE TABLE IF NOT EXISTS planning_rascunhos (
+    id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id    uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    sprint_numero int         NOT NULL,
+    step_atual    int         NOT NULL DEFAULT 1,
+    dados_json    jsonb       NOT NULL DEFAULT '{}',
+    created_at    timestamptz DEFAULT now(),
+    updated_at    timestamptz DEFAULT now(),
+    UNIQUE (project_id, sprint_numero)
+);
+
+-- Se a tabela já existe, rode apenas:
+-- CREATE TABLE IF NOT EXISTS planning_rascunhos (
+--     id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--     project_id    uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--     sprint_numero int         NOT NULL,
+--     step_atual    int         NOT NULL DEFAULT 1,
+--     dados_json    jsonb       NOT NULL DEFAULT '{}',
+--     created_at    timestamptz DEFAULT now(),
+--     updated_at    timestamptz DEFAULT now(),
+--     UNIQUE (project_id, sprint_numero)
+-- );
