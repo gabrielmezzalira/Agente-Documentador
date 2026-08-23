@@ -196,7 +196,16 @@ Plans:
   5. Bloco D exibe tempo médio e p85 por fase de status e eficiência de fluxo do projeto; detalhe individual por funcionalidade disponível
   6. Kanban de sprint exibe funcionalidades nas colunas Planejado / Em andamento / Concluído / Transbordou sem persistir estado próprio
 
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — Tracer: Backend GET /projects/{id}/painel (4 blocks calculated) + PainelTab.tsx stub + page.tsx tab wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-02-PLAN.md — Expansion: Full polished PainelTab with Bloco A/B/C/D visual details, Bloco D accordion, kanban 3 columns with sprint dropdown
+
 **UI hint:** yes
 
 ### Phase 9: Revisor Diário Generalizado
