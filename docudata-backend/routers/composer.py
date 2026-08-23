@@ -110,8 +110,9 @@ async def get_rascunho(project_id: str, sprint_numero: int):
     """
     client = get_client()
 
-    # Upsert: cria o rascunho se não existir; retorna o existente se já houver.
-    upsert_resp = (
+    # Insert-only upsert: cria o rascunho se não existir; ignora conflito se já houver.
+    # ignore_duplicates=True garante que nunca sobrescreve step_atual/dados_json existentes.
+    (
         client.table("planning_rascunhos")
         .upsert(
             {
@@ -121,12 +122,21 @@ async def get_rascunho(project_id: str, sprint_numero: int):
                 "dados_json": {},
             },
             on_conflict="project_id,sprint_numero",
+            ignore_duplicates=True,
         )
         .execute()
     )
-    if not upsert_resp.data:
+    # Sempre busca a linha real (nova ou pré-existente) via SELECT explícito.
+    fetch_resp = (
+        client.table("planning_rascunhos")
+        .select("*")
+        .eq("project_id", project_id)
+        .eq("sprint_numero", sprint_numero)
+        .execute()
+    )
+    if not fetch_resp.data:
         raise HTTPException(status_code=500, detail="Falha ao criar/buscar rascunho")
-    rascunho = upsert_resp.data[0]
+    rascunho = fetch_resp.data[0]
 
     # Throughput de referência (funcionalidades/sprint das últimas 3 sprints)
     throughput_ref = calcular_throughput_ref(project_id, sprint_numero, client)
