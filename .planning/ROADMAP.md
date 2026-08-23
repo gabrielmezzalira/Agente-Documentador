@@ -226,7 +226,7 @@ Plans:
   5. Template de Planning preenchido automaticamente com itens, recortes, responsáveis, transbordos e throughput de referência
   6. Rascunho nunca vira Planning oficial sem confirmação humana explícita
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 Plans:
 **Wave 1**
 
@@ -234,7 +234,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 10-02-PLAN.md — POST /composer/gerar (Gemini) + PlanningTab.tsx wizard 4 passos + api.ts funções + page.tsx tab wiring
+- [x] 10-02-PLAN.md — POST /composer/gerar (Gemini) + PlanningTab.tsx wizard 4 passos + api.ts funções + page.tsx tab wiring
 
 **UI hint:** yes
 
@@ -286,6 +286,6 @@ Plans:
 | 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | Complete | 2026-08-22 |
 | 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
-| 10. Composer de Planning | 1/2 | In Progress|  |
+| 10. Composer de Planning | 2/2 | In Progress|  |
 | 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
 | 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
