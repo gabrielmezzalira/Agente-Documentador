@@ -196,15 +196,15 @@ Plans:
   5. Bloco D exibe tempo médio e p85 por fase de status e eficiência de fluxo do projeto; detalhe individual por funcionalidade disponível
   6. Kanban de sprint exibe funcionalidades em 3 colunas (Planejado / Em andamento / Concluído) sem persistir estado próprio — coluna Transbordou removida por decisão D-07; funcionalidades multi-sprint têm badge com sprint planejada
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Tracer: Backend GET /projects/{id}/painel (4 blocks calculated) + PainelTab.tsx stub + page.tsx tab wiring
+- [x] 08-01-PLAN.md — Tracer: Backend GET /projects/{id}/painel (4 blocks calculated) + PainelTab.tsx stub + page.tsx tab wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-02-PLAN.md — Expansion: Full polished PainelTab with Bloco A/B/C/D visual details, Bloco D accordion, kanban 3 columns with sprint dropdown
+- [x] 08-02-PLAN.md — Expansion: Full polished PainelTab with Bloco A/B/C/D visual details, Bloco D accordion, kanban 3 columns with sprint dropdown
 
 **UI hint:** yes
 
@@ -290,7 +290,7 @@ Plans:
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
 | 6. Token Usage Panel | 0/2 | Not started | - |
 | 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | In Progress|  |
-| 8. Painel do Gerente + Kanban de Sprint | 0/TBD | Not started | - |
+| 8. Painel do Gerente + Kanban de Sprint | 2/2 | In Progress|  |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 0/TBD | Not started | - |
 | 11. Suíte de Verificação de Aceite | 0/TBD | Not started | - |
