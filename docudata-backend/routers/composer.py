@@ -2,11 +2,29 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, field_validator
 
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/composer", tags=["composer"])
+
+# ---------------------------------------------------------------------------
+# Constante do sistema — prompt para geração do planning
+# ---------------------------------------------------------------------------
+
+_PLANNING_SYSTEM_PROMPT = """Você é um assistente especializado em documentação de projetos de dados do CITi.
+Sua tarefa é gerar um documento de Planning em markdown, em português, de forma objetiva e estruturada.
+
+O documento deve conter as seguintes seções:
+1. **Objetivo da Sprint** — uma frase descrevendo o foco principal da sprint
+2. **Funcionalidades Selecionadas** — lista das funcionalidades com os critérios de aceite recortados para esta sprint
+3. **Responsabilidades** — quem é responsável por cada funcionalidade (se informado)
+4. **Transbordos da Sprint Anterior** — funcionalidades que não foram concluídas na sprint anterior e entram nesta
+5. **Throughput de Referência** — média de funcionalidades concluídas nas últimas 3 sprints (informação de contexto)
+
+Retorne APENAS o markdown, sem texto antes ou depois, sem blocos de código, sem backticks."""
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +41,11 @@ class RascunhoResponse(BaseModel):
 class PatchRascunhoBody(BaseModel):
     step_atual: int
     dados_json: dict
+
+
+class GerarBody(BaseModel):
+    project_id: str
+    sprint_numero: int
 
 
 class ConfirmarBody(BaseModel):
@@ -230,3 +253,171 @@ async def confirmar_planning(body: ConfirmarBody):
         "content": doc["content"],
         "created_at": doc["created_at"],
     }
+
+
+# ---------------------------------------------------------------------------
+# Helper: montar contexto de texto para o Gemini
+# ---------------------------------------------------------------------------
+
+
+def _montar_contexto_gerar(
+    rascunho: dict,
+    funcs_map: dict,
+    projeto: dict,
+    throughput_ref: Optional[float],
+    transbordos: list[dict],
+) -> str:
+    """Monta o bloco de contexto que será enviado como HumanMessage ao Gemini."""
+    dados: dict = rascunho.get("dados_json") or {}
+    sprint_numero: int = rascunho.get("sprint_numero", 0)
+    selecionadas: list[str] = dados.get("funcionalidades_selecionadas") or []
+    recortes: dict = dados.get("recortes") or {}
+    alocacoes: dict = dados.get("alocacoes") or {}
+    transbordos_ids: list[str] = dados.get("transbordos") or []
+
+    linhas: list[str] = [
+        f"Projeto: {projeto.get('name', '')}",
+        f"Cliente: {projeto.get('client', '')}",
+        f"Sprint: {sprint_numero}",
+        "",
+    ]
+
+    if throughput_ref is not None:
+        linhas.append(
+            f"Throughput de referência (últimas 3 sprints): {throughput_ref} funcionalidades/sprint"
+        )
+    else:
+        linhas.append("Throughput de referência: sem dados disponíveis")
+    linhas.append("")
+
+    # Transbordos da sprint anterior
+    if transbordos:
+        linhas.append("## Transbordos da sprint anterior (não concluídos):")
+        for t in transbordos:
+            linhas.append(f"- {t.get('titulo', t.get('id', ''))}")
+        linhas.append("")
+    elif transbordos_ids:
+        linhas.append("## Transbordos da sprint anterior:")
+        for tid in transbordos_ids:
+            func = funcs_map.get(tid)
+            titulo = func.get("titulo", tid) if func else tid
+            linhas.append(f"- {titulo}")
+        linhas.append("")
+
+    # Funcionalidades selecionadas com critérios recortados
+    linhas.append("## Funcionalidades selecionadas para esta sprint:")
+    for func_id in selecionadas:
+        func = funcs_map.get(func_id)
+        if not func:
+            continue
+        titulo = func.get("titulo", func_id)
+        criterios: list[str] = func.get("criterios_aceite") or []
+        indices = [i for i in (recortes.get(func_id) or []) if i < len(criterios)]
+        responsavel = alocacoes.get(func_id, "")
+
+        linhas.append(f"\n### {titulo}")
+        if responsavel:
+            linhas.append(f"Responsável: {responsavel}")
+        if indices:
+            linhas.append("Critérios de aceite para esta sprint:")
+            for i in indices:
+                linhas.append(f"  - {criterios[i]}")
+        else:
+            linhas.append("Critérios de aceite: (nenhum recorte especificado)")
+
+    return "\n".join(linhas)
+
+
+# ---------------------------------------------------------------------------
+# Endpoint: POST /gerar
+# ---------------------------------------------------------------------------
+
+
+@router.post("/gerar")
+async def gerar_planning(body: GerarBody):
+    """Gera o texto do planning via Gemini sem persistir.
+
+    Retorna {"markdown": str}. A persistência ocorre somente em POST /confirmar.
+    Conforme D-06: preview via react-markdown, confirmação explícita antes de oficializar.
+    """
+    client = get_client()
+
+    # Buscar o rascunho (404 se não existe)
+    rascunho_resp = (
+        client.table("planning_rascunhos")
+        .select("*")
+        .eq("project_id", body.project_id)
+        .eq("sprint_numero", body.sprint_numero)
+        .execute()
+    )
+    if not rascunho_resp.data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Rascunho não encontrado para projeto {body.project_id} sprint {body.sprint_numero}",
+        )
+    rascunho = rascunho_resp.data[0]
+
+    # Buscar projeto para obter gemini_api_key (422 se ausente/vazia)
+    proj_resp = (
+        client.table("projects")
+        .select("name, client, gemini_api_key")
+        .eq("id", body.project_id)
+        .execute()
+    )
+    if not proj_resp.data:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    projeto = proj_resp.data[0]
+    api_key = (projeto.get("gemini_api_key") or "").strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=422,
+            detail="Este projeto não tem uma chave de API do Gemini configurada.",
+        )
+
+    # Buscar todas as funcionalidades do projeto
+    funcs_resp = (
+        client.table("funcionalidades")
+        .select("*")
+        .eq("project_id", body.project_id)
+        .execute()
+    )
+    funcs_map: dict[str, dict] = {
+        f["id"]: f for f in (funcs_resp.data or [])
+    }
+
+    # Calcular throughput_ref e transbordos para contexto
+    throughput_ref = calcular_throughput_ref(body.project_id, body.sprint_numero, client)
+
+    sprint_anterior = str(body.sprint_numero - 1)
+    transbordos_resp = (
+        client.table("funcionalidades")
+        .select("id, titulo, sprint_alvo, status")
+        .eq("project_id", body.project_id)
+        .eq("sprint_alvo", sprint_anterior)
+        .neq("status", "concluida")
+        .execute()
+    )
+    transbordos = transbordos_resp.data or []
+
+    # Montar contexto
+    contexto = _montar_contexto_gerar(rascunho, funcs_map, projeto, throughput_ref, transbordos)
+
+    # Chamar Gemini
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash-lite",
+        max_tokens=2048,
+        google_api_key=api_key,
+    )
+    try:
+        result = await llm.ainvoke(
+            [
+                SystemMessage(content=_PLANNING_SYSTEM_PROMPT),
+                HumanMessage(content=contexto),
+            ]
+        )
+        markdown: str = result.content  # type: ignore[assignment]
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini failed: {exc}")
+
+    # NÃO persistir — retornar apenas o markdown (D-06)
+    return {"markdown": markdown}
