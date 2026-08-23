@@ -66,7 +66,7 @@ def calcular_bloco_a(proj: dict, funcs: list[dict]) -> dict:
     }
 
 
-def calcular_bloco_b(funcs: list[dict], transicoes: list[dict]) -> dict:
+def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None) -> dict:
     hoje = datetime.now(timezone.utc)
 
     ultima_transicao_status: dict[str, datetime] = {}
@@ -118,10 +118,29 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict]) -> dict:
         if status == "em_ajuste":
             em_ajuste.append({"id": fid, "titulo": titulo})
 
+    if revisao_recente:
+        achados_raw: list[dict] = revisao_recente.get("achados") or []
+        achados_criticos = [
+            a for a in achados_raw
+            if a.get("severidade") in ("CRITICA", "ALTA") and a.get("confianca") == "ALTA"
+        ]
+        relatorio_gerente = revisao_recente.get("relatorio_gerente")
+        relatorio_tecnico = revisao_recente.get("relatorio_tecnico")
+        data_revisao = revisao_recente.get("data_revisao")
+    else:
+        achados_criticos = []
+        relatorio_gerente = None
+        relatorio_tecnico = None
+        data_revisao = None
+
     return {
         "travadas": travadas,
         "aguardando_cliente": aguardando_cliente,
         "em_ajuste": em_ajuste,
+        "achados_criticos": achados_criticos,
+        "relatorio_gerente": relatorio_gerente,
+        "relatorio_tecnico": relatorio_tecnico,
+        "data_revisao": data_revisao,
     }
 
 
@@ -295,8 +314,18 @@ async def get_painel(project_id: str):
         )
         trans_list = trans_result.data or []
 
+    revisao_resp = (
+        client.table("revisoes_diarias")
+        .select("achados, relatorio_gerente, relatorio_tecnico, data_revisao")
+        .eq("project_id", project_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    revisao_recente = revisao_resp.data[0] if revisao_resp.data else None
+
     bloco_a = calcular_bloco_a(proj, func_list)
-    bloco_b = calcular_bloco_b(func_list, trans_list)
+    bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente)
     bloco_c = calcular_bloco_c(func_list, trans_list)
     bloco_d = calcular_bloco_d(func_list, trans_list)
 

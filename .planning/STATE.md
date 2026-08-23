@@ -1,10 +1,10 @@
-## Feature Flow em Progresso
+## Phase 09 — Revisor Diário Generalizado
 
-> **Sessão anterior encerrada com feature-flow ativo.**
-> Use `/feature-flow` para retomar de onde parou.
+**Status:** Complete
+**Completed:** 2026-08-23
 
-- **Feature:** Agente Documentador v2 — Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto (Phase 7)
-- **Etapa atual:** Plano de implementação (gsd-plan-phase)
-- **Última sessão:** 2026-08-23T02:26:28Z
+Both plans executed and verified (6/6 success criteria):
+- 09-01: Migration SQL + schemas + POST /ingest/revisao + calcular_bloco_b expandido
+- 09-02: revisor_agent.py + revisor.yml + PainelTab.tsx toggle gerente/técnico
 
-Para retomar: `/feature-flow` — a skill vai detectar o estado automaticamente.
+Next phase: check ROADMAP.md for next unplanned phase.

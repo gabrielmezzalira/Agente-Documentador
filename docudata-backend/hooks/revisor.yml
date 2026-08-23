@@ -1,0 +1,40 @@
+# DocuData Revisor Diário — GitHub Actions Workflow
+#
+# Instalação no repositório do projeto:
+#   mkdir -p .github/workflows scripts
+#   cp <caminho>/revisor_agent.py scripts/revisor_agent.py
+#   cp <caminho>/revisor.yml     .github/workflows/revisor.yml
+#   git add .github/workflows/revisor.yml scripts/revisor_agent.py
+#   git commit -m "chore: adicionar DocuData revisor diário"
+#
+# Configurar GitHub Secrets no repositório do projeto:
+#   DOCUDATA_API_URL     — https://docudata-backend.railway.app
+#   DOCUDATA_PROJECT_ID  — UUID do projeto no DocuData
+
+name: DocuData Revisor Diário
+
+on:
+  # Roda todos os dias às 08:00 UTC (05:00 BRT). Ajuste o horário conforme necessário.
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch: {}  # permite trigger manual para teste sem esperar o cron
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    # Revisão é best-effort: indisponibilidade do DocuData não bloqueia o repositório.
+    continue-on-error: true
+    permissions:
+      contents: read  # apenas leitura — o revisor nunca altera código ou estado do repo
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 necessário para git log --since='24 hours ago' ver o histórico completo
+          fetch-depth: 0
+
+      - name: Executar revisão diária
+        continue-on-error: true
+        env:
+          DOCUDATA_API_URL:    ${{ secrets.DOCUDATA_API_URL }}
+          DOCUDATA_PROJECT_ID: ${{ secrets.DOCUDATA_PROJECT_ID }}
+        run: python scripts/revisor_agent.py

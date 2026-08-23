@@ -76,6 +76,26 @@ INSERT INTO sprints (project_id, numero)
 SELECT DISTINCT project_id, sprint_number FROM ingestions
 ON CONFLICT (project_id, numero) DO NOTHING;
 
+-- Phase 9: Revisor Diário
+CREATE TABLE IF NOT EXISTS revisoes_diarias (
+    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id          uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    data_revisao        date        NOT NULL,
+    achados             jsonb       NOT NULL DEFAULT '[]',
+    relatorio_gerente   text        NOT NULL DEFAULT '',
+    relatorio_tecnico   text        NOT NULL DEFAULT '',
+    commits_analisados  int         NOT NULL DEFAULT 0,
+    diff_chars_total    int         NOT NULL DEFAULT 0,
+    created_at          timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_revisoes_diarias_project_created
+    ON revisoes_diarias (project_id, created_at DESC);
+
+-- Se a tabela já existe, rode:
+-- CREATE TABLE IF NOT EXISTS revisoes_diarias ( ... );
+-- CREATE INDEX IF NOT EXISTS idx_revisoes_diarias_project_created ON revisoes_diarias (project_id, created_at DESC);
+
 -- Se as tabelas já existem, rode também:
 -- CREATE TABLE IF NOT EXISTS sprints (
 --     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

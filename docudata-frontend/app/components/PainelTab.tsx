@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   getPainel,
   listFuncionalidades,
+  type AchadoCritico,
   type BlocoD,
   type FuncionalidadeResponse,
   type PainelData,
@@ -131,6 +132,7 @@ function BlocoACard({
 }
 
 function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
+  const [visaoRelatorio, setVisaoRelatorio] = useState<"gerente" | "tecnico">("gerente");
   const sep = (
     <hr style={{ border: "none", borderTop: "1px solid #f0f0f4", margin: "10px 0" }} />
   );
@@ -229,6 +231,109 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
             </span>
           ))}
         </div>
+      )}
+
+      {bloco.achados_criticos !== undefined && (
+        <>
+          {sep}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ ...subSectionTitleStyle, marginTop: 12 }}>
+              Achados do Revisor{" "}
+              <span
+                style={{
+                  ...chipBaseStyle,
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                  fontSize: 11,
+                }}
+              >
+                {bloco.achados_criticos.length}
+              </span>
+            </p>
+            <div style={{ display: "flex", gap: 4 }}>
+              {(["gerente", "tecnico"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setVisaoRelatorio(v)}
+                  style={{
+                    background: visaoRelatorio === v ? "#111116" : "#f1f5f9",
+                    color: visaoRelatorio === v ? "#ffffff" : "#374151",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "3px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {v === "gerente" ? "Gerente" : "Técnico"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {bloco.data_revisao && (
+            <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 8px" }}>
+              Revisão de {bloco.data_revisao}
+            </p>
+          )}
+
+          {bloco.achados_criticos.length === 0 ? (
+            <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
+              Nenhum achado crítico/alta com alta confiança
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {bloco.achados_criticos.map((a: AchadoCritico, i: number) => (
+                <div key={i} style={{ borderLeft: "3px solid #dc2626", paddingLeft: 8 }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
+                    <span
+                      style={{
+                        ...chipBaseStyle,
+                        background: a.severidade === "CRITICA" ? "#fee2e2" : "#ffedd5",
+                        color: a.severidade === "CRITICA" ? "#dc2626" : "#c2410c",
+                        fontSize: 10,
+                      }}
+                    >
+                      {a.severidade}
+                    </span>
+                    {visaoRelatorio === "tecnico" && (
+                      <span style={{ fontSize: 11, color: "#9696a0", fontFamily: "monospace" }}>
+                        {a.referencia}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: "#374151", margin: 0, lineHeight: 1.4 }}>
+                    {visaoRelatorio === "gerente" ? a.descricao_gerente : a.descricao_tecnica}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(bloco.relatorio_gerente || bloco.relatorio_tecnico) && (
+            <div
+              style={{
+                marginTop: 10,
+                background: "#f7f7fa",
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "#374151",
+                  margin: 0,
+                  lineHeight: 1.5,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {visaoRelatorio === "gerente" ? bloco.relatorio_gerente : bloco.relatorio_tecnico}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

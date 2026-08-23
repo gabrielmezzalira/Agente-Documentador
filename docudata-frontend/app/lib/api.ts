@@ -673,10 +673,22 @@ export interface BlocoA {
   desvio_pontos?: number;
 }
 
+export interface AchadoCritico {
+  severidade: "CRITICA" | "ALTA";
+  confianca: "ALTA";
+  referencia: string;
+  descricao_tecnica: string;
+  descricao_gerente: string;
+}
+
 export interface BlocoB {
   travadas: Array<{ id: string; titulo: string; dias: number }>;
   aguardando_cliente: Array<{ id: string; titulo: string; dias_uteis: number }>;
   em_ajuste: Array<{ id: string; titulo: string }>;
+  achados_criticos?: AchadoCritico[];
+  relatorio_gerente?: string | null;
+  relatorio_tecnico?: string | null;
+  data_revisao?: string | null;
 }
 
 export interface BlocoC {

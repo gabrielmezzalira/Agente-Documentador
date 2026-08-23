@@ -16,6 +16,20 @@ class ConteudoEstruturado(BaseModel):
     tecnologias_removidas: list[str] = Field(default_factory=list, description="Tecnologias explicitamente removidas neste commit: pacote deletado de requirements.txt/package.json, diretorio inteiro excluido, imports completamente removidos de todos os arquivos. So inclua se a remocao for explicita e completa no diff — nunca infira.")
 
 
+class Achado(BaseModel):
+    severidade: str = Field(description="CRITICA | ALTA | MEDIA | BAIXA")
+    confianca: str = Field(description="ALTA | MEDIA | BAIXA")
+    referencia: str = Field(description="arquivo:linha — ex: routers/painel.py:47")
+    descricao_tecnica: str
+    descricao_gerente: str
+
+
+class RevisaoEstruturada(BaseModel):
+    achados: list[Achado]
+    relatorio_gerente: str
+    relatorio_tecnico: str
+
+
 class ProjectCreate(BaseModel):
     name: str
     client: str
