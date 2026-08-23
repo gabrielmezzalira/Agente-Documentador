@@ -733,3 +733,110 @@ export async function listFuncionalidades(projectId: string): Promise<Funcionali
   if (!res.ok) throw new Error("Erro ao buscar funcionalidades");
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Composer de Planning — interfaces e funções
+// ---------------------------------------------------------------------------
+
+export interface DadosJson {
+  funcionalidades_selecionadas: string[];
+  recortes: Record<string, number[]>;
+  alocacoes: Record<string, string>;
+  transbordos: string[];
+}
+
+export interface RascunhoData {
+  id: string;
+  project_id: string;
+  sprint_numero: number;
+  step_atual: number;
+  dados_json: DadosJson;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransbordoItem {
+  id: string;
+  titulo: string;
+  sprint_alvo: string;
+  status: string;
+  criterios_aceite: string[];
+}
+
+export interface GetRascunhoResponse {
+  rascunho: RascunhoData;
+  throughput_ref: number | null;
+  transbordos: TransbordoItem[];
+}
+
+export interface GerarResponse {
+  markdown: string;
+}
+
+export interface ConfirmarResponse {
+  doc_id: string;
+  content: string;
+  created_at: string;
+}
+
+export async function getRascunho(
+  projectId: string,
+  sprintNumero: number
+): Promise<GetRascunhoResponse> {
+  const res = await fetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao buscar rascunho");
+  }
+  return res.json();
+}
+
+export async function patchRascunho(
+  projectId: string,
+  sprintNumero: number,
+  payload: { step_atual: number; dados_json: DadosJson }
+): Promise<RascunhoData> {
+  const res = await fetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao salvar rascunho");
+  }
+  return res.json();
+}
+
+export async function gerarPlanning(
+  projectId: string,
+  sprintNumero: number
+): Promise<GerarResponse> {
+  const res = await fetch(`${API}/composer/gerar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, sprint_numero: sprintNumero }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao gerar planning");
+  }
+  return res.json();
+}
+
+export async function confirmarPlanning(
+  projectId: string,
+  sprintNumero: number,
+  markdown: string
+): Promise<ConfirmarResponse> {
+  const res = await fetch(`${API}/composer/confirmar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, sprint_numero: sprintNumero, markdown }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao confirmar planning");
+  }
+  return res.json();
+}
