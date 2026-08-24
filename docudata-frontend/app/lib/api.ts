@@ -23,13 +23,15 @@ export class ValidationError extends Error {
   }
 }
 
+export type Subarea = "dados" | "dev";
+
 export interface Project {
   id: string;
   name: string;
   client: string;
+  subarea: Subarea;
   description?: string;
   budget_usd?: number | null;
-  has_api_key: boolean;
   is_delivered: boolean;
   created_at: string;
   last_ingestion_at?: string | null;
@@ -82,6 +84,12 @@ export interface ProjectUsage {
   breakdown: Record<string, UsageBucket>;
   items: UsageItem[];
   truncated: boolean;
+}
+
+export interface GeminiApiKeyStatus {
+  configured: boolean;
+  key_hint: string | null;
+  updated_at: string | null;
 }
 
 export interface Ingestion {
@@ -162,8 +170,8 @@ export interface SprintDocResponse {
   created_at: string;
 }
 
-export async function listProjects(): Promise<Project[]> {
-  const res = await apiFetch("/projects");
+export async function listProjects(subarea: Subarea): Promise<Project[]> {
+  const res = await apiFetch(`/projects?subarea=${encodeURIComponent(subarea)}`);
   if (!res.ok) throw new Error("Erro ao buscar projetos");
   return res.json();
 }
@@ -187,23 +195,13 @@ export async function getProjectUsage(projectId: string, month?: string): Promis
   return res.json();
 }
 
-export async function updateApiKey(projectId: string, key: string | null): Promise<Project> {
-  const res = await apiFetch(`/projects/${projectId}/api-key`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ gemini_api_key: key }),
-  });
-  if (!res.ok) throw new Error("Erro ao atualizar chave de API");
-  return res.json();
-}
-
 export async function createProject(data: {
   name: string;
   client: string;
+  subarea: Subarea;
   description?: string;
   squad?: string;
   budget_usd?: number | null;
-  gemini_api_key?: string;
 }): Promise<Project> {
   const res = await apiFetch("/projects", {
     method: "POST",
@@ -211,6 +209,22 @@ export async function createProject(data: {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Erro ao criar projeto");
+  return res.json();
+}
+
+export async function getGeminiApiKeyStatus(): Promise<GeminiApiKeyStatus> {
+  const res = await apiFetch("/settings/gemini");
+  if (!res.ok) throw new Error("Erro ao consultar configuração do Gemini");
+  return res.json();
+}
+
+export async function updateGeminiApiKey(apiKey: string): Promise<GeminiApiKeyStatus> {
+  const res = await apiFetch("/settings/gemini/api-key", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!res.ok) throw new Error("Erro ao salvar chave do Gemini");
   return res.json();
 }
 
@@ -265,8 +279,10 @@ export async function toggleDelivered(projectId: string): Promise<Project> {
   return res.json();
 }
 
-export async function searchStack(query: string): Promise<StackSearchResponse> {
-  const res = await apiFetch(`/search?q=${encodeURIComponent(query)}`);
+export async function searchStack(query: string, subarea: Subarea): Promise<StackSearchResponse> {
+  const res = await apiFetch(
+    `/search?q=${encodeURIComponent(query)}&subarea=${encodeURIComponent(subarea)}`
+  );
   if (!res.ok) throw new Error("Erro ao buscar stack");
   return res.json();
 }

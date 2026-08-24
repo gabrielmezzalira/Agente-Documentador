@@ -1,18 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { createProject } from "../../lib/api";
+import { createProject, type Subarea } from "../../../lib/api";
 
 export default function NewProject() {
   const router = useRouter();
+  const { subarea } = useParams<{ subarea: Subarea }>();
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [description, setDescription] = useState("");
   const [squad, setSquad] = useState("");
   const [budgetStr, setBudgetStr] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,8 +22,8 @@ export default function NewProject() {
     setLoading(true);
     const budget_usd = budgetStr.trim() ? parseFloat(budgetStr) : null;
     try {
-      const project = await createProject({ name, client, description, squad: squad || undefined, budget_usd, gemini_api_key: apiKey || undefined });
-      router.push(`/projects/${project.id}`);
+      const project = await createProject({ name, client, subarea, description, squad: squad || undefined, budget_usd });
+      router.push(`/${subarea}/projects/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar projeto");
     } finally {
@@ -33,7 +33,7 @@ export default function NewProject() {
 
   return (
     <main style={{ maxWidth: 520, margin: "0 auto", padding: "52px 24px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#9696a0", display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#9696a0", display: "inline-flex", alignItems: "center", gap: 6 }}>
         ← Projetos
       </Link>
 
@@ -72,14 +72,6 @@ export default function NewProject() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Breve descrição do escopo..."
           />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Chave de API do Gemini</label>
-          <input style={inputStyle} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="AIza..." />
-          <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
-            Obtida em <strong style={{ color: "#9696a0" }}>aistudio.google.com</strong> → Get API Key.
-          </p>
         </div>
 
         <div>

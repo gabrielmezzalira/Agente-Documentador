@@ -8,7 +8,6 @@ import {
   getProject,
   getProjectCost,
   getProjectUsage,
-  updateApiKey,
   listIngestions,
   listIngestionsBySprint,
   listDocs,
@@ -32,16 +31,16 @@ import {
   type ProjectUsage,
   type SprintWithStatus,
   type SprintDocType,
-} from "../../lib/api";
-import Tabs from "../../components/Tabs";
-import SprintCard from "../../components/SprintCard";
-import SprintDocModal from "../../components/SprintDocModal";
-import TechnologiesTab from "../../components/TechnologiesTab";
-import DocTypeCard from "../../components/DocTypeCard";
-import ManualDocModal from "../../components/ManualDocModal";
-import UploadLivreModal from "../../components/UploadLivreModal";
-import RetroModal from "../../components/RetroModal";
-import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
+} from "../../../lib/api";
+import Tabs from "../../../components/Tabs";
+import SprintCard from "../../../components/SprintCard";
+import SprintDocModal from "../../../components/SprintDocModal";
+import TechnologiesTab from "../../../components/TechnologiesTab";
+import DocTypeCard from "../../../components/DocTypeCard";
+import ManualDocModal from "../../../components/ManualDocModal";
+import UploadLivreModal from "../../../components/UploadLivreModal";
+import RetroModal from "../../../components/RetroModal";
+import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
 
 type TabId = "sprints" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
@@ -81,7 +80,7 @@ function humanizeLabel(label: string): string {
 }
 
 export default function ProjectDashboard() {
-  const { id } = useParams<{ id: string }>();
+  const { id, subarea } = useParams<{ id: string; subarea: string }>();
   const router = useRouter();
 
   // ---------- data ----------
@@ -135,11 +134,6 @@ export default function ProjectDashboard() {
   const [exportingDocId, setExportingDocId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<Record<string, string>>({});
 
-  // ---------- api key ----------
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [apiKeyMsg, setApiKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [savingKey, setSavingKey] = useState(false);
-
   // ---------- bootstrap ----------
   useEffect(() => {
     Promise.all([
@@ -191,23 +185,6 @@ export default function ProjectDashboard() {
   }
 
   // ---------- handlers ----------
-  async function handleSaveApiKey(e: React.FormEvent) {
-    e.preventDefault();
-    if (!apiKeyInput.trim()) return;
-    setSavingKey(true);
-    setApiKeyMsg(null);
-    try {
-      const updated = await updateApiKey(id, apiKeyInput.trim());
-      setProject(updated);
-      setApiKeyInput("");
-      setApiKeyMsg({ ok: true, text: "Chave salva com sucesso." });
-    } catch {
-      setApiKeyMsg({ ok: false, text: "Erro ao salvar chave." });
-    } finally {
-      setSavingKey(false);
-    }
-  }
-
   async function handleCreateSprint() {
     try {
       await createSprint(id);
@@ -248,7 +225,7 @@ export default function ProjectDashboard() {
   async function handleDeleteProject() {
     if (!confirm(`Excluir o projeto "${project?.name}"? Todas as ingestões e documentos serão removidos.`))
       return;
-    try { await deleteProject(id); router.push("/"); }
+    try { await deleteProject(id); router.push(`/${subarea}`); }
     catch { alert("Erro ao excluir projeto."); }
   }
 
@@ -404,7 +381,7 @@ export default function ProjectDashboard() {
 
   return (
     <main style={{ maxWidth: 920, margin: "0 auto", padding: "48px 24px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
+      <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
 
       {/* HEADER */}
       <div style={{ marginTop: 24, marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "start", gap: 16 }}>
@@ -437,33 +414,6 @@ export default function ProjectDashboard() {
           )}
         </div>
       </div>
-
-      {/* API KEY ALERT — sempre visível se faltando */}
-      {!project.has_api_key && (
-        <section style={{ ...alertBox }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", margin: 0, marginBottom: 12 }}>
-            Chave de API do Gemini não configurada — uploads e geração de documentos não funcionarão.
-          </p>
-          <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="password"
-              placeholder="AIza..."
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              style={{ ...inputStyle, flex: 1 }}
-              required
-            />
-            <button type="submit" disabled={savingKey} style={btnPrimary}>
-              {savingKey ? "Salvando..." : "Salvar chave"}
-            </button>
-          </form>
-          {apiKeyMsg && (
-            <p style={{ marginTop: 10, fontSize: 13, color: apiKeyMsg.ok ? "#16a34a" : "#dc2626" }}>
-              {apiKeyMsg.text}
-            </p>
-          )}
-        </section>
-      )}
 
       <Tabs
         tabs={[
@@ -848,27 +798,6 @@ export default function ProjectDashboard() {
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
         <>
-          <section style={sectionStyle}>
-            <h2 style={sectionTitle}>Chave da API do Gemini</h2>
-            {project.has_api_key ? (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>Chave configurada</span>
-                <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="password" placeholder="Nova chave..." value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} style={{ ...inputStyle, width: 240 }} />
-                  <button type="submit" disabled={savingKey || !apiKeyInput.trim()} style={btnSecondary}>
-                    {savingKey ? "..." : "Trocar"}
-                  </button>
-                </form>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <input type="password" placeholder="AIza..." value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} style={{ ...inputStyle, flex: 1 }} required />
-                <button type="submit" disabled={savingKey} style={btnPrimary}>{savingKey ? "Salvando..." : "Salvar"}</button>
-              </form>
-            )}
-            {apiKeyMsg && <p style={{ marginTop: 10, fontSize: 13, color: apiKeyMsg.ok ? "#16a34a" : "#dc2626" }}>{apiKeyMsg.text}</p>}
-          </section>
-
           {cost !== null && (
             <section style={sectionStyle}>
               <h2 style={sectionTitle}>Custo de IA</h2>
@@ -1163,13 +1092,6 @@ const btnDeliveredActive: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
-};
-const alertBox: React.CSSProperties = {
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  borderRadius: 12,
-  padding: "16px 20px",
-  marginBottom: 18,
 };
 const badgeChip: React.CSSProperties = {
   display: "inline-block",
