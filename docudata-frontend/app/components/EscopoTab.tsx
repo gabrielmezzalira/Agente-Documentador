@@ -7,6 +7,7 @@ import {
   importarFuncionalidades,
   importarFuncionalidadesArquivo,
   confirmarImportacao,
+  createFuncionalidade,
 } from "../lib/api";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
@@ -37,7 +38,7 @@ const STATUS_COLOR: Record<string, string> = {
   concluida: "#16a34a",
 };
 
-type Step = "idle" | "input" | "loading" | "review" | "saving";
+type Step = "idle" | "input" | "loading" | "review" | "saving" | "manual";
 type InputMode = "texto" | "arquivo";
 
 interface Props {
@@ -56,6 +57,37 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // formulário manual
+  const emptyForm = { id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "" };
+  const [form, setForm] = useState(emptyForm);
+  const [savingManual, setSavingManual] = useState(false);
+
+  async function handleSalvarManual() {
+    if (!form.titulo.trim()) { setErro("Título é obrigatório."); return; }
+    const criterios = form.criterios_aceite.filter(c => c.trim());
+    if (!criterios.length) { setErro("Adicione ao menos um critério de aceite."); return; }
+    setSavingManual(true);
+    setErro("");
+    try {
+      const nova = await createFuncionalidade({
+        project_id: projectId,
+        id_funcional: form.id_funcional.trim() || `F${String(funcionalidades.length + 1).padStart(2, "0")}`,
+        titulo: form.titulo.trim(),
+        descricao: form.descricao.trim() || undefined,
+        criterios_aceite: criterios,
+        prioridade: form.prioridade,
+        responsavel: form.responsavel.trim() || undefined,
+      });
+      onImported([nova]);
+      setForm(emptyForm);
+      setStep("idle");
+    } catch (e: unknown) {
+      setErro((e as Error).message);
+    } finally {
+      setSavingManual(false);
+    }
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -144,16 +176,26 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
           </p>
         </div>
         {step === "idle" && (
-          <button
-            onClick={() => setStep("input")}
-            style={{
-              background: "#0f172a", color: "#fff", border: "none", borderRadius: 8,
-              padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            + Importar do contrato
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { setStep("manual"); setErro(""); setForm(emptyForm); }}
+              style={{
+                background: "#fff", color: "#0f172a", border: "1px solid #cbd5e1", borderRadius: 8,
+                padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              + Adicionar manualmente
+            </button>
+            <button
+              onClick={() => setStep("input")}
+              style={{
+                background: "#0f172a", color: "#fff", border: "none", borderRadius: 8,
+                padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              + Importar do contrato
+            </button>
+          </div>
         )}
       </div>
 
@@ -424,6 +466,100 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
           padding: 40, textAlign: "center", marginBottom: 24,
         }}>
           <p style={{ color: "#475569", fontSize: 14, margin: 0 }}>Salvando funcionalidades...</p>
+        </div>
+      )}
+
+      {step === "manual" && (
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 20px" }}>Nova funcionalidade</h3>
+
+          {[
+            { label: "ID funcional", key: "id_funcional", placeholder: "Ex: F01 (opcional — gerado automaticamente)", required: false },
+            { label: "Título *", key: "titulo", placeholder: "Ex: Autenticação de usuários", required: true },
+            { label: "Descrição", key: "descricao", placeholder: "Contexto adicional (opcional)", required: false },
+            { label: "Responsável", key: "responsavel", placeholder: "Nome do responsável (opcional)", required: false },
+          ].map(({ label, key, placeholder }) => (
+            <div key={key} style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+              <input
+                value={(form as Record<string, string>)[key]}
+                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
+                placeholder={placeholder}
+                style={{
+                  width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 8,
+                  padding: "9px 12px", fontSize: 13, outline: "none", color: "#0f172a",
+                }}
+              />
+            </div>
+          ))}
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Prioridade</label>
+            <select
+              value={form.prioridade}
+              onChange={(e) => setForm(f => ({ ...f, prioridade: e.target.value }))}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "#0f172a", background: "#fff" }}
+            >
+              {[["must", "Must"], ["should", "Should"], ["could", "Could"], ["wont", "Won't"]].map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Critérios de aceite *</label>
+            {form.criterios_aceite.map((c, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input
+                  value={c}
+                  onChange={(e) => {
+                    const next = [...form.criterios_aceite];
+                    next[i] = e.target.value;
+                    setForm(f => ({ ...f, criterios_aceite: next }));
+                  }}
+                  placeholder={`Critério ${i + 1}`}
+                  style={{
+                    flex: 1, border: "1px solid #cbd5e1", borderRadius: 8,
+                    padding: "9px 12px", fontSize: 13, outline: "none", color: "#0f172a",
+                  }}
+                />
+                {form.criterios_aceite.length > 1 && (
+                  <button
+                    onClick={() => setForm(f => ({ ...f, criterios_aceite: f.criterios_aceite.filter((_, j) => j !== i) }))}
+                    style={{ background: "none", border: "none", color: "#dc2626", fontSize: 18, cursor: "pointer", padding: "0 4px" }}
+                  >×</button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setForm(f => ({ ...f, criterios_aceite: [...f.criterios_aceite, ""] }))}
+              style={{ fontSize: 12, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              + Adicionar critério
+            </button>
+          </div>
+
+          {erro && <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{erro}</p>}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={handleSalvarManual}
+              disabled={savingManual}
+              style={{
+                background: savingManual ? "#e2e8f0" : "#0f172a", color: savingManual ? "#94a3b8" : "#fff",
+                border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                cursor: savingManual ? "not-allowed" : "pointer",
+              }}
+            >
+              {savingManual ? "Salvando..." : "Salvar funcionalidade"}
+            </button>
+            <button
+              onClick={() => { setStep("idle"); setErro(""); }}
+              style={{ background: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 

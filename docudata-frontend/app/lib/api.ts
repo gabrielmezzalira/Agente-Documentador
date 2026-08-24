@@ -777,6 +777,27 @@ export async function importarFuncionalidadesArquivo(
   return data.propostas as FuncionalidadeProposta[];
 }
 
+export async function createFuncionalidade(data: {
+  project_id: string;
+  id_funcional: string;
+  titulo: string;
+  descricao?: string;
+  criterios_aceite: string[];
+  prioridade: string;
+  responsavel?: string;
+}): Promise<FuncionalidadeResponse> {
+  const res = await fetch(`${API}/funcionalidades`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao criar funcionalidade");
+  }
+  return res.json();
+}
+
 export async function confirmarImportacao(
   projectId: string,
   itens: { proposta: FuncionalidadeProposta; confirmed: boolean }[],
