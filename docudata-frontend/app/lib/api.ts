@@ -777,6 +777,29 @@ export async function importarFuncionalidadesArquivo(
   return data.propostas as FuncionalidadeProposta[];
 }
 
+export async function updateFuncionalidade(
+  id: string,
+  data: {
+    titulo?: string;
+    descricao?: string;
+    criterios_aceite?: string[];
+    prioridade?: string;
+    responsavel?: string;
+    id_funcional?: string;
+  },
+): Promise<FuncionalidadeResponse> {
+  const res = await fetch(`${API}/funcionalidades/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao atualizar funcionalidade");
+  }
+  return res.json();
+}
+
 export async function createFuncionalidade(data: {
   project_id: string;
   id_funcional: string;

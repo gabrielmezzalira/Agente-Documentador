@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
@@ -8,6 +8,7 @@ import {
   importarFuncionalidadesArquivo,
   confirmarImportacao,
   createFuncionalidade,
+  updateFuncionalidade,
 } from "../lib/api";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
@@ -57,6 +58,42 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ id_funcional: string; titulo: string; descricao: string; criterios_aceite: string[]; prioridade: string; responsavel: string }>({ id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [erroEdit, setErroEdit] = useState("");
+  const [funcList, setFuncList] = useState<FuncionalidadeResponse[]>(funcionalidades);
+  useEffect(() => { setFuncList(funcionalidades); }, [funcionalidades]);
+
+  function startEdit(f: FuncionalidadeResponse) {
+    setEditingId(f.id);
+    setEditForm({ id_funcional: f.id_funcional, titulo: f.titulo, descricao: f.descricao ?? "", criterios_aceite: f.criterios_aceite.length ? f.criterios_aceite : [""], prioridade: f.prioridade, responsavel: f.responsavel ?? "" });
+    setErroEdit("");
+  }
+
+  async function handleSalvarEdit() {
+    if (!editForm.titulo.trim()) { setErroEdit("Título é obrigatório."); return; }
+    const criterios = editForm.criterios_aceite.filter(c => c.trim());
+    if (!criterios.length) { setErroEdit("Adicione ao menos um critério de aceite."); return; }
+    setSavingEdit(true);
+    setErroEdit("");
+    try {
+      const atualizada = await updateFuncionalidade(editingId!, {
+        id_funcional: editForm.id_funcional.trim() || undefined,
+        titulo: editForm.titulo.trim(),
+        descricao: editForm.descricao.trim() || undefined,
+        criterios_aceite: criterios,
+        prioridade: editForm.prioridade,
+        responsavel: editForm.responsavel.trim() || undefined,
+      });
+      setFuncList(prev => prev.map(f => f.id === atualizada.id ? atualizada : f));
+      setEditingId(null);
+    } catch (e: unknown) {
+      setErroEdit((e as Error).message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   // formulário manual
   const emptyForm = { id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "" };
@@ -72,13 +109,14 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
     try {
       const nova = await createFuncionalidade({
         project_id: projectId,
-        id_funcional: form.id_funcional.trim() || `F${String(funcionalidades.length + 1).padStart(2, "0")}`,
+        id_funcional: form.id_funcional.trim() || `F${String(funcList.length + 1).padStart(2, "0")}`,
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim() || undefined,
         criterios_aceite: criterios,
         prioridade: form.prioridade,
         responsavel: form.responsavel.trim() || undefined,
       });
+      setFuncList(prev => [...prev, nova]);
       onImported([nova]);
       setForm(emptyForm);
       setStep("idle");
@@ -566,78 +604,105 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
       )}
 
       {/* Lista existente */}
-      {funcionalidades.length === 0 && step === "idle" ? (
-        <div style={{
-          background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 12,
-          padding: 48, textAlign: "center",
-        }}>
-          <p style={{ color: "#94a3b8", fontSize: 15, margin: "0 0 8px", fontWeight: 500 }}>
-            Nenhuma funcionalidade cadastrada
-          </p>
-          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
-            Clique em <strong>+ Importar do contrato</strong> para extrair as funcionalidades automaticamente.
-          </p>
+      {funcList.length === 0 && step === "idle" ? (
+        <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 12, padding: 48, textAlign: "center" }}>
+          <p style={{ color: "#94a3b8", fontSize: 15, margin: "0 0 8px", fontWeight: 500 }}>Nenhuma funcionalidade cadastrada</p>
+          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>Clique em <strong>+ Importar do contrato</strong> para extrair as funcionalidades automaticamente.</p>
         </div>
       ) : (
         step !== "review" && step !== "loading" && step !== "saving" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {funcionalidades.map((f) => (
-              <div
-                key={f.id}
-                style={{
-                  background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
-                  padding: "14px 16px", cursor: "pointer",
-                }}
-                onClick={() => setExpanded(expanded === f.id ? null : f.id)}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {funcList.map((f) => (
+              <div key={f.id} style={{ background: "#fff", border: `1px solid ${editingId === f.id ? "#bfdbfe" : "#e2e8f0"}`, borderRadius: 10, padding: "14px 16px" }}>
+
+                {/* Header do card — sempre visível */}
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", cursor: editingId === f.id ? "default" : "pointer" }}
+                  onClick={() => { if (editingId !== f.id) setExpanded(expanded === f.id ? null : f.id); }}
+                >
                   <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "monospace" }}>{f.id_funcional}</span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: PRIORIDADE_COLOR[f.prioridade] ?? "#64748b",
-                    background: `${PRIORIDADE_COLOR[f.prioridade] ?? "#64748b"}18`,
-                    padding: "1px 7px", borderRadius: 4, textTransform: "uppercase",
-                  }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: PRIORIDADE_COLOR[f.prioridade] ?? "#64748b", background: `${PRIORIDADE_COLOR[f.prioridade] ?? "#64748b"}18`, padding: "1px 7px", borderRadius: 4, textTransform: "uppercase" }}>
                     {PRIORIDADE_LABEL[f.prioridade] ?? f.prioridade}
                   </span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    color: STATUS_COLOR[f.status] ?? "#94a3b8",
-                    background: `${STATUS_COLOR[f.status] ?? "#94a3b8"}15`,
-                    padding: "1px 7px", borderRadius: 4,
-                  }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLOR[f.status] ?? "#94a3b8", background: `${STATUS_COLOR[f.status] ?? "#94a3b8"}15`, padding: "1px 7px", borderRadius: 4 }}>
                     {STATUS_LABEL[f.status] ?? f.status}
                   </span>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
-                    {f.titulo}
-                  </span>
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === f.id ? "▲" : "▼"}</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{f.titulo}</span>
+                  {editingId !== f.id && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEdit(f); setExpanded(f.id); }}
+                        style={{ fontSize: 12, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
+                      >
+                        Editar
+                      </button>
+                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === f.id ? "▲" : "▼"}</span>
+                    </>
+                  )}
                 </div>
 
-                {expanded === f.id && (
+                {/* Formulário de edição inline */}
+                {editingId === f.id && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #e0f2fe" }}>
+                    {([ { label: "ID funcional", key: "id_funcional" as const, placeholder: "F01" }, { label: "Título *", key: "titulo" as const, placeholder: "Título da funcionalidade" }, { label: "Descrição", key: "descricao" as const, placeholder: "Descrição opcional" }, { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável" } ] as const).map(({ label, key, placeholder }) => (
+                      <div key={key} style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>{label}</label>
+                        <input value={editForm[key]} onChange={(e) => setEditForm(ef => ({ ...ef, [key]: e.target.value }))} placeholder={placeholder}
+                          style={{ width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#0f172a" }} />
+                      </div>
+                    ))}
+
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>Prioridade</label>
+                      <select value={editForm.prioridade} onChange={(e) => setEditForm(ef => ({ ...ef, prioridade: e.target.value }))}
+                        style={{ border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, color: "#0f172a", background: "#fff" }}>
+                        {[["must","Must"],["should","Should"],["could","Could"],["wont","Won't"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>Critérios de aceite *</label>
+                      {editForm.criterios_aceite.map((c, i) => (
+                        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                          <input value={c} onChange={(e) => { const n = [...editForm.criterios_aceite]; n[i] = e.target.value; setEditForm(ef => ({ ...ef, criterios_aceite: n })); }}
+                            placeholder={`Critério ${i + 1}`} style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#0f172a" }} />
+                          {editForm.criterios_aceite.length > 1 && (
+                            <button onClick={() => setEditForm(ef => ({ ...ef, criterios_aceite: ef.criterios_aceite.filter((_, j) => j !== i) }))}
+                              style={{ background: "none", border: "none", color: "#dc2626", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>×</button>
+                          )}
+                        </div>
+                      ))}
+                      <button onClick={() => setEditForm(ef => ({ ...ef, criterios_aceite: [...ef.criterios_aceite, ""] }))}
+                        style={{ fontSize: 12, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Adicionar critério</button>
+                    </div>
+
+                    {erroEdit && <p style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{erroEdit}</p>}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={handleSalvarEdit} disabled={savingEdit}
+                        style={{ background: savingEdit ? "#e2e8f0" : "#0f172a", color: savingEdit ? "#94a3b8" : "#fff", border: "none", borderRadius: 7, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: savingEdit ? "not-allowed" : "pointer" }}>
+                        {savingEdit ? "Salvando..." : "Salvar"}
+                      </button>
+                      <button onClick={() => { setEditingId(null); setErroEdit(""); }}
+                        style={{ background: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detalhes expandidos (só quando não está editando) */}
+                {expanded === f.id && editingId !== f.id && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                    {f.descricao && (
-                      <p style={{ fontSize: 13, color: "#475569", margin: "0 0 10px", lineHeight: 1.5 }}>
-                        {f.descricao}
-                      </p>
-                    )}
+                    {f.descricao && <p style={{ fontSize: 13, color: "#475569", margin: "0 0 10px", lineHeight: 1.5 }}>{f.descricao}</p>}
                     {f.criterios_aceite.length > 0 && (
                       <div>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", margin: "0 0 6px" }}>
-                          Critérios de aceite
-                        </p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", margin: "0 0 6px" }}>Critérios de aceite</p>
                         <ul style={{ margin: 0, paddingLeft: 16 }}>
-                          {f.criterios_aceite.map((c, i) => (
-                            <li key={i} style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>{c}</li>
-                          ))}
+                          {f.criterios_aceite.map((c, i) => <li key={i} style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>{c}</li>)}
                         </ul>
                       </div>
                     )}
-                    {f.responsavel && (
-                      <p style={{ fontSize: 12, color: "#64748b", margin: "10px 0 0" }}>
-                        Responsável: <strong>{f.responsavel}</strong>
-                      </p>
-                    )}
+                    {f.responsavel && <p style={{ fontSize: 12, color: "#64748b", margin: "10px 0 0" }}>Responsável: <strong>{f.responsavel}</strong></p>}
                   </div>
                 )}
               </div>
