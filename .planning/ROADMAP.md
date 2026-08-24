@@ -283,7 +283,20 @@ Plans:
   5. Ao final de cada semana, o sistema gera por projeto um resumo de exceções (travadas, aguardando cliente, concluídas com suíte falhando, achados críticos, decisões pendentes, leitura tempo × escopo)
   6. Quando não houver anomalia, o resumo declara explicitamente que não há
 
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — Tracer: Migration SQL boletins_aceite + schemas (BoletimCreate/Response) + POST /boletins (Gemini) + GET /boletins/{project_id} + main.py wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 12-02-PLAN.md — Expansion: PATCH /boletins/{id} (status transitions + retorno_tipo + batch status_cliente + TransicaoStatus) + POST /boletins/resumo_semanal (deterministic, no Gemini)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 12-03-PLAN.md — Frontend: api.ts types/functions + AceiteTab.tsx (duas seções, zero className) + page.tsx aba Aceite wiring
+
 **UI hint:** yes
 
 ## Progress
