@@ -325,70 +325,81 @@ def calcular_bloco_d(funcs: list[dict], transicoes: list[dict]) -> dict:
 
 @router.get("/{project_id}/painel")
 async def get_painel(project_id: str):
-    client = get_client()
+    import traceback
+    step = "init"
+    try:
+        client = get_client()
 
-    proj_result = client.table("projects").select("*").eq("id", project_id).single().execute()
-    if not proj_result.data:
-        raise HTTPException(status_code=404, detail="Projeto não encontrado")
-    proj = proj_result.data
+        step = "projects"
+        proj_result = client.table("projects").select("*").eq("id", project_id).single().execute()
+        if not proj_result.data:
+            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+        proj = proj_result.data
 
-    func_result = client.table("funcionalidades").select("*").eq("project_id", project_id).execute()
-    func_list: list[dict] = func_result.data or []
+        step = "funcionalidades"
+        func_result = client.table("funcionalidades").select("*").eq("project_id", project_id).execute()
+        func_list: list[dict] = func_result.data or []
 
-    trans_list: list[dict] = []
-    if func_list:
-        func_ids = [f["id"] for f in func_list]
-        trans_result = (
-            client.table("transicoes_status")
-            .select("*")
-            .in_("funcionalidade_id", func_ids)
-            .order("timestamp", desc=False)
+        trans_list: list[dict] = []
+        if func_list:
+            step = "transicoes_status"
+            func_ids = [f["id"] for f in func_list]
+            trans_result = (
+                client.table("transicoes_status")
+                .select("*")
+                .in_("funcionalidade_id", func_ids)
+                .order("timestamp", desc=False)
+                .execute()
+            )
+            trans_list = trans_result.data or []
+
+        step = "revisoes_diarias"
+        revisao_resp = (
+            client.table("revisoes_diarias")
+            .select("achados, relatorio_gerente, relatorio_tecnico, data_revisao")
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .limit(1)
             .execute()
         )
-        trans_list = trans_result.data or []
+        revisao_recente = revisao_resp.data[0] if revisao_resp.data else None
 
-    revisao_resp = (
-        client.table("revisoes_diarias")
-        .select("achados, relatorio_gerente, relatorio_tecnico, data_revisao")
-        .eq("project_id", project_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    revisao_recente = revisao_resp.data[0] if revisao_resp.data else None
+        step = "execucoes_aceite"
+        execucoes_resp = (
+            client.table("execucoes_aceite")
+            .select("funcionalidade_id, commit_sha, gates, disparado_em, concluido_em")
+            .eq("project_id", project_id)
+            .order("disparado_em", desc=True)
+            .execute()
+        )
+        execucoes_aceite_raw: list[dict] = execucoes_resp.data or []
 
-    # Buscar execuções de aceite para calcular cobertura (per D-09, D-10)
-    execucoes_resp = (
-        client.table("execucoes_aceite")
-        .select("funcionalidade_id, commit_sha, gates, disparado_em, concluido_em")
-        .eq("project_id", project_id)
-        .order("disparado_em", desc=True)
-        .execute()
-    )
-    execucoes_aceite_raw: list[dict] = execucoes_resp.data or []
+        seen_func_ids: set[str] = set()
+        execucoes_aceite_list: list[dict] = []
+        for ea in execucoes_aceite_raw:
+            fid = ea.get("funcionalidade_id")
+            if fid and fid not in seen_func_ids:
+                seen_func_ids.add(fid)
+                execucoes_aceite_list.append(ea)
 
-    # Deduplica mantendo apenas a execução mais recente por funcionalidade_id
-    # (query já está ordenada DESC por disparado_em, então o primeiro de cada func é o mais recente)
-    seen_func_ids: set[str] = set()
-    execucoes_aceite_list: list[dict] = []
-    for ea in execucoes_aceite_raw:
-        fid = ea.get("funcionalidade_id")
-        if fid and fid not in seen_func_ids:
-            seen_func_ids.add(fid)
-            execucoes_aceite_list.append(ea)
+        step = "calc"
+        bloco_a = calcular_bloco_a(proj, func_list)
+        bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente, execucoes_aceite=execucoes_aceite_list)
+        bloco_c = calcular_bloco_c(func_list, trans_list)
+        bloco_d = calcular_bloco_d(func_list, trans_list)
+        cobertura_aceite = _calcular_cobertura_aceite(func_list, execucoes_aceite_list)
 
-    bloco_a = calcular_bloco_a(proj, func_list)
-    bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente, execucoes_aceite=execucoes_aceite_list)
-    bloco_c = calcular_bloco_c(func_list, trans_list)
-    bloco_d = calcular_bloco_d(func_list, trans_list)
-
-    # cobertura_aceite é campo separado no response root — NÃO altera pct_escopo_concluido (per D-10)
-    cobertura_aceite = _calcular_cobertura_aceite(func_list, execucoes_aceite_list)
-
-    return {
-        "bloco_a": bloco_a,
-        "bloco_b": bloco_b,
-        "bloco_c": bloco_c,
-        "bloco_d": bloco_d,
-        "cobertura_aceite": cobertura_aceite,
-    }
+        return {
+            "bloco_a": bloco_a,
+            "bloco_b": bloco_b,
+            "bloco_c": bloco_c,
+            "bloco_d": bloco_d,
+            "cobertura_aceite": cobertura_aceite,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Painel failed at step={step}: {type(e).__name__}: {str(e)[:500]}\n{traceback.format_exc()[:800]}",
+        )
