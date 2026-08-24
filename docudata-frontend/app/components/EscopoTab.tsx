@@ -59,7 +59,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ id_funcional: string; titulo: string; descricao: string; criterios_aceite: string[]; prioridade: string; responsavel: string }>({ id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "" });
+  const [editForm, setEditForm] = useState<{ id_funcional: string; titulo: string; descricao: string; criterios_aceite: string[]; prioridade: string; responsavel: string; status: string; sprint_alvo: string }>({ id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "", status: "nao_iniciada", sprint_alvo: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [erroEdit, setErroEdit] = useState("");
   const [funcList, setFuncList] = useState<FuncionalidadeResponse[]>(funcionalidades);
@@ -67,7 +67,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
 
   function startEdit(f: FuncionalidadeResponse) {
     setEditingId(f.id);
-    setEditForm({ id_funcional: f.id_funcional, titulo: f.titulo, descricao: f.descricao ?? "", criterios_aceite: f.criterios_aceite.length ? f.criterios_aceite : [""], prioridade: f.prioridade, responsavel: f.responsavel ?? "" });
+    setEditForm({ id_funcional: f.id_funcional, titulo: f.titulo, descricao: f.descricao ?? "", criterios_aceite: f.criterios_aceite.length ? f.criterios_aceite : [""], prioridade: f.prioridade, responsavel: f.responsavel ?? "", status: f.status ?? "nao_iniciada", sprint_alvo: f.sprint_alvo ?? "" });
     setErroEdit("");
   }
 
@@ -85,6 +85,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
         criterios_aceite: criterios,
         prioridade: editForm.prioridade,
         responsavel: editForm.responsavel.trim() || undefined,
+        status: editForm.status,
+        sprint_alvo: editForm.sprint_alvo.trim() || undefined,
       });
       setFuncList(prev => prev.map(f => f.id === atualizada.id ? atualizada : f));
       setEditingId(null);
@@ -651,6 +653,25 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
                           style={{ width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#0f172a" }} />
                       </div>
                     ))}
+
+                    <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>Status</label>
+                        <select value={editForm.status} onChange={(e) => setEditForm(ef => ({ ...ef, status: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, color: "#0f172a", background: "#fff" }}>
+                          <option value="nao_iniciada">Não iniciada</option>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="em_ajuste">Em ajuste</option>
+                          <option value="concluida">Concluída</option>
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>Sprint alvo</label>
+                        <input value={editForm.sprint_alvo} onChange={(e) => setEditForm(ef => ({ ...ef, sprint_alvo: e.target.value }))}
+                          placeholder="ex: 3"
+                          style={{ width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#0f172a" }} />
+                      </div>
+                    </div>
 
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", display: "block", marginBottom: 3 }}>Prioridade</label>

@@ -795,6 +795,8 @@ export async function updateFuncionalidade(
     prioridade?: string;
     responsavel?: string;
     id_funcional?: string;
+    status?: string;
+    sprint_alvo?: string;
   },
 ): Promise<FuncionalidadeResponse> {
   const res = await fetch(`${API}/funcionalidades/${id}`, {
