@@ -689,6 +689,7 @@ export interface BlocoB {
   relatorio_gerente?: string | null;
   relatorio_tecnico?: string | null;
   data_revisao?: string | null;
+  funcionalidades_com_aceite_falhando?: Array<{ id: string; titulo: string }>;
 }
 
 export interface BlocoC {
@@ -720,6 +721,7 @@ export interface PainelData {
   bloco_b: BlocoB;
   bloco_c: BlocoC;
   bloco_d: BlocoD;
+  cobertura_aceite?: number | null;
 }
 
 export async function getPainel(projectId: string): Promise<PainelData> {
@@ -838,5 +840,23 @@ export async function confirmarPlanning(
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao confirmar planning");
   }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Suíte de Aceite — interfaces e funções
+// ---------------------------------------------------------------------------
+
+export interface ExecucaoAceite {
+  funcionalidade_id: string;
+  commit_sha: string;
+  gates: { nome: string; resultado: string }[];
+  disparado_em: string;
+  concluido_em: string | null;
+}
+
+export async function getExecucoesAceite(projectId: string): Promise<ExecucaoAceite[]> {
+  const res = await fetch(`${API}/execucoes_aceite/${projectId}`);
+  if (!res.ok) return []; // falha silenciosa — badge é informativo
   return res.json();
 }

@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import {
   getPainel,
+  getExecucoesAceite,
   listFuncionalidades,
   type AchadoCritico,
   type BlocoD,
+  type ExecucaoAceite,
   type FuncionalidadeResponse,
   type PainelData,
   type SprintWithStatus,
@@ -335,6 +337,63 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
           )}
         </>
       )}
+
+      {bloco.funcionalidades_com_aceite_falhando !== undefined &&
+        bloco.funcionalidades_com_aceite_falhando.length > 0 && (
+          <>
+            {sep}
+            <p style={subSectionTitleStyle}>
+              Cobertura de Aceite{" "}
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                }}
+              >
+                {bloco.funcionalidades_com_aceite_falhando.length} com falha
+              </span>
+            </p>
+            <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 6px" }}>
+              Funcionalidades concluídas com suíte de aceite falhando
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {bloco.funcionalidades_com_aceite_falhando.map((f) => (
+                <div
+                  key={f.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 0",
+                    borderBottom: "1px solid #f0f0f4",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: "#fee2e2",
+                      color: "#dc2626",
+                    }}
+                  >
+                    ⚠
+                  </span>
+                  <span style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{f.titulo}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
     </div>
   );
 }
@@ -470,7 +529,15 @@ function BlocoDCard({
   );
 }
 
-function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: string[] }) {
+function KanbanCard({
+  f,
+  allSprints,
+  execucaoAceite,
+}: {
+  f: FuncionalidadeResponse;
+  allSprints: string[];
+  execucaoAceite: ExecucaoAceite | null;
+}) {
   const prioColor: Record<string, { bg: string; color: string }> = {
     alta: { bg: "#fee2e2", color: "#dc2626" },
     media: { bg: "#fef9c3", color: "#a16207" },
@@ -478,6 +545,13 @@ function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: 
   };
   const prio = prioColor[f.prioridade] ?? prioColor.baixa;
   const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
+
+  // Badge de aceite: exibe apenas quando status=concluida e suíte tem falha (per D-08, zero className)
+  const temFalha =
+    execucaoAceite?.concluido_em != null &&
+    (execucaoAceite.gates ?? []).some(
+      (g) => g.resultado === "falhou" || g.resultado === "erro"
+    );
 
   return (
     <div
@@ -504,6 +578,23 @@ function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: 
             Sprint {s}
           </span>
         ))}
+        {temFalha && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "2px 7px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 600,
+              background: "#fee2e2",
+              color: "#dc2626",
+              marginLeft: 4,
+            }}
+          >
+            ⚠ aceite
+          </span>
+        )}
       </div>
     </div>
   );
@@ -512,6 +603,7 @@ function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: 
 export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Props) {
   const [data, setData] = useState<PainelData | null>(null);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
+  const [execucoesAceite, setExecucoesAceite] = useState<ExecucaoAceite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sprintSelecionada, setSprintSelecionada] = useState<number>(
@@ -521,10 +613,11 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getPainel(projectId), listFuncionalidades(projectId)])
-      .then(([d, funcs]) => {
+    Promise.all([getPainel(projectId), listFuncionalidades(projectId), getExecucoesAceite(projectId)])
+      .then(([d, funcs, execs]) => {
         setData(d);
         setFuncionalidades(funcs);
+        setExecucoesAceite(execs);
         setError(null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erro"))
@@ -579,11 +672,35 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
     color,
   });
 
+  // Mapa de execucoes de aceite por funcionalidade_id para lookup rápido no Kanban
+  const aceiteMap = new Map(execucoesAceite.map((ea) => [ea.funcionalidade_id, ea]));
+
   return (
     <div>
       <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111116", marginBottom: 16 }}>
         Painel do Projeto
       </h2>
+
+      {/* Cobertura de aceite — exibida abaixo do título quando disponível (per D-10) */}
+      {data.cobertura_aceite != null && (
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 14,
+            padding: "6px 12px",
+            background: "#f7f7fa",
+            borderRadius: 8,
+            border: "1px solid #e8e8ed",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#6a6a7a" }}>% com cobertura de aceite:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#111116" }}>
+            {data.cobertura_aceite}%
+          </span>
+        </div>
+      )}
 
       {/* 4-block grid */}
       <div
@@ -665,6 +782,7 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
+                    execucaoAceite={null}
                   />
                 ))
               )}
@@ -691,6 +809,7 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
+                    execucaoAceite={null}
                   />
                 ))
               )}
@@ -716,6 +835,7 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
+                    execucaoAceite={aceiteMap.get(f.id) ?? null}
                   />
                 ))
               )}
