@@ -23,7 +23,7 @@ O gerente seleciona funcionalidades em status `concluida` e gera um boletim de a
 
 - **D-02:** **Gemini gera o conteúdo do boletim** — mesmo padrão do Composer (Phase 10): backend monta prompt com funcionalidades e seus `criterios_aceite`, Gemini (`gemini-1.5-flash`) elabora em linguagem de negócio, gerente vê preview (react-markdown) e confirma antes de marcar como `enviado`. O markdown gerado é salvo em `boletins_aceite.conteudo`.
 
-- **D-03:** **Sem campo de evidência visual** — removido do escopo a pedido do usuário.
+- **D-03:** **Sem campo de evidência visual** — removido do escopo a pedido do usuário. [informational]
 
 - **D-04:** **Sem geração de Termo de Encerramento** — removido do escopo a pedido do usuário. O sistema apenas sinaliza quando 100% aprovado (badge/mensagem na aba).
 
