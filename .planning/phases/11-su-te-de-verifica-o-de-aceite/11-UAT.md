@@ -1,21 +1,14 @@
 ---
-status: testing
+status: partial
 phase: 11-su-te-de-verifica-o-de-aceite
 source: [11-VERIFICATION.md]
 started: 2026-08-23T21:00:00Z
-updated: 2026-08-23T21:00:00Z
+updated: 2026-08-23T22:00:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Aplicar migration SQL no Supabase e verificar tabela execucoes_aceite criada
-expected: |
-  Executar o bloco "Phase 11: Suíte de Verificação de Aceite" do supabase_schema.sql no SQL Editor do Supabase.
-  SELECT * FROM execucoes_aceite LIMIT 1 retorna sem erro (tabela existe).
-  projects tem colunas github_token e github_repo.
-  funcionalidades tem coluna testes_e2e.
-awaiting: user response
+[testing paused — 6 items outstanding]
 
 ## Tests
 
@@ -25,7 +18,8 @@ expected: |
   SELECT * FROM execucoes_aceite LIMIT 1 — sem erro.
   \d projects mostra colunas github_token e github_repo.
   \d funcionalidades mostra coluna testes_e2e.
-result: [pending]
+result: skipped
+reason: "Usuário pausou UAT para discutir a próxima fase"
 
 ### 2. PATCH /funcionalidades/{id} com status=concluida — timing e background
 expected: |
@@ -70,8 +64,8 @@ result: [pending]
 total: 7
 passed: 0
 issues: 0
-pending: 7
-skipped: 0
+pending: 6
+skipped: 1
 blocked: 0
 
 ## Gaps

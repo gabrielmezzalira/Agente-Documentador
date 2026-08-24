@@ -2,15 +2,16 @@ name: DocuData Sync
 
 on:
   push:
-    branches: [main]
 
 env:
-  DOCUDATA_PROJECT_ID: SUBSTITUIR_PELO_ID_DO_PROJETO
+  DOCUDATA_PROJECT_ID: ${{ secrets.DOCUDATA_PROJECT_ID }}
   DOCUDATA_API_URL: https://agente-documentador-production.up.railway.app
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # DocuData is observability only: this job must never gate a push or PR.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,11 +19,14 @@ jobs:
 
       - name: Buscar sprint atual do DocuData
         id: sprint
+        continue-on-error: true
         run: |
-          SPRINT=$(curl -sf "$DOCUDATA_API_URL/projects/$DOCUDATA_PROJECT_ID/current-sprint" | jq -r '.sprint_number // 1')
-          echo "numero=$SPRINT" >> $GITHUB_OUTPUT
+          SPRINT=$(curl --connect-timeout 5 --max-time 15 -sf "$DOCUDATA_API_URL/projects/$DOCUDATA_PROJECT_ID/current-sprint" \
+            | jq -r '.sprint_number // 1') || SPRINT=1
+          echo "numero=${SPRINT:-1}" >> $GITHUB_OUTPUT
 
       - name: Enviar commit para DocuData
+        continue-on-error: true
         run: |
           COMMIT_HASH=$(git log -1 --pretty=format:"%H")
           COMMIT_MSG=$(git log -1 --pretty=format:"%B")
@@ -31,12 +35,13 @@ jobs:
           BRANCH="${GITHUB_REF_NAME}"
           DIFF_STAT=$(git diff HEAD~1 HEAD --stat)
           DIFF=$(git diff HEAD~1 HEAD -- '*.py' '*.ts' '*.tsx' '*.js' '*.sql' | head -500)
+          SPRINT_NUM="${{ steps.sprint.outputs.numero }}"
 
-          curl -f -X POST "$DOCUDATA_API_URL/ingest/commit" \
+          curl --connect-timeout 5 --max-time 20 -X POST "$DOCUDATA_API_URL/ingest/commit" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg project_id "$DOCUDATA_PROJECT_ID" \
-              --argjson sprint "${{ steps.sprint.outputs.numero }}" \
+              --argjson sprint "${SPRINT_NUM:-1}" \
               --arg hash "$COMMIT_HASH" \
               --arg msg "$COMMIT_MSG" \
               --arg author "$AUTHOR" \
@@ -44,4 +49,4 @@ jobs:
               --arg branch "$BRANCH" \
               --arg stat "$DIFF_STAT" \
               --arg diff "$DIFF" \
-              '{project_id: $project_id, sprint_number: $sprint, commit_hash: $hash, commit_message: $msg, author: $author, date: $date, branch: $branch, diff_stat: $stat, diff: $diff}')"
+              '{project_id: $project_id, sprint_number: $sprint, commit_hash: $hash, commit_message: $msg, author: $author, date: $date, branch: $branch, diff_stat: $stat, diff: $diff}')" || true

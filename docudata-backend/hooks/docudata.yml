@@ -23,16 +23,18 @@ on:
 jobs:
   track:
     runs-on: ubuntu-latest
-    permissions:
-      statuses: write   # necessário para escrever commit status
+    # Documentação é best-effort: indisponibilidade do DocuData não bloqueia CI,
+    # merge, push ou PR.
+    continue-on-error: true
+    permissions: {}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2   # precisa do commit anterior para o diff
 
       - name: Registrar commit no DocuData
+        continue-on-error: true
         env:
           DOCUDATA_API_URL:    ${{ secrets.DOCUDATA_API_URL }}
           DOCUDATA_PROJECT_ID: ${{ secrets.DOCUDATA_PROJECT_ID }}
-          GITHUB_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/docudata_agent.py

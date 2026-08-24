@@ -41,7 +41,7 @@ Este documento cobre a versão 1.0 do sistema, com foco no MVP funcional para de
 | Frontend | Next.js (React) | Interface do usuário — três telas principais | Vercel |
 | Backend | FastAPI (Python) | API REST — orquestra os grafos LangGraph | Railway |
 | Agente IA | LangChain + LangGraph | Extração e geração de documentos | Dentro do FastAPI |
-| Modelo | Gemini 1.5 Flash | Processamento de texto e visão (imagens/PDFs) | API externa |
+| Modelo | Gemini 3 Flash | Processamento de texto e visão (imagens/PDFs) | API externa |
 | Banco de dados | Supabase (PostgreSQL) | Persistência de projetos, ingestões e documentos | Supabase Cloud |
 
 ### 2.2 Fluxo de dados — visão macro
@@ -155,7 +155,7 @@ Prepara o conteúdo conforme o tipo:
 
 #### `extrair_conteudo`
 
-Chama o Gemini via LangChain com `ChatGoogleGenerativeAI` usando o modelo `gemini-1.5-flash`:
+Chama o Gemini via LangChain com `ChatGoogleGenerativeAI` usando o modelo `gemini-3-flash`:
 
 - Se `texto_preprocessado` começa com `base64_image:`: monta mensagem multimodal com `image_url` inline. O Gemini processa tanto imagens quanto PDFs escaneados via visão
 - Caso contrário: manda o texto puro como conteúdo da mensagem
@@ -238,7 +238,7 @@ Usa `ChatPromptTemplate.from_template()` do LangChain com um template diferente 
 
 #### `gerar_documento`
 
-Executa a chain: `prompt | ChatGoogleGenerativeAI(model=gemini-1.5-flash) | StrOutputParser()`. O output é markdown estruturado com headings e listas.
+Executa a chain: `prompt | ChatGoogleGenerativeAI(model=gemini-3-flash) | StrOutputParser()`. O output é markdown estruturado com headings e listas.
 
 #### `salvar_documento`
 
@@ -416,7 +416,7 @@ Sequência recomendada para implementar o MVP em uma semana:
 
 | Decisão | Alternativa considerada | Motivo da escolha |
 |---|---|---|
-| Gemini 2.5 Flash como modelo | Claude ou GPT-4 | Aceita imagens e PDFs nativamente, custo menor, API key gratuita disponível |
+| Gemini 3 Flash como modelo | Claude ou GPT-4 | Aceita imagens e PDFs nativamente, custo menor, API key gratuita disponível |
 | Sprint como metadado obrigatório no upload | Inferir sprint pelo timestamp | Permite ao gerente atribuir uploads retroativos à sprint correta sem ambiguidade |
 | LangGraph para orquestração | Chains simples do LangChain | Retry granular por nó e estado explícito — facilita debugging e extensão futura |
 | JSON com 6 campos fixos como schema de extração | Texto livre no banco | Permite filtrar, agregar e referenciar campos específicos na compilação de contexto |
@@ -434,8 +434,8 @@ DocuData é um sistema web que permite a gerentes de projetos de dados do CITi a
 
 ### Constraints
 
-- **Stack:** Next.js (frontend) + FastAPI Python (backend) + LangGraph/LangChain + Gemini 1.5 Flash + Supabase PostgreSQL — stack definida no design doc
-- **Modelo de IA:** Gemini 1.5 Flash — aceita imagens e PDFs nativamente, API key gratuita, custo menor
+- **Stack:** Next.js (frontend) + FastAPI Python (backend) + LangGraph/LangChain + Gemini 3 Flash + Supabase PostgreSQL — stack definida no design doc
+- **Modelo de IA:** Gemini 3 Flash — aceita imagens e PDFs nativamente, API key gratuita, custo menor
 - **Deploy:** Railway (backend) + Vercel (frontend) — conforme design doc
 - **Prazo:** ~3 dias para MVP funcional
 - **Sem auth v1:** Espaço compartilhado sem isolamento por usuário — decisão consciente para simplificar o MVP
