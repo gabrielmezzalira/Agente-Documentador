@@ -599,7 +599,11 @@ export default function SprintCard({
           {/* COMMITS — log compacto do GitHub Actions */}
           {(() => {
             const commits = ingestions.filter((i) => i.tipo_documentacao === "commit");
-            if (commits.length === 0) return null;
+            if (commits.length === 0) return (
+              <p style={{ fontSize: 11, color: "#b8b8c0", margin: "14px 0 0", fontStyle: "italic" }}>
+                Nenhum commit sincronizado — configure a GitHub Action no repositório para registrar commits automaticamente.
+              </p>
+            );
             return (
               <>
                 <p style={{ ...subTitleStyle, marginTop: 18 }}>

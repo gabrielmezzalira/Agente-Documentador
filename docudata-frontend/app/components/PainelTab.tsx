@@ -3,20 +3,20 @@
 import { useEffect, useState } from "react";
 import {
   getPainel,
-  getExecucoesAceite,
   listFuncionalidades,
-  type AchadoCritico,
+  updateContrato,
   type BlocoD,
-  type ExecucaoAceite,
   type FuncionalidadeResponse,
   type PainelData,
+  type Project,
   type SprintWithStatus,
 } from "../lib/api";
 
 interface Props {
   projectId: string;
   sprints: SprintWithStatus[];
-  onNavigateToConfig?: () => void;
+  project: Project;
+  onProjectUpdated?: (updated: Project) => void;
 }
 
 const cardStyle: React.CSSProperties = {
@@ -66,36 +66,130 @@ const subSectionTitleStyle: React.CSSProperties = {
   marginTop: 12,
 };
 
+const inputSmStyle: React.CSSProperties = {
+  padding: "6px 10px",
+  border: "1px solid #e4e4ea",
+  borderRadius: 7,
+  fontSize: 13,
+  color: "#111116",
+  background: "#ffffff",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const labelSmStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#9696a0",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  marginBottom: 4,
+};
+
 function BlocoACard({
   bloco,
-  onNavigateToConfig,
+  project,
+  onSaved,
 }: {
   bloco: PainelData["bloco_a"];
-  onNavigateToConfig?: () => void;
+  project: Project;
+  onSaved?: (updated: Project) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [dataInicio, setDataInicio] = useState(project.data_inicio ?? "");
+  const [dataFim, setDataFim] = useState(project.data_fim_contratada ?? "");
+  const [tolerancia, setTolerancia] = useState(
+    project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : ""
+  );
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!dataInicio || !dataFim) { setErr("Preencha as duas datas."); return; }
+    setSaving(true);
+    setErr("");
+    try {
+      const updated = await updateContrato(project.id, {
+        data_inicio: dataInicio,
+        data_fim_contratada: dataFim,
+        tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
+      });
+      onSaved?.(updated);
+      setEditing(false);
+    } catch {
+      setErr("Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div style={cardStyle}>
-      <span style={cardTitleStyle}>Tempo × Escopo</span>
-      {bloco.sem_dados ? (
-        <div>
-          <p style={{ fontSize: 13, color: "#9696a0", margin: "0 0 8px" }}>
-            Sem dados de contrato
-          </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <span style={{ ...cardTitleStyle, marginBottom: 0 }}>Tempo × Escopo</span>
+        <button
+          onClick={() => { setEditing((v) => !v); setErr(""); }}
+          style={{
+            background: "none",
+            border: "none",
+            fontSize: 12,
+            color: "#9696a0",
+            cursor: "pointer",
+            padding: 0,
+            textDecoration: "underline",
+          }}
+        >
+          {editing ? "Cancelar" : (bloco.sem_dados ? "Configurar" : "Editar")}
+        </button>
+      </div>
+
+      {editing ? (
+        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={labelSmStyle}>Data início do projeto</label>
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} style={inputSmStyle} required />
+          </div>
+          <div>
+            <label style={labelSmStyle}>Data fim contratada</label>
+            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} style={inputSmStyle} required />
+          </div>
+          <div>
+            <label style={labelSmStyle}>Tolerância de desvio (pontos) <span style={{ fontWeight: 400 }}>— opcional</span></label>
+            <input
+              type="number"
+              min={0}
+              value={tolerancia}
+              onChange={(e) => setTolerancia(e.target.value)}
+              placeholder="ex: 5"
+              style={inputSmStyle}
+            />
+          </div>
+          {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
           <button
+            type="submit"
+            disabled={saving}
             style={{
-              background: "none",
+              background: "#4ade80",
+              color: "#0a0a0a",
               border: "none",
-              color: "#4ade80",
+              borderRadius: 7,
+              padding: "8px 16px",
               fontSize: 13,
-              cursor: "pointer",
-              padding: 0,
-              textDecoration: "underline",
+              fontWeight: 700,
+              cursor: saving ? "not-allowed" : "pointer",
+              opacity: saving ? 0.6 : 1,
+              alignSelf: "flex-start",
             }}
-            onClick={() => onNavigateToConfig?.()}
           >
-            Ir para Configurações
+            {saving ? "Salvando..." : "Salvar"}
           </button>
-        </div>
+        </form>
+      ) : bloco.sem_dados ? (
+        <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>
+          Clique em <strong>Configurar</strong> para definir as datas do contrato.
+        </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[
@@ -134,45 +228,27 @@ function BlocoACard({
 }
 
 function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
-  const [visaoRelatorio, setVisaoRelatorio] = useState<"gerente" | "tecnico">("gerente");
   const sep = (
     <hr style={{ border: "none", borderTop: "1px solid #f0f0f4", margin: "10px 0" }} />
   );
   return (
     <div style={cardStyle}>
-      <span style={cardTitleStyle}>Itens Travados</span>
+      <span style={cardTitleStyle}>Itens em Atenção</span>
 
       <p style={subSectionTitleStyle}>
         Travadas{" "}
-        <span
-          style={{
-            ...chipBaseStyle,
-            background: "#fee2e2",
-            color: "#dc2626",
-            fontSize: 11,
-          }}
-        >
+        <span style={{ ...chipBaseStyle, background: "#fee2e2", color: "#dc2626", fontSize: 11 }}>
           {bloco.travadas.length}
         </span>
       </p>
       {bloco.travadas.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
-          Nenhuma funcionalidade travada
-        </p>
+        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>Nenhuma funcionalidade travada</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {bloco.travadas.map((f) => (
             <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 600, fontSize: 13, color: "#111116" }}>{f.titulo}</span>
-              <span
-                style={{
-                  background: "#fee2e2",
-                  color: "#dc2626",
-                  borderRadius: 4,
-                  padding: "2px 6px",
-                  fontSize: 11,
-                }}
-              >
+              <span style={{ background: "#fee2e2", color: "#dc2626", borderRadius: 4, padding: "2px 6px", fontSize: 11 }}>
                 {f.dias} dias
               </span>
             </div>
@@ -183,43 +259,8 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
       {sep}
 
       <p style={subSectionTitleStyle}>
-        Aguardando cliente{" "}
-        <span
-          style={{ ...chipBaseStyle, background: "#fef9c3", color: "#a16207", fontSize: 11 }}
-        >
-          {bloco.aguardando_cliente.length}
-        </span>
-      </p>
-      {bloco.aguardando_cliente.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>Nenhuma aguardando</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {bloco.aguardando_cliente.map((f) => (
-            <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#111116" }}>{f.titulo}</span>
-              <span
-                style={{
-                  background: "#fef9c3",
-                  color: "#a16207",
-                  borderRadius: 4,
-                  padding: "2px 6px",
-                  fontSize: 11,
-                }}
-              >
-                {f.dias_uteis} d.u.
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {sep}
-
-      <p style={subSectionTitleStyle}>
         Em ajuste{" "}
-        <span
-          style={{ ...chipBaseStyle, background: "#ffedd5", color: "#c2410c", fontSize: 11 }}
-        >
+        <span style={{ ...chipBaseStyle, background: "#ffedd5", color: "#c2410c", fontSize: 11 }}>
           {bloco.em_ajuste.length}
         </span>
       </p>
@@ -234,166 +275,6 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
           ))}
         </div>
       )}
-
-      {bloco.achados_criticos !== undefined && (
-        <>
-          {sep}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <p style={{ ...subSectionTitleStyle, marginTop: 12 }}>
-              Achados do Revisor{" "}
-              <span
-                style={{
-                  ...chipBaseStyle,
-                  background: "#fee2e2",
-                  color: "#dc2626",
-                  fontSize: 11,
-                }}
-              >
-                {bloco.achados_criticos.length}
-              </span>
-            </p>
-            <div style={{ display: "flex", gap: 4 }}>
-              {(["gerente", "tecnico"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setVisaoRelatorio(v)}
-                  style={{
-                    background: visaoRelatorio === v ? "#111116" : "#f1f5f9",
-                    color: visaoRelatorio === v ? "#ffffff" : "#374151",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {v === "gerente" ? "Gerente" : "Técnico"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {bloco.data_revisao && (
-            <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 8px" }}>
-              Revisão de {bloco.data_revisao}
-            </p>
-          )}
-
-          {bloco.achados_criticos.length === 0 ? (
-            <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
-              Nenhum achado crítico/alta com alta confiança
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {bloco.achados_criticos.map((a: AchadoCritico, i: number) => (
-                <div key={i} style={{ borderLeft: "3px solid #dc2626", paddingLeft: 8 }}>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                    <span
-                      style={{
-                        ...chipBaseStyle,
-                        background: a.severidade === "CRITICA" ? "#fee2e2" : "#ffedd5",
-                        color: a.severidade === "CRITICA" ? "#dc2626" : "#c2410c",
-                        fontSize: 10,
-                      }}
-                    >
-                      {a.severidade}
-                    </span>
-                    {visaoRelatorio === "tecnico" && (
-                      <span style={{ fontSize: 11, color: "#9696a0", fontFamily: "monospace" }}>
-                        {a.referencia}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 12, color: "#374151", margin: 0, lineHeight: 1.4 }}>
-                    {visaoRelatorio === "gerente" ? a.descricao_gerente : a.descricao_tecnica}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {(bloco.relatorio_gerente || bloco.relatorio_tecnico) && (
-            <div
-              style={{
-                marginTop: 10,
-                background: "#f7f7fa",
-                borderRadius: 8,
-                padding: "10px 12px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#374151",
-                  margin: 0,
-                  lineHeight: 1.5,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {visaoRelatorio === "gerente" ? bloco.relatorio_gerente : bloco.relatorio_tecnico}
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      {bloco.funcionalidades_com_aceite_falhando !== undefined &&
-        bloco.funcionalidades_com_aceite_falhando.length > 0 && (
-          <>
-            {sep}
-            <p style={subSectionTitleStyle}>
-              Cobertura de Aceite{" "}
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: "#fee2e2",
-                  color: "#dc2626",
-                }}
-              >
-                {bloco.funcionalidades_com_aceite_falhando.length} com falha
-              </span>
-            </p>
-            <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 6px" }}>
-              Funcionalidades concluídas com suíte de aceite falhando
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {bloco.funcionalidades_com_aceite_falhando.map((f) => (
-                <div
-                  key={f.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 0",
-                    borderBottom: "1px solid #f0f0f4",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      padding: "2px 7px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      background: "#fee2e2",
-                      color: "#dc2626",
-                    }}
-                  >
-                    ⚠
-                  </span>
-                  <span style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{f.titulo}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
     </div>
   );
 }
@@ -529,15 +410,7 @@ function BlocoDCard({
   );
 }
 
-function KanbanCard({
-  f,
-  allSprints,
-  execucaoAceite,
-}: {
-  f: FuncionalidadeResponse;
-  allSprints: string[];
-  execucaoAceite: ExecucaoAceite | null;
-}) {
+function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: string[] }) {
   const prioColor: Record<string, { bg: string; color: string }> = {
     alta: { bg: "#fee2e2", color: "#dc2626" },
     media: { bg: "#fef9c3", color: "#a16207" },
@@ -545,13 +418,6 @@ function KanbanCard({
   };
   const prio = prioColor[f.prioridade] ?? prioColor.baixa;
   const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
-
-  // Badge de aceite: exibe apenas quando status=concluida e suíte tem falha (per D-08, zero className)
-  const temFalha =
-    execucaoAceite?.concluido_em != null &&
-    (execucaoAceite.gates ?? []).some(
-      (g) => g.resultado === "falhou" || g.resultado === "erro"
-    );
 
   return (
     <div
@@ -578,32 +444,14 @@ function KanbanCard({
             Sprint {s}
           </span>
         ))}
-        {temFalha && (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "2px 7px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 600,
-              background: "#fee2e2",
-              color: "#dc2626",
-              marginLeft: 4,
-            }}
-          >
-            ⚠ aceite
-          </span>
-        )}
       </div>
     </div>
   );
 }
 
-export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Props) {
+export default function PainelTab({ projectId, sprints, project, onProjectUpdated }: Props) {
   const [data, setData] = useState<PainelData | null>(null);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
-  const [execucoesAceite, setExecucoesAceite] = useState<ExecucaoAceite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sprintSelecionada, setSprintSelecionada] = useState<number>(
@@ -613,11 +461,10 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getPainel(projectId), listFuncionalidades(projectId), getExecucoesAceite(projectId)])
-      .then(([d, funcs, execs]) => {
+    Promise.all([getPainel(projectId), listFuncionalidades(projectId)])
+      .then(([d, funcs]) => {
         setData(d);
         setFuncionalidades(funcs);
-        setExecucoesAceite(execs);
         setError(null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erro"))
@@ -672,35 +519,11 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
     color,
   });
 
-  // Mapa de execucoes de aceite por funcionalidade_id para lookup rápido no Kanban
-  const aceiteMap = new Map(execucoesAceite.map((ea) => [ea.funcionalidade_id, ea]));
-
   return (
     <div>
       <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111116", marginBottom: 16 }}>
         Painel do Projeto
       </h2>
-
-      {/* Cobertura de aceite — exibida abaixo do título quando disponível (per D-10) */}
-      {data.cobertura_aceite != null && (
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 14,
-            padding: "6px 12px",
-            background: "#f7f7fa",
-            borderRadius: 8,
-            border: "1px solid #e8e8ed",
-          }}
-        >
-          <span style={{ fontSize: 12, color: "#6a6a7a" }}>% com cobertura de aceite:</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#111116" }}>
-            {data.cobertura_aceite}%
-          </span>
-        </div>
-      )}
 
       {/* 4-block grid */}
       <div
@@ -711,7 +534,14 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
           marginBottom: 24,
         }}
       >
-        <BlocoACard bloco={data.bloco_a} onNavigateToConfig={onNavigateToConfig} />
+        <BlocoACard
+          bloco={data.bloco_a}
+          project={project}
+          onSaved={(updated) => {
+            onProjectUpdated?.(updated);
+            getPainel(projectId).then(setData).catch(() => {});
+          }}
+        />
         <BlocoBCard bloco={data.bloco_b} />
         <BlocoCCard bloco={data.bloco_c} />
         <BlocoDCard
@@ -782,7 +612,6 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                    execucaoAceite={null}
                   />
                 ))
               )}
@@ -809,7 +638,6 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                    execucaoAceite={null}
                   />
                 ))
               )}
@@ -835,7 +663,6 @@ export default function PainelTab({ projectId, sprints, onNavigateToConfig }: Pr
                     key={f.id}
                     f={f}
                     allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                    execucaoAceite={aceiteMap.get(f.id) ?? null}
                   />
                 ))
               )}

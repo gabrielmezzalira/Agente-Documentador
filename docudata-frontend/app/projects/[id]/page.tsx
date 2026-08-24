@@ -26,6 +26,7 @@ import {
   moveDoc,
   toggleDelivered,
   listFuncionalidades,
+  gerarResumoSemanal,
   type Project,
   type Ingestion,
   type GeneratedDoc,
@@ -41,7 +42,6 @@ import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
 import PainelTab from "../../components/PainelTab";
 import PlanningTab from "../../components/PlanningTab";
-import AceiteTab from "../../components/AceiteTab";
 import EscopoTab from "../../components/EscopoTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
@@ -49,7 +49,7 @@ import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config" | "planning" | "aceite";
+type TabId = "sprints" | "escopo" | "painel" | "planning" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -138,6 +138,10 @@ export default function ProjectDashboard() {
     descricao: string;
     itens: { item: string; responsavel: string; prazo: string; criterio: string }[];
   } | null>(null);
+
+  // ---------- resumo semanal ----------
+  const [resumoSemanal, setResumoSemanal] = useState<string | null>(null);
+  const [gerandoResumo, setGerandoResumo] = useState(false);
 
   // ---------- geração ----------
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
@@ -330,6 +334,18 @@ export default function ProjectDashboard() {
     }
   }
 
+  async function handleGerarResumoSemanal() {
+    setGerandoResumo(true);
+    try {
+      const result = await gerarResumoSemanal(id);
+      setResumoSemanal(result.content);
+    } catch {
+      // silently ignore
+    } finally {
+      setGerandoResumo(false);
+    }
+  }
+
   function handleUploadLivre(sprintNumero: number) {
     setUploadModal({ sprintNumero });
   }
@@ -485,13 +501,12 @@ export default function ProjectDashboard() {
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
           { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
+          { id: "planning", label: "Planning" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "custos", label: "Custos" },
           { id: "config", label: "Configurações" },
-          { id: "planning", label: "Planning" },
-          { id: "aceite", label: "Aceite" },
         ]}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
@@ -571,11 +586,12 @@ export default function ProjectDashboard() {
       )}
 
       {/* ABA: PAINEL */}
-      {activeTab === "painel" && (
+      {activeTab === "painel" && project && (
         <PainelTab
           projectId={id}
           sprints={sprints}
-          onNavigateToConfig={() => setActiveTab("config" as TabId)}
+          project={project}
+          onProjectUpdated={(updated) => setProject(updated)}
         />
       )}
 
@@ -952,20 +968,35 @@ export default function ProjectDashboard() {
 
       {/* ABA: PLANNING */}
       {activeTab === "planning" && (
-        <PlanningTab
-          projectId={id}
-          sprints={sprints}
-          onGoToSprintDoc={({ sprintNumero, descricao, itens }) => {
-            setPlanningComposerPrefill({ descricao, itens });
-            setActiveTab("sprints");
-            setModal({ tipo: "planning", sprintNumero });
-          }}
-        />
-      )}
-
-      {/* ABA: ACEITE */}
-      {activeTab === "aceite" && (
-        <AceiteTab projectId={id} funcionalidades={funcionalidades} />
+        <>
+          <PlanningTab
+            projectId={id}
+            sprints={sprints}
+            onGoToSprintDoc={({ sprintNumero, descricao, itens }) => {
+              setPlanningComposerPrefill({ descricao, itens });
+              setActiveTab("sprints");
+              setModal({ tipo: "planning", sprintNumero });
+            }}
+          />
+          <section style={{ ...sectionStyle, marginTop: 8 }}>
+            <h2 style={sectionTitle}>Resumo da Semana</h2>
+            <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
+              Gera um resumo do que aconteceu na semana com base nas ingestões recentes do projeto.
+            </p>
+            <button
+              onClick={handleGerarResumoSemanal}
+              disabled={gerandoResumo}
+              style={{ ...btnPrimary, opacity: gerandoResumo ? 0.6 : 1 }}
+            >
+              {gerandoResumo ? "Gerando..." : "Gerar Resumo da Semana"}
+            </button>
+            {resumoSemanal && (
+              <div style={{ ...markdownContainer, marginTop: 16 }}>
+                <ReactMarkdown>{resumoSemanal}</ReactMarkdown>
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {/* MODAL Planning/Daily/Review */}
