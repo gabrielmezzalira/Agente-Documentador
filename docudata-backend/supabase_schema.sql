@@ -59,6 +59,41 @@ CREATE TABLE generated_docs (
     created_at    timestamptz DEFAULT now()
 );
 
+-- Phase 7: Funcionalidades, Transições de Status e campos de contrato em projects
+CREATE TABLE IF NOT EXISTS funcionalidades (
+    id                      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id              uuid        REFERENCES projects(id) ON DELETE CASCADE,
+    id_funcional            text        NOT NULL,
+    titulo                  text        NOT NULL,
+    descricao               text,
+    criterios_aceite        text[]      NOT NULL DEFAULT '{}',
+    prioridade              text        NOT NULL DEFAULT 'should',
+    status                  text        NOT NULL DEFAULT 'nao_iniciada',
+    status_cliente          text        NOT NULL DEFAULT 'nao_enviado',
+    data_aprovacao_cliente  date,
+    responsavel             text,
+    sprint_alvo             text,
+    testes_e2e              text[]      NOT NULL DEFAULT '{}',
+    created_at              timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS transicoes_status (
+    id                              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    funcionalidade_id               uuid        REFERENCES funcionalidades(id) ON DELETE CASCADE,
+    campo                           text        NOT NULL,
+    de                              text        NOT NULL,
+    para                            text        NOT NULL,
+    autor                           text,
+    timestamp                       timestamptz DEFAULT now(),
+    motivo                          text,
+    duracao_fase_anterior_segundos  integer
+);
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS data_inicio              date;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS data_fim_contratada      date;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS tolerancia_desvio_pontos integer DEFAULT 20;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS periodo_garantia_dias    integer DEFAULT 30;
+
 -- v1.1 — Sprint como entidade + semáforo de saúde
 CREATE TABLE sprints (
     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
