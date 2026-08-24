@@ -195,7 +195,6 @@ function BlocoACard({
           {[
             { label: "Prazo consumido", value: bloco.pct_prazo_consumido },
             { label: "Escopo concluído", value: bloco.pct_escopo_concluido },
-            { label: "Aprovado pelo cliente", value: bloco.pct_aprovado_cliente },
           ].map(({ label, value }) => (
             <div key={label}>
               <p style={metricLabelStyle}>{label}</p>
