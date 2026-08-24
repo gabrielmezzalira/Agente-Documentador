@@ -1,4 +1,11 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const APP_KEY = process.env.NEXT_PUBLIC_DOCUDATA_APP_SECRET ?? "";
+
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("X-Docudata-Key", APP_KEY);
+  return fetch(`${API}${path}`, { ...init, headers });
+}
 
 export interface ValidationError422 {
   tipo_detectado: string;
@@ -156,32 +163,32 @@ export interface SprintDocResponse {
 }
 
 export async function listProjects(): Promise<Project[]> {
-  const res = await fetch(`${API}/projects`);
+  const res = await apiFetch("/projects");
   if (!res.ok) throw new Error("Erro ao buscar projetos");
   return res.json();
 }
 
 export async function getProject(id: string): Promise<Project> {
-  const res = await fetch(`${API}/projects/${id}`);
+  const res = await apiFetch(`/projects/${id}`);
   if (!res.ok) throw new Error("Projeto não encontrado");
   return res.json();
 }
 
 export async function getProjectCost(projectId: string): Promise<ProjectCost> {
-  const res = await fetch(`${API}/projects/${projectId}/cost`);
+  const res = await apiFetch(`/projects/${projectId}/cost`);
   if (!res.ok) throw new Error("Erro ao buscar custo do projeto");
   return res.json();
 }
 
 export async function getProjectUsage(projectId: string, month?: string): Promise<ProjectUsage> {
-  const url = `${API}/projects/${projectId}/usage${month ? `?month=${month}` : ""}`;
-  const res = await fetch(url);
+  const path = `/projects/${projectId}/usage${month ? `?month=${month}` : ""}`;
+  const res = await apiFetch(path);
   if (!res.ok) throw new Error("Erro ao buscar uso mensal do projeto");
   return res.json();
 }
 
 export async function updateApiKey(projectId: string, key: string | null): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/api-key`, {
+  const res = await apiFetch(`/projects/${projectId}/api-key`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ gemini_api_key: key }),
@@ -198,7 +205,7 @@ export async function createProject(data: {
   budget_usd?: number | null;
   gemini_api_key?: string;
 }): Promise<Project> {
-  const res = await fetch(`${API}/projects`, {
+  const res = await apiFetch("/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -219,7 +226,7 @@ export async function ingestFile(
   form.append("projeto_id", projectId);
   if (force) form.append("force", "true");
 
-  const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
+  const res = await apiFetch("/ingest", { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
@@ -231,47 +238,47 @@ export async function ingestFile(
 }
 
 export async function listIngestions(projectId: string): Promise<Ingestion[]> {
-  const res = await fetch(`${API}/ingestions/${projectId}`);
+  const res = await apiFetch(`/ingestions/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar ingestões");
   return res.json();
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const res = await fetch(`${API}/projects/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/projects/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir projeto");
 }
 
 export async function listDocs(projectId: string): Promise<GeneratedDoc[]> {
-  const res = await fetch(`${API}/docs/${projectId}`);
+  const res = await apiFetch(`/docs/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar documentos");
   return res.json();
 }
 
 export async function deleteDoc(docId: string): Promise<void> {
-  const res = await fetch(`${API}/docs/${docId}`, { method: "DELETE" });
+  const res = await apiFetch(`/docs/${docId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir documento");
 }
 
 export async function toggleDelivered(projectId: string): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/delivered`, { method: "PATCH" });
+  const res = await apiFetch(`/projects/${projectId}/delivered`, { method: "PATCH" });
   if (!res.ok) throw new Error("Erro ao atualizar status do projeto");
   return res.json();
 }
 
 export async function searchStack(query: string): Promise<StackSearchResponse> {
-  const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`);
+  const res = await apiFetch(`/search?q=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error("Erro ao buscar stack");
   return res.json();
 }
 
 export async function listSprints(projectId: string): Promise<SprintWithStatus[]> {
-  const res = await fetch(`${API}/projects/${projectId}/sprints`);
+  const res = await apiFetch(`/projects/${projectId}/sprints`);
   if (!res.ok) throw new Error("Erro ao buscar sprints");
   return res.json();
 }
 
 export async function deleteSprint(sprintId: string): Promise<void> {
-  const res = await fetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
+  const res = await apiFetch(`/sprints/${sprintId}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao excluir sprint");
@@ -279,7 +286,7 @@ export async function deleteSprint(sprintId: string): Promise<void> {
 }
 
 export async function createSprint(projectId: string, numero?: number): Promise<Sprint> {
-  const res = await fetch(`${API}/projects/${projectId}/sprints`, {
+  const res = await apiFetch(`/projects/${projectId}/sprints`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ numero: numero ?? null }),
@@ -292,7 +299,7 @@ export async function createSprint(projectId: string, numero?: number): Promise<
 }
 
 export async function getTechnologies(projectId: string): Promise<TechTimeline> {
-  const res = await fetch(`${API}/projects/${projectId}/technologies`);
+  const res = await apiFetch(`/projects/${projectId}/technologies`);
   if (!res.ok) throw new Error("Erro ao buscar tecnologias do projeto");
   return res.json();
 }
@@ -302,7 +309,7 @@ export async function updateSprintHealth(
   statusSaude: SprintHealth | null,
   planoCorrecao?: string | null
 ): Promise<Sprint> {
-  const res = await fetch(`${API}/sprints/${sprintId}/health`, {
+  const res = await apiFetch(`/sprints/${sprintId}/health`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -318,7 +325,7 @@ export async function updateSprintHealth(
 }
 
 async function _postSprintDoc(path: string, form: FormData): Promise<SprintDocResponse> {
-  const res = await fetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });
+  const res = await apiFetch(`/sprint-docs/${path}`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
@@ -483,7 +490,7 @@ export async function createManualDoc(input: {
   sprintNumero?: number | null;
   content: string;
 }): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/docs/manual`, {
+  const res = await apiFetch("/docs/manual", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -511,7 +518,7 @@ export async function uploadManualDocPdf(input: {
   form.append("doc_type", input.docType);
   if (input.sprintNumero != null) form.append("sprint_numero", String(input.sprintNumero));
   form.append("arquivo", input.arquivo);
-  const res = await fetch(`${API}/docs/manual/upload`, { method: "POST", body: form });
+  const res = await apiFetch("/docs/manual/upload", { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao subir PDF do documento manual");
@@ -520,7 +527,7 @@ export async function uploadManualDocPdf(input: {
 }
 
 export async function exportToGdocs(docId: string): Promise<{ url: string }> {
-  const res = await fetch(`${API}/docs/${docId}/export-gdocs`, { method: "POST" });
+  const res = await apiFetch(`/docs/${docId}/export-gdocs`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao exportar para Google Docs");
@@ -529,7 +536,7 @@ export async function exportToGdocs(docId: string): Promise<{ url: string }> {
 }
 
 export async function listIngestionsBySprint(projetoId: string, sprint: number): Promise<Ingestion[]> {
-  const res = await fetch(`${API}/ingestions/${projetoId}/${sprint}`);
+  const res = await apiFetch(`/ingestions/${projetoId}/${sprint}`);
   if (!res.ok) throw new Error("Erro ao buscar ingestões da sprint");
   return res.json();
 }
@@ -584,7 +591,7 @@ export async function enrichContent(input: {
   form.append("doc_type", input.docType);
   if (input.texto) form.append("texto", input.texto);
   if (input.arquivo) form.append("arquivo", input.arquivo);
-  const res = await fetch(`${API}/enrich`, { method: "POST", body: form });
+  const res = await apiFetch("/enrich", { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao analisar conteúdo");
@@ -593,12 +600,12 @@ export async function enrichContent(input: {
 }
 
 export async function deleteIngestion(ingestionId: string): Promise<void> {
-  const res = await fetch(`${API}/ingestions/${ingestionId}`, { method: "DELETE" });
+  const res = await apiFetch(`/ingestions/${ingestionId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir ingestão");
 }
 
 export async function moveIngestion(ingestionId: string, sprintNumber: number): Promise<Ingestion> {
-  const res = await fetch(`${API}/ingestions/${ingestionId}`, {
+  const res = await apiFetch(`/ingestions/${ingestionId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sprint_number: sprintNumber }),
@@ -611,7 +618,7 @@ export async function moveIngestion(ingestionId: string, sprintNumber: number): 
 }
 
 export async function moveDoc(docId: string, sprintNumber: number | null): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/docs/${docId}`, {
+  const res = await apiFetch(`/docs/${docId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sprint_number: sprintNumber }),
@@ -630,7 +637,7 @@ export async function generateDoc(
   ingestionId?: string,
   observacoes?: string
 ): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/generate`, {
+  const res = await apiFetch("/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

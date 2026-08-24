@@ -7,6 +7,7 @@ Casos cobertos:
   3. month inválido "2026-13" -> 422 com detalhe sobre formato
 """
 import pytest
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from unittest.mock import MagicMock
@@ -61,7 +62,10 @@ def _patch_and_client(monkeypatch, mock_supabase):
     import routers.projects as proj_router
     monkeypatch.setattr(proj_router, "get_client", lambda: mock_supabase)
     from main import app
-    return TestClient(app)
+    return TestClient(
+        app,
+        headers={"X-Docudata-Key": os.environ["DOCUDATA_APP_SECRET"]},
+    )
 
 
 # ─── Teste 1: sem query param month → retorna mês atual de São Paulo ──────────

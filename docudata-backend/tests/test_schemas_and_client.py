@@ -19,11 +19,20 @@ import pytest
 from typing import get_type_hints
 
 
-def test_conteudo_estruturado_has_exactly_6_fields():
-    """ConteudoEstruturado must have exactly these 6 fields."""
+def test_conteudo_estruturado_has_expected_fields():
+    """ConteudoEstruturado deve manter os campos base e de tecnologias atuais."""
     from models.schemas import ConteudoEstruturado
     fields = set(ConteudoEstruturado.model_fields.keys())
-    expected = {"resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"}
+    expected = {
+        "resumo",
+        "tarefas",
+        "decisoes",
+        "problemas",
+        "contexto_cliente",
+        "proximos_passos",
+        "tecnologias",
+        "tecnologias_removidas",
+    }
     assert fields == expected, f"Fields mismatch: got {fields}, expected {expected}"
 
 
@@ -44,7 +53,7 @@ def test_conteudo_estruturado_field_types():
 
 
 def test_conteudo_estruturado_instantiation():
-    """ConteudoEstruturado must be instantiable with 6 fields."""
+    """ConteudoEstruturado deve aceitar todos os campos obrigatórios atuais."""
     from models.schemas import ConteudoEstruturado
     obj = ConteudoEstruturado(
         resumo="Resumo teste",
@@ -53,6 +62,7 @@ def test_conteudo_estruturado_instantiation():
         problemas=["problema 1"],
         contexto_cliente="Cliente X",
         proximos_passos=["passo 1"],
+        tecnologias=["Python"],
     )
     assert obj.resumo == "Resumo teste"
     assert obj.tarefas == ["tarefa 1", "tarefa 2"]
@@ -91,7 +101,18 @@ def test_project_response_has_required_fields():
     """ProjectResponse must have id, name, client, description, created_at."""
     from models.schemas import ProjectResponse
     fields = set(ProjectResponse.model_fields.keys())
-    expected = {"id", "name", "client", "description", "created_at"}
+    expected = {
+        "id",
+        "name",
+        "client",
+        "description",
+        "squad",
+        "budget_usd",
+        "has_api_key",
+        "is_delivered",
+        "created_at",
+        "last_ingestion_at",
+    }
     assert fields == expected
 
 
@@ -150,11 +171,11 @@ def test_projects_router_has_prefix():
     assert router.prefix == "/projects", f"Router prefix should be /projects, got {router.prefix}"
 
 
-def test_projects_router_has_3_routes():
-    """projects router must have exactly 3 route objects."""
+def test_projects_router_has_current_routes():
+    """Projects router deve expor todas as rotas atuais do domínio."""
     from routers.projects import router
     routes = router.routes
-    assert len(routes) == 3, f"Expected 3 routes, got {len(routes)}: {[r.path for r in routes]}"
+    assert len(routes) == 9, f"Expected 9 routes, got {len(routes)}: {[r.path for r in routes]}"
 
 
 def test_projects_router_get_by_id_raises_404():

@@ -1,0 +1,1 @@
+"""Dependências compartilhadas da aplicação."""
