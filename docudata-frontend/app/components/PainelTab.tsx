@@ -410,12 +410,6 @@ function BlocoDCard({
 }
 
 function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: string[] }) {
-  const prioColor: Record<string, { bg: string; color: string }> = {
-    alta: { bg: "#fee2e2", color: "#dc2626" },
-    media: { bg: "#fef9c3", color: "#a16207" },
-    baixa: { bg: "#f1f5f9", color: "#64748b" },
-  };
-  const prio = prioColor[f.prioridade] ?? prioColor.baixa;
   const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
 
   return (
@@ -434,16 +428,15 @@ function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: 
       <span style={{ fontSize: 13, fontWeight: 600, color: "#111116", lineHeight: 1.4 }}>
         {f.titulo}
       </span>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chipBaseStyle, background: prio.bg, color: prio.color }}>
-          {f.prioridade}
-        </span>
-        {sprintsToShow.map((s) => (
-          <span key={s} style={{ ...chipBaseStyle, background: "#ede9fe", color: "#7c3aed" }}>
-            Sprint {s}
-          </span>
-        ))}
-      </div>
+      {sprintsToShow.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {sprintsToShow.map((s) => (
+            <span key={s} style={{ ...chipBaseStyle, background: "#ede9fe", color: "#7c3aed" }}>
+              Sprint {s}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
