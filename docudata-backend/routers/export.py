@@ -27,7 +27,12 @@ async def export_doc_to_gdocs(doc_id: str):
         raise HTTPException(status_code=404, detail="Document not found")
     doc = doc_resp.data[0]
 
-    proj_resp = client.table("projects").select("*").eq("id", doc["project_id"]).execute()
+    proj_resp = (
+        client.table("projects")
+        .select("id, name, client, squad, subarea")
+        .eq("id", doc["project_id"])
+        .execute()
+    )
     if not proj_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
     project = proj_resp.data[0]
@@ -42,6 +47,7 @@ async def export_doc_to_gdocs(doc_id: str):
             squad=project.get("squad") or "—",
             sprint_numero=doc.get("sprint_number"),
             created_at=doc["created_at"],
+            subarea=project["subarea"],
             doc_type=doc["doc_type"],
         )
     except RuntimeError as e:

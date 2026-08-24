@@ -17,14 +17,20 @@ SCOPES = [
 ]
 
 
-def _get_services():
+def _get_services(subarea: str):
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN", "")
+    if subarea == "dados":
+        refresh_token_env = "GOOGLE_REFRESH_TOKEN"
+    elif subarea == "dev":
+        refresh_token_env = "GOOGLE_REFRESH_TOKEN_DEV"
+    else:
+        raise RuntimeError(f"Subárea inválida para autenticação Google: {subarea}")
+    refresh_token = os.environ.get(refresh_token_env, "")
 
     if not (client_id and client_secret and refresh_token):
         raise RuntimeError(
-            "Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e GOOGLE_REFRESH_TOKEN no .env"
+            f"Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e {refresh_token_env} no .env"
         )
 
     creds = OAuthCredentials(
@@ -406,6 +412,45 @@ _TEMPLATE_ENV_BY_DOC_TYPE = {
 }
 
 
+def _get_template_id(doc_type: str, subarea: str) -> str:
+    """Prefere template Dev e usa o equivalente de Dados enquanto necessário."""
+    typed_env = _TEMPLATE_ENV_BY_DOC_TYPE.get(doc_type)
+    if subarea == "dados":
+        candidates = [typed_env, "GDOCS_TEMPLATE_ID"]
+    elif subarea == "dev":
+        candidates = [
+            f"{typed_env}_DEV" if typed_env else None,
+            "GDOCS_TEMPLATE_ID_DEV",
+            typed_env,
+            "GDOCS_TEMPLATE_ID",
+        ]
+    else:
+        raise RuntimeError(f"Subárea inválida para template Google Docs: {subarea}")
+
+    for env_name in candidates:
+        if env_name:
+            template_id = os.environ.get(env_name, "").strip()
+            if template_id:
+                return template_id
+
+    configured_names = " ou ".join(env_name for env_name in candidates if env_name)
+    raise RuntimeError(f"{configured_names} não configurado")
+
+
+def _get_root_folder_id(subarea: str) -> str:
+    """Resolve a pasta raiz sem permitir que Dev caia na pasta de Dados."""
+    if subarea == "dados":
+        env_name = "GDRIVE_FOLDER_ID"
+    elif subarea == "dev":
+        env_name = "GDRIVE_FOLDER_ID_DEV"
+    else:
+        raise RuntimeError(f"Subárea inválida para exportação: {subarea}")
+
+    folder_id = os.environ.get(env_name, "").strip()
+    if not folder_id:
+        raise RuntimeError(f"{env_name} não configurado")
+    return folder_id
+
 
 def export_to_gdocs(
     project_id: str,
@@ -415,21 +460,19 @@ def export_to_gdocs(
     cliente: str,
     sprint_numero: int | None,
     created_at: str,
+    subarea: str,
     doc_type: str = "",
     squad: str = "—",
 ) -> str:
-    env_key = _TEMPLATE_ENV_BY_DOC_TYPE.get(doc_type, "")
-    template_id = (env_key and os.environ.get(env_key, "")) or os.environ.get("GDOCS_TEMPLATE_ID", "")
-    folder_id = os.environ.get("GDRIVE_FOLDER_ID", "")
-    if not template_id or not folder_id:
-        raise RuntimeError("GDOCS_TEMPLATE_ID ou GDRIVE_FOLDER_ID não configurados")
+    template_id = _get_template_id(doc_type, subarea)
+    folder_id = _get_root_folder_id(subarea)
 
-    docs, drive = _get_services()
+    docs, drive = _get_services(subarea)
 
     sprint_label = f"Sprint {sprint_numero}" if sprint_numero else "Projeto completo"
     title = f"{doc_type_label} — {projeto_nome} — {sprint_label}"
 
-    # Hierarquia: pasta raiz → pasta do projeto → pasta da sprint (ou Cross-Sprint)
+    # Hierarquia: pasta da subárea → pasta do projeto → sprint (ou Cross-Sprint).
     project_folder_id = _get_or_create_folder(drive, projeto_nome, folder_id)
     sprint_folder_name = f"Sprint {sprint_numero}" if sprint_numero else "Cross-Sprint"
     sprint_folder_id = _get_or_create_folder(drive, sprint_folder_name, project_folder_id)
