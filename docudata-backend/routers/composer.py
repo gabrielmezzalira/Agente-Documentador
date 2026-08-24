@@ -103,62 +103,66 @@ def calcular_throughput_ref(
 
 @router.get("/rascunho/{project_id}/{sprint_numero}", response_model=RascunhoResponse)
 async def get_rascunho(project_id: str, sprint_numero: int):
-    """Retorna o rascunho da sprint (criando-o via upsert se não existir).
+    import traceback
+    step = "init"
+    try:
+        client = get_client()
 
-    Também retorna throughput_ref (últimas 3 sprints) e lista de transbordos
-    (funcionalidades com sprint_alvo == N-1 e status != concluida).
-    """
-    client = get_client()
-
-    # Insert-only upsert: cria o rascunho se não existir; ignora conflito se já houver.
-    # ignore_duplicates=True garante que nunca sobrescreve step_atual/dados_json existentes.
-    (
-        client.table("planning_rascunhos")
-        .upsert(
-            {
-                "project_id": project_id,
-                "sprint_numero": sprint_numero,
-                "step_atual": 1,
-                "dados_json": {},
-            },
-            on_conflict="project_id,sprint_numero",
-            ignore_duplicates=True,
+        step = "upsert_rascunho"
+        (
+            client.table("planning_rascunhos")
+            .upsert(
+                {
+                    "project_id": project_id,
+                    "sprint_numero": sprint_numero,
+                    "step_atual": 1,
+                    "dados_json": {},
+                },
+                on_conflict="project_id,sprint_numero",
+                ignore_duplicates=True,
+            )
+            .execute()
         )
-        .execute()
-    )
-    # Sempre busca a linha real (nova ou pré-existente) via SELECT explícito.
-    fetch_resp = (
-        client.table("planning_rascunhos")
-        .select("*")
-        .eq("project_id", project_id)
-        .eq("sprint_numero", sprint_numero)
-        .execute()
-    )
-    if not fetch_resp.data:
-        raise HTTPException(status_code=500, detail="Falha ao criar/buscar rascunho")
-    rascunho = fetch_resp.data[0]
 
-    # Throughput de referência (funcionalidades/sprint das últimas 3 sprints)
-    throughput_ref = calcular_throughput_ref(project_id, sprint_numero, client)
+        step = "fetch_rascunho"
+        fetch_resp = (
+            client.table("planning_rascunhos")
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("sprint_numero", sprint_numero)
+            .execute()
+        )
+        if not fetch_resp.data:
+            raise HTTPException(status_code=500, detail="Falha ao criar/buscar rascunho")
+        rascunho = fetch_resp.data[0]
 
-    # Transbordos: funcionalidades da sprint anterior (N-1) não concluídas.
-    # ATENÇÃO: sprint_alvo é str no banco — comparar com str(sprint_numero - 1).
-    sprint_anterior = str(sprint_numero - 1)
-    transbordos_resp = (
-        client.table("funcionalidades")
-        .select("id, titulo, sprint_alvo, status, criterios_aceite")
-        .eq("project_id", project_id)
-        .eq("sprint_alvo", sprint_anterior)
-        .neq("status", "concluida")
-        .execute()
-    )
-    transbordos = transbordos_resp.data or []
+        step = "throughput_ref"
+        throughput_ref = calcular_throughput_ref(project_id, sprint_numero, client)
 
-    return RascunhoResponse(
-        rascunho=rascunho,
-        throughput_ref=throughput_ref,
-        transbordos=transbordos,
-    )
+        step = "transbordos"
+        sprint_anterior = str(sprint_numero - 1)
+        transbordos_resp = (
+            client.table("funcionalidades")
+            .select("id, titulo, sprint_alvo, status, criterios_aceite")
+            .eq("project_id", project_id)
+            .eq("sprint_alvo", sprint_anterior)
+            .neq("status", "concluida")
+            .execute()
+        )
+        transbordos = transbordos_resp.data or []
+
+        return RascunhoResponse(
+            rascunho=rascunho,
+            throughput_ref=throughput_ref,
+            transbordos=transbordos,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Composer failed at step={step}: {type(e).__name__}: {str(e)[:500]}\n{traceback.format_exc()[:800]}",
+        )
 
 
 @router.patch("/rascunho/{project_id}/{sprint_numero}")
