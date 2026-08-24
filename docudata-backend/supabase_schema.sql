@@ -162,3 +162,23 @@ ALTER TABLE funcionalidades
     ADD COLUMN IF NOT EXISTS testes_e2e text[] NOT NULL DEFAULT '{}';
 
 -- Se as tabelas já existem, rode os ALTERs acima individualmente no SQL Editor.
+
+-- Phase 12: Boletim de Aceite, Encerramento e Resumo Semanal
+-- Migration incremental: executar no Supabase SQL Editor
+
+CREATE TABLE IF NOT EXISTS boletins_aceite (
+    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id          uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    sprint_numero       int,
+    funcionalidade_ids  text[]      NOT NULL DEFAULT '{}',
+    status              text        NOT NULL DEFAULT 'rascunho'
+                                    CHECK (status IN ('rascunho', 'enviado', 'aprovado', 'ajuste')),
+    retorno_tipo        text        CHECK (retorno_tipo IS NULL OR retorno_tipo IN ('bug', 'mudanca_escopo')),
+    conteudo            text        NOT NULL DEFAULT '',
+    criado_em           timestamptz NOT NULL DEFAULT now(),
+    enviado_em          timestamptz,
+    retorno_em          timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_boletins_aceite_project
+    ON boletins_aceite (project_id, criado_em DESC);
