@@ -283,11 +283,11 @@ Plans:
   5. Ao final de cada semana, o sistema gera por projeto um resumo de exceções (travadas, aguardando cliente, concluídas com suíte falhando, achados críticos, decisões pendentes, leitura tempo × escopo)
   6. Quando não houver anomalia, o resumo declara explicitamente que não há
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 12-01-PLAN.md — Tracer: Migration SQL boletins_aceite + schemas (BoletimCreate/Response) + POST /boletins (Gemini) + GET /boletins/{project_id} + main.py wiring
+- [x] 12-01-PLAN.md — Tracer: Migration SQL boletins_aceite + schemas (BoletimCreate/Response) + POST /boletins (Gemini) + GET /boletins/{project_id} + main.py wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -314,4 +314,4 @@ Plans:
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
 | 11. Suíte de Verificação de Aceite | 2/2 | In Progress|  |
-| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
+| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 1/3 | In Progress|  |
