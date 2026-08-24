@@ -1,0 +1,45 @@
+# DocuData Aceite — GitHub Actions Workflow
+#
+# IMPORTANTE: Este workflow deve estar no default branch (main/master) do
+# repositório do projeto. O evento repository_dispatch só é acionado quando
+# o arquivo existe no default branch (ver https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#repository_dispatch).
+#
+# Instalação no repositório do projeto:
+#   mkdir -p .github/workflows scripts
+#   cp aceite_agent.py scripts/aceite_agent.py
+#   cp aceite.yml .github/workflows/aceite.yml
+#   git add .github/workflows/aceite.yml scripts/aceite_agent.py
+#   git commit -m "chore: adicionar DocuData aceite"
+#
+# Configurar GitHub Secret no repositório do projeto:
+#   DOCUDATA_API_URL  — https://docudata-backend.railway.app
+#
+# O DocuData dispara este workflow automaticamente via repository_dispatch
+# quando uma funcionalidade é marcada como concluída.
+
+name: DocuData Aceite
+
+on:
+  repository_dispatch:
+    types: [docudata-aceite]
+
+jobs:
+  aceite:
+    runs-on: ubuntu-latest
+    # Suíte de aceite é best-effort: nunca bloqueia o CI do projeto.
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Executar suíte de aceite
+        continue-on-error: true
+        env:
+          DOCUDATA_API_URL:  ${{ secrets.DOCUDATA_API_URL }}
+          FUNCIONALIDADE_ID: ${{ github.event.client_payload.funcionalidade_id }}
+          PROJECT_ID:        ${{ github.event.client_payload.project_id }}
+          TESTES_E2E:        ${{ toJson(github.event.client_payload.testes_e2e) }}
+        run: python scripts/aceite_agent.py
