@@ -7,15 +7,17 @@ GET  /projects/{project_id}/current-sprint — retorna a sprint atual do
 """
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from models.schemas import ConteudoEstruturado
 from services.supabase_client import get_client
 from services.sprints import ensure_sprint_row
+from services.gemini_key import get_gemini_api_key
 
 router = APIRouter(tags=["commit-ingest"])
 
@@ -98,20 +100,16 @@ _COMMIT_SYSTEM_PROMPT = (
 
 
 @router.post("/ingest/commit", status_code=201)
-async def ingest_commit(payload: CommitPayload):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def ingest_commit(request: Request, response: Response, payload: CommitPayload):
     """Recebe metadados de um commit GitHub e registra como ingestion no DocuData."""
     client = get_client()
 
-    # Verifica que projeto existe e busca api_key
-    project_resp = client.table("projects").select("gemini_api_key").eq("id", payload.project_id).execute()
+    # A existência do projeto e a credencial global são verificadas separadamente.
+    project_resp = client.table("projects").select("id").eq("id", payload.project_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    api_key = project_resp.data[0].get("gemini_api_key") or ""
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto nao tem uma chave de API do Gemini configurada. Configure-a no dashboard antes de enviar commits.",
-        )
+    api_key = get_gemini_api_key()
 
     ensure_sprint_row(client, payload.project_id, payload.sprint_number)
 
@@ -142,8 +140,8 @@ async def ingest_commit(payload: CommitPayload):
         raw_result = await structured_llm.ainvoke(messages)
         parsed: ConteudoEstruturado = raw_result["parsed"]
         raw_msg = raw_result["raw"]
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini extraction failed: {exc}")
+    except Exception:
+        raise HTTPException(status_code=502, detail="Falha ao processar o commit com Gemini")
 
     usage = getattr(raw_msg, "usage_metadata", None) or {}
     in_tok = usage.get("input_tokens", 0) or 0

@@ -3,8 +3,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
@@ -19,38 +18,51 @@ from services.tech_timeline import build_tech_timeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+_PROJECT_COLUMNS = (
+    "id, name, client, subarea, description, squad, budget_usd, "
+    "is_delivered, created_at"
+)
 
-def _sanitize(row: dict) -> dict:
-    """Strip gemini_api_key from row and inject has_api_key bool."""
-    has_key = bool(row.get("gemini_api_key"))
-    return {k: v for k, v in row.items() if k != "gemini_api_key"} | {"has_api_key": has_key}
 
-
-class ApiKeyUpdate(BaseModel):
-    gemini_api_key: Optional[str] = None
+def _public_project(row: dict) -> dict:
+    """Mantém respostas de projeto limitadas aos campos públicos do domínio."""
+    return {key: row.get(key) for key in (
+        "id", "name", "client", "subarea", "description", "squad",
+        "budget_usd", "is_delivered", "created_at", "last_ingestion_at",
+    ) if key in row}
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(data: ProjectCreate):
     """Create a new project. Returns the inserted row with its generated UUID."""
     client = get_client()
-    payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
+    payload = {
+        "name": data.name,
+        "client": data.client,
+        "subarea": data.subarea,
+        "description": data.description,
+        "squad": data.squad,
+    }
     if data.budget_usd is not None:
         payload["budget_usd"] = data.budget_usd
-    if data.gemini_api_key:
-        payload["gemini_api_key"] = data.gemini_api_key
     response = client.table("projects").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
-    return _sanitize(response.data[0])
+    return _public_project(response.data[0])
 
 
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects():
+async def list_projects(subarea: Literal["dados", "dev"]):
     """List all projects ordered by creation date (most recent first)."""
     client = get_client()
-    response = client.table("projects").select("*").order("created_at", desc=True).execute()
-    projects = [_sanitize(row) for row in response.data]
+    response = (
+        client.table("projects")
+        .select(_PROJECT_COLUMNS)
+        .eq("subarea", subarea)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    projects = [_public_project(row) for row in response.data]
 
     if projects:
         ing_resp = (
@@ -74,28 +86,10 @@ async def list_projects():
 async def get_project(project_id: str):
     """Get a single project by UUID. Returns 404 if not found."""
     client = get_client()
-    response = client.table("projects").select("*").eq("id", project_id).execute()
+    response = client.table("projects").select(_PROJECT_COLUMNS).eq("id", project_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    return _sanitize(response.data[0])
-
-
-@router.patch("/{project_id}/api-key", response_model=ProjectResponse)
-async def update_api_key(project_id: str, data: ApiKeyUpdate):
-    """Set or clear the Gemini API key for an existing project."""
-    client = get_client()
-    check = client.table("projects").select("id").eq("id", project_id).execute()
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    response = (
-        client.table("projects")
-        .update({"gemini_api_key": data.gemini_api_key or None})
-        .eq("id", project_id)
-        .execute()
-    )
-    if not response.data:
-        raise HTTPException(status_code=500, detail="Failed to update API key")
-    return _sanitize(response.data[0])
+    return _public_project(response.data[0])
 
 
 @router.get("/{project_id}/cost", response_model=ProjectCostResponse)
@@ -285,7 +279,7 @@ async def toggle_delivered(project_id: str):
     )
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update project")
-    return _sanitize(response.data[0])
+    return _public_project(response.data[0])
 
 
 @router.get("/{project_id}/technologies", response_model=TechTimelineResponse)

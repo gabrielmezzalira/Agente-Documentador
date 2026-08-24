@@ -71,7 +71,7 @@ def test_endpoint_protegido_aceita_chave_correta(client, monkeypatch):
     monkeypatch.setattr(projects, "get_client", lambda: supabase)
 
     resposta = client.get(
-        "/projects",
+        "/projects?subarea=dados",
         headers={"X-Docudata-Key": APP_KEY},
     )
 
@@ -87,7 +87,7 @@ def test_todas_as_rotas_de_negocio_exigem_app_key():
         route for route in app.routes if hasattr(route, "include_context")
     ]
 
-    assert len(routers_incluidos) == 10
+    assert len(routers_incluidos) == 11
     for router_incluido in routers_incluidos:
         dependencies = [
             dependency.dependency

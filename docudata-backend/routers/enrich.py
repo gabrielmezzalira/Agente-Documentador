@@ -5,11 +5,13 @@ Não salva nada no banco — é uma etapa de pré-visualização/validação.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
+from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/enrich", tags=["enrich"])
@@ -228,18 +230,11 @@ _PROMPTS = {
 }
 
 
-def _get_api_key(projeto_id: str) -> str:
+def _ensure_project_exists(projeto_id: str) -> None:
     client = get_client()
-    resp = client.table("projects").select("gemini_api_key").eq("id", projeto_id).execute()
+    resp = client.table("projects").select("id").eq("id", projeto_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    key = resp.data[0].get("gemini_api_key") or ""
-    if not key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada.",
-        )
-    return key
 
 
 async def _prepare_content(
@@ -284,7 +279,10 @@ async def _prepare_content(
 
 
 @router.post("")
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def enrich(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     doc_type: str = Form(...),
     texto: Optional[str] = Form(None),
@@ -300,7 +298,8 @@ async def enrich(
             detail=f"doc_type inválido: {doc_type!r}. Use: {list(_SCHEMA_MAP)}",
         )
 
-    api_key = _get_api_key(projeto_id)
+    _ensure_project_exists(projeto_id)
+    api_key = get_gemini_api_key()
     content_text, is_vision, image_b64, image_mime = await _prepare_content(texto, arquivo)
 
     if not content_text and not is_vision:
@@ -339,5 +338,5 @@ async def enrich(
         return parsed.model_dump()
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+    except Exception:
+        raise HTTPException(status_code=502, detail="Falha ao analisar o conteúdo com Gemini")

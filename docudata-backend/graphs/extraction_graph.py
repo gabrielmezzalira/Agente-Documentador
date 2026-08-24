@@ -16,7 +16,7 @@ class ExtractionState(TypedDict):
     mime_type: str
     sprint_numero: int
     projeto_id: str
-    gemini_api_key: str
+    api_key: str
     tipo: str
     texto_preprocessado: str
     conteudo_estruturado: Optional[dict]
@@ -110,7 +110,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
     projeto_nome = state.get("projeto_nome") or ""
     cliente = state.get("cliente") or ""
     projeto_descricao = state.get("projeto_descricao") or ""
-    gemini_api_key = state.get("gemini_api_key") or ""
+    api_key = state.get("api_key") or ""
     arquivo_nome = state.get("arquivo_nome") or ""
     arquivo_bytes = state.get("arquivo_bytes") or b""
     mime_type = state.get("mime_type") or ""
@@ -141,7 +141,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
         llm = ChatGoogleGenerativeAI(
             model="gemini-3.5-flash-lite",
             max_tokens=256,
-            google_api_key=gemini_api_key,
+            google_api_key=api_key,
         )
         human_content = (
             f"Arquivo: {arquivo_nome}\n"
@@ -165,9 +165,9 @@ async def validar_tipo(state: ExtractionState) -> dict:
         tipo_detectado = parsed.get("tipo_detectado", "upload_livre")
         nao_bloquear = parsed.get("nao_bloquear", True)
         explicacao = parsed.get("explicacao", "")
-    except Exception as exc:
+    except Exception:
         # Safe fallback: never block on parse or API error
-        print(f"[validar_tipo] Error during classification — defaulting to nao_bloquear=True: {exc}")
+        print("[validar_tipo] Falha na classificação — usando nao_bloquear=True")
         nao_bloquear = True
 
     # Apply blocking logic
@@ -333,7 +333,7 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
         f"{'[vision]' if is_vision else f'preview: {texto[:200]!r}'}"
     )
     try:
-        structured_llm = _make_structured_llm(state["gemini_api_key"])
+        structured_llm = _make_structured_llm(state["api_key"])
         raw_result = await structured_llm.ainvoke(messages)
         parsed: Optional[ConteudoEstruturado] = raw_result.get("parsed")
         raw_msg = raw_result["raw"]
@@ -372,8 +372,9 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
             "input_tokens": in_tok,
             "output_tokens": out_tok,
         }
-    except Exception as exc:
-        return {"valido": False, "tentativas": tentativas + 1, "erro": str(exc)}
+    except Exception:
+        # A exceção do SDK não é propagada para evitar vazar credenciais ou payloads.
+        return {"valido": False, "tentativas": tentativas + 1, "erro": "Falha ao processar conteúdo com Gemini"}
 
 
 async def salvar(state: ExtractionState) -> dict:

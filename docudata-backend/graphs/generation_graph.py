@@ -20,7 +20,7 @@ class GenerationState(TypedDict):
     sprint_numero: Optional[int]
     ingestion_id: Optional[str]
     observacoes: Optional[str]
-    gemini_api_key: str
+    api_key: str
     data_atual: str
     ingestions: list
     contexto: str
@@ -920,7 +920,7 @@ async def gerar_documento(state: GenerationState) -> dict:
         "{contexto}", _NO_HALLUCINATE + "\n\n{contexto}"
     )
     prompt = ChatPromptTemplate.from_template(template)
-    llm = _make_llm(state["gemini_api_key"])
+    llm = _make_llm(state["api_key"])
 
     contexto = state["contexto"]
     obs = (state.get("observacoes") or "").strip()

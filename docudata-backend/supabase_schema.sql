@@ -90,3 +90,18 @@ ON CONFLICT (project_id, numero) DO NOTHING;
 -- INSERT INTO sprints (project_id, numero)
 -- SELECT DISTINCT project_id, sprint_number FROM ingestions
 -- ON CONFLICT (project_id, numero) DO NOTHING;
+
+-- Migration v3: subárea do projeto (dados | dev)
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS subarea text NOT NULL DEFAULT 'dados';
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev'));
+
+-- Migration v4: configuração global e criptografada da chave Gemini
+-- Executar manualmente no Supabase SQL Editor. Não há policy para acesso pelo browser.
+-- CREATE TABLE IF NOT EXISTS app_settings (
+--     key             text        PRIMARY KEY,
+--     encrypted_value text        NOT NULL,
+--     display_hint    text,
+--     updated_at      timestamptz NOT NULL DEFAULT now()
+-- );
+-- ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
+from typing import Literal
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["search"])
@@ -19,13 +20,27 @@ class SearchResponse(BaseModel):
 
 
 @router.get("/search", response_model=SearchResponse)
-async def search_stack(q: str = Query(..., min_length=1)):
-    """Search all projects for a given technology/stack mentioned in any ingestion."""
+async def search_stack(
+    q: str = Query(..., min_length=1),
+    subarea: Literal["dados", "dev"] = Query(...),
+):
+    """Search projects from one subarea for a technology mentioned in ingestions."""
     client = get_client()
+
+    projects_resp = (
+        client.table("projects")
+        .select("id")
+        .eq("subarea", subarea)
+        .execute()
+    )
+    project_ids = [project["id"] for project in (projects_resp.data or [])]
+    if not project_ids:
+        return SearchResponse(query=q, results=[])
 
     ing_resp = (
         client.table("ingestions")
         .select("project_id, sprint_number, extracted_content")
+        .in_("project_id", project_ids)
         .execute()
     )
 

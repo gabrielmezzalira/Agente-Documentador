@@ -69,30 +69,35 @@ def test_conteudo_estruturado_instantiation():
     assert obj.model_dump()["decisoes"] == ["decisao 1"]
 
 
-def test_project_create_requires_name_and_client():
-    """ProjectCreate must require name and client; missing either raises ValidationError."""
+def test_project_create_requires_name_client_and_subarea():
+    """ProjectCreate exige nome, cliente e subárea."""
     from models.schemas import ProjectCreate
     import pydantic
     # Valid creation
-    proj = ProjectCreate(name="Proj X", client="Client A")
+    proj = ProjectCreate(name="Proj X", client="Client A", subarea="dados")
     assert proj.name == "Proj X"
     assert proj.client == "Client A"
+    assert proj.subarea == "dados"
     assert proj.description is None
 
     # Missing name
     with pytest.raises(pydantic.ValidationError):
-        ProjectCreate(client="Client A")
+        ProjectCreate(client="Client A", subarea="dados")
 
     # Missing client
     with pytest.raises(pydantic.ValidationError):
-        ProjectCreate(name="Proj X")
+        ProjectCreate(name="Proj X", subarea="dados")
+
+    # Missing subarea
+    with pytest.raises(pydantic.ValidationError):
+        ProjectCreate(name="Proj X", client="Client A")
 
 
 def test_project_create_description_optional():
     """ProjectCreate description is optional."""
     from models.schemas import ProjectCreate
-    proj_with_desc = ProjectCreate(name="P", client="C", description="desc")
-    proj_without = ProjectCreate(name="P", client="C")
+    proj_with_desc = ProjectCreate(name="P", client="C", subarea="dev", description="desc")
+    proj_without = ProjectCreate(name="P", client="C", subarea="dev")
     assert proj_with_desc.description == "desc"
     assert proj_without.description is None
 
@@ -105,10 +110,10 @@ def test_project_response_has_required_fields():
         "id",
         "name",
         "client",
+        "subarea",
         "description",
         "squad",
         "budget_usd",
-        "has_api_key",
         "is_delivered",
         "created_at",
         "last_ingestion_at",
@@ -175,7 +180,7 @@ def test_projects_router_has_current_routes():
     """Projects router deve expor todas as rotas atuais do domínio."""
     from routers.projects import router
     routes = router.routes
-    assert len(routes) == 9, f"Expected 9 routes, got {len(routes)}: {[r.path for r in routes]}"
+    assert len(routes) == 8, f"Expected 8 routes, got {len(routes)}: {[r.path for r in routes]}"
 
 
 def test_projects_router_get_by_id_raises_404():

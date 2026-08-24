@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 
 
@@ -19,23 +19,33 @@ class ConteudoEstruturado(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     client: str
+    subarea: Literal["dados", "dev"]
     description: Optional[str] = None
     squad: Optional[str] = None
     budget_usd: Optional[float] = None
-    gemini_api_key: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
     client: str
+    subarea: str
     description: Optional[str] = None
     squad: Optional[str] = None
     budget_usd: Optional[float] = None
-    has_api_key: bool = False
     is_delivered: bool = False
     created_at: datetime
     last_ingestion_at: Optional[datetime] = None
+
+
+class GeminiApiKeyUpdate(BaseModel):
+    api_key: str = Field(min_length=1)
+
+
+class GeminiApiKeyStatus(BaseModel):
+    configured: bool
+    key_hint: Optional[str] = None
+    updated_at: Optional[datetime] = None
 
 
 class ProjectCostResponse(BaseModel):
