@@ -1,7 +1,12 @@
+import json
+import os
+import subprocess
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone, date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 
 from models.schemas import (
@@ -14,6 +19,102 @@ from models.schemas import (
     FuncionalidadeProposta,
 )
 from services.supabase_client import get_client
+
+
+def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
+    """Dispara suíte de aceite via GitHub repository_dispatch (fire-and-forget).
+
+    Função SÍNCRONA — FastAPI BackgroundTasks executa em threadpool automaticamente.
+    Não usar create_task do asyncio — pode ser garbage-collected antes de terminar.
+    """
+    client = get_client()
+
+    # Buscar configuração GitHub do projeto
+    proj_resp = client.table("projects").select("github_token, github_repo, name").eq("id", project_id).execute()
+    proj = proj_resp.data[0] if proj_resp.data else {}
+
+    # Buscar testes_e2e da funcionalidade
+    func_resp = client.table("funcionalidades").select("testes_e2e").eq("id", funcionalidade_id).execute()
+    testes_e2e: list[str] = (func_resp.data[0].get("testes_e2e") or []) if func_resp.data else []
+
+    github_token = proj.get("github_token") or ""
+    github_repo = proj.get("github_repo") or ""
+
+    # Obter commit SHA do HEAD atual (best-effort)
+    try:
+        commit_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout.strip() or "unknown"
+    except Exception:
+        commit_sha = "unknown"
+
+    agora = datetime.now(timezone.utc).isoformat()
+
+    if not github_token or not github_repo:
+        # Sem configuração: registrar todos os gates como sem_cobertura imediatamente
+        gates_sem_cobertura = [
+            {"nome": g, "resultado": "sem_cobertura"}
+            for g in ("build", "testes_unitarios", "e2e", "acessibilidade", "performance")
+        ]
+        try:
+            client.table("execucoes_aceite").insert({
+                "funcionalidade_id": funcionalidade_id,
+                "project_id": project_id,
+                "commit_sha": commit_sha,
+                "gates": gates_sem_cobertura,
+                "concluido_em": agora,
+            }).execute()
+        except Exception as exc:
+            print(f"[aceite] Falha ao inserir execucao sem_cobertura: {exc}")
+        return
+
+    # Configurado: inserir registro pendente e disparar via GitHub API
+    try:
+        client.table("execucoes_aceite").insert({
+            "funcionalidade_id": funcionalidade_id,
+            "project_id": project_id,
+            "commit_sha": commit_sha,
+            "gates": [],
+            "disparado_em": agora,
+        }).execute()
+    except Exception as exc:
+        print(f"[aceite] Falha ao inserir execucao pendente: {exc}")
+
+    # Montar client_payload (max 10 top-level keys, max 64KB — per RESEARCH pitfall 6)
+    client_payload = {
+        "funcionalidade_id": funcionalidade_id,
+        "project_id": project_id,
+        "commit_sha": commit_sha,
+        "testes_e2e": testes_e2e[:50],  # truncar para evitar payload > 64KB
+        "api_url": os.environ.get("DOCUDATA_API_URL", ""),
+    }
+
+    url = f"https://api.github.com/repos/{github_repo}/dispatches"
+    body = json.dumps({
+        "event_type": "docudata-aceite",
+        "client_payload": client_payload,
+    }).encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            print(f"[aceite] Dispatch OK — status {r.status}, funcionalidade_id={funcionalidade_id}")
+    except Exception as exc:
+        # Best-effort: não propagar falha
+        print(f"[aceite] Falha no dispatch para GitHub: {exc}")
+
 
 router = APIRouter(prefix="/funcionalidades", tags=["funcionalidades"])
 
@@ -160,7 +261,11 @@ async def get_funcionalidade(funcionalidade_id: str):
 
 
 @router.patch("/{funcionalidade_id}", response_model=FuncionalidadeResponse)
-async def patch_funcionalidade(funcionalidade_id: str, data: FuncionalidadeUpdate):
+async def patch_funcionalidade(
+    funcionalidade_id: str,
+    data: FuncionalidadeUpdate,
+    background_tasks: BackgroundTasks,
+):
     client = get_client()
 
     # Fetch current row
@@ -201,12 +306,28 @@ async def patch_funcionalidade(funcionalidade_id: str, data: FuncionalidadeUpdat
             "duracao_fase_anterior_segundos": duracao,
         }).execute()
 
+    # Detectar transição para concluida — agendar dispatch ANTES de commitar o update
+    # (BackgroundTasks executa após o response ser enviado)
+    novo_status = getattr(data, "status", None)
+    status_anterior = func.get("status")
+    if novo_status == "concluida" and status_anterior != "concluida":
+        background_tasks.add_task(
+            dispatch_aceite_background,
+            funcionalidade_id=funcionalidade_id,
+            project_id=func["project_id"],
+        )
+
     # Build update payload
     updates: dict = {}
     for field in ("titulo", "descricao", "criterios_aceite", "prioridade", "responsavel", "sprint_alvo"):
         val = getattr(data, field, None)
         if val is not None:
             updates[field] = val
+
+    # testes_e2e editável via PATCH (D-07)
+    val_testes = getattr(data, "testes_e2e", None)
+    if val_testes is not None:
+        updates["testes_e2e"] = val_testes
 
     for campo in ("status", "status_cliente"):
         novo_valor = getattr(data, campo, None)
