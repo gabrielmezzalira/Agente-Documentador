@@ -25,6 +25,7 @@ import {
   moveIngestion,
   moveDoc,
   toggleDelivered,
+  listFuncionalidades,
   type Project,
   type Ingestion,
   type GeneratedDoc,
@@ -32,6 +33,7 @@ import {
   type ProjectUsage,
   type SprintWithStatus,
   type SprintDocType,
+  type FuncionalidadeResponse,
 } from "../../lib/api";
 import Tabs from "../../components/Tabs";
 import SprintCard from "../../components/SprintCard";
@@ -39,13 +41,14 @@ import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
 import PainelTab from "../../components/PainelTab";
 import PlanningTab from "../../components/PlanningTab";
+import AceiteTab from "../../components/AceiteTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config" | "planning";
+type TabId = "sprints" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config" | "planning" | "aceite";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -92,6 +95,7 @@ export default function ProjectDashboard() {
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
   const [cost, setCost] = useState<ProjectCost | null>(null);
+  const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ---------- custos mensais ----------
@@ -150,13 +154,15 @@ export default function ProjectDashboard() {
       listDocs(id),
       getProjectCost(id),
       listSprints(id),
+      listFuncionalidades(id),
     ])
-      .then(([p, ings, d, c, s]) => {
+      .then(([p, ings, d, c, s, fs]) => {
         setProject(p);
         setIngestions(ings);
         setDocs(d);
         setCost(c);
         setSprints(s);
+        setFuncionalidades(fs);
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -477,6 +483,7 @@ export default function ProjectDashboard() {
           { id: "custos", label: "Custos" },
           { id: "config", label: "Configurações" },
           { id: "planning", label: "Planning" },
+          { id: "aceite", label: "Aceite" },
         ]}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
@@ -929,6 +936,11 @@ export default function ProjectDashboard() {
       {/* ABA: PLANNING */}
       {activeTab === "planning" && (
         <PlanningTab projectId={id} sprints={sprints} />
+      )}
+
+      {/* ABA: ACEITE */}
+      {activeTab === "aceite" && (
+        <AceiteTab projectId={id} funcionalidades={funcionalidades} />
       )}
 
       {/* MODAL Planning/Daily/Review */}
