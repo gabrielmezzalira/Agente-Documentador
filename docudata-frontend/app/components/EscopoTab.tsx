@@ -195,10 +195,23 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
     setErro("");
   }
 
-  const totalPorStatus = funcionalidades.reduce<Record<string, number>>((acc, f) => {
+  const [sprintFiltro, setSprintFiltro] = useState<string>("todas");
+
+  const totalPorStatus = funcList.reduce<Record<string, number>>((acc, f) => {
     acc[f.status] = (acc[f.status] ?? 0) + 1;
     return acc;
   }, {});
+
+  // sprints únicas presentes nas funcionalidades, ordenadas
+  const sprintsDisponiveis = Array.from(
+    new Set(funcList.map((f) => f.sprint_alvo).filter(Boolean))
+  ).sort((a, b) => Number(a) - Number(b)) as string[];
+
+  const funcExibidas = sprintFiltro === "todas"
+    ? funcList
+    : sprintFiltro === "sem_sprint"
+    ? funcList.filter((f) => !f.sprint_alvo)
+    : funcList.filter((f) => f.sprint_alvo === sprintFiltro);
 
   return (
     <div>
@@ -238,6 +251,21 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
           </div>
         )}
       </div>
+
+      {/* Filtro por sprint */}
+      {sprintsDisponiveis.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Sprint:</span>
+          {[{ label: "Todas", value: "todas" }, ...sprintsDisponiveis.map((s) => ({ label: `Sprint ${s}`, value: s })), { label: "Sem sprint", value: "sem_sprint" }].map(({ label, value }) => (
+            <button key={value} onClick={() => setSprintFiltro(value)} style={{
+              padding: "5px 14px", fontSize: 12, fontWeight: 600, borderRadius: 20, cursor: "pointer", border: "1px solid",
+              background: sprintFiltro === value ? "#0f172a" : "#f8fafc",
+              color: sprintFiltro === value ? "#fff" : "#64748b",
+              borderColor: sprintFiltro === value ? "#0f172a" : "#e2e8f0",
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
 
       {/* Resumo de status */}
       {funcionalidades.length > 0 && (
@@ -614,7 +642,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
       ) : (
         step !== "review" && step !== "loading" && step !== "saving" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {funcList.map((f) => (
+            {funcExibidas.map((f) => (
               <div key={f.id} style={{ background: "#fff", border: `1px solid ${editingId === f.id ? "#bfdbfe" : "#e2e8f0"}`, borderRadius: 10, padding: "14px 16px" }}>
 
                 {/* Header do card — sempre visível */}
