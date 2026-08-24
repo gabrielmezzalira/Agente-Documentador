@@ -283,7 +283,7 @@ Plans:
   5. Ao final de cada semana, o sistema gera por projeto um resumo de exceções (travadas, aguardando cliente, concluídas com suíte falhando, achados críticos, decisões pendentes, leitura tempo × escopo)
   6. Quando não houver anomalia, o resumo declara explicitamente que não há
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 **Wave 1**
 
@@ -291,7 +291,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 12-02-PLAN.md — Expansion: PATCH /boletins/{id} (status transitions + retorno_tipo + batch status_cliente + TransicaoStatus) + POST /boletins/resumo_semanal (deterministic, no Gemini)
+- [x] 12-02-PLAN.md — Expansion: PATCH /boletins/{id} (status transitions + retorno_tipo + batch status_cliente + TransicaoStatus) + POST /boletins/resumo_semanal (deterministic, no Gemini)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -314,4 +314,4 @@ Plans:
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
 | 11. Suíte de Verificação de Aceite | 2/2 | In Progress|  |
-| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 1/3 | In Progress|  |
+| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 2/3 | In Progress|  |
