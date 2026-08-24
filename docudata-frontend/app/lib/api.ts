@@ -657,7 +657,7 @@ export interface FuncionalidadeResponse {
   criterios_aceite: string[];
   prioridade: string;
   status: "nao_iniciada" | "em_andamento" | "em_ajuste" | "concluida";
-  status_cliente: "nao_enviado" | "enviado" | "aprovado" | "rejeitado";
+  status_cliente: "nao_enviado" | "enviado" | "aprovado" | "rejeitado" | "ajuste_pedido";
   data_aprovacao_cliente?: string | null;
   responsavel?: string | null;
   sprint_alvo?: string | null;
@@ -858,5 +858,65 @@ export interface ExecucaoAceite {
 export async function getExecucoesAceite(projectId: string): Promise<ExecucaoAceite[]> {
   const res = await fetch(`${API}/execucoes_aceite/${projectId}`);
   if (!res.ok) return []; // falha silenciosa — badge é informativo
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Boletins de Aceite — interfaces e funções
+// ---------------------------------------------------------------------------
+
+export interface BoletimResponse {
+  id: string;
+  project_id: string;
+  sprint_numero?: number | null;
+  funcionalidade_ids: string[];
+  status: "rascunho" | "enviado" | "aprovado" | "ajuste";
+  retorno_tipo?: "bug" | "mudanca_escopo" | null;
+  conteudo: string;
+  criado_em: string;
+  enviado_em?: string | null;
+  retorno_em?: string | null;
+}
+
+export async function listBoletins(projectId: string): Promise<BoletimResponse[]> {
+  const res = await fetch(`${API}/boletins/${projectId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createBoletim(body: {
+  project_id: string;
+  sprint_numero?: number | null;
+  funcionalidade_ids: string[];
+}): Promise<BoletimResponse> {
+  const res = await fetch(`${API}/boletins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function patchBoletim(
+  id: string,
+  body: { status: string; retorno_tipo?: string }
+): Promise<BoletimResponse> {
+  const res = await fetch(`${API}/boletins/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function gerarResumoSemanal(projectId: string): Promise<{ content: string }> {
+  const res = await fetch(`${API}/boletins/resumo_semanal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
