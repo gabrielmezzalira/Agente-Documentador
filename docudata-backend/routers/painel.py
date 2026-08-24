@@ -66,7 +66,7 @@ def calcular_bloco_a(proj: dict, funcs: list[dict]) -> dict:
     }
 
 
-def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None) -> dict:
+def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None, execucoes_aceite: list[dict] | None = None) -> dict:
     hoje = datetime.now(timezone.utc)
 
     ultima_transicao_status: dict[str, datetime] = {}
@@ -133,6 +133,25 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
         relatorio_tecnico = None
         data_revisao = None
 
+    # Calcular funcionalidades concluídas com suíte de aceite falhando (per D-09)
+    aceite_por_func: dict[str, dict] = {}
+    for ea in (execucoes_aceite or []):
+        fid = ea.get("funcionalidade_id")
+        if fid:
+            aceite_por_func[fid] = ea
+
+    funcionalidades_com_aceite_falhando = []
+    for f in funcs:
+        if f.get("status") != "concluida":
+            continue
+        fid = f.get("id")
+        ea = aceite_por_func.get(fid)
+        if ea and ea.get("concluido_em"):
+            gates: list[dict] = ea.get("gates") or []
+            tem_falha = any(g.get("resultado") in ("falhou", "erro") for g in gates)
+            if tem_falha:
+                funcionalidades_com_aceite_falhando.append({"id": fid, "titulo": f.get("titulo", "")})
+
     return {
         "travadas": travadas,
         "aguardando_cliente": aguardando_cliente,
@@ -141,7 +160,21 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
         "relatorio_gerente": relatorio_gerente,
         "relatorio_tecnico": relatorio_tecnico,
         "data_revisao": data_revisao,
+        "funcionalidades_com_aceite_falhando": funcionalidades_com_aceite_falhando,
     }
+
+
+def _calcular_cobertura_aceite(funcs: list[dict], execucoes_aceite: list[dict]) -> float | None:
+    """Calcula a porcentagem de funcionalidades concluídas com cobertura de aceite (per D-10)."""
+    concluidas = [f for f in funcs if f.get("status") == "concluida"]
+    if not concluidas:
+        return None
+    aceite_por_func: dict[str, dict] = {ea["funcionalidade_id"]: ea for ea in execucoes_aceite if ea.get("funcionalidade_id")}
+    com_cobertura = sum(
+        1 for f in concluidas
+        if f.get("id") in aceite_por_func and aceite_por_func[f["id"]].get("concluido_em")
+    )
+    return round(com_cobertura / len(concluidas) * 100, 1)
 
 
 def calcular_bloco_c(funcs: list[dict], transicoes: list[dict]) -> dict:
@@ -324,14 +357,38 @@ async def get_painel(project_id: str):
     )
     revisao_recente = revisao_resp.data[0] if revisao_resp.data else None
 
+    # Buscar execuções de aceite para calcular cobertura (per D-09, D-10)
+    execucoes_resp = (
+        client.table("execucoes_aceite")
+        .select("funcionalidade_id, commit_sha, gates, disparado_em, concluido_em")
+        .eq("project_id", project_id)
+        .order("disparado_em", desc=True)
+        .execute()
+    )
+    execucoes_aceite_raw: list[dict] = execucoes_resp.data or []
+
+    # Deduplica mantendo apenas a execução mais recente por funcionalidade_id
+    # (query já está ordenada DESC por disparado_em, então o primeiro de cada func é o mais recente)
+    seen_func_ids: set[str] = set()
+    execucoes_aceite_list: list[dict] = []
+    for ea in execucoes_aceite_raw:
+        fid = ea.get("funcionalidade_id")
+        if fid and fid not in seen_func_ids:
+            seen_func_ids.add(fid)
+            execucoes_aceite_list.append(ea)
+
     bloco_a = calcular_bloco_a(proj, func_list)
-    bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente)
+    bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente, execucoes_aceite=execucoes_aceite_list)
     bloco_c = calcular_bloco_c(func_list, trans_list)
     bloco_d = calcular_bloco_d(func_list, trans_list)
+
+    # cobertura_aceite é campo separado no response root — NÃO altera pct_escopo_concluido (per D-10)
+    cobertura_aceite = _calcular_cobertura_aceite(func_list, execucoes_aceite_list)
 
     return {
         "bloco_a": bloco_a,
         "bloco_b": bloco_b,
         "bloco_c": bloco_c,
         "bloco_d": bloco_d,
+        "cobertura_aceite": cobertura_aceite,
     }
