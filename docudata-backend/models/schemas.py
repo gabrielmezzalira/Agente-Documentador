@@ -319,3 +319,31 @@ class ExecucaoAceiteResponse(BaseModel):
     gates: list[dict]
     disparado_em: datetime
     concluido_em: Optional[datetime] = None
+
+
+class BoletimCreate(BaseModel):
+    project_id: str
+    sprint_numero: Optional[int] = None
+    funcionalidade_ids: list[str]
+
+
+class BoletimPatch(BaseModel):
+    status: str
+    retorno_tipo: Optional[str] = None
+
+
+class BoletimResponse(BaseModel):
+    id: str
+    project_id: str
+    sprint_numero: Optional[int] = None
+    funcionalidade_ids: list[str]
+    status: str
+    retorno_tipo: Optional[str] = None
+    conteudo: str
+    criado_em: datetime
+    enviado_em: Optional[datetime] = None
+    retorno_em: Optional[datetime] = None
+
+
+class ResumoSemanalRequest(BaseModel):
+    project_id: str
