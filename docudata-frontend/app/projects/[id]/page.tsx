@@ -133,6 +133,12 @@ export default function ProjectDashboard() {
   // ---------- carry-over prefill ----------
   const [carryOverPrefill, setCarryOverPrefill] = useState("");
 
+  // ---------- planning composer → sprint-doc modal prefill ----------
+  const [planningComposerPrefill, setPlanningComposerPrefill] = useState<{
+    descricao: string;
+    itens: { item: string; responsavel: string; prazo: string; criterio: string }[];
+  } | null>(null);
+
   // ---------- geração ----------
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -946,7 +952,15 @@ export default function ProjectDashboard() {
 
       {/* ABA: PLANNING */}
       {activeTab === "planning" && (
-        <PlanningTab projectId={id} sprints={sprints} />
+        <PlanningTab
+          projectId={id}
+          sprints={sprints}
+          onGoToSprintDoc={({ sprintNumero, descricao, itens }) => {
+            setPlanningComposerPrefill({ descricao, itens });
+            setActiveTab("sprints");
+            setModal({ tipo: "planning", sprintNumero });
+          }}
+        />
       )}
 
       {/* ABA: ACEITE */}
@@ -957,12 +971,18 @@ export default function ProjectDashboard() {
       {/* MODAL Planning/Daily/Review */}
       <SprintDocModal
         open={modal !== null}
-        onClose={() => setModal(null)}
+        onClose={() => {
+          setModal(null);
+          setPlanningComposerPrefill(null);
+        }}
         tipo={modal?.tipo ?? "planning"}
         projetoId={id}
         sprintNumero={modal?.sprintNumero ?? 1}
         initialCarryOver={carryOverPrefill}
+        initialDescricao={planningComposerPrefill?.descricao}
+        initialItens={planningComposerPrefill?.itens}
         onSubmitted={async () => {
+          setPlanningComposerPrefill(null);
           await refreshAll();
         }}
       />

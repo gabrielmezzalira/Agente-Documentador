@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import {
   getRascunho,
   patchRascunho,
@@ -18,6 +17,11 @@ import {
 interface Props {
   projectId: string;
   sprints: SprintWithStatus[];
+  onGoToSprintDoc?: (payload: {
+    sprintNumero: number;
+    descricao: string;
+    itens: { item: string; responsavel: string; prazo: string; criterio: string }[];
+  }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +210,7 @@ const successBoxStyle: React.CSSProperties = {
 // Componente principal
 // ---------------------------------------------------------------------------
 
-export default function PlanningTab({ projectId, sprints }: Props) {
+export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Props) {
   const sprintAlvo =
     sprints.length > 0 ? Math.max(...sprints.map((s) => s.numero)) + 1 : 1;
 
@@ -230,6 +234,8 @@ export default function PlanningTab({ projectId, sprints }: Props) {
   const [confirmado, setConfirmado] = useState(false);
   const [novoCriterio, setNovoCriterio] = useState<Record<string, string>>({});
   const [salvandoCriterio, setSalvandoCriterio] = useState<string | null>(null);
+  const [detalhes, setDetalhes] = useState<Record<string, string>>({});
+  const [objetivoSprint, setObjetivoSprint] = useState<string>("");
 
   async function adicionarCriterio(funcId: string) {
     const texto = (novoCriterio[funcId] ?? "").trim();
@@ -263,13 +269,7 @@ export default function PlanningTab({ projectId, sprints }: Props) {
     listFuncionalidades(projectId).then(setFuncionalidades).catch(() => {});
   }, [projectId]);
 
-  // Auto-generate when entering step 4
-  useEffect(() => {
-    if (wizardStep === 4 && !markdownGerado && !gerandoMarkdown) {
-      handleGerar();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wizardStep]);
+  // Step 4 agora é composição por cards — sem auto-geração de markdown.
 
   async function handleIniciar() {
     setLoading(true);
@@ -282,6 +282,8 @@ export default function PlanningTab({ projectId, sprints }: Props) {
       setRecortes(dj.recortes ?? {});
       setAlocacoes(dj.alocacoes ?? {});
       setTransbordos(dj.transbordos ?? []);
+      setDetalhes(dj.detalhes ?? {});
+      setObjetivoSprint(dj.objetivo_sprint ?? "");
       const savedStep = data.rascunho.step_atual;
       setWizardStep(savedStep >= 1 && savedStep <= 4 ? (savedStep as 1 | 2 | 3 | 4) : 1);
     } catch (e) {
@@ -297,6 +299,8 @@ export default function PlanningTab({ projectId, sprints }: Props) {
       recortes,
       alocacoes,
       transbordos,
+      detalhes,
+      objetivo_sprint: objetivoSprint,
     };
     try {
       await patchRascunho(projectId, sprintAlvo, {
@@ -673,64 +677,155 @@ export default function PlanningTab({ projectId, sprints }: Props) {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* STEP 4 — Composição (D-06) */}
+      {/* STEP 4 — Composição (cards editáveis) */}
       {/* ------------------------------------------------------------------ */}
       {wizardStep === 4 && (
         <div style={cardStyle}>
           <h3 style={headingStyle}>Composição do Planning</h3>
+          <p style={{ ...textSecondaryStyle, marginBottom: 16 }}>
+            Revise cada funcionalidade e adicione detalhes. Depois vá pra Documentação da Sprint pra completar e gerar o markdown.
+          </p>
 
-          {gerandoMarkdown && (
-            <p style={{ color: "#9696a0", fontSize: 14, marginBottom: 12 }}>
-              Gerando planning com IA…
-            </p>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ ...subHeadingStyle, display: "block", marginBottom: 6 }}>
+              Objetivo da sprint
+            </label>
+            <textarea
+              value={objetivoSprint}
+              onChange={(e) => setObjetivoSprint(e.target.value)}
+              placeholder="Ex: Entregar o pipeline de ingestão inicial validado com o cliente"
+              rows={2}
+              style={{
+                ...inputStyle,
+                width: "100%",
+                boxSizing: "border-box",
+                resize: "vertical",
+                fontFamily: "inherit",
+                minHeight: 60,
+              }}
+            />
+          </div>
+
+          {selecionadas.length === 0 && (
+            <p style={textSecondaryStyle}>Nenhuma funcionalidade selecionada. Volte para a etapa 1.</p>
           )}
 
-          {gerarErro && !gerandoMarkdown && (
-            <div style={{ marginBottom: 12 }}>
-              <p style={errorTextStyle}>{gerarErro}</p>
+          {selecionadas.map((funcId) => {
+            const func = funcionalidades.find((f) => f.id === funcId);
+            if (!func) return null;
+            const criteriosSelecionados = (recortes[funcId] ?? [])
+              .map((idx) => func.criterios_aceite[idx])
+              .filter(Boolean);
+            const responsavel = alocacoes[funcId] ?? "";
+            const detalheAtual = detalhes[funcId] ?? "";
+
+            return (
+              <div key={funcId} style={{ ...funcCardStyle, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <p style={{ ...subHeadingStyle, marginBottom: 2 }}>{func.titulo}</p>
+                    <p style={{ fontSize: 11, color: "#9696a0", margin: 0 }}>
+                      {func.id_funcional} · Prioridade: {func.prioridade}
+                    </p>
+                  </div>
+                  {responsavel && (
+                    <span style={{
+                      fontSize: 11,
+                      background: "#eff6ff",
+                      color: "#2563eb",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 4,
+                      padding: "2px 8px",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}>
+                      {responsavel}
+                    </span>
+                  )}
+                </div>
+
+                {criteriosSelecionados.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", margin: "0 0 4px", letterSpacing: 0.4 }}>
+                      Critérios de aceite desta sprint
+                    </p>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#374151", lineHeight: 1.5 }}>
+                      {criteriosSelecionados.map((c, i) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <label style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 4 }}>
+                  Detalhes adicionais
+                </label>
+                <textarea
+                  value={detalheAtual}
+                  onChange={(e) =>
+                    setDetalhes((prev) => ({ ...prev, [funcId]: e.target.value }))
+                  }
+                  placeholder="Ex: dependência de acesso ao S3, entregar em duas etapas, alinhar com o cliente antes do dev..."
+                  rows={2}
+                  style={{
+                    ...inputStyle,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    minHeight: 52,
+                  }}
+                />
+              </div>
+            );
+          })}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+            <button style={btnSecondaryStyle} onClick={() => patchAndAdvance(3)}>
+              Anterior
+            </button>
+            <button
+              style={btnPrimaryStyle}
+              onClick={async () => {
+                await patchAndAdvance(4);
+                if (onGoToSprintDoc) {
+                  const itens = selecionadas.map((funcId) => {
+                    const func = funcionalidades.find((f) => f.id === funcId);
+                    const criterios = (recortes[funcId] ?? [])
+                      .map((idx) => func?.criterios_aceite[idx])
+                      .filter(Boolean) as string[];
+                    const detalhe = (detalhes[funcId] ?? "").trim();
+                    return {
+                      item: detalhe
+                        ? `${func?.titulo ?? ""} — ${detalhe}`
+                        : func?.titulo ?? "",
+                      responsavel: alocacoes[funcId] ?? "",
+                      prazo: "",
+                      criterio: criterios.join(" · "),
+                    };
+                  });
+                  onGoToSprintDoc({
+                    sprintNumero: sprintAlvo,
+                    descricao: objetivoSprint,
+                    itens,
+                  });
+                }
+              }}
+              disabled={!onGoToSprintDoc || selecionadas.length === 0}
+            >
+              Ir para Documentação da Sprint →
+            </button>
+            {markdownGerado && !gerandoMarkdown && (
               <button
-                style={{ ...btnSecondaryStyle, marginTop: 8 }}
-                onClick={() => {
-                  setMarkdownGerado("");
-                  handleGerar();
-                }}
+                style={confirmando ? btnDisabledStyle : btnConfirmStyle}
+                disabled={confirmando}
+                onClick={handleConfirmar}
+                title="Salvar markdown gerado anteriormente"
               >
-                Tentar novamente
+                {confirmando ? "Salvando…" : "Confirmar Planning (markdown antigo)"}
               </button>
-            </div>
-          )}
-
-          {markdownGerado && !gerandoMarkdown && (
-            <>
-              <div style={markdownWrapStyle}>
-                <ReactMarkdown>{markdownGerado}</ReactMarkdown>
-              </div>
-
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button
-                  style={btnSecondaryStyle}
-                  onClick={() => patchAndAdvance(3)}
-                >
-                  Anterior
-                </button>
-                <button
-                  style={confirmando ? btnDisabledStyle : btnConfirmStyle}
-                  disabled={confirmando}
-                  onClick={handleConfirmar}
-                >
-                  {confirmando ? "Salvando…" : "Confirmar Planning"}
-                </button>
-              </div>
-            </>
-          )}
-
-          {!markdownGerado && !gerandoMarkdown && !gerarErro && (
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button style={btnSecondaryStyle} onClick={() => patchAndAdvance(3)}>
-                Anterior
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

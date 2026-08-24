@@ -846,6 +846,8 @@ export interface DadosJson {
   recortes: Record<string, number[]>;
   alocacoes: Record<string, string>;
   transbordos: string[];
+  detalhes?: Record<string, string>;
+  objetivo_sprint?: string;
 }
 
 export interface RascunhoData {

@@ -21,6 +21,8 @@ interface Props {
   projetoId: string;
   sprintNumero: number;
   initialCarryOver?: string;
+  initialDescricao?: string;
+  initialItens?: { item: string; responsavel: string; prazo: string; criterio: string }[];
 }
 
 const TITLES: Record<SprintDocType, string> = {
@@ -119,6 +121,8 @@ export default function SprintDocModal({
   projetoId,
   sprintNumero,
   initialCarryOver,
+  initialDescricao,
+  initialItens,
 }: Props) {
   // Enrichment step state
   const [step, setStep] = useState<"input" | "form">("input");
@@ -227,8 +231,13 @@ export default function SprintDocModal({
         const lines = initialCarryOver.split("\n").filter(Boolean);
         setCarryOverItems(lines.length ? lines.map((l) => ({ item: l, causa_raiz: "" })) : [{ item: "", causa_raiz: "" }]);
       }
+      if (tipo === "planning" && (initialDescricao || (initialItens && initialItens.length > 0))) {
+        if (initialDescricao) setDescricao(initialDescricao);
+        if (initialItens && initialItens.length > 0) setItens(initialItens);
+        setStep("form");
+      }
     }
-  }, [open, today, initialCarryOver]);
+  }, [open, today, initialCarryOver, initialDescricao, initialItens, tipo]);
 
   if (!open) return null;
 
