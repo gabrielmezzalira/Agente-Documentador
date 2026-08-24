@@ -256,7 +256,7 @@ Plans:
   4. O sistema exibe, por projeto, o % de funcionalidades concluídas com cobertura de aceite
   5. Quando não existir teste E2E vinculado ao id_funcional, registra `resultado = sem_cobertura` e sinaliza
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 Plans:
 **Wave 1**
 
@@ -264,7 +264,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 11-02-PLAN.md — GitHub Actions agent (aceite_agent.py + aceite.yml) + painel.py cobertura_aceite + PainelTab badge Kanban + Bloco B sub-seção + api.ts types
+- [x] 11-02-PLAN.md — GitHub Actions agent (aceite_agent.py + aceite.yml) + painel.py cobertura_aceite + PainelTab badge Kanban + Bloco B sub-seção + api.ts types
 
 **UI hint:** no
 
@@ -300,5 +300,5 @@ Plans:
 | 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
 | 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
 | 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
-| 11. Suíte de Verificação de Aceite | 1/2 | In Progress|  |
+| 11. Suíte de Verificação de Aceite | 2/2 | In Progress|  |
 | 12. Boletim de Aceite, Encerramento e Resumo Semanal | 0/TBD | Not started | - |
