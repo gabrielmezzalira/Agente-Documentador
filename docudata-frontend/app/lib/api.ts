@@ -761,6 +761,22 @@ export async function importarFuncionalidades(
   return data.propostas as FuncionalidadeProposta[];
 }
 
+export async function importarFuncionalidadesArquivo(
+  projectId: string,
+  arquivo: File,
+): Promise<FuncionalidadeProposta[]> {
+  const form = new FormData();
+  form.append("project_id", projectId);
+  form.append("arquivo", arquivo);
+  const res = await fetch(`${API}/funcionalidades/importar/arquivo`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao importar arquivo");
+  }
+  const data = await res.json();
+  return data.propostas as FuncionalidadeProposta[];
+}
+
 export async function confirmarImportacao(
   projectId: string,
   itens: { proposta: FuncionalidadeProposta; confirmed: boolean }[],

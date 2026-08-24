@@ -5,6 +5,7 @@ import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
   importarFuncionalidades,
+  importarFuncionalidadesArquivo,
   confirmarImportacao,
 } from "../lib/api";
 
@@ -37,6 +38,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 type Step = "idle" | "input" | "loading" | "review" | "saving";
+type InputMode = "texto" | "arquivo";
 
 interface Props {
   projectId: string;
@@ -46,21 +48,26 @@ interface Props {
 
 export default function EscopoTab({ projectId, funcionalidades, onImported }: Props) {
   const [step, setStep] = useState<Step>("idle");
+  const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
+  const [arquivo, setArquivo] = useState<File | null>(null);
   const [propostas, setPropostas] = useState<FuncionalidadeProposta[]>([]);
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   async function handleAnalisar() {
-    if (texto.trim().length < 20) {
-      setErro("Cole o texto do contrato antes de continuar.");
-      return;
-    }
     setErro("");
     setStep("loading");
     try {
-      const resultado = await importarFuncionalidades(projectId, texto);
+      let resultado: FuncionalidadeProposta[];
+      if (inputMode === "arquivo") {
+        if (!arquivo) { setErro("Selecione um arquivo antes de continuar."); setStep("input"); return; }
+        resultado = await importarFuncionalidadesArquivo(projectId, arquivo);
+      } else {
+        if (texto.trim().length < 20) { setErro("Cole o texto do contrato antes de continuar."); setStep("input"); return; }
+        resultado = await importarFuncionalidades(projectId, texto);
+      }
       setPropostas(resultado);
       setSelecionadas(new Set(resultado.map((_, i) => i)));
       setStep("review");
@@ -98,6 +105,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
   function handleCancelar() {
     setStep("idle");
     setTexto("");
+    setArquivo(null);
     setPropostas([]);
     setSelecionadas(new Set());
     setErro("");
@@ -158,24 +166,82 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
       {/* Fluxo de importação */}
       {step === "input" && (
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 8px" }}>
-            Colar texto do contrato
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>
+            Importar do contrato
           </h3>
-          <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 16px", lineHeight: 1.5 }}>
-            Cole o texto completo do contrato ou proposta comercial. A IA vai extrair cada funcionalidade com título, descrição e critérios de aceite.
-          </p>
-          <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Cole aqui o texto do contrato..."
-            rows={12}
-            style={{
-              width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1",
-              borderRadius: 8, padding: "12px 14px", fontSize: 13, lineHeight: 1.6,
-              fontFamily: "inherit", resize: "vertical", outline: "none", color: "#0f172a",
-            }}
-          />
-          {erro && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 8 }}>{erro}</p>}
+
+          {/* Toggle modo */}
+          <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
+            {(["arquivo", "texto"] as InputMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setInputMode(mode)}
+                style={{
+                  padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none",
+                  background: inputMode === mode ? "#0f172a" : "#f8fafc",
+                  color: inputMode === mode ? "#fff" : "#64748b",
+                  transition: "all 0.15s",
+                }}
+              >
+                {mode === "arquivo" ? "Upload de arquivo" : "Colar texto"}
+              </button>
+            ))}
+          </div>
+
+          {inputMode === "arquivo" ? (
+            <div>
+              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.5 }}>
+                Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX e TXT.
+              </p>
+              <label style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                border: "2px dashed #cbd5e1", borderRadius: 10, padding: "32px 24px",
+                cursor: "pointer", background: arquivo ? "#f0fdf4" : "#f8fafc",
+                borderColor: arquivo ? "#86efac" : "#cbd5e1", transition: "all 0.15s",
+              }}>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  style={{ display: "none" }}
+                  onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+                />
+                {arquivo ? (
+                  <>
+                    <span style={{ fontSize: 28, marginBottom: 8 }}>✓</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#16a34a" }}>{arquivo.name}</span>
+                    <span style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                      {(arquivo.size / 1024).toFixed(0)} KB · clique para trocar
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 28, marginBottom: 8 }}>📄</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>Clique para selecionar arquivo</span>
+                    <span style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>PDF, DOCX ou TXT</span>
+                  </>
+                )}
+              </label>
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 12px", lineHeight: 1.5 }}>
+                Cole o texto completo do contrato ou proposta. A IA extrai cada funcionalidade com título, descrição e critérios de aceite.
+              </p>
+              <textarea
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                placeholder="Cole aqui o texto do contrato..."
+                rows={12}
+                style={{
+                  width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1",
+                  borderRadius: 8, padding: "12px 14px", fontSize: 13, lineHeight: 1.6,
+                  fontFamily: "inherit", resize: "vertical", outline: "none", color: "#0f172a",
+                }}
+              />
+            </div>
+          )}
+
+          {erro && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{erro}</p>}
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button
               onClick={handleAnalisar}

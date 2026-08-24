@@ -6,7 +6,7 @@ import urllib.request
 from datetime import datetime, timezone, date
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from models.schemas import (
@@ -170,6 +170,114 @@ async def importar_funcionalidades(data: ImportarRequest):
     if not propostas:
         raise HTTPException(status_code=502, detail="Gemini retornou lista sem itens válidos")
 
+    return ImportPropostaResponse(propostas=propostas)
+
+
+@router.post("/importar/arquivo", response_model=ImportPropostaResponse)
+async def importar_funcionalidades_arquivo(
+    project_id: str = Form(...),
+    arquivo: UploadFile = File(...),
+):
+    """Propõe funcionalidades extraindo texto de PDF, DOCX ou TXT. Não salva nada."""
+    import os
+    from graphs.import_graph import import_graph
+    from services.file_parser import parse_pdf, parse_docx, parse_txt
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    client = get_client()
+    proj = client.table("projects").select("gemini_api_key").eq("id", project_id).execute()
+    if not proj.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    api_key = (proj.data[0].get("gemini_api_key") or "").strip() or os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Nenhuma API key Gemini configurada para este projeto")
+
+    content_type = arquivo.content_type or ""
+    file_bytes = await arquivo.read()
+
+    texto: str = ""
+    b64_image: str | None = None
+
+    if content_type == "application/pdf" or arquivo.filename.endswith(".pdf"):
+        result = parse_pdf(file_bytes)
+        if result["is_scanned"]:
+            b64_image = result["b64"]
+        else:
+            texto = result["text"]
+    elif content_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",) or arquivo.filename.endswith(".docx"):
+        texto = parse_docx(file_bytes)
+    else:
+        texto = parse_txt(file_bytes)
+
+    # PDF escaneado: enviar imagem diretamente ao Gemini
+    if b64_image:
+        from graphs.import_graph import _IMPORT_SYSTEM_PROMPT, _HARDENED_SUFFIX
+        import json
+
+        proposta_raw = None
+        for tentativa in range(2):
+            suffix = _HARDENED_SUFFIX if tentativa > 0 else ""
+            try:
+                llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", max_tokens=4096, google_api_key=api_key)
+                messages = [
+                    SystemMessage(_IMPORT_SYSTEM_PROMPT),
+                    HumanMessage(content=[
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}"}},
+                        {"type": "text", "text": f"Extraia as funcionalidades deste documento.{suffix}"},
+                    ]),
+                ]
+                raw = (await llm.ainvoke(messages)).content
+                if isinstance(raw, list):
+                    raw = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in raw)
+                parsed = json.loads(raw.strip())
+                proposta_raw = parsed.get("funcionalidades", [])
+                if proposta_raw:
+                    break
+            except Exception:
+                continue
+
+        if not proposta_raw:
+            raise HTTPException(status_code=502, detail="Não foi possível extrair funcionalidades do PDF escaneado")
+
+        propostas = []
+        for item in proposta_raw:
+            try:
+                propostas.append(FuncionalidadeProposta(**item))
+            except Exception:
+                pass
+        if not propostas:
+            raise HTTPException(status_code=502, detail="Gemini retornou lista sem itens válidos")
+        return ImportPropostaResponse(propostas=propostas)
+
+    # PDF com texto ou DOCX/TXT
+    if len(texto.strip()) < 20:
+        raise HTTPException(status_code=422, detail="Não foi possível extrair texto do arquivo")
+
+    state = await import_graph.ainvoke({
+        "texto_contrato": texto[:50000],
+        "projeto_id": project_id,
+        "gemini_api_key": api_key,
+        "proposta": None,
+        "valido": False,
+        "tentativas": 0,
+        "erro": None,
+    })
+
+    if not state.get("valido") or not state.get("proposta"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Não foi possível extrair funcionalidades: {state.get('erro', 'resposta inválida')}",
+        )
+
+    propostas = []
+    for item in state["proposta"]:
+        try:
+            propostas.append(FuncionalidadeProposta(**item))
+        except Exception:
+            pass
+    if not propostas:
+        raise HTTPException(status_code=502, detail="Gemini retornou lista sem itens válidos")
     return ImportPropostaResponse(propostas=propostas)
 
 
