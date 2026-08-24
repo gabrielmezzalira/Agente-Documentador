@@ -42,13 +42,14 @@ import TechnologiesTab from "../../components/TechnologiesTab";
 import PainelTab from "../../components/PainelTab";
 import PlanningTab from "../../components/PlanningTab";
 import AceiteTab from "../../components/AceiteTab";
+import EscopoTab from "../../components/EscopoTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config" | "planning" | "aceite";
+type TabId = "sprints" | "escopo" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config" | "planning" | "aceite";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -476,6 +477,7 @@ export default function ProjectDashboard() {
       <Tabs
         tabs={[
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
+          { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
@@ -931,6 +933,15 @@ export default function ProjectDashboard() {
             <button onClick={handleDeleteProject} style={btnDanger}>Excluir projeto</button>
           </section>
         </>
+      )}
+
+      {/* ABA: ESCOPO */}
+      {activeTab === "escopo" && (
+        <EscopoTab
+          projectId={id}
+          funcionalidades={funcionalidades}
+          onImported={(novas) => setFuncionalidades((prev) => [...prev, ...novas])}
+        />
       )}
 
       {/* ABA: PLANNING */}

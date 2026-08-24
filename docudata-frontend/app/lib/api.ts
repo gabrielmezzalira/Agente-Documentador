@@ -736,6 +736,47 @@ export async function listFuncionalidades(projectId: string): Promise<Funcionali
   return res.json();
 }
 
+export interface FuncionalidadeProposta {
+  id_funcional: string;
+  titulo: string;
+  descricao?: string;
+  criterios_aceite: string[];
+  prioridade: string;
+}
+
+export async function importarFuncionalidades(
+  projectId: string,
+  textoContrato: string,
+): Promise<FuncionalidadeProposta[]> {
+  const res = await fetch(`${API}/funcionalidades/importar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, texto_contrato: textoContrato }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao importar funcionalidades");
+  }
+  const data = await res.json();
+  return data.propostas as FuncionalidadeProposta[];
+}
+
+export async function confirmarImportacao(
+  projectId: string,
+  itens: { proposta: FuncionalidadeProposta; confirmed: boolean }[],
+): Promise<FuncionalidadeResponse[]> {
+  const res = await fetch(`${API}/funcionalidades/importar/confirmar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, itens }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao confirmar importação");
+  }
+  return res.json();
+}
+
 // ---------------------------------------------------------------------------
 // Composer de Planning — interfaces e funções
 // ---------------------------------------------------------------------------
