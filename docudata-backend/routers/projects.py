@@ -22,9 +22,16 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _sanitize(row: dict) -> dict:
-    """Strip gemini_api_key from row and inject has_api_key bool."""
+    """Strip sensitive keys from row; inject has_api_key and has_github_config bools.
+
+    - gemini_api_key → nunca enviado; has_api_key: bool calculado a partir dele
+    - github_token   → nunca enviado (T-11-02); has_github_config: bool calculado
+    - github_repo    → nunca enviado como campo sensível; apenas afeta has_github_config
+    """
     has_key = bool(row.get("gemini_api_key"))
-    return {k: v for k, v in row.items() if k != "gemini_api_key"} | {"has_api_key": has_key}
+    has_github_config = bool(row.get("github_token")) and bool(row.get("github_repo"))
+    filtered = {k: v for k, v in row.items() if k not in ("gemini_api_key", "github_token")}
+    return filtered | {"has_api_key": has_key, "has_github_config": has_github_config}
 
 
 class ApiKeyUpdate(BaseModel):
