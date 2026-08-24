@@ -651,9 +651,6 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
                   onClick={() => { if (editingId !== f.id) setExpanded(expanded === f.id ? null : f.id); }}
                 >
                   <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "monospace" }}>{f.id_funcional}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: PRIORIDADE_COLOR[f.prioridade] ?? "#64748b", background: `${PRIORIDADE_COLOR[f.prioridade] ?? "#64748b"}18`, padding: "1px 7px", borderRadius: 4, textTransform: "uppercase" }}>
-                    {PRIORIDADE_LABEL[f.prioridade] ?? f.prioridade}
-                  </span>
                   <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLOR[f.status] ?? "#94a3b8", background: `${STATUS_COLOR[f.status] ?? "#94a3b8"}15`, padding: "1px 7px", borderRadius: 4 }}>
                     {STATUS_LABEL[f.status] ?? f.status}
                   </span>
