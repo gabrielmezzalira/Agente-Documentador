@@ -134,3 +134,31 @@ CREATE TABLE IF NOT EXISTS planning_rascunhos (
 --     updated_at    timestamptz DEFAULT now(),
 --     UNIQUE (project_id, sprint_numero)
 -- );
+
+-- Phase 11: Suíte de Verificação de Aceite
+-- Migration incremental: executar no Supabase SQL Editor
+
+CREATE TABLE IF NOT EXISTS execucoes_aceite (
+    id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    funcionalidade_id uuid        NOT NULL REFERENCES funcionalidades(id) ON DELETE CASCADE,
+    project_id        uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    commit_sha        text        NOT NULL,
+    gates             jsonb       NOT NULL DEFAULT '[]'::jsonb,
+    disparado_em      timestamptz NOT NULL DEFAULT now(),
+    concluido_em      timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_execucoes_aceite_project
+    ON execucoes_aceite (project_id, disparado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_execucoes_aceite_func
+    ON execucoes_aceite (funcionalidade_id, disparado_em DESC);
+
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS github_token text,
+    ADD COLUMN IF NOT EXISTS github_repo  text;
+
+ALTER TABLE funcionalidades
+    ADD COLUMN IF NOT EXISTS testes_e2e text[] NOT NULL DEFAULT '{}';
+
+-- Se as tabelas já existem, rode os ALTERs acima individualmente no SQL Editor.

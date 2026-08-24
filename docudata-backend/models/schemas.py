@@ -54,6 +54,7 @@ class ProjectResponse(BaseModel):
     data_fim_contratada: Optional[date] = None
     tolerancia_desvio_pontos: Optional[int] = None
     periodo_garantia_dias: Optional[int] = None
+    has_github_config: bool = False
 
 
 class ProjectCostResponse(BaseModel):
@@ -224,6 +225,7 @@ class FuncionalidadeUpdate(BaseModel):
     data_aprovacao_cliente: Optional[date] = None
     autor: Optional[str] = None
     motivo: Optional[str] = None
+    testes_e2e: Optional[list[str]] = None
 
     @field_validator("criterios_aceite")
     @classmethod
@@ -258,6 +260,7 @@ class FuncionalidadeResponse(BaseModel):
     data_aprovacao_cliente: Optional[date] = None
     responsavel: Optional[str] = None
     sprint_alvo: Optional[str] = None
+    testes_e2e: list[str] = []
     created_at: datetime
 
 
@@ -300,3 +303,19 @@ class ContratoUpdate(BaseModel):
     data_fim_contratada: Optional[date] = None
     tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
+
+
+class ExecucaoAceitePayload(BaseModel):
+    funcionalidade_id: str
+    commit_sha: str
+    gates: list[dict]
+
+
+class ExecucaoAceiteResponse(BaseModel):
+    id: str
+    funcionalidade_id: str
+    project_id: str
+    commit_sha: str
+    gates: list[dict]
+    disparado_em: datetime
+    concluido_em: Optional[datetime] = None
