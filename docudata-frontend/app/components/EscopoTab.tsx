@@ -473,16 +473,18 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, marginBottom: 24 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 20px" }}>Nova funcionalidade</h3>
 
-          {[
-            { label: "ID funcional", key: "id_funcional", placeholder: "Ex: F01 (opcional — gerado automaticamente)", required: false },
-            { label: "Título *", key: "titulo", placeholder: "Ex: Autenticação de usuários", required: true },
-            { label: "Descrição", key: "descricao", placeholder: "Contexto adicional (opcional)", required: false },
-            { label: "Responsável", key: "responsavel", placeholder: "Nome do responsável (opcional)", required: false },
-          ].map(({ label, key, placeholder }) => (
+          {(
+            [
+              { label: "ID funcional", key: "id_funcional" as const, placeholder: "Ex: F01 (opcional — gerado automaticamente)" },
+              { label: "Título *", key: "titulo" as const, placeholder: "Ex: Autenticação de usuários" },
+              { label: "Descrição", key: "descricao" as const, placeholder: "Contexto adicional (opcional)" },
+              { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável (opcional)" },
+            ] as const
+          ).map(({ label, key, placeholder }) => (
             <div key={key} style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
               <input
-                value={(form as Record<string, string>)[key]}
+                value={form[key]}
                 onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
                 placeholder={placeholder}
                 style={{
