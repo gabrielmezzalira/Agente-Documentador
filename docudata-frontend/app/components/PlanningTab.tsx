@@ -8,6 +8,7 @@ import {
   gerarPlanning,
   confirmarPlanning,
   listFuncionalidades,
+  updateFuncionalidade,
   type DadosJson,
   type FuncionalidadeResponse,
   type GetRascunhoResponse,
@@ -227,6 +228,35 @@ export default function PlanningTab({ projectId, sprints }: Props) {
   const [gerarErro, setGerarErro] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
+  const [novoCriterio, setNovoCriterio] = useState<Record<string, string>>({});
+  const [salvandoCriterio, setSalvandoCriterio] = useState<string | null>(null);
+
+  async function adicionarCriterio(funcId: string) {
+    const texto = (novoCriterio[funcId] ?? "").trim();
+    if (!texto) return;
+    const func = funcionalidades.find((f) => f.id === funcId);
+    if (!func) return;
+    setSalvandoCriterio(funcId);
+    try {
+      const novosCriterios = [...(func.criterios_aceite ?? []), texto];
+      const atualizada = await updateFuncionalidade(funcId, {
+        criterios_aceite: novosCriterios,
+      });
+      setFuncionalidades((prev) =>
+        prev.map((f) => (f.id === funcId ? atualizada : f))
+      );
+      const newIdx = novosCriterios.length - 1;
+      setRecortes((prev) => ({
+        ...prev,
+        [funcId]: [...(prev[funcId] ?? []), newIdx],
+      }));
+      setNovoCriterio((prev) => ({ ...prev, [funcId]: "" }));
+    } catch {
+      // silent — usuário tenta de novo
+    } finally {
+      setSalvandoCriterio(null);
+    }
+  }
 
   // Load funcionalidades on mount
   useEffect(() => {
@@ -541,6 +571,48 @@ export default function PlanningTab({ projectId, sprints }: Props) {
                 {!hasSelection && criterios.length > 0 && (
                   <p style={errorTextStyle}>Selecione ao menos um critério de aceite</p>
                 )}
+
+                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                  <input
+                    type="text"
+                    placeholder="+ Adicionar novo critério (formato EARS: Quando X, o sistema deve Y)"
+                    value={novoCriterio[funcId] ?? ""}
+                    onChange={(e) =>
+                      setNovoCriterio((prev) => ({ ...prev, [funcId]: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        adicionarCriterio(funcId);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      color: "#111827",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    onClick={() => adicionarCriterio(funcId)}
+                    disabled={salvandoCriterio === funcId || !(novoCriterio[funcId] ?? "").trim()}
+                    style={{
+                      background: (novoCriterio[funcId] ?? "").trim() ? "#0f172a" : "#e5e7eb",
+                      color: (novoCriterio[funcId] ?? "").trim() ? "#fff" : "#9ca3af",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: (novoCriterio[funcId] ?? "").trim() ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {salvandoCriterio === funcId ? "…" : "Add"}
+                  </button>
+                </div>
               </div>
             );
           })}

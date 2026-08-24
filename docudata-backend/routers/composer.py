@@ -429,7 +429,14 @@ async def gerar_planning(body: GerarBody):
                 HumanMessage(content=contexto),
             ]
         )
-        markdown: str = result.content  # type: ignore[assignment]
+        raw = result.content
+        if isinstance(raw, list):
+            markdown = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in raw
+            )
+        else:
+            markdown = str(raw)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gemini failed: {exc}")
 
