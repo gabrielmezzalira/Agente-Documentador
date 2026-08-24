@@ -51,10 +51,22 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [propostas, setPropostas] = useState<FuncionalidadeProposta[]>([]);
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const ok = file.name.endsWith(".pdf") || file.name.endsWith(".docx") || file.name.endsWith(".txt");
+    if (!ok) { setErro("Formato não suportado. Use PDF, DOCX ou TXT."); return; }
+    setErro("");
+    setArquivo(file);
+  }
 
   async function handleAnalisar() {
     setErro("");
@@ -193,31 +205,42 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
               <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.5 }}>
                 Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX e TXT.
               </p>
-              <label style={{
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                border: "2px dashed #cbd5e1", borderRadius: 10, padding: "32px 24px",
-                cursor: "pointer", background: arquivo ? "#f0fdf4" : "#f8fafc",
-                borderColor: arquivo ? "#86efac" : "#cbd5e1", transition: "all 0.15s",
-              }}>
+              <label
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  border: `2px dashed ${dragging ? "#2563eb" : arquivo ? "#86efac" : "#cbd5e1"}`,
+                  borderRadius: 10, padding: "40px 24px", cursor: "pointer",
+                  background: dragging ? "#eff6ff" : arquivo ? "#f0fdf4" : "#f8fafc",
+                  transition: "all 0.15s",
+                }}
+              >
                 <input
                   type="file"
                   accept=".pdf,.docx,.txt"
                   style={{ display: "none" }}
-                  onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+                  onChange={(e) => { setErro(""); setArquivo(e.target.files?.[0] ?? null); }}
                 />
-                {arquivo ? (
+                {dragging ? (
                   <>
-                    <span style={{ fontSize: 28, marginBottom: 8 }}>✓</span>
+                    <span style={{ fontSize: 36, marginBottom: 10 }}>📂</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#2563eb" }}>Solte aqui</span>
+                  </>
+                ) : arquivo ? (
+                  <>
+                    <span style={{ fontSize: 32, marginBottom: 8 }}>✓</span>
                     <span style={{ fontSize: 14, fontWeight: 600, color: "#16a34a" }}>{arquivo.name}</span>
                     <span style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                      {(arquivo.size / 1024).toFixed(0)} KB · clique para trocar
+                      {(arquivo.size / 1024).toFixed(0)} KB · clique ou arraste para trocar
                     </span>
                   </>
                 ) : (
                   <>
-                    <span style={{ fontSize: 28, marginBottom: 8 }}>📄</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>Clique para selecionar arquivo</span>
-                    <span style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>PDF, DOCX ou TXT</span>
+                    <span style={{ fontSize: 36, marginBottom: 10 }}>📄</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>Arraste o arquivo aqui</span>
+                    <span style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>ou clique para selecionar · PDF, DOCX ou TXT</span>
                   </>
                 )}
               </label>
