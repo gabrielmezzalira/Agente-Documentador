@@ -55,3 +55,11 @@ app.include_router(boletins.router)
 async def health():
     """Health check endpoint — returns ok without hitting Supabase or Gemini."""
     return {"status": "ok"}
+
+
+@app.post("/notifications/check")
+async def trigger_notification_check():
+    """Dispara manualmente o check de notificações (uso em testes)."""
+    import asyncio
+    await asyncio.get_event_loop().run_in_executor(None, check_and_send_notifications)
+    return {"status": "ok", "message": "Check executado — veja os logs para detalhes."}
