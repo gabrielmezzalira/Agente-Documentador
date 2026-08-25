@@ -1,26 +1,22 @@
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import resend
 
-GMAIL_USER = os.environ.get("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+resend.api_key = os.environ.get("RESEND_API_KEY", "")
+
+RESEND_FROM = os.environ.get("RESEND_FROM", "DocuData <onboarding@resend.dev>")
 
 
 def send_email(to: str, subject: str, body_html: str) -> None:
-    """Envia email via Gmail SMTP com App Password. Lança exceção se falhar."""
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        raise RuntimeError("GMAIL_USER e GMAIL_APP_PASSWORD não configurados nas variáveis de ambiente")
+    """Envia email via Resend API. Lança exceção se falhar."""
+    if not resend.api_key:
+        raise RuntimeError("RESEND_API_KEY não configurado nas variáveis de ambiente")
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"DocuData <{GMAIL_USER}>"
-    msg["To"] = to
-    msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        smtp.sendmail(GMAIL_USER, to, msg.as_string())
+    resend.Emails.send({
+        "from": RESEND_FROM,
+        "to": [to],
+        "subject": subject,
+        "html": body_html,
+    })
 
 
 def _base_template(titulo: str, corpo: str) -> str:
