@@ -300,6 +300,7 @@ export default function PlanningModal({
   const [dependencias, setDependencias] = useState<DepsItem[]>([]);
   const [riscos, setRiscos] = useState<RiscoItem[]>([]);
   const [carryOver, setCarryOver] = useState<CarryItem[]>([]);
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
 
   // doc gerado
   const [docContent, setDocContent] = useState("");
@@ -324,6 +325,7 @@ export default function PlanningModal({
       setDependencias([]);
       setRiscos([]);
       setCarryOver([]);
+      setAiFilledFields(new Set());
       setDocContent("");
       setCopied(false);
     }
@@ -367,6 +369,16 @@ export default function PlanningModal({
       setDependencias(f.dependencias);
       setRiscos(f.riscos);
       setCarryOver(f.carryOver);
+
+      // Marca quais campos a IA realmente preencheu
+      const filled = new Set<string>();
+      if (f.descricao) filled.add("descricao");
+      if (f.periodoInicio || f.periodoFim) filled.add("periodo");
+      if (f.horasDisponiveis || f.horasEstimadas) filled.add("horas");
+      if (f.dependencias.length > 0) filled.add("dependencias");
+      if (f.riscos.length > 0) filled.add("riscos");
+      if (f.carryOver.length > 0) filled.add("carryOver");
+      setAiFilledFields(filled);
 
       setStep("correlacoes");
     } catch (e) {
@@ -669,7 +681,7 @@ export default function PlanningModal({
           <>
             {/* Objetivo */}
             <span style={lbl}>
-              Objetivo da sprint <span style={aiBadge}>IA</span>
+              Objetivo da sprint {aiFilledFields.has("descricao") && <span style={aiBadge}>IA</span>}
             </span>
             <textarea
               style={ta}
@@ -681,7 +693,7 @@ export default function PlanningModal({
 
             {/* Período */}
             <div style={sectionDivider} />
-            <span style={{ ...lbl, marginTop: 16 }}>Período da sprint <span style={aiBadge}>IA</span></span>
+            <span style={{ ...lbl, marginTop: 16 }}>Período da sprint {aiFilledFields.has("periodo") && <span style={aiBadge}>IA</span>}</span>
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Início</div>
@@ -695,7 +707,7 @@ export default function PlanningModal({
 
             {/* Horas */}
             <div style={sectionDivider} />
-            <span style={{ ...lbl, marginTop: 16 }}>Capacidade da sprint <span style={aiBadge}>IA</span></span>
+            <span style={{ ...lbl, marginTop: 16 }}>Capacidade da sprint {aiFilledFields.has("horas") && <span style={aiBadge}>IA</span>}</span>
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Horas disponíveis</div>
@@ -719,7 +731,7 @@ export default function PlanningModal({
 
             {/* Dependências */}
             <div style={sectionDivider} />
-            <span style={{ ...lbl, marginTop: 16 }}>Dependências externas <span style={aiBadge}>IA</span></span>
+            <span style={{ ...lbl, marginTop: 16 }}>Dependências externas {aiFilledFields.has("dependencias") && <span style={aiBadge}>IA</span>}</span>
             {dependencias.map((d, i) => (
               <div key={i} style={listRow}>
                 <input
@@ -743,7 +755,7 @@ export default function PlanningModal({
 
             {/* Riscos */}
             <div style={sectionDivider} />
-            <span style={{ ...lbl, marginTop: 16 }}>Riscos identificados <span style={aiBadge}>IA</span></span>
+            <span style={{ ...lbl, marginTop: 16 }}>Riscos identificados {aiFilledFields.has("riscos") && <span style={aiBadge}>IA</span>}</span>
             {riscos.map((r, i) => (
               <div key={i} style={listRow}>
                 <input
@@ -767,7 +779,7 @@ export default function PlanningModal({
 
             {/* Carry-over */}
             <div style={sectionDivider} />
-            <span style={{ ...lbl, marginTop: 16 }}>Itens carry-over (sprint anterior) <span style={aiBadge}>IA</span></span>
+            <span style={{ ...lbl, marginTop: 16 }}>Itens carry-over (sprint anterior) {aiFilledFields.has("carryOver") && <span style={aiBadge}>IA</span>}</span>
             {carryOver.map((c, i) => (
               <div key={i} style={listRow}>
                 <input
