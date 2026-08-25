@@ -217,3 +217,24 @@ CREATE TABLE IF NOT EXISTS boletins_aceite (
 
 CREATE INDEX IF NOT EXISTS idx_boletins_aceite_project
     ON boletins_aceite (project_id, criado_em DESC);
+
+-- Planning Redesign: sprint_funcionalidades
+-- Vincula funcionalidades a sprints com tasks e status de conclusão.
+-- Migration incremental: executar no Supabase SQL Editor
+
+CREATE TABLE IF NOT EXISTS sprint_funcionalidades (
+    id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    sprint_id         uuid        NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    funcionalidade_id uuid        NOT NULL REFERENCES funcionalidades(id) ON DELETE CASCADE,
+    status            text        NOT NULL DEFAULT 'em_andamento'
+                                  CHECK (status IN ('em_andamento', 'concluida')),
+    tasks             jsonb       NOT NULL DEFAULT '[]',
+    created_at        timestamptz DEFAULT now(),
+    UNIQUE (sprint_id, funcionalidade_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sprint_funcionalidades_sprint
+    ON sprint_funcionalidades (sprint_id);
+
+CREATE INDEX IF NOT EXISTS idx_sprint_funcionalidades_func
+    ON sprint_funcionalidades (funcionalidade_id);

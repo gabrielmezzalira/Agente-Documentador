@@ -21,6 +21,7 @@ interface Props {
   docs: GeneratedDoc[];
   generating: boolean;
   onOpenSprintDoc: (tipo: SprintDocType, sprintNumero: number) => void;
+  onOpenPlanning: (sprint: SprintWithStatus) => void;
   onUploadLivre: (sprintNumero: number) => void;
   onGenerateSprintDoc: (tipoDoc: SprintGenType, sprintNumero: number) => void;
   onOpenRetroModal: (sprintNumero: number) => void;
@@ -272,6 +273,7 @@ export default function SprintCard({
   docs,
   generating,
   onOpenSprintDoc,
+  onOpenPlanning,
   onUploadLivre,
   onGenerateSprintDoc,
   onOpenRetroModal,
@@ -386,7 +388,7 @@ export default function SprintCard({
         <button
           type="button"
           style={statusChip(sprint.tem_planning)}
-          onClick={() => onOpenSprintDoc("planning", sprint.numero)}
+          onClick={() => onOpenPlanning(sprint)}
           title="Adicionar Planning"
         >
           {sprint.tem_planning ? "1/1" : "0/1"} Planning

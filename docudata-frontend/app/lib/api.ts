@@ -979,3 +979,107 @@ export async function gerarResumoSemanal(projectId: string): Promise<{ content: 
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Sprint Funcionalidades — planning redesign
+
+export interface TaskItem {
+  texto: string;
+  responsavel?: string;
+}
+
+export interface Correlacao {
+  funcionalidade_id: string | null;
+  tasks: TaskItem[];
+}
+
+export interface SprintFuncionalidade {
+  id: string;
+  sprint_id: string;
+  funcionalidade_id: string;
+  status: "em_andamento" | "concluida";
+  tasks: TaskItem[];
+  created_at: string;
+  funcionalidades?: {
+    id: string;
+    id_funcional: string;
+    titulo: string;
+    status: string;
+    prioridade: string;
+  };
+}
+
+export interface TaskCorrelacao {
+  task: string;
+  funcionalidade_id: string | null;
+  funcionalidade_titulo: string | null;
+}
+
+export interface PlanningComCorrelacoes {
+  enriquecimento: EnrichResult;
+  correlacoes: TaskCorrelacao[];
+  sem_funcionalidades: boolean;
+}
+
+export async function enrichPlanningComCorrelacoes(
+  projetoId: string,
+  { texto, arquivo }: { texto?: string; arquivo?: File }
+): Promise<PlanningComCorrelacoes> {
+  const fd = new FormData();
+  fd.append("projeto_id", projetoId);
+  if (texto) fd.append("texto", texto);
+  if (arquivo) fd.append("arquivo", arquivo);
+
+  const res = await fetch(`${API}/enrich/planning-correlacoes`, { method: "POST", body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao analisar conteúdo");
+  }
+  return res.json();
+}
+
+export async function createSprintFuncionalidades(
+  sprintId: string,
+  correlacoes: Correlacao[]
+): Promise<{ created: number; sprint_funcionalidades: SprintFuncionalidade[] }> {
+  const res = await fetch(`${API}/sprint-funcionalidades`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sprint_id: sprintId, correlacoes }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao salvar funcionalidades");
+  }
+  return res.json();
+}
+
+export async function getSprintFuncionalidades(sprintId: string): Promise<SprintFuncionalidade[]> {
+  const res = await fetch(`${API}/sprint-funcionalidades/sprint/${sprintId}`);
+  if (!res.ok) throw new Error("Erro ao buscar funcionalidades da sprint");
+  return res.json();
+}
+
+export async function updateSprintFuncionalidade(
+  sfId: string,
+  data: { status?: "em_andamento" | "concluida"; tasks?: TaskItem[] }
+): Promise<SprintFuncionalidade> {
+  const res = await fetch(`${API}/sprint-funcionalidades/${sfId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao atualizar");
+  }
+  return res.json();
+}
+
+export async function getFuncionalidadesRecomendadas(
+  projectId: string
+): Promise<Pick<FuncionalidadeResponse, "id" | "id_funcional" | "titulo" | "status" | "sprint_alvo">[]> {
+  const res = await fetch(`${API}/sprint-funcionalidades/recomendadas/${projectId}`);
+  if (!res.ok) throw new Error("Erro ao buscar recomendações");
+  return res.json();
+}

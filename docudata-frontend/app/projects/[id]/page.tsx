@@ -11,7 +11,6 @@ import {
   updateApiKey,
   updateGerenteEmail,
   listIngestions,
-  listIngestionsBySprint,
   listDocs,
   listSprints,
   createSprint,
@@ -42,7 +41,8 @@ import SprintCard from "../../components/SprintCard";
 import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
 import PainelTab from "../../components/PainelTab";
-import PlanningTab from "../../components/PlanningTab";
+import PlanningModal from "../../components/PlanningModal";
+import FuncionalidadesStatusModal from "../../components/FuncionalidadesStatusModal";
 import EscopoTab from "../../components/EscopoTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
@@ -50,7 +50,7 @@ import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "planning" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -120,7 +120,10 @@ export default function ProjectDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
 
   // ---------- modal sprint-docs ----------
-  const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number } | null>(null);
+  const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number; sprintId?: string } | null>(null);
+
+  // ---------- modal status funcionalidades (pós-review) ----------
+  const [statusModal, setStatusModal] = useState<{ sprintId: string; sprintNumero: number } | null>(null);
 
   // ---------- modal doc manual ----------
   const [manualModal, setManualModal] = useState<{ sprintNumero: number | null } | null>(null);
@@ -134,11 +137,8 @@ export default function ProjectDashboard() {
   // ---------- carry-over prefill ----------
   const [carryOverPrefill, setCarryOverPrefill] = useState("");
 
-  // ---------- planning composer → sprint-doc modal prefill ----------
-  const [planningComposerPrefill, setPlanningComposerPrefill] = useState<{
-    descricao: string;
-    itens: { item: string; responsavel: string; prazo: string; criterio: string }[];
-  } | null>(null);
+  // ---------- modal planning (novo fluxo) ----------
+  const [planningModal, setPlanningModal] = useState<{ sprint: SprintWithStatus } | null>(null);
 
   // ---------- resumo semanal ----------
   const [resumoSemanal, setResumoSemanal] = useState<string | null>(null);
@@ -374,19 +374,6 @@ export default function ProjectDashboard() {
     handleGenerate(tipoDoc, sprintNumero);
   }
 
-  async function fetchCarryOver(sprintNumero: number) {
-    if (sprintNumero <= 1) { setCarryOverPrefill(""); return; }
-    try {
-      const ingestions = await listIngestionsBySprint(id, sprintNumero - 1);
-      const review = ingestions.find((ing: Ingestion) => ing.tipo_documentacao === "review");
-      const items: string[] = (review?.extracted_content as any)?.campos_review?.itens_proxima_sprint
-        || review?.extracted_content?.proximos_passos
-        || [];
-      setCarryOverPrefill(Array.isArray(items) ? items.join("\n") : String(items));
-    } catch {
-      setCarryOverPrefill("");
-    }
-  }
 
   async function handleAtaUpload(sprintNumero: number, file: File) {
     setGenerating(true);
@@ -521,7 +508,6 @@ export default function ProjectDashboard() {
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
           { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
-          { id: "planning", label: "Planning" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
@@ -584,9 +570,10 @@ export default function ProjectDashboard() {
                 docs={docsBySprint[s.numero] ?? []}
                 generating={generating}
                 onOpenSprintDoc={(tipo, n) => {
-                  setModal({ tipo, sprintNumero: n });
-                  if (tipo === "planning") fetchCarryOver(n);
+                  const sp = sprints.find((x) => x.numero === n);
+                  setModal({ tipo, sprintNumero: n, sprintId: sp?.id });
                 }}
+                onOpenPlanning={(sprint) => setPlanningModal({ sprint })}
                 onUploadLivre={handleUploadLivre}
                 onGenerateSprintDoc={handleGenerateFromCard}
                 onOpenRetroModal={(n) => setRetroModal({ sprintNumero: n })}
@@ -1033,57 +1020,37 @@ export default function ProjectDashboard() {
         />
       )}
 
-      {/* ABA: PLANNING */}
-      {activeTab === "planning" && (
-        <>
-          <PlanningTab
-            projectId={id}
-            sprints={sprints}
-            onGoToSprintDoc={({ sprintNumero, descricao, itens }) => {
-              setPlanningComposerPrefill({ descricao, itens });
-              setActiveTab("sprints");
-              setModal({ tipo: "planning", sprintNumero });
-            }}
-          />
-          <section style={{ ...sectionStyle, marginTop: 8 }}>
-            <h2 style={sectionTitle}>Resumo da Semana</h2>
-            <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
-              Gera um resumo do que aconteceu na semana com base nas ingestões recentes do projeto.
-            </p>
-            <button
-              onClick={handleGerarResumoSemanal}
-              disabled={gerandoResumo}
-              style={{ ...btnPrimary, opacity: gerandoResumo ? 0.6 : 1 }}
-            >
-              {gerandoResumo ? "Gerando..." : "Gerar Resumo da Semana"}
-            </button>
-            {resumoSemanal && (
-              <div style={{ ...markdownContainer, marginTop: 16 }}>
-                <ReactMarkdown>{resumoSemanal}</ReactMarkdown>
-              </div>
-            )}
-          </section>
-        </>
-      )}
-
       {/* MODAL Planning/Daily/Review */}
       <SprintDocModal
         open={modal !== null}
-        onClose={() => {
-          setModal(null);
-          setPlanningComposerPrefill(null);
-        }}
-        tipo={modal?.tipo ?? "planning"}
+        onClose={() => setModal(null)}
+        tipo={modal?.tipo ?? "daily"}
         projetoId={id}
         sprintNumero={modal?.sprintNumero ?? 1}
         initialCarryOver={carryOverPrefill}
-        initialDescricao={planningComposerPrefill?.descricao}
-        initialItens={planningComposerPrefill?.itens}
         onSubmitted={async () => {
-          setPlanningComposerPrefill(null);
           await refreshAll();
+          if (modal?.tipo === "review" && modal.sprintId) {
+            setStatusModal({ sprintId: modal.sprintId, sprintNumero: modal.sprintNumero });
+          }
         }}
       />
+
+      {/* MODAL Planning — novo fluxo com correlação de funcionalidades */}
+      {planningModal && (
+        <PlanningModal
+          open={planningModal !== null}
+          onClose={() => setPlanningModal(null)}
+          projetoId={id}
+          sprintNumero={planningModal.sprint.numero}
+          sprintId={planningModal.sprint.id}
+          funcionalidades={funcionalidades}
+          onSubmitted={async () => {
+            setPlanningModal(null);
+            await refreshAll();
+          }}
+        />
+      )}
 
       {/* MODAL Doc Manual */}
       <ManualDocModal
@@ -1094,6 +1061,15 @@ export default function ProjectDashboard() {
         onCreated={async () => {
           await refreshAll();
         }}
+      />
+
+      {/* MODAL Status Funcionalidades — abre após review */}
+      <FuncionalidadesStatusModal
+        open={statusModal !== null}
+        onClose={() => setStatusModal(null)}
+        sprintId={statusModal?.sprintId ?? ""}
+        sprintNumero={statusModal?.sprintNumero ?? 1}
+        onUpdated={() => { setStatusModal(null); listFuncionalidades(id).then(setFuncionalidades).catch(() => {}); }}
       />
 
       {/* MODAL Upload Livre */}

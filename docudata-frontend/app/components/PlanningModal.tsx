@@ -1,0 +1,589 @@
+"use client";
+
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import ReactMarkdown from "react-markdown";
+import {
+  enrichPlanningComCorrelacoes,
+  submitPlanning,
+  createSprintFuncionalidades,
+  type FuncionalidadeResponse,
+  type TaskCorrelacao,
+  type SprintDocResponse,
+} from "../lib/api";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  projetoId: string;
+  sprintNumero: number;
+  sprintId: string;
+  funcionalidades: FuncionalidadeResponse[];
+  onSubmitted?: (response: SprintDocResponse) => void;
+}
+
+type Step = "input" | "correlacoes" | "gerando" | "doc";
+type InputTab = "texto" | "arquivo";
+
+// ---------- styles ----------
+
+const overlay: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15, 23, 42, 0.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+  padding: 16,
+};
+
+const modal: CSSProperties = {
+  background: "#fff",
+  borderRadius: 16,
+  width: "100%",
+  maxWidth: 640,
+  maxHeight: "92vh",
+  overflowY: "auto",
+  padding: 28,
+  boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+};
+
+const heading: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 800,
+  color: "#0f172a",
+  margin: "0 0 4px",
+  letterSpacing: "-0.02em",
+};
+
+const sub: CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+  margin: "0 0 20px",
+};
+
+const label: CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#334155",
+  marginBottom: 6,
+  marginTop: 14,
+};
+
+const textarea: CSSProperties = {
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: "10px 12px",
+  fontSize: 13,
+  outline: "none",
+  resize: "vertical",
+  minHeight: 100,
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+};
+
+const tabBtnStyle = (active: boolean): CSSProperties => ({
+  padding: "8px 16px",
+  fontSize: 13,
+  fontWeight: 600,
+  borderRadius: 8,
+  border: "1px solid",
+  cursor: "pointer",
+  background: active ? "#0f172a" : "#f8fafc",
+  color: active ? "#fff" : "#475569",
+  borderColor: active ? "#0f172a" : "#e2e8f0",
+});
+
+const btnPrimary: CSSProperties = {
+  background: "#0f172a",
+  color: "#fff",
+  border: "none",
+  borderRadius: 10,
+  padding: "11px 22px",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+  transition: "opacity 0.1s",
+};
+
+const btnSecondary: CSSProperties = {
+  background: "#f1f5f9",
+  color: "#1e293b",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "11px 18px",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const banner = (color: "yellow" | "green"): CSSProperties => ({
+  background: color === "yellow" ? "#fefce8" : "#f0fdf4",
+  border: `1px solid ${color === "yellow" ? "#fde68a" : "#bbf7d0"}`,
+  borderRadius: 10,
+  padding: "12px 16px",
+  marginBottom: 16,
+  fontSize: 13,
+  color: color === "yellow" ? "#92400e" : "#166534",
+});
+
+const tableHeader: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr 36px",
+  gap: 8,
+  padding: "8px 0",
+  borderBottom: "1px solid #e2e8f0",
+  fontWeight: 700,
+  fontSize: 12,
+  color: "#64748b",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+
+const tableRow: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr 36px",
+  gap: 8,
+  alignItems: "center",
+  padding: "8px 0",
+  borderBottom: "1px solid #f0f0f6",
+};
+
+const cellText: CSSProperties = {
+  fontSize: 13,
+  color: "#1e293b",
+  lineHeight: 1.4,
+};
+
+const select: CSSProperties = {
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: "7px 10px",
+  fontSize: 13,
+  background: "#fff",
+  outline: "none",
+};
+
+const tinyBtn: CSSProperties = {
+  background: "transparent",
+  border: "none",
+  color: "#94a3b8",
+  fontSize: 16,
+  cursor: "pointer",
+  lineHeight: 1,
+  padding: 4,
+};
+
+const mdContainer: CSSProperties = {
+  marginTop: 16,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "16px 20px",
+  lineHeight: 1.7,
+  color: "#374151",
+  fontSize: 13,
+  maxHeight: 400,
+  overflowY: "auto",
+};
+
+const dropZone = (dragging: boolean): CSSProperties => ({
+  border: `2px dashed ${dragging ? "#4ade80" : "#cbd5e1"}`,
+  borderRadius: 10,
+  padding: "28px 16px",
+  textAlign: "center",
+  cursor: "pointer",
+  background: dragging ? "#f0fdf4" : "#fafafa",
+  transition: "all 0.15s",
+  marginTop: 8,
+});
+
+// ---------- component ----------
+
+export default function PlanningModal({
+  open,
+  onClose,
+  projetoId,
+  sprintNumero,
+  sprintId,
+  funcionalidades,
+  onSubmitted,
+}: Props) {
+  const [step, setStep] = useState<Step>("input");
+  const [inputTab, setInputTab] = useState<InputTab>("arquivo");
+  const [texto, setTexto] = useState("");
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // correlações editáveis
+  const [correlacoes, setCorrelacoes] = useState<TaskCorrelacao[]>([]);
+  const [semFuncionalidades, setSemFuncionalidades] = useState(false);
+  const [newTask, setNewTask] = useState("");
+
+  // doc gerado
+  const [docContent, setDocContent] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const recomendadas = funcionalidades.filter((f) => f.status === "em_andamento");
+
+  useEffect(() => {
+    if (!open) {
+      setStep("input");
+      setTexto("");
+      setArquivo(null);
+      setError("");
+      setCorrelacoes([]);
+      setNewTask("");
+      setDocContent("");
+      setCopied(false);
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  function handleFile(file: File) {
+    setArquivo(file);
+    setError("");
+  }
+
+  async function handleAnalisar() {
+    if (inputTab === "arquivo" && !arquivo) {
+      setError("Selecione um arquivo antes de analisar.");
+      return;
+    }
+    if (inputTab === "texto" && !texto.trim()) {
+      setError("Cole o texto das tasks antes de analisar.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const result = await enrichPlanningComCorrelacoes(projetoId, {
+        texto: inputTab === "texto" ? texto : undefined,
+        arquivo: inputTab === "arquivo" ? (arquivo ?? undefined) : undefined,
+      });
+      setCorrelacoes(result.correlacoes);
+      setSemFuncionalidades(result.sem_funcionalidades);
+      setStep("correlacoes");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao analisar conteúdo.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateCorrelacaoFunc(idx: number, funcId: string | null) {
+    const func = funcionalidades.find((f) => f.id === funcId);
+    setCorrelacoes((prev) =>
+      prev.map((c, i) =>
+        i === idx
+          ? { ...c, funcionalidade_id: funcId, funcionalidade_titulo: func?.titulo ?? null }
+          : c
+      )
+    );
+  }
+
+  function removeCorrelacao(idx: number) {
+    setCorrelacoes((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function addManualTask() {
+    if (!newTask.trim()) return;
+    setCorrelacoes((prev) => [...prev, { task: newTask.trim(), funcionalidade_id: null, funcionalidade_titulo: null }]);
+    setNewTask("");
+  }
+
+  async function handleConfirmar() {
+    if (correlacoes.length === 0) {
+      setError("Adicione pelo menos uma task antes de confirmar.");
+      return;
+    }
+    setError("");
+    setStep("gerando");
+
+    try {
+      // Gera o doc de planning com todas as tasks
+      const itensBacklog = correlacoes.map((c) => ({
+        item: c.task,
+        responsavel: "",
+        prazo: "",
+        criterio: "",
+      }));
+
+      const [docResponse] = await Promise.all([
+        submitPlanning({
+          projetoId,
+          sprintNumero,
+          descricao: `Planning da Sprint ${sprintNumero}`,
+          itensBacklog,
+        }),
+        // Salva as correlações por funcionalidade
+        (() => {
+          // Agrupa tasks por funcionalidade_id
+          const byFunc = new Map<string | null, string[]>();
+          correlacoes.forEach((c) => {
+            const key = c.funcionalidade_id ?? null;
+            if (!byFunc.has(key)) byFunc.set(key, []);
+            byFunc.get(key)!.push(c.task);
+          });
+
+          const correlacoesPayload = Array.from(byFunc.entries())
+            .filter(([funcId]) => funcId !== null)
+            .map(([funcId, tasks]) => ({
+              funcionalidade_id: funcId,
+              tasks: tasks.map((t) => ({ texto: t })),
+            }));
+
+          if (correlacoesPayload.length === 0) return Promise.resolve(null);
+          return createSprintFuncionalidades(sprintId, correlacoesPayload);
+        })(),
+      ]);
+
+      setDocContent(docResponse.content);
+      setStep("doc");
+      onSubmitted?.(docResponse);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao gerar planning.");
+      setStep("correlacoes");
+    }
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(docContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  // ── render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div style={overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={modal}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+          <div>
+            <h2 style={heading}>Planning — Sprint {sprintNumero}</h2>
+            <p style={sub}>
+              {step === "input" && "Suba o kanban ou cole as tasks da sprint para a IA extrair e correlacionar."}
+              {step === "correlacoes" && "Revise a correlação de cada task com a funcionalidade — corrija onde a IA errou."}
+              {step === "gerando" && "Gerando documentação da sprint…"}
+              {step === "doc" && "Planning gerado com sucesso."}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ ...tinyBtn, fontSize: 20, color: "#94a3b8" }}>×</button>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          {(["input", "correlacoes", "doc"] as const).map((s, i) => (
+            <div key={s} style={{
+              height: 4,
+              flex: 1,
+              borderRadius: 4,
+              background: step === s || (step === "gerando" && i === 1) || (step === "doc" && i <= 2)
+                ? "#0f172a"
+                : "#e2e8f0",
+              transition: "background 0.2s",
+            }} />
+          ))}
+        </div>
+
+        {/* ── STEP: INPUT ── */}
+        {step === "input" && (
+          <>
+            {recomendadas.length > 0 && (
+              <div style={banner("yellow")}>
+                <strong>{recomendadas.length} {recomendadas.length === 1 ? "funcionalidade em andamento" : "funcionalidades em andamento"} da sprint anterior:</strong>
+                <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                  {recomendadas.map((f) => (
+                    <li key={f.id} style={{ lineHeight: 1.5 }}>{f.id_funcional} — {f.titulo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <button style={tabBtnStyle(inputTab === "arquivo")} onClick={() => setInputTab("arquivo")}>
+                📎 Arquivo / Kanban
+              </button>
+              <button style={tabBtnStyle(inputTab === "texto")} onClick={() => setInputTab("texto")}>
+                📝 Texto
+              </button>
+            </div>
+
+            {inputTab === "arquivo" && (
+              <>
+                <div
+                  style={dropZone(dragging)}
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleFile(f);
+                  }}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {arquivo ? (
+                    <p style={{ margin: 0, fontSize: 13, color: "#16a34a", fontWeight: 600 }}>
+                      ✓ {arquivo.name}
+                    </p>
+                  ) : (
+                    <>
+                      <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+                        Arraste o print do kanban aqui, ou clique para selecionar
+                      </p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
+                        PNG, JPG, PDF, DOCX, TXT
+                      </p>
+                    </>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.txt"
+                  style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+                />
+              </>
+            )}
+
+            {inputTab === "texto" && (
+              <>
+                <span style={label}>Cole aqui as tasks da sprint</span>
+                <textarea
+                  style={textarea}
+                  rows={6}
+                  placeholder={"Ex:\n- Criar modelo de ML para previsão de churn — Responsável: Ana\n- Dashboard de métricas semanais — Responsável: Bruno"}
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                />
+              </>
+            )}
+
+            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button style={btnSecondary} onClick={onClose}>Cancelar</button>
+              <button
+                style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                onClick={handleAnalisar}
+                disabled={loading}
+              >
+                {loading ? "Analisando…" : "Analisar com IA →"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP: CORRELAÇÕES ── */}
+        {step === "correlacoes" && (
+          <>
+            {semFuncionalidades && (
+              <div style={{ ...banner("yellow"), marginBottom: 16 }}>
+                <strong>Projeto sem funcionalidades cadastradas.</strong> Vá à aba <strong>Escopo</strong> para
+                importar do contrato ou adicionar manualmente antes de fazer a planning.
+                As tasks ficarão sem funcionalidade associada.
+              </div>
+            )}
+
+            <div style={tableHeader}>
+              <span>Task</span>
+              <span>Funcionalidade</span>
+              <span />
+            </div>
+
+            {correlacoes.map((c, idx) => (
+              <div key={idx} style={tableRow}>
+                <span style={cellText}>{c.task}</span>
+                <select
+                  style={select}
+                  value={c.funcionalidade_id ?? ""}
+                  onChange={(e) => updateCorrelacaoFunc(idx, e.target.value || null)}
+                >
+                  <option value="">Sem funcionalidade</option>
+                  {funcionalidades.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.id_funcional} — {f.titulo}
+                    </option>
+                  ))}
+                </select>
+                <button style={tinyBtn} onClick={() => removeCorrelacao(idx)} title="Remover task">✕</button>
+              </div>
+            ))}
+
+            {correlacoes.length === 0 && (
+              <p style={{ fontSize: 13, color: "#94a3b8", padding: "12px 0", textAlign: "center" }}>
+                Nenhuma task extraída. Adicione manualmente abaixo.
+              </p>
+            )}
+
+            {/* Adicionar task manual */}
+            <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+              <input
+                style={{ ...select, flex: 1 }}
+                placeholder="Adicionar task manualmente…"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addManualTask()}
+              />
+              <button style={btnSecondary} onClick={addManualTask}>+ Add</button>
+            </div>
+
+            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
+              <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
+              <button
+                style={btnPrimary}
+                onClick={handleConfirmar}
+              >
+                Confirmar e gerar planning →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP: GERANDO ── */}
+        {step === "gerando" && (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
+            <p style={{ color: "#64748b", fontSize: 14 }}>Gerando documentação da sprint…</p>
+          </div>
+        )}
+
+        {/* ── STEP: DOC ── */}
+        {step === "doc" && (
+          <>
+            <div style={{ ...banner("green"), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>✓ Planning gerado e salvo com sucesso.</span>
+              <button
+                style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}
+                onClick={handleCopy}
+              >
+                {copied ? "Copiado!" : "Copiar markdown"}
+              </button>
+            </div>
+            <div style={mdContainer}>
+              <ReactMarkdown>{docContent}</ReactMarkdown>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+              <button style={btnPrimary} onClick={onClose}>Fechar</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

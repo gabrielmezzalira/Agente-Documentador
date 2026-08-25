@@ -131,6 +131,18 @@ class RetrospectivaEnrichment(BaseModel):
     status_pedido_fora_escopo: Optional[str] = None
 
 
+class TaskCorrelacao(BaseModel):
+    task: str
+    funcionalidade_id: Optional[str] = None
+    funcionalidade_titulo: Optional[str] = None
+
+
+class PlanningComCorrelacoes(BaseModel):
+    enriquecimento: PlanningEnrichment
+    correlacoes: list[TaskCorrelacao]
+    sem_funcionalidades: bool = False
+
+
 _SCHEMA_MAP = {
     "planning": PlanningEnrichment,
     "daily": DailyEnrichment,
@@ -341,3 +353,127 @@ async def enrich(
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+
+
+@router.post("/planning-correlacoes")
+async def enrich_planning_com_correlacoes(
+    projeto_id: str = Form(...),
+    texto: Optional[str] = Form(None),
+    arquivo: Optional[UploadFile] = File(None),
+):
+    """Extrai tasks do kanban/texto E auto-correlaciona cada task a uma funcionalidade do projeto.
+
+    Duas chamadas LLM em sequência:
+    1. Extrai tarefas via planning enrichment padrão.
+    2. Para cada task, identifica a funcionalidade mais provável do escopo do projeto.
+    Não salva nada no banco — serve para pré-popular o PlanningModal antes da confirmação.
+    """
+    api_key = _get_api_key(projeto_id)
+    content_text, is_vision, image_b64, image_mime = await _prepare_content(texto, arquivo)
+
+    if not content_text and not is_vision:
+        raise HTTPException(status_code=422, detail="Forneça texto ou arquivo para análise.")
+
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash-lite",
+        google_api_key=api_key,
+    ).with_structured_output(PlanningEnrichment, method="json_schema", include_raw=True)
+
+    if is_vision:
+        messages = [
+            SystemMessage(content=_PROMPTS["planning"]),
+            HumanMessage(content=[
+                {"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{image_b64}"}},
+                {"type": "text", "text": "Analise esta imagem e extraia as informações estruturadas conforme solicitado."},
+            ]),
+        ]
+    else:
+        messages = [
+            SystemMessage(content=_PROMPTS["planning"]),
+            HumanMessage(content=content_text),
+        ]
+
+    try:
+        raw_result = await llm.ainvoke(messages)
+        enriquecimento = raw_result.get("parsed")
+        if enriquecimento is None:
+            raise HTTPException(status_code=502, detail="Falha ao estruturar resposta da IA.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+
+    tasks = [item.item for item in enriquecimento.itens_backlog if item.item]
+
+    # Busca funcionalidades do projeto para correlação
+    from services.supabase_client import get_client
+    client = get_client()
+    funcs_resp = client.table("funcionalidades").select("id, id_funcional, titulo, descricao").eq("project_id", projeto_id).execute()
+    funcionalidades = funcs_resp.data or []
+
+    if not funcionalidades or not tasks:
+        correlacoes = [TaskCorrelacao(task=t) for t in tasks]
+        return PlanningComCorrelacoes(
+            enriquecimento=enriquecimento,
+            correlacoes=correlacoes,
+            sem_funcionalidades=len(funcionalidades) == 0,
+        )
+
+    # Segunda chamada LLM: correlaciona cada task à funcionalidade mais provável
+    funcs_desc = "\n".join([
+        f"ID: {f['id']} | Código: {f.get('id_funcional', '?')} | Título: {f['titulo']}"
+        + (f" | Descrição: {f['descricao']}" if f.get("descricao") else "")
+        for f in funcionalidades
+    ])
+    tasks_str = "\n".join([f"{i + 1}. {t}" for i, t in enumerate(tasks)])
+
+    class CorrelacaoItem(BaseModel):
+        task: str
+        funcionalidade_id: Optional[str] = None
+
+    class CorrelacaoResult(BaseModel):
+        correlacoes: list[CorrelacaoItem]
+
+    llm_corr = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash-lite",
+        google_api_key=api_key,
+    ).with_structured_output(CorrelacaoResult, method="json_schema", include_raw=True)
+
+    corr_prompt = (
+        "Você é um assistente que correlaciona tarefas de sprint com funcionalidades do projeto.\n\n"
+        f"Funcionalidades disponíveis:\n{funcs_desc}\n\n"
+        f"Tarefas da sprint:\n{tasks_str}\n\n"
+        "Para cada tarefa, identifique qual funcionalidade ela pertence (use o ID exato fornecido acima). "
+        "Use null se a tarefa não se encaixar claramente em nenhuma funcionalidade. "
+        "Uma mesma funcionalidade pode ter várias tarefas. Retorne todas as tarefas em JSON."
+    )
+
+    func_map = {f["id"]: f for f in funcionalidades}
+
+    try:
+        corr_raw = await llm_corr.ainvoke([HumanMessage(content=corr_prompt)])
+        corr_result = corr_raw.get("parsed")
+        if corr_result is None:
+            correlacoes = [TaskCorrelacao(task=t) for t in tasks]
+        else:
+            correlacoes = []
+            for c in corr_result.correlacoes:
+                func = func_map.get(c.funcionalidade_id or "") if c.funcionalidade_id else None
+                correlacoes.append(TaskCorrelacao(
+                    task=c.task,
+                    funcionalidade_id=c.funcionalidade_id,
+                    funcionalidade_titulo=func["titulo"] if func else None,
+                ))
+            # Garante que tasks sem correlação também apareçam
+            tasks_corr = {c.task for c in correlacoes}
+            for t in tasks:
+                if t not in tasks_corr:
+                    correlacoes.append(TaskCorrelacao(task=t))
+    except Exception:
+        correlacoes = [TaskCorrelacao(task=t) for t in tasks]
+
+    return PlanningComCorrelacoes(
+        enriquecimento=enriquecimento,
+        correlacoes=correlacoes,
+        sem_funcionalidades=False,
+    )
