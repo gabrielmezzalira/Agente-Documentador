@@ -14,6 +14,7 @@ from models.schemas import (
     UsageItem,
     TechTimelineResponse,
     ContratoUpdate,
+    GerenteEmailUpdate,
 )
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
@@ -320,6 +321,24 @@ async def delete_project(project_id: str):
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
     client.table("projects").delete().eq("id", project_id).execute()
+
+
+@router.patch("/{project_id}/gerente-email", response_model=ProjectResponse)
+async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
+    """Atualiza ou limpa o email do gerente responsável pelo projeto."""
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    response = (
+        client.table("projects")
+        .update({"gerente_email": data.gerente_email or None})
+        .eq("id", project_id)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update gerente email")
+    return _sanitize(response.data[0])
 
 
 @router.patch("/{project_id}/contrato", response_model=ProjectResponse)

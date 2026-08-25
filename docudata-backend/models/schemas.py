@@ -55,6 +55,11 @@ class ProjectResponse(BaseModel):
     tolerancia_desvio_pontos: Optional[int] = None
     periodo_garantia_dias: Optional[int] = None
     has_github_config: bool = False
+    gerente_email: Optional[str] = None
+
+
+class GerenteEmailUpdate(BaseModel):
+    gerente_email: Optional[str] = None
 
 
 class ProjectCostResponse(BaseModel):

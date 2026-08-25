@@ -30,6 +30,7 @@ export interface Project {
   data_fim_contratada?: string | null;
   tolerancia_desvio_pontos?: number | null;
   periodo_garantia_dias?: number | null;
+  gerente_email?: string | null;
 }
 
 export interface StackSearchResult {
@@ -209,6 +210,16 @@ export async function updateApiKey(projectId: string, key: string | null): Promi
     body: JSON.stringify({ gemini_api_key: key }),
   });
   if (!res.ok) throw new Error("Erro ao atualizar chave de API");
+  return res.json();
+}
+
+export async function updateGerenteEmail(projectId: string, email: string | null): Promise<Project> {
+  const res = await fetch(`${API}/projects/${projectId}/gerente-email`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ gerente_email: email || null }),
+  });
+  if (!res.ok) throw new Error("Erro ao atualizar email do gerente");
   return res.json();
 }
 

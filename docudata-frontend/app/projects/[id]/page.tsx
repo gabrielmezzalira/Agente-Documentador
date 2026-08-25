@@ -9,6 +9,7 @@ import {
   getProjectCost,
   getProjectUsage,
   updateApiKey,
+  updateGerenteEmail,
   listIngestions,
   listIngestionsBySprint,
   listDocs,
@@ -157,6 +158,10 @@ export default function ProjectDashboard() {
   const [apiKeyMsg, setApiKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingKey, setSavingKey] = useState(false);
 
+  const [emailInput, setEmailInput] = useState("");
+  const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingEmail, setSavingEmail] = useState(false);
+
   // ---------- bootstrap ----------
   useEffect(() => {
     Promise.all([
@@ -224,6 +229,21 @@ export default function ProjectDashboard() {
       setApiKeyMsg({ ok: false, text: "Erro ao salvar chave." });
     } finally {
       setSavingKey(false);
+    }
+  }
+
+  async function handleSaveEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEmail(true);
+    setEmailMsg(null);
+    try {
+      const updated = await updateGerenteEmail(id, emailInput.trim() || null);
+      setProject(updated);
+      setEmailMsg({ ok: true, text: emailInput.trim() ? "Email salvo. Lembretes ativados." : "Email removido. Lembretes desativados." });
+    } catch {
+      setEmailMsg({ ok: false, text: "Erro ao salvar email." });
+    } finally {
+      setSavingEmail(false);
     }
   }
 
@@ -939,6 +959,53 @@ export default function ProjectDashboard() {
               })()}
             </section>
           )}
+
+          <section style={sectionStyle}>
+            <h2 style={sectionTitle}>Lembretes por email</h2>
+            <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
+              O DocuData envia lembretes automáticos quando a sprint não tem planning (após 24h), review (após 5 dias) ou retrospectiva (após 7 dias).
+            </p>
+            {project.gerente_email ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>✓ {project.gerente_email}</span>
+                  <button
+                    onClick={() => { setEmailInput(""); handleSaveEmail({ preventDefault: () => {} } as React.FormEvent); }}
+                    style={{ background: "none", border: "none", fontSize: 12, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                  >
+                    Remover
+                  </button>
+                </div>
+                <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="email"
+                    placeholder="Trocar email..."
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    style={{ ...inputStyle, width: 240 }}
+                  />
+                  <button type="submit" disabled={savingEmail || !emailInput.trim()} style={btnSecondary}>
+                    {savingEmail ? "..." : "Trocar"}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }}
+                  required
+                />
+                <button type="submit" disabled={savingEmail} style={btnPrimary}>
+                  {savingEmail ? "Salvando..." : "Ativar lembretes"}
+                </button>
+              </form>
+            )}
+            {emailMsg && <p style={{ marginTop: 10, fontSize: 13, color: emailMsg.ok ? "#16a34a" : "#dc2626" }}>{emailMsg.text}</p>}
+          </section>
 
           <section style={sectionStyle}>
             <h2 style={sectionTitle}>Status do projeto</h2>

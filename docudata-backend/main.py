@@ -1,11 +1,29 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins
+from services.notification_checker import check_and_send_notifications
 
-app = FastAPI(title="DocuData API", version="1.0.0")
+logging.basicConfig(level=logging.INFO)
+
+_scheduler = AsyncIOScheduler()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _scheduler.add_job(check_and_send_notifications, "interval", hours=1, id="sprint_notifications")
+    _scheduler.start()
+    yield
+    _scheduler.shutdown()
+
+
+app = FastAPI(title="DocuData API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
