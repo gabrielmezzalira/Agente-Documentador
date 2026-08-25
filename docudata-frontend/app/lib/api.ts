@@ -116,14 +116,10 @@ export interface GeneratedDoc {
   created_at: string;
 }
 
-export type SprintHealth = "verde" | "amarelo" | "vermelho";
-
 export interface Sprint {
   id: string;
   project_id: string;
   numero: number;
-  status_saude?: SprintHealth | null;
-  plano_correcao?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -330,25 +326,6 @@ export async function getTechnologies(projectId: string): Promise<TechTimeline> 
   return res.json();
 }
 
-export async function updateSprintHealth(
-  sprintId: string,
-  statusSaude: SprintHealth | null,
-  planoCorrecao?: string | null
-): Promise<Sprint> {
-  const res = await fetch(`${API}/sprints/${sprintId}/health`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      status_saude: statusSaude,
-      plano_correcao: planoCorrecao ?? null,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro ao atualizar saúde da sprint");
-  }
-  return res.json();
-}
 
 async function _postSprintDoc(path: string, form: FormData): Promise<SprintDocResponse> {
   const res = await fetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });

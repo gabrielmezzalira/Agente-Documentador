@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import HealthBadge from "./HealthBadge";
 import type {
   GeneratedDoc,
   Ingestion,
@@ -33,7 +32,6 @@ interface Props {
   onDeleteIngestion: (ingestionId: string) => void;
   onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
-  onHealthChanged: () => void;
 }
 
 // ---------- styles ----------
@@ -285,7 +283,6 @@ export default function SprintCard({
   onDeleteIngestion,
   onMoveIngestion,
   onDeleteSprint,
-  onHealthChanged,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
@@ -362,12 +359,6 @@ export default function SprintCard({
       <div style={headerRow}>
         <h3 style={titleStyle}>Sprint {sprint.numero}</h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <HealthBadge
-            sprintId={sprint.id}
-            value={sprint.status_saude}
-            planoCorrecao={sprint.plano_correcao}
-            onChanged={onHealthChanged}
-          />
           <button style={btnSubtle} onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Recolher" : "Detalhes"}
           </button>
@@ -425,11 +416,6 @@ export default function SprintCard({
         <span style={muted}>
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
         </span>
-        {sprint.plano_correcao && (
-          <span style={{ ...muted, color: "#b45309" }}>
-            · plano de correção definido
-          </span>
-        )}
       </div>
 
       <div style={actionRow}>

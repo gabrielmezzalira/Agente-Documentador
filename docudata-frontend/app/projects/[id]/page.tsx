@@ -585,7 +585,6 @@ export default function ProjectDashboard() {
                 onDeleteIngestion={handleDeleteIngestion}
                 onMoveIngestion={handleMoveIngestion}
                 onDeleteSprint={handleDeleteSprint}
-                onHealthChanged={refreshSprints}
               />
             ))
           )}
