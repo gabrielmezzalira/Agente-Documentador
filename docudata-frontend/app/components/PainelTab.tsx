@@ -5,6 +5,8 @@ import {
   getPainel,
   listFuncionalidades,
   getSprintFuncionalidades,
+  createSprintFuncionalidades,
+  updateSprintFuncionalidade,
   updateContrato,
   type BlocoD,
   type FuncionalidadeResponse,
@@ -234,7 +236,10 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
   );
   return (
     <div style={cardStyle}>
-      <span style={cardTitleStyle}>Itens em Atenção</span>
+      <span style={cardTitleStyle}>
+        Itens em Atenção
+        <InfoTooltip text="Travadas: funcionalidades paradas há muitos dias sem avanço. Em ajuste: entregues mas com correções pendentes antes da aceitação pelo cliente." />
+      </span>
 
       <p style={subSectionTitleStyle}>
         Travadas{" "}
@@ -338,7 +343,10 @@ function BlocoDCard({
   const fases = Object.entries(bloco.fases_resumo);
   return (
     <div style={cardStyle}>
-      <span style={cardTitleStyle}>Tempo por Fase</span>
+      <span style={cardTitleStyle}>
+        Tempo por Fase
+        <InfoTooltip text="Quanto tempo cada funcionalidade ficou em cada estado (planejada, em andamento, concluída). Eficiência de fluxo = % do tempo efetivamente trabalhado vs. tempo total." />
+      </span>
       <div style={{ marginBottom: 12 }}>
         <p style={metricLabelStyle}>Eficiência de fluxo</p>
         <p style={{ ...metricValueStyle, margin: 0 }}>
@@ -411,6 +419,54 @@ function BlocoDCard({
   );
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      style={{ position: "relative", display: "inline-flex", marginLeft: 5, verticalAlign: "middle" }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span style={{
+        cursor: "help",
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#9696a0",
+        border: "1px solid #d1d5db",
+        borderRadius: "50%",
+        width: 15,
+        height: 15,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        i
+      </span>
+      {show && (
+        <div style={{
+          position: "absolute",
+          top: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#1e293b",
+          color: "#f1f5f9",
+          borderRadius: 8,
+          padding: "8px 12px",
+          fontSize: 11,
+          width: 230,
+          zIndex: 200,
+          lineHeight: 1.6,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          pointerEvents: "none",
+        }}>
+          {text}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: string[] }) {
   const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
 
@@ -453,6 +509,10 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
   );
   const [sprintFuncs, setSprintFuncs] = useState<SprintFuncionalidade[]>([]);
   const [expandedFase, setExpandedFase] = useState<string | null>(null);
+  const [dragFuncId, setDragFuncId] = useState<string | null>(null);
+  const [addingFunc, setAddingFunc] = useState(false);
+  const [addFuncId, setAddFuncId] = useState("");
+  const [kanbanSaving, setKanbanSaving] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -492,6 +552,36 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
   }
 
   if (!data) return null;
+
+  const sfByFuncId = new Map(sprintFuncs.map((sf) => [sf.funcionalidade_id, sf]));
+  const funcsNotInSprint = funcionalidades.filter((f) => !sfByFuncId.has(f.id));
+
+  async function handleDrop(targetStatus: "em_andamento" | "concluida") {
+    if (!dragFuncId || !selectedSprintObj) { setDragFuncId(null); return; }
+    const sf = sfByFuncId.get(dragFuncId);
+    if (!sf || sf.status === targetStatus) { setDragFuncId(null); return; }
+    setKanbanSaving(true);
+    try {
+      await updateSprintFuncionalidade(sf.id, { status: targetStatus });
+      setSprintFuncs(await getSprintFuncionalidades(selectedSprintObj.id));
+    } finally {
+      setKanbanSaving(false);
+      setDragFuncId(null);
+    }
+  }
+
+  async function handleAddToSprint() {
+    if (!addFuncId || !selectedSprintObj) return;
+    setKanbanSaving(true);
+    try {
+      await createSprintFuncionalidades(selectedSprintObj.id, [{ funcionalidade_id: addFuncId, tasks: [] }]);
+      setSprintFuncs(await getSprintFuncionalidades(selectedSprintObj.id));
+      setAddFuncId("");
+      setAddingFunc(false);
+    } finally {
+      setKanbanSaving(false);
+    }
+  }
 
   const sortedSprints = [...sprints].sort((a, b) => b.numero - a.numero);
 
@@ -620,9 +710,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={colHeaderStyle("#374151")}>Planejado</span>
-                <span
-                  style={{ ...chipBaseStyle, background: "#f1f5f9", color: "#64748b", fontSize: 11 }}
-                >
+                <span style={{ ...chipBaseStyle, background: "#f1f5f9", color: "#64748b", fontSize: 11 }}>
                   {planejado.length}
                 </span>
               </div>
@@ -632,22 +720,20 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                 </div>
               ) : (
                 planejado.map((f) => (
-                  <KanbanCard
-                    key={f.id}
-                    f={f}
-                    allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                  />
+                  <KanbanCard key={f.id} f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
                 ))
               )}
             </div>
 
-            {/* Em andamento */}
-            <div>
+            {/* Em andamento — drop target */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop("em_andamento")}
+              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={colHeaderStyle("#a16207")}>Em andamento</span>
-                <span
-                  style={{ ...chipBaseStyle, background: "#fef9c3", color: "#a16207", fontSize: 11 }}
-                >
+                <span style={{ ...chipBaseStyle, background: "#fef9c3", color: "#a16207", fontSize: 11 }}>
                   {emAndamento.length}
                 </span>
               </div>
@@ -658,22 +744,65 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                 </div>
               ) : (
                 emAndamento.map((f) => (
-                  <KanbanCard
+                  <div
                     key={f.id}
-                    f={f}
-                    allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                  />
+                    draggable
+                    onDragStart={() => setDragFuncId(f.id)}
+                    onDragEnd={() => setDragFuncId(null)}
+                    style={{ cursor: "grab" }}
+                  >
+                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
+                  </div>
                 ))
+              )}
+              {/* Adicionar manualmente */}
+              {!addingFunc ? (
+                <button
+                  onClick={() => setAddingFunc(true)}
+                  style={{ marginTop: 8, width: "100%", background: "transparent", border: "1px dashed #cbd5e1", borderRadius: 8, padding: "7px 0", fontSize: 12, color: "#64748b", cursor: "pointer" }}
+                >
+                  + Adicionar funcionalidade
+                </button>
+              ) : (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <select
+                    value={addFuncId}
+                    onChange={(e) => setAddFuncId(e.target.value)}
+                    style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: 13, background: "#fff" }}
+                  >
+                    <option value="">Selecione…</option>
+                    {funcsNotInSprint.map((f) => (
+                      <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
+                    ))}
+                  </select>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={handleAddToSprint}
+                      disabled={!addFuncId || kanbanSaving}
+                      style={{ flex: 1, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: (!addFuncId || kanbanSaving) ? 0.5 : 1 }}
+                    >
+                      {kanbanSaving ? "Adicionando…" : "Confirmar"}
+                    </button>
+                    <button
+                      onClick={() => { setAddingFunc(false); setAddFuncId(""); }}
+                      style={{ background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Concluído */}
-            <div>
+            {/* Concluído — drop target */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop("concluida")}
+              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={colHeaderStyle("#16a34a")}>Concluído</span>
-                <span
-                  style={{ ...chipBaseStyle, background: "#dcfce7", color: "#16a34a", fontSize: 11 }}
-                >
+                <span style={{ ...chipBaseStyle, background: "#dcfce7", color: "#16a34a", fontSize: 11 }}>
                   {concluido.length}
                 </span>
               </div>
@@ -683,11 +812,15 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                 </div>
               ) : (
                 concluido.map((f) => (
-                  <KanbanCard
+                  <div
                     key={f.id}
-                    f={f}
-                    allSprints={allSprintsByFuncional[f.id_funcional] ?? []}
-                  />
+                    draggable
+                    onDragStart={() => setDragFuncId(f.id)}
+                    onDragEnd={() => setDragFuncId(null)}
+                    style={{ cursor: "grab" }}
+                  >
+                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
+                  </div>
                 ))
               )}
             </div>

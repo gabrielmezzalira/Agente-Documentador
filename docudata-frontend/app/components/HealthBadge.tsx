@@ -86,7 +86,7 @@ export default function HealthBadge({ sprintId, value, planoCorrecao, onChanged 
         title="Clique para editar o semáforo"
       >
         <span>{meta.emoji}</span>
-        <span>{meta.label}</span>
+        {value && <span>{meta.label}</span>}
       </button>
 
       {open && (
