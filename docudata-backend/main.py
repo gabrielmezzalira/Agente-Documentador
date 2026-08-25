@@ -4,7 +4,7 @@ load_dotenv()
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins
@@ -58,8 +58,7 @@ async def health():
 
 
 @app.post("/notifications/check")
-async def trigger_notification_check():
-    """Dispara manualmente o check de notificações (uso em testes)."""
-    import asyncio
-    await asyncio.get_event_loop().run_in_executor(None, check_and_send_notifications)
-    return {"status": "ok", "message": "Check executado — veja os logs para detalhes."}
+async def trigger_notification_check(background_tasks: BackgroundTasks):
+    """Dispara manualmente o check de notificações (uso em testes). Retorna imediatamente."""
+    background_tasks.add_task(check_and_send_notifications)
+    return {"status": "ok", "message": "Check iniciado em background — veja os logs do Railway para detalhes."}
