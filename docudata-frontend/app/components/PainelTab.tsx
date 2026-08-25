@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import {
   getPainel,
   listFuncionalidades,
+  getSprintFuncionalidades,
   updateContrato,
   type BlocoD,
   type FuncionalidadeResponse,
   type PainelData,
   type Project,
+  type SprintFuncionalidade,
   type SprintWithStatus,
 } from "../lib/api";
 
@@ -449,6 +451,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
   const [sprintSelecionada, setSprintSelecionada] = useState<number>(
     sprints.length > 0 ? Math.max(...sprints.map((s) => s.numero)) : 1
   );
+  const [sprintFuncs, setSprintFuncs] = useState<SprintFuncionalidade[]>([]);
   const [expandedFase, setExpandedFase] = useState<string | null>(null);
 
   useEffect(() => {
@@ -462,6 +465,15 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
       .catch((e) => setError(e instanceof Error ? e.message : "Erro"))
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  const selectedSprintObj = sprints.find((s) => s.numero === sprintSelecionada);
+
+  useEffect(() => {
+    if (!selectedSprintObj) { setSprintFuncs([]); return; }
+    getSprintFuncionalidades(selectedSprintObj.id)
+      .then(setSprintFuncs)
+      .catch(() => setSprintFuncs([]));
+  }, [selectedSprintObj?.id]);
 
   if (loading) {
     return (
@@ -483,15 +495,35 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
 
   const sortedSprints = [...sprints].sort((a, b) => b.numero - a.numero);
 
-  const funcsDaSprint = funcionalidades.filter(
-    (f) => f.sprint_alvo !== null && f.sprint_alvo !== undefined && f.sprint_alvo === String(sprintSelecionada)
-  );
+  // Resolve sprint_funcionalidade → FuncionalidadeResponse using the funcionalidades list
+  function sfToFunc(sf: SprintFuncionalidade): FuncionalidadeResponse | null {
+    return funcionalidades.find((f) => f.id === sf.funcionalidade_id) ?? null;
+  }
 
-  const planejado = funcsDaSprint.filter((f) => f.status === "nao_iniciada");
-  const emAndamento = funcsDaSprint.filter(
-    (f) => f.status === "em_andamento" || f.status === "em_ajuste"
-  );
-  const concluido = funcsDaSprint.filter((f) => f.status === "concluida");
+  let planejado: FuncionalidadeResponse[];
+  let emAndamento: FuncionalidadeResponse[];
+  let concluido: FuncionalidadeResponse[];
+
+  if (sprintFuncs.length > 0) {
+    // New planning flow: use sprint_funcionalidades as source of truth
+    planejado = [];
+    emAndamento = sprintFuncs
+      .filter((sf) => sf.status === "em_andamento")
+      .map(sfToFunc)
+      .filter((f): f is FuncionalidadeResponse => f !== null);
+    concluido = sprintFuncs
+      .filter((sf) => sf.status === "concluida")
+      .map(sfToFunc)
+      .filter((f): f is FuncionalidadeResponse => f !== null);
+  } else {
+    // Fallback: old sprint_alvo-based filtering
+    const funcsDaSprint = funcionalidades.filter(
+      (f) => f.sprint_alvo !== null && f.sprint_alvo !== undefined && f.sprint_alvo === String(sprintSelecionada)
+    );
+    planejado = funcsDaSprint.filter((f) => f.status === "nao_iniciada");
+    emAndamento = funcsDaSprint.filter((f) => f.status === "em_andamento" || f.status === "em_ajuste");
+    concluido = funcsDaSprint.filter((f) => f.status === "concluida");
+  }
 
   const allSprintsByFuncional: Record<string, string[]> = {};
   for (const f of funcionalidades) {
