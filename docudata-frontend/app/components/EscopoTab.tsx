@@ -28,14 +28,12 @@ const PRIORIDADE_COLOR: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   nao_iniciada: "Não iniciada",
   em_andamento: "Em andamento",
-  em_ajuste: "Em ajuste",
   concluida: "Concluída",
 };
 
 const STATUS_COLOR: Record<string, string> = {
   nao_iniciada: "#94a3b8",
   em_andamento: "#2563eb",
-  em_ajuste: "#d97706",
   concluida: "#16a34a",
 };
 
@@ -686,7 +684,6 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
                           style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 7, padding: "8px 11px", fontSize: 13, color: "#0f172a", background: "#fff" }}>
                           <option value="nao_iniciada">Não iniciada</option>
                           <option value="em_andamento">Em andamento</option>
-                          <option value="em_ajuste">Em ajuste</option>
                           <option value="concluida">Concluída</option>
                         </select>
                       </div>

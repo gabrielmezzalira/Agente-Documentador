@@ -238,7 +238,7 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
     <div style={cardStyle}>
       <span style={cardTitleStyle}>
         Itens em Atenção
-        <InfoTooltip text="Travadas: funcionalidades paradas há muitos dias sem avanço. Em ajuste: entregues mas com correções pendentes antes da aceitação pelo cliente." />
+        <InfoTooltip text="Travadas: funcionalidades paradas há muitos dias sem avanço — precisam de atenção ou desbloqueio." />
       </span>
 
       <p style={subSectionTitleStyle}>
@@ -261,26 +261,6 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
           ))}
         </div>
       )}
-
-      {sep}
-
-      <p style={subSectionTitleStyle}>
-        Em ajuste{" "}
-        <span style={{ ...chipBaseStyle, background: "#ffedd5", color: "#c2410c", fontSize: 11 }}>
-          {bloco.em_ajuste.length}
-        </span>
-      </p>
-      {bloco.em_ajuste.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>Nenhuma em ajuste</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {bloco.em_ajuste.map((f) => (
-            <span key={f.id} style={{ fontSize: 13, color: "#111116", fontWeight: 600 }}>
-              {f.titulo}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -294,7 +274,7 @@ function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
           <p style={metricLabelStyle}>WIP agora</p>
           <p style={{ ...metricValueStyle, margin: 0 }}>{bloco.wip}</p>
           <p style={{ fontSize: 11, color: "#9696a0", margin: "2px 0 0" }}>
-            funcionalidades em andamento ou em ajuste
+            funcionalidades em andamento
           </p>
         </div>
         <div>
@@ -611,7 +591,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
       (f) => f.sprint_alvo !== null && f.sprint_alvo !== undefined && f.sprint_alvo === String(sprintSelecionada)
     );
     planejado = funcsDaSprint.filter((f) => f.status === "nao_iniciada");
-    emAndamento = funcsDaSprint.filter((f) => f.status === "em_andamento" || f.status === "em_ajuste");
+    emAndamento = funcsDaSprint.filter((f) => f.status === "em_andamento");
     concluido = funcsDaSprint.filter((f) => f.status === "concluida");
   }
 
@@ -737,7 +717,6 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                   {emAndamento.length}
                 </span>
               </div>
-              <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 8px" }}>inclui em ajuste</p>
               {emAndamento.length === 0 ? (
                 <div style={{ padding: "20px 0", textAlign: "center" }}>
                   <span style={{ color: "#b8b8c0", fontSize: 12 }}>Nenhuma funcionalidade</span>

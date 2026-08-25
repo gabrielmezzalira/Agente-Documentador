@@ -666,7 +666,7 @@ export interface FuncionalidadeResponse {
   descricao?: string;
   criterios_aceite: string[];
   prioridade: string;
-  status: "nao_iniciada" | "em_andamento" | "em_ajuste" | "concluida";
+  status: "nao_iniciada" | "em_andamento" | "concluida";
   status_cliente: "nao_enviado" | "enviado" | "aprovado" | "rejeitado" | "ajuste_pedido";
   data_aprovacao_cliente?: string | null;
   responsavel?: string | null;
@@ -686,7 +686,6 @@ export interface BlocoA {
 export interface BlocoB {
   travadas: Array<{ id: string; titulo: string; dias: number }>;
   aguardando_cliente: Array<{ id: string; titulo: string; dias_uteis: number }>;
-  em_ajuste: Array<{ id: string; titulo: string }>;
 }
 
 export interface BlocoC {
