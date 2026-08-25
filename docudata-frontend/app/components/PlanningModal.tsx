@@ -9,6 +9,7 @@ import {
   type FuncionalidadeResponse,
   type TaskCorrelacao,
   type SprintDocResponse,
+  type EnrichResult,
 } from "../lib/api";
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
   onSubmitted?: (response: SprintDocResponse) => void;
 }
 
-type Step = "input" | "correlacoes" | "gerando" | "doc";
+type Step = "input" | "correlacoes" | "form" | "gerando" | "doc";
 type InputTab = "texto" | "arquivo";
 
 // ---------- styles ----------
@@ -62,8 +63,10 @@ const sub: CSSProperties = {
   margin: "0 0 20px",
 };
 
-const label: CSSProperties = {
-  display: "block",
+const lbl: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
   fontSize: 13,
   fontWeight: 600,
   color: "#334155",
@@ -71,17 +74,32 @@ const label: CSSProperties = {
   marginTop: 14,
 };
 
-const textarea: CSSProperties = {
+const aiBadge: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  background: "#ede9fe",
+  color: "#7c3aed",
+  borderRadius: 4,
+  padding: "1px 5px",
+  letterSpacing: "0.04em",
+};
+
+const inp: CSSProperties = {
   width: "100%",
   border: "1px solid #e2e8f0",
   borderRadius: 8,
-  padding: "10px 12px",
+  padding: "8px 10px",
   fontSize: 13,
   outline: "none",
-  resize: "vertical",
-  minHeight: 100,
-  fontFamily: "inherit",
+  background: "#fff",
   boxSizing: "border-box",
+};
+
+const ta: CSSProperties = {
+  ...inp,
+  resize: "vertical",
+  minHeight: 72,
+  fontFamily: "inherit",
 };
 
 const tabBtnStyle = (active: boolean): CSSProperties => ({
@@ -157,7 +175,7 @@ const cellText: CSSProperties = {
   lineHeight: 1.4,
 };
 
-const select: CSSProperties = {
+const sel: CSSProperties = {
   width: "100%",
   border: "1px solid #e2e8f0",
   borderRadius: 8,
@@ -201,6 +219,54 @@ const dropZone = (dragging: boolean): CSSProperties => ({
   marginTop: 8,
 });
 
+const listRow: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  marginBottom: 6,
+};
+
+const addBtn: CSSProperties = {
+  background: "transparent",
+  border: "1px dashed #cbd5e1",
+  borderRadius: 8,
+  padding: "6px 12px",
+  fontSize: 12,
+  color: "#64748b",
+  cursor: "pointer",
+  marginTop: 6,
+};
+
+const sectionDivider: CSSProperties = {
+  borderTop: "1px solid #f0f0f6",
+  marginTop: 20,
+  paddingTop: 4,
+};
+
+// ---------- helpers ----------
+
+type DepsItem = { item: string; prazo: string; consequencia: string; confianca: string };
+type RiscoItem = { risco: string; consequencia: string };
+type CarryItem = { item: string; causa_raiz: string };
+
+function initFromEnrich(e: EnrichResult) {
+  return {
+    descricao: e.descricao ?? "",
+    periodoInicio: e.periodo_inicio ?? "",
+    periodoFim: e.periodo_fim ?? "",
+    horasDisponiveis: e.horas_disponiveis != null ? String(e.horas_disponiveis) : "",
+    horasEstimadas: e.horas_estimadas != null ? String(e.horas_estimadas) : "",
+    dependencias: (e.dependencias_items ?? []).map((d) => ({
+      item: d.item,
+      prazo: d.prazo,
+      consequencia: d.consequencia,
+      confianca: d.confianca,
+    })),
+    riscos: (e.riscos_items ?? []).map((r) => ({ risco: r.risco, consequencia: r.consequencia })),
+    carryOver: (e.carry_over_items ?? []).map((c) => ({ item: c.item, causa_raiz: c.causa_raiz })),
+  };
+}
+
 // ---------- component ----------
 
 export default function PlanningModal({
@@ -220,17 +286,26 @@ export default function PlanningModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // correlações editáveis
+  // correlações
   const [correlacoes, setCorrelacoes] = useState<TaskCorrelacao[]>([]);
   const [semFuncionalidades, setSemFuncionalidades] = useState(false);
   const [newTask, setNewTask] = useState("");
+
+  // formulário de planning
+  const [descricao, setDescricao] = useState("");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
+  const [horasDisponiveis, setHorasDisponiveis] = useState("");
+  const [horasEstimadas, setHorasEstimadas] = useState("");
+  const [dependencias, setDependencias] = useState<DepsItem[]>([]);
+  const [riscos, setRiscos] = useState<RiscoItem[]>([]);
+  const [carryOver, setCarryOver] = useState<CarryItem[]>([]);
 
   // doc gerado
   const [docContent, setDocContent] = useState("");
   const [copied, setCopied] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
-
   const recomendadas = funcionalidades.filter((f) => f.status === "em_andamento");
 
   useEffect(() => {
@@ -241,6 +316,14 @@ export default function PlanningModal({
       setError("");
       setCorrelacoes([]);
       setNewTask("");
+      setDescricao("");
+      setPeriodoInicio("");
+      setPeriodoFim("");
+      setHorasDisponiveis("");
+      setHorasEstimadas("");
+      setDependencias([]);
+      setRiscos([]);
+      setCarryOver([]);
       setDocContent("");
       setCopied(false);
     }
@@ -273,6 +356,18 @@ export default function PlanningModal({
       });
       setCorrelacoes(result.correlacoes);
       setSemFuncionalidades(result.sem_funcionalidades);
+
+      // Pré-preenche formulário com o que a IA extraiu
+      const f = initFromEnrich(result.enriquecimento);
+      setDescricao(f.descricao);
+      setPeriodoInicio(f.periodoInicio);
+      setPeriodoFim(f.periodoFim);
+      setHorasDisponiveis(f.horasDisponiveis);
+      setHorasEstimadas(f.horasEstimadas);
+      setDependencias(f.dependencias);
+      setRiscos(f.riscos);
+      setCarryOver(f.carryOver);
+
       setStep("correlacoes");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao analisar conteúdo.");
@@ -298,20 +393,22 @@ export default function PlanningModal({
 
   function addManualTask() {
     if (!newTask.trim()) return;
-    setCorrelacoes((prev) => [...prev, { task: newTask.trim(), funcionalidade_id: null, funcionalidade_titulo: null }]);
+    setCorrelacoes((prev) => [
+      ...prev,
+      { task: newTask.trim(), funcionalidade_id: null, funcionalidade_titulo: null },
+    ]);
     setNewTask("");
   }
 
-  async function handleConfirmar() {
-    if (correlacoes.length === 0) {
-      setError("Adicione pelo menos uma task antes de confirmar.");
+  async function handleGerar() {
+    if (correlacoes.length === 0 && !descricao.trim()) {
+      setError("Preencha ao menos o objetivo da sprint.");
       return;
     }
     setError("");
     setStep("gerando");
 
     try {
-      // Gera o doc de planning com todas as tasks
       const itensBacklog = correlacoes.map((c) => ({
         item: c.task,
         responsavel: "",
@@ -323,28 +420,37 @@ export default function PlanningModal({
         submitPlanning({
           projetoId,
           sprintNumero,
-          descricao: `Planning da Sprint ${sprintNumero}`,
+          descricao: descricao || `Planning da Sprint ${sprintNumero}`,
           itensBacklog,
+          periodoInicio: periodoInicio || undefined,
+          periodoFim: periodoFim || undefined,
+          horasDisponiveis: horasDisponiveis ? Number(horasDisponiveis) : undefined,
+          horasEstimadas: horasEstimadas ? Number(horasEstimadas) : undefined,
+          dependenciasItems: dependencias.filter((d) => d.item.trim()).map((d) => ({
+            item: d.item, prazo: d.prazo, consequencia: d.consequencia, confianca: d.confianca,
+          })),
+          riscosItems: riscos.filter((r) => r.risco.trim()).map((r) => ({
+            risco: r.risco, consequencia: r.consequencia,
+          })),
+          carryOverItems: carryOver.filter((c) => c.item.trim()).map((c) => ({
+            item: c.item, causa_raiz: c.causa_raiz,
+          })),
         }),
-        // Salva as correlações por funcionalidade
         (() => {
-          // Agrupa tasks por funcionalidade_id
           const byFunc = new Map<string | null, string[]>();
           correlacoes.forEach((c) => {
             const key = c.funcionalidade_id ?? null;
             if (!byFunc.has(key)) byFunc.set(key, []);
             byFunc.get(key)!.push(c.task);
           });
-
-          const correlacoesPayload = Array.from(byFunc.entries())
+          const payload = Array.from(byFunc.entries())
             .filter(([funcId]) => funcId !== null)
             .map(([funcId, tasks]) => ({
               funcionalidade_id: funcId,
               tasks: tasks.map((t) => ({ texto: t })),
             }));
-
-          if (correlacoesPayload.length === 0) return Promise.resolve(null);
-          return createSprintFuncionalidades(sprintId, correlacoesPayload);
+          if (payload.length === 0) return Promise.resolve(null);
+          return createSprintFuncionalidades(sprintId, payload);
         })(),
       ]);
 
@@ -353,7 +459,7 @@ export default function PlanningModal({
       onSubmitted?.(docResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao gerar planning.");
-      setStep("correlacoes");
+      setStep("form");
     }
   }
 
@@ -362,6 +468,11 @@ export default function PlanningModal({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  // ── step indicator helpers ─────────────────────────────────────────────────
+
+  const STEPS: Step[] = ["input", "correlacoes", "form", "doc"];
+  const stepIndex = step === "gerando" ? 3 : STEPS.indexOf(step);
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -375,6 +486,7 @@ export default function PlanningModal({
             <p style={sub}>
               {step === "input" && "Suba o kanban ou cole as tasks da sprint para a IA extrair e correlacionar."}
               {step === "correlacoes" && "Revise a correlação de cada task com a funcionalidade — corrija onde a IA errou."}
+              {step === "form" && "Revise e complemente os campos da planning antes de gerar."}
               {step === "gerando" && "Gerando documentação da sprint…"}
               {step === "doc" && "Planning gerado com sucesso."}
             </p>
@@ -384,14 +496,12 @@ export default function PlanningModal({
 
         {/* Step indicator */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          {(["input", "correlacoes", "doc"] as const).map((s, i) => (
-            <div key={s} style={{
+          {STEPS.map((_, i) => (
+            <div key={i} style={{
               height: 4,
               flex: 1,
               borderRadius: 4,
-              background: step === s || (step === "gerando" && i === 1) || (step === "doc" && i <= 2)
-                ? "#0f172a"
-                : "#e2e8f0",
+              background: i <= stepIndex ? "#0f172a" : "#e2e8f0",
               transition: "background 0.2s",
             }} />
           ))}
@@ -402,7 +512,10 @@ export default function PlanningModal({
           <>
             {recomendadas.length > 0 && (
               <div style={banner("yellow")}>
-                <strong>{recomendadas.length} {recomendadas.length === 1 ? "funcionalidade em andamento" : "funcionalidades em andamento"} da sprint anterior:</strong>
+                <strong>
+                  {recomendadas.length}{" "}
+                  {recomendadas.length === 1 ? "funcionalidade em andamento" : "funcionalidades em andamento"} da sprint anterior:
+                </strong>
                 <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                   {recomendadas.map((f) => (
                     <li key={f.id} style={{ lineHeight: 1.5 }}>{f.id_funcional} — {f.titulo}</li>
@@ -413,10 +526,10 @@ export default function PlanningModal({
 
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <button style={tabBtnStyle(inputTab === "arquivo")} onClick={() => setInputTab("arquivo")}>
-                📎 Arquivo / Kanban
+                Arquivo / Kanban
               </button>
               <button style={tabBtnStyle(inputTab === "texto")} onClick={() => setInputTab("texto")}>
-                📝 Texto
+                Texto
               </button>
             </div>
 
@@ -461,9 +574,9 @@ export default function PlanningModal({
 
             {inputTab === "texto" && (
               <>
-                <span style={label}>Cole aqui as tasks da sprint</span>
+                <span style={lbl}>Cole aqui as tasks da sprint</span>
                 <textarea
-                  style={textarea}
+                  style={ta}
                   rows={6}
                   placeholder={"Ex:\n- Criar modelo de ML para previsão de churn — Responsável: Ana\n- Dashboard de métricas semanais — Responsável: Bruno"}
                   value={texto}
@@ -493,7 +606,7 @@ export default function PlanningModal({
             {semFuncionalidades && (
               <div style={{ ...banner("yellow"), marginBottom: 16 }}>
                 <strong>Projeto sem funcionalidades cadastradas.</strong> Vá à aba <strong>Escopo</strong> para
-                importar do contrato ou adicionar manualmente antes de fazer a planning.
+                importar do contrato ou adicionar manualmente.
                 As tasks ficarão sem funcionalidade associada.
               </div>
             )}
@@ -508,7 +621,7 @@ export default function PlanningModal({
               <div key={idx} style={tableRow}>
                 <span style={cellText}>{c.task}</span>
                 <select
-                  style={select}
+                  style={sel}
                   value={c.funcionalidade_id ?? ""}
                   onChange={(e) => updateCorrelacaoFunc(idx, e.target.value || null)}
                 >
@@ -529,10 +642,9 @@ export default function PlanningModal({
               </p>
             )}
 
-            {/* Adicionar task manual */}
             <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
               <input
-                style={{ ...select, flex: 1 }}
+                style={{ ...sel, flex: 1 }}
                 placeholder="Adicionar task manualmente…"
                 value={newTask}
                 onChange={(e) => setNewTask(e.target.value)}
@@ -545,11 +657,144 @@ export default function PlanningModal({
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
-              <button
-                style={btnPrimary}
-                onClick={handleConfirmar}
-              >
-                Confirmar e gerar planning →
+              <button style={btnPrimary} onClick={() => setStep("form")}>
+                Próximo: preencher campos →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP: FORMULÁRIO ── */}
+        {step === "form" && (
+          <>
+            {/* Objetivo */}
+            <span style={lbl}>
+              Objetivo da sprint <span style={aiBadge}>IA</span>
+            </span>
+            <textarea
+              style={ta}
+              rows={3}
+              placeholder="Descreva o objetivo principal da sprint…"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+            />
+
+            {/* Período */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Período da sprint <span style={aiBadge}>IA</span></span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Início</div>
+                <input type="date" style={inp} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Fim</div>
+                <input type="date" style={inp} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Horas */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Capacidade da sprint <span style={aiBadge}>IA</span></span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Horas disponíveis</div>
+                <input
+                  type="number" style={inp} min={0}
+                  placeholder="Ex: 80"
+                  value={horasDisponiveis}
+                  onChange={(e) => setHorasDisponiveis(e.target.value)}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Horas estimadas</div>
+                <input
+                  type="number" style={inp} min={0}
+                  placeholder="Ex: 72"
+                  value={horasEstimadas}
+                  onChange={(e) => setHorasEstimadas(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Dependências */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Dependências externas <span style={aiBadge}>IA</span></span>
+            {dependencias.map((d, i) => (
+              <div key={i} style={listRow}>
+                <input
+                  style={{ ...inp, flex: 2 }}
+                  placeholder="Dependência"
+                  value={d.item}
+                  onChange={(e) => setDependencias((prev) => prev.map((x, j) => j === i ? { ...x, item: e.target.value } : x))}
+                />
+                <input
+                  style={{ ...inp, flex: 1 }}
+                  placeholder="Prazo"
+                  value={d.prazo}
+                  onChange={(e) => setDependencias((prev) => prev.map((x, j) => j === i ? { ...x, prazo: e.target.value } : x))}
+                />
+                <button style={tinyBtn} onClick={() => setDependencias((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={addBtn} onClick={() => setDependencias((prev) => [...prev, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
+              + Adicionar dependência
+            </button>
+
+            {/* Riscos */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Riscos identificados <span style={aiBadge}>IA</span></span>
+            {riscos.map((r, i) => (
+              <div key={i} style={listRow}>
+                <input
+                  style={{ ...inp, flex: 2 }}
+                  placeholder="Risco"
+                  value={r.risco}
+                  onChange={(e) => setRiscos((prev) => prev.map((x, j) => j === i ? { ...x, risco: e.target.value } : x))}
+                />
+                <input
+                  style={{ ...inp, flex: 1 }}
+                  placeholder="Consequência"
+                  value={r.consequencia}
+                  onChange={(e) => setRiscos((prev) => prev.map((x, j) => j === i ? { ...x, consequencia: e.target.value } : x))}
+                />
+                <button style={tinyBtn} onClick={() => setRiscos((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={addBtn} onClick={() => setRiscos((prev) => [...prev, { risco: "", consequencia: "" }])}>
+              + Adicionar risco
+            </button>
+
+            {/* Carry-over */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Itens carry-over (sprint anterior) <span style={aiBadge}>IA</span></span>
+            {carryOver.map((c, i) => (
+              <div key={i} style={listRow}>
+                <input
+                  style={{ ...inp, flex: 2 }}
+                  placeholder="Item não entregue"
+                  value={c.item}
+                  onChange={(e) => setCarryOver((prev) => prev.map((x, j) => j === i ? { ...x, item: e.target.value } : x))}
+                />
+                <input
+                  style={{ ...inp, flex: 1 }}
+                  placeholder="Causa raiz"
+                  value={c.causa_raiz}
+                  onChange={(e) => setCarryOver((prev) => prev.map((x, j) => j === i ? { ...x, causa_raiz: e.target.value } : x))}
+                />
+                <button style={tinyBtn} onClick={() => setCarryOver((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={addBtn} onClick={() => setCarryOver((prev) => [...prev, { item: "", causa_raiz: "" }])}>
+              + Adicionar carry-over
+            </button>
+
+            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{error}</p>}
+
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 24 }}>
+              <button style={btnSecondary} onClick={() => setStep("correlacoes")}>← Voltar</button>
+              <button style={btnPrimary} onClick={handleGerar}>
+                Gerar planning →
               </button>
             </div>
           </>
@@ -558,7 +803,6 @@ export default function PlanningModal({
         {/* ── STEP: GERANDO ── */}
         {step === "gerando" && (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
             <p style={{ color: "#64748b", fontSize: 14 }}>Gerando documentação da sprint…</p>
           </div>
         )}
