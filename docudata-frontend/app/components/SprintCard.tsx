@@ -305,6 +305,7 @@ export default function SprintCard({
   }
 
   const pendingMeta = pendingGen ? DOC_TYPES[pendingGen] : null;
+  const temRetro = docs.some((d) => d.doc_type === "retrospectiva");
 
   type ExtractedContent = NonNullable<Ingestion["extracted_content"]>;
 
@@ -405,11 +406,20 @@ export default function SprintCard({
         </button>
         <button
           type="button"
+          style={statusChip(temRetro)}
+          onClick={() => onOpenRetroModal(sprint.numero)}
+          title="Adicionar Retrospectiva"
+        >
+          {temRetro ? "1/1" : "0/1"} Retrospectiva
+          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
+        </button>
+        <button
+          type="button"
           style={dailyChip(sprint.dailys_count)}
           onClick={() => onOpenSprintDoc("daily", sprint.numero)}
           title="Adicionar Daily"
         >
-          {sprint.dailys_count}/{EXPECTED_DAILYS} Dailys
+          Dailys
           <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
         <span style={muted}>
@@ -428,12 +438,6 @@ export default function SprintCard({
           onClick={() => setPendingGen(pendingGen === "repasse_semanal" ? null : "repasse_semanal")}
         >
           Gerar Repasse Semanal
-        </button>
-        <button
-          style={btnAction}
-          onClick={() => onOpenRetroModal(sprint.numero)}
-        >
-          Gerar Retrospectiva
         </button>
         <button style={btnAction} onClick={() => onUploadLivre(sprint.numero)}>
           Upload livre
