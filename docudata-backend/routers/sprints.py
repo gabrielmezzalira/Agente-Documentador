@@ -12,6 +12,7 @@ from models.schemas import (
     SprintBaselineResponse,
 )
 from services.supabase_client import get_client
+from services.spi_health import auto_update_sprint_health
 
 router = APIRouter(tags=["sprints"])
 
@@ -173,6 +174,13 @@ async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
     resp = client.table("sprints").update(updates).eq("id", sprint_id).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to update baseline")
+
+    if "pontos_previstos" in updates:
+        try:
+            auto_update_sprint_health(client, sprint_id)
+        except Exception:
+            pass  # best-effort
+
     return resp.data[0]
 
 

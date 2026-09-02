@@ -15,6 +15,7 @@ from models.schemas import (
 from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
+from services.spi_health import auto_update_sprint_health
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -275,6 +276,13 @@ async def patch_task(task_id: str, data: TaskUpdate):
     coluna_nova = data.coluna_kanban
     coluna_atual = task.get("coluna_kanban")
     if coluna_nova is not None and coluna_nova != coluna_atual:
+        # DoR: task sem sprint não pode ir para em_andamento
+        sprint_efetivo = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
+        if coluna_nova == "em_andamento" and not sprint_efetivo:
+            raise HTTPException(
+                status_code=409,
+                detail="DoR: associe a task a uma sprint antes de movê-la para Em Andamento.",
+            )
         op_efetivo = data.operacional_id if data.operacional_id is not None else task.get("operacional_id")
         ok, motivo = check_wip(client, project_id, op_efetivo, coluna_nova)
         if not ok:
@@ -310,6 +318,13 @@ async def patch_task(task_id: str, data: TaskUpdate):
     # Dispara evento de transição de coluna para logging e detecção de funcionalidade completa
     if coluna_nova is not None and coluna_nova != coluna_atual:
         on_task_transition(client, task, "coluna_kanban", coluna_atual, coluna_nova)
+        if coluna_nova == "concluida":
+            sprint_id_atual = task.get("sprint_id")
+            if sprint_id_atual:
+                try:
+                    auto_update_sprint_health(client, sprint_id_atual)
+                except Exception:
+                    pass  # best-effort
 
     return result.data[0]
 
