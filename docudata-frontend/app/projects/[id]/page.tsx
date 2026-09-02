@@ -613,7 +613,7 @@ export default function ProjectDashboard() {
             { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
             { title: "Review", body: "Ao final da sprint, registre o review (demo para o cliente, ata de review). O DocuData analisa o texto e detecta automaticamente quais tasks foram mencionadas como concluídas — criando sugestões na aba Tasks. Recomendado: último dia da sprint." },
             { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa todas as ingestões da sprint (planning, dailys, review) para gerar: O que foi feito, O que funcionou, O que não funcionou, Aprendizados." },
-            { title: "Baseline (pontos previstos)", body: "Defina o baseline da sprint antes de iniciá-la: soma dos pontos de todas as tasks planejadas. Isso habilita o cálculo do SPI na aba Métricas. Sem baseline, o SPI não é exibido." },
+            { title: "Baseline (pontos previstos)", body: "Clique no chip roxo 'Baseline +' na sprint (ao lado de Planning / Review / Retrospectiva). Informe a soma dos pontos de todas as tasks planejadas para aquela sprint — esse número vem do cronograma. Com o baseline definido, o chip fica roxo mostrando o valor (ex: '18 pts') e a aba Métricas passa a calcular o SPI automaticamente." },
             { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
           ]} />
           {/* SPRINTS — header destacado */}
