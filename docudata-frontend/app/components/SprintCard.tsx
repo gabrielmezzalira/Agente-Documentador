@@ -8,6 +8,7 @@ import type {
   SprintDocType,
   SprintWithStatus,
 } from "../lib/api";
+import { updateSprintBaseline } from "../lib/api";
 import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 
 const EXPECTED_DAILYS = 5;
@@ -32,6 +33,7 @@ interface Props {
   onDeleteIngestion: (ingestionId: string) => void;
   onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
+  onSprintUpdated?: (updated: SprintWithStatus) => void;
 }
 
 // ---------- styles ----------
@@ -283,8 +285,13 @@ export default function SprintCard({
   onDeleteIngestion,
   onMoveIngestion,
   onDeleteSprint,
+  onSprintUpdated,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [baselineOpen, setBaselineOpen] = useState(false);
+  const [baselineInput, setBaselineInput] = useState("");
+  const [baselineSaving, setBaselineSaving] = useState(false);
+  const [baselineErr, setBaselineErr] = useState("");
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [expandedSourcesId, setExpandedSourcesId] = useState<string | null>(null);
   const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
@@ -293,6 +300,22 @@ export default function SprintCard({
   const [moveIngSprint, setMoveIngSprint] = useState<string>("");
   const [movingDocId, setMovingDocId] = useState<string | null>(null);
   const [moveDocSprint, setMoveDocSprint] = useState<string>("");
+
+  async function handleSaveBaseline(e: React.FormEvent) {
+    e.preventDefault();
+    const n = parseInt(baselineInput);
+    if (isNaN(n) || n <= 0) { setBaselineErr("Informe um número válido."); return; }
+    setBaselineSaving(true); setBaselineErr("");
+    try {
+      const updated = await updateSprintBaseline(sprint.id, n);
+      onSprintUpdated?.(updated as unknown as SprintWithStatus);
+      setBaselineOpen(false); setBaselineInput("");
+    } catch (err) {
+      setBaselineErr(err instanceof Error ? err.message : "Erro ao salvar");
+    } finally {
+      setBaselineSaving(false);
+    }
+  }
 
   function confirmGenerate() {
     if (pendingGen) {
@@ -406,6 +429,20 @@ export default function SprintCard({
         </button>
         <button
           type="button"
+          onClick={() => { setBaselineOpen((v) => !v); setBaselineInput(sprint.pontos_previstos ? String(sprint.pontos_previstos) : ""); setBaselineErr(""); }}
+          style={{
+            ...statusChip(sprint.pontos_previstos != null),
+            background: sprint.pontos_previstos != null ? "#e0e7ff" : "#f1f5f9",
+            color: sprint.pontos_previstos != null ? "#4338ca" : "#64748b",
+            border: `1px solid ${sprint.pontos_previstos != null ? "#c7d2fe" : "#e2e8f0"}`,
+          }}
+          title="Definir baseline (pontos previstos)"
+        >
+          {sprint.pontos_previstos != null ? `${sprint.pontos_previstos} pts` : "Baseline"}
+          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
+        </button>
+        <button
+          type="button"
           style={dailyChip(sprint.dailys_count)}
           onClick={() => onOpenSprintDoc("daily", sprint.numero)}
           title="Adicionar Daily"
@@ -417,6 +454,29 @@ export default function SprintCard({
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
         </span>
       </div>
+
+      {/* Baseline inline form */}
+      {baselineOpen && (
+        <form onSubmit={handleSaveBaseline} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "12px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e0e7ff" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#4338ca" }}>Baseline — pontos previstos para esta sprint:</span>
+          <input
+            type="number"
+            min={1}
+            value={baselineInput}
+            onChange={(e) => setBaselineInput(e.target.value)}
+            placeholder="Ex: 18"
+            autoFocus
+            style={{ width: 80, padding: "6px 10px", border: "1px solid #c7d2fe", borderRadius: 7, fontSize: 14, textAlign: "center" }}
+          />
+          <button type="submit" disabled={baselineSaving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            {baselineSaving ? "…" : "Salvar"}
+          </button>
+          <button type="button" onClick={() => setBaselineOpen(false)} style={{ background: "none", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer", color: "#64748b" }}>
+            Cancelar
+          </button>
+          {baselineErr && <span style={{ fontSize: 12, color: "#dc2626" }}>{baselineErr}</span>}
+        </form>
+      )}
 
       <div style={actionRow}>
         <button

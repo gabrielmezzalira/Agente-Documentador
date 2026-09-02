@@ -132,6 +132,8 @@ export interface SprintWithStatus extends Sprint {
   ingestions_count: number;
   docs_gerados_count: number;
   pendencias: string[];          // subset de ['planning','review']
+  pontos_previstos: number | null;
+  baseline_locked_at: string | null;
 }
 
 export interface TechTimelineEntry {
@@ -296,6 +298,22 @@ export async function searchStack(query: string): Promise<StackSearchResponse> {
 export async function listSprints(projectId: string): Promise<SprintWithStatus[]> {
   const res = await fetch(`${API}/projects/${projectId}/sprints`);
   if (!res.ok) throw new Error("Erro ao buscar sprints");
+  return res.json();
+}
+
+export async function updateSprintBaseline(
+  sprintId: string,
+  pontosPrevistos: number
+): Promise<SprintWithStatus> {
+  const res = await fetch(`${API}/sprints/${sprintId}/baseline`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pontos_previstos: pontosPrevistos }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao definir baseline");
+  }
   return res.json();
 }
 

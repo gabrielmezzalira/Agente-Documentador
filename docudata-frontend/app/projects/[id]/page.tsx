@@ -680,6 +680,7 @@ export default function ProjectDashboard() {
                 onDeleteIngestion={handleDeleteIngestion}
                 onMoveIngestion={handleMoveIngestion}
                 onDeleteSprint={handleDeleteSprint}
+                onSprintUpdated={(updated) => setSprints((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s))}
               />
             ))
           )}
