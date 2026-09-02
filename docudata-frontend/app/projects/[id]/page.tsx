@@ -7,7 +7,6 @@ import ReactMarkdown from "react-markdown";
 import {
   getProject,
   getProjectCost,
-  getProjectUsage,
   updateApiKey,
   updateGerenteEmail,
   listIngestions,
@@ -35,7 +34,6 @@ import {
   type Ingestion,
   type GeneratedDoc,
   type ProjectCost,
-  type ProjectUsage,
   type SprintWithStatus,
   type SprintDocType,
   type FuncionalidadeResponse,
@@ -57,42 +55,8 @@ import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
 
-function shiftMonth(yyyymm: string, delta: number): string {
-  const year = parseInt(yyyymm.slice(0, 4), 10);
-  const month = parseInt(yyyymm.slice(5, 7), 10) - 1; // 0-indexed
-  const d = new Date(year, month + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(new Date(y, m - 1, 1));
-}
-
-function humanizeLabel(label: string): string {
-  const map: Record<string, string> = {
-    "ingestion:commit": "Ingestão: Commit",
-    "ingestion:planning": "Ingestão: Planning",
-    "ingestion:daily": "Ingestão: Daily",
-    "ingestion:review": "Ingestão: Review",
-    "ingestion:retrospectiva": "Ingestão: Retrospectiva",
-    "ingestion:ata": "Ingestão: Ata",
-    "ingestion:upload": "Ingestão: Upload livre",
-    "generation:repasse_semanal": "Geração: Repasse Semanal",
-    "generation:retrospectiva": "Geração: Retrospectiva",
-    "generation:log_decisoes": "Geração: Log de Decisões",
-    "generation:documentacao_final": "Geração: Documentação Final",
-    "generation:onboarding": "Geração: Onboarding",
-    "generation:ata_reuniao": "Geração: Ata de Reunião",
-    "generation:planning": "Geração: Planning",
-    "generation:daily": "Geração: Daily",
-    "generation:review": "Geração: Review",
-    "generation:manual": "Doc Manual",
-  };
-  return map[label] ?? label.split(":").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(": ");
-}
 
 function OperacionaisSection({
   projectId,
@@ -233,25 +197,10 @@ export default function ProjectDashboard() {
   const [operacionais, setOperacionais] = useState<OperacionalResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ---------- custos mensais ----------
-  const [usage, setUsage] = useState<ProjectUsage | null>(null);
-  const [usageLoading, setUsageLoading] = useState(false);
-  const [usageError, setUsageError] = useState("");
-  const todayMonth = (() => {
-    const parts = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      year: "numeric",
-      month: "2-digit",
-    }).formatToParts(new Date());
-    const year = parts.find((p) => p.type === "year")?.value ?? "";
-    const month = parts.find((p) => p.type === "month")?.value ?? "";
-    return `${year}-${month}`;
-  })();
-  const [currentMonth, setCurrentMonth] = useState<string>(todayMonth);
-
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
   const [descOpen, setDescOpen] = useState(false);
+  const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
 
   // ---------- modal sprint-docs ----------
   const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number; sprintId?: string } | null>(null);
@@ -319,17 +268,6 @@ export default function ProjectDashboard() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Carrega uso mensal ao entrar na aba Custos ou trocar de mês
-  useEffect(() => {
-    if (activeTab === "custos") {
-      setUsageLoading(true);
-      setUsageError("");
-      getProjectUsage(id, currentMonth)
-        .then(setUsage)
-        .catch(() => setUsageError("Não foi possível carregar os dados."))
-        .finally(() => setUsageLoading(false));
-    }
-  }, [activeTab, id, currentMonth]);
 
   function refreshCost() {
     getProjectCost(id).then(setCost).catch(() => {});
@@ -659,7 +597,6 @@ export default function ProjectDashboard() {
           { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
-          { id: "custos", label: "Custos" },
           { id: "config", label: "Configurações" },
         ]}
         active={activeTab}
@@ -765,263 +702,151 @@ export default function ProjectDashboard() {
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
 
-      {/* ABA: DOCUMENTOS — gerar (por sprint na aba Sprints / cross-sprint aqui) + histórico */}
+      {/* ABA: DOCUMENTOS */}
       {activeTab === "documentos" && (
         <>
-          {/* ── Seção Cross-sprint ── */}
-          <section style={sectionStyle}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Cross-sprint</span>
-              <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
-            </div>
-            <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 14px", lineHeight: 1.5 }}>
-              Documentos que olham o projeto como um todo.
-            </p>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
-              <textarea
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Contexto extra que deve ser considerado na geração."
-                rows={2}
-                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-              {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => (
-                <DocTypeCard
-                  key={key}
-                  meta={DOC_TYPES[key]}
-                  sprints={sprints}
-                  ingestions={ingestions}
-                  generating={generating}
-                  onGenerate={handleGenerate}
-                  onUploadAndGenerate={key === "ata_reuniao" ? handleAtaUpload : undefined}
-                />
-              ))}
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
-                + Adicionar documento manual
+          {/* Sub-tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#f7f7fa", borderRadius: 10, padding: 4, width: "fit-content" }}>
+            {(["cross_sprint", "por_sprint"] as const).map((sub) => (
+              <button
+                key={sub}
+                onClick={() => setDocSubTab(sub)}
+                style={{
+                  background: docSubTab === sub ? "#fff" : "transparent",
+                  color: docSubTab === sub ? "#0f172a" : "#6a6a7a",
+                  border: docSubTab === sub ? "1px solid #e4e4ea" : "1px solid transparent",
+                  borderRadius: 7,
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  fontWeight: docSubTab === sub ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {sub === "cross_sprint" ? "Cross-sprint" : "Por sprint"}
               </button>
-              <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>Sem custo de IA.</span>
-            </div>
-            {generating && <p style={{ color: "#9696a0", fontSize: 14 }}>Gerando documento com IA...</p>}
-            {generateError && <p style={{ color: "#dc2626", fontSize: 14 }}>{generateError}</p>}
-            {generatedDoc && (
-              <div style={{ marginTop: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, color: "#9696a0" }}>
-                    {docTypeLabel(generatedDoc.doc_type)}
-                    {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
-                  </span>
-                  <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>Copiar markdown</button>
-                </div>
-                <div style={markdownContainer}><ReactMarkdown>{generatedDoc.content}</ReactMarkdown></div>
-              </div>
-            )}
-          </section>
-
-          {/* ── Seção Por sprint ── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "20px 0 14px" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Por sprint</span>
-            <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>{docs.length} {docs.length === 1 ? "documento" : "documentos"}</span>
+            ))}
           </div>
 
-          {docs.length === 0 ? (
+          {/* Sub-aba: Cross-sprint */}
+          {docSubTab === "cross_sprint" && (
             <section style={sectionStyle}>
-              <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
-                Nenhum documento ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva por sprint) ou <strong>Cross-sprint</strong> (Ata, Decisões, Onboarding, Documentação Final).
+              <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 14px", lineHeight: 1.5 }}>
+                Documentos que olham o projeto como um todo.
               </p>
-            </section>
-          ) : (
-            <>
-              {/* Por sprint — ordem decrescente */}
-              {sprints.map((s) => {
-                const sprintDocs = docsBySprint[s.numero] ?? [];
-                if (sprintDocs.length === 0) return null;
-                return (
-                  <section key={s.id} style={sectionStyle}>
-                    <h3 style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      color: "#64748b",
-                      margin: 0,
-                      marginBottom: 12,
-                    }}>
-                      Sprint {s.numero}
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "#16a34a",
-                        marginLeft: 8,
-                        background: "#dcfce7",
-                        borderRadius: 4,
-                        padding: "2px 7px",
-                      }}>
-                        {sprintDocs.length}
-                      </span>
-                    </h3>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {sprintDocs.map((doc) => renderDocRow(doc))}
-                    </div>
-                  </section>
-                );
-              })}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
+                <textarea
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Contexto extra que deve ser considerado na geração."
+                  rows={2}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => (
+                  <DocTypeCard
+                    key={key}
+                    meta={DOC_TYPES[key]}
+                    sprints={sprints}
+                    ingestions={ingestions}
+                    generating={generating}
+                    onGenerate={handleGenerate}
+                    onUploadAndGenerate={key === "ata_reuniao" ? handleAtaUpload : undefined}
+                  />
+                ))}
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
+                  + Adicionar documento manual
+                </button>
+                <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>Sem custo de IA.</span>
+              </div>
+              {generating && <p style={{ color: "#9696a0", fontSize: 14 }}>Gerando documento com IA...</p>}
+              {generateError && <p style={{ color: "#dc2626", fontSize: 14 }}>{generateError}</p>}
+              {generatedDoc && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, color: "#9696a0" }}>
+                      {docTypeLabel(generatedDoc.doc_type)}
+                      {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
+                    </span>
+                    <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>Copiar markdown</button>
+                  </div>
+                  <div style={markdownContainer}><ReactMarkdown>{generatedDoc.content}</ReactMarkdown></div>
+                </div>
+              )}
 
-              {/* Cross-sprint — docs sem sprint_number */}
+              {/* Histórico cross-sprint */}
               {(() => {
                 const crossSprintDocs = docs.filter((d) => d.sprint_number == null);
                 if (crossSprintDocs.length === 0) return null;
                 return (
-                  <section style={sectionStyle}>
-                    <h3 style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      color: "#64748b",
-                      margin: 0,
-                      marginBottom: 12,
-                    }}>
-                      Cross-sprint
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "#4338ca",
-                        marginLeft: 8,
-                        background: "#e0e7ff",
-                        borderRadius: 4,
-                        padding: "2px 7px",
-                      }}>
-                        {crossSprintDocs.length}
-                      </span>
-                      <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 500, marginLeft: 8, letterSpacing: 0, textTransform: "none" }}>
-                        — docs que cobrem o projeto inteiro (Decisões, Onboarding, Documentação Final, Ata)
-                      </span>
-                    </h3>
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Histórico</span>
+                      <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{crossSprintDocs.length} {crossSprintDocs.length === 1 ? "doc" : "docs"}</span>
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {crossSprintDocs.map((doc) => renderDocRow(doc))}
                     </div>
-                  </section>
+                  </div>
                 );
               })()}
-            </>
+            </section>
           )}
-        </>
-      )}
 
-      {/* ABA: CUSTOS */}
-      {activeTab === "custos" && (
-        <>
-          {/* Seletor de mês */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-            <button
-              onClick={() => setCurrentMonth(shiftMonth(currentMonth, -1))}
-              style={btnSecondary}
-            >‹</button>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "#111116", minWidth: 100, textAlign: "center" }}>
-              {formatMonthLabel(currentMonth)}
-            </span>
-            <button
-              onClick={() => setCurrentMonth(shiftMonth(currentMonth, 1))}
-              disabled={shiftMonth(currentMonth, 1) > todayMonth}
-              style={{ ...btnSecondary, opacity: shiftMonth(currentMonth, 1) > todayMonth ? 0.4 : 1 }}
-            >›</button>
-          </div>
-
-          {usageLoading && <p style={{ fontSize: 13, color: "#9696a0" }}>Carregando dados do mês...</p>}
-          {usageError && <p style={{ fontSize: 13, color: "#dc2626" }}>{usageError}</p>}
-
-          {!usageLoading && usage && (
+          {/* Sub-aba: Por sprint */}
+          {docSubTab === "por_sprint" && (
             <>
-              {/* SUMMARY */}
-              <section style={sectionStyle}>
-                <h2 style={sectionTitle}>Resumo — {formatMonthLabel(currentMonth)}</h2>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 24, fontWeight: 800, color: "#111116" }}>
-                    ${usage.total_usd < 0.001 && usage.total_usd > 0 ? usage.total_usd.toFixed(6) : usage.total_usd.toFixed(4)}
-                  </span>
-                  <span style={{ color: "#9696a0", fontSize: 13 }}>
-                    {usage.input_tokens.toLocaleString("pt-BR")} in · {usage.output_tokens.toLocaleString("pt-BR")} out tokens
-                  </span>
-                </div>
-                {usage.total_usd === 0 && (
-                  <p style={{ fontSize: 13, color: "#9696a0", marginTop: 8, marginBottom: 0 }}>Nenhum custo registrado neste mês.</p>
-                )}
-              </section>
-
-              {/* BREAKDOWN */}
-              {Object.keys(usage.breakdown).length > 0 && (
+              {docs.filter((d) => d.sprint_number != null).length === 0 ? (
                 <section style={sectionStyle}>
-                  <h2 style={sectionTitle}>Por tipo de ação</h2>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {Object.entries(usage.breakdown)
-                      .sort(([, a], [, b]) => b.cost_usd - a.cost_usd)
-                      .map(([label, bucket]) => (
-                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f4" }}>
-                          <div>
-                            <span style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{humanizeLabel(label)}</span>
-                            <span style={{ marginLeft: 8, fontSize: 12, color: "#94a3b8" }}>{bucket.count} {bucket.count === 1 ? "ação" : "ações"}</span>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <span style={{ fontWeight: 700, fontSize: 13, color: "#111116" }}>
-                              ${bucket.cost_usd < 0.001 && bucket.cost_usd > 0 ? bucket.cost_usd.toFixed(6) : bucket.cost_usd.toFixed(4)}
-                            </span>
-                            <span style={{ marginLeft: 8, fontSize: 11, color: "#94a3b8" }}>
-                              {bucket.input_tokens.toLocaleString("pt-BR")} in / {bucket.output_tokens.toLocaleString("pt-BR")} out
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
+                  <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
+                    Nenhum documento por sprint ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva) ou aqui em <strong>Por sprint</strong>.
+                  </p>
                 </section>
-              )}
-
-              {/* HISTÓRICO */}
-              {usage.items.length > 0 && (
-                <section style={sectionStyle}>
-                  <h2 style={sectionTitle}>Histórico de ações</h2>
-                  {usage.truncated && (
-                    <p style={{ fontSize: 12, color: "#2563eb", marginBottom: 10 }}>
-                      Mostrando as 100 ações mais recentes deste mês.
-                    </p>
-                  )}
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ color: "#94a3b8", textAlign: "left" }}>
-                        <th style={{ paddingBottom: 8, fontWeight: 600 }}>Data</th>
-                        <th style={{ paddingBottom: 8, fontWeight: 600 }}>Tipo</th>
-                        <th style={{ paddingBottom: 8, fontWeight: 600, textAlign: "right" }}>Tokens</th>
-                        <th style={{ paddingBottom: 8, fontWeight: 600, textAlign: "right" }}>Custo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {usage.items.map((item) => (
-                        <tr key={item.id} style={{ borderTop: "1px solid #f0f0f4" }}>
-                          <td style={{ padding: "6px 0", color: "#6a6a7a" }}>
-                            {new Date(item.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                          <td style={{ padding: "6px 8px", color: "#0f172a" }}>{humanizeLabel(item.label)}</td>
-                          <td style={{ padding: "6px 0", color: "#6a6a7a", textAlign: "right" }}>
-                            {item.input_tokens.toLocaleString("pt-BR")} / {item.output_tokens.toLocaleString("pt-BR")}
-                          </td>
-                          <td style={{ padding: "6px 0", fontWeight: 600, color: "#111116", textAlign: "right" }}>
-                            ${item.cost_usd < 0.001 && item.cost_usd > 0 ? item.cost_usd.toFixed(6) : item.cost_usd.toFixed(4)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
+              ) : (
+                sprints.map((s) => {
+                  const sprintDocs = docsBySprint[s.numero] ?? [];
+                  if (sprintDocs.length === 0) return null;
+                  return (
+                    <section key={s.id} style={sectionStyle}>
+                      <h3 style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        margin: 0,
+                        marginBottom: 12,
+                      }}>
+                        Sprint {s.numero}
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#16a34a",
+                          marginLeft: 8,
+                          background: "#dcfce7",
+                          borderRadius: 4,
+                          padding: "2px 7px",
+                        }}>
+                          {sprintDocs.length}
+                        </span>
+                      </h3>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {sprintDocs.map((doc) => renderDocRow(doc))}
+                      </div>
+                    </section>
+                  );
+                })
               )}
             </>
           )}
         </>
       )}
+
 
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
