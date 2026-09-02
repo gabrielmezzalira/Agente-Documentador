@@ -251,6 +251,7 @@ export default function ProjectDashboard() {
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
+  const [descOpen, setDescOpen] = useState(false);
 
   // ---------- modal sprint-docs ----------
   const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number; sprintId?: string } | null>(null);
@@ -589,9 +590,20 @@ export default function ProjectDashboard() {
             Cliente: <span style={{ color: "#22c55e", fontWeight: 600 }}>{project.client}</span>
           </p>
           {project.description && (
-            <p style={{ color: "#9696a0", marginTop: 8, fontSize: 13, lineHeight: 1.5, maxWidth: 560 }}>
-              {project.description}
-            </p>
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => setDescOpen((v) => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "#9696a0", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <span style={{ fontSize: 10 }}>{descOpen ? "▲" : "▼"}</span>
+                {descOpen ? "Ocultar descrição" : "Ver descrição"}
+              </button>
+              {descOpen && (
+                <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5, maxWidth: 560 }}>
+                  {project.description}
+                </p>
+              )}
+            </div>
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>

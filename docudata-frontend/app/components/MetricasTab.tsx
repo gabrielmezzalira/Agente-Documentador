@@ -59,6 +59,38 @@ const empty: React.CSSProperties = {
   fontSize: 13,
 };
 
+const TOOLTIPS: Record<string, string> = {
+  spi: "SPI = pontos concluídos ÷ pontos previstos na sprint. 1.0 = entregou exatamente o planejado. ≥0.9 = saudável (verde) · 0.7–0.9 = atenção (amarelo) · <0.7 = crítico (vermelho). Requer baseline (pontos previstos) definido na sprint.",
+  throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
+  cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
+  cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
+};
+
+function InfoTooltip({ id }: { id: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
+      <span
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{ cursor: "default", fontSize: 12, color: "#94a3b8", fontWeight: 700, border: "1px solid #e2e8f0", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+      >
+        i
+      </span>
+      {show && (
+        <span style={{
+          position: "absolute", left: 22, top: -4, zIndex: 100,
+          background: "#1e293b", color: "#f1f5f9", fontSize: 12, lineHeight: 1.5,
+          borderRadius: 8, padding: "8px 12px", width: 280, whiteSpace: "normal",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+        }}>
+          {TOOLTIPS[id]}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function spiColor(spi: number | null): string {
   if (spi === null) return "#94a3b8";
   if (spi >= 0.9) return "#166534";
@@ -113,8 +145,7 @@ export default function MetricasTab({ projectId }: Props) {
     <div>
       {/* SPI por sprint */}
       <div style={section}>
-        <p style={title}>SPI — Schedule Performance Index</p>
-        <p style={subtitle}>Pontos realizados / previstos por sprint. ≥ 0.9 saudável · 0.7–0.9 atenção · &lt; 0.7 crítico</p>
+        <p style={title}>SPI — Schedule Performance Index <InfoTooltip id="spi" /></p>
         {spi.filter((s) => s.pontos_previstos !== null).length === 0 ? (
           <p style={empty}>Nenhuma sprint com baseline definido ainda.</p>
         ) : (
@@ -142,8 +173,7 @@ export default function MetricasTab({ projectId }: Props) {
 
       {/* Throughput */}
       <div style={section}>
-        <p style={title}>Throughput — Tasks concluídas por sprint</p>
-        <p style={subtitle}>Quantas tasks foram finalizadas em cada sprint.</p>
+        <p style={title}>Throughput — Tasks concluídas por sprint <InfoTooltip id="throughput" /></p>
         {throughput.filter((t) => t.tasks_total > 0).length === 0 ? (
           <p style={empty}>Nenhuma task registrada ainda.</p>
         ) : (
@@ -163,7 +193,7 @@ export default function MetricasTab({ projectId }: Props) {
 
       {/* Cycle-time */}
       <div style={section}>
-        <p style={title}>Cycle-time — Distribuição</p>
+        <p style={title}>Cycle-time — Distribuição <InfoTooltip id="cycletime" /></p>
         <p style={subtitle}>
           Tempo em em_andamento antes de concluir.
           {avgCT !== null && ` Média: ${avgCT < 24 ? `${avgCT}h` : `${Math.round(avgCT / 24)}d`} · ${cycleTime.length} task${cycleTime.length !== 1 ? "s" : ""} com histórico`}
@@ -206,8 +236,7 @@ export default function MetricasTab({ projectId }: Props) {
 
       {/* CFD */}
       <div style={section}>
-        <p style={title}>CFD — Distribuição de tasks por coluna e sprint</p>
-        <p style={subtitle}>Snapshot do estado das tasks em cada sprint.</p>
+        <p style={title}>CFD — Distribuição de tasks por coluna e sprint <InfoTooltip id="cfd" /></p>
         {cfd.length === 0 ? (
           <p style={empty}>Nenhuma sprint com tasks ainda.</p>
         ) : (
