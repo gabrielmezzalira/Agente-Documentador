@@ -869,6 +869,47 @@ def _serialize_campos(tipo: str, campos: dict) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
+_SPRINT_SCOPED_TYPES = {"repasse_semanal", "retrospectiva", "review"}
+
+
+def _bloco_kanban_tasks(projeto_id: str, sprint_numero: int) -> str:
+    """Retorna bloco de texto com o kanban de tasks da sprint, ou string vazia."""
+    try:
+        client = get_client()
+        sprint_resp = (
+            client.table("sprints")
+            .select("id")
+            .eq("project_id", projeto_id)
+            .eq("numero", sprint_numero)
+            .limit(1)
+            .execute()
+        )
+        if not sprint_resp.data:
+            return ""
+        sprint_id = sprint_resp.data[0]["id"]
+
+        tasks_resp = (
+            client.table("tasks")
+            .select("titulo, pontos, coluna_kanban, bloqueado, operacional_id")
+            .eq("sprint_id", sprint_id)
+            .order("coluna_kanban")
+            .order("ordem")
+            .execute()
+        )
+        tasks = tasks_resp.data or []
+        if not tasks:
+            return ""
+
+        linhas = [f"--- Backlog Kanban da Sprint {sprint_numero} ---"]
+        for t in tasks:
+            status = t["coluna_kanban"].replace("_", " ")
+            bloq = " [BLOQUEADA]" if t.get("bloqueado") else ""
+            linhas.append(f"- [{status}] {t['titulo']} ({t['pontos']}pt){bloq}")
+        return "\n".join(linhas)
+    except Exception:
+        return ""
+
+
 def compilar_contexto(state: GenerationState) -> dict:
     partes = []
     for ing in state["ingestions"]:
@@ -910,6 +951,12 @@ def compilar_contexto(state: GenerationState) -> dict:
     changes = _detect_changes(state["ingestions"])
     if changes:
         partes.append(changes)
+
+    # Adiciona bloco de kanban de tasks para docs sprint-scoped
+    if state["tipo_doc"] in _SPRINT_SCOPED_TYPES and state.get("sprint_numero"):
+        bloco = _bloco_kanban_tasks(state["projeto_id"], state["sprint_numero"])
+        if bloco:
+            partes.append(bloco)
 
     contexto = "\n\n".join(partes) if partes else "Nenhuma ingestão encontrada para este projeto/sprint."
     return {"contexto": contexto}

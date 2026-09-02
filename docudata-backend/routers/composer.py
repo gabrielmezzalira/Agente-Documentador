@@ -36,6 +36,7 @@ class RascunhoResponse(BaseModel):
     rascunho: dict
     throughput_ref: Optional[float]
     transbordos: list[dict]
+    backlog_tasks: list[dict] = []
 
 
 class PatchRascunhoBody(BaseModel):
@@ -151,10 +152,34 @@ async def get_rascunho(project_id: str, sprint_numero: int):
         )
         transbordos = transbordos_resp.data or []
 
+        step = "backlog_tasks"
+        backlog_tasks: list[dict] = []
+        sprint_resp = (
+            client.table("sprints")
+            .select("id")
+            .eq("project_id", project_id)
+            .eq("numero", sprint_numero)
+            .limit(1)
+            .execute()
+        )
+        if sprint_resp.data:
+            sprint_id = sprint_resp.data[0]["id"]
+            tasks_resp = (
+                client.table("tasks")
+                .select("id, titulo, pontos, coluna_kanban, operacional_id, funcionalidade_id, bloqueado")
+                .eq("sprint_id", sprint_id)
+                .in_("coluna_kanban", ["planejado", "em_andamento"])
+                .order("coluna_kanban")
+                .order("ordem")
+                .execute()
+            )
+            backlog_tasks = tasks_resp.data or []
+
         return RascunhoResponse(
             rascunho=rascunho,
             throughput_ref=throughput_ref,
             transbordos=transbordos,
+            backlog_tasks=backlog_tasks,
         )
     except HTTPException:
         raise

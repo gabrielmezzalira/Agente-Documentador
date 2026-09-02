@@ -4,6 +4,7 @@ from graphs.extraction_graph import extraction_graph, ExtractionState
 from models.schemas import IngestResponse
 from services.supabase_client import get_client
 from services.sprints import ensure_sprint_row
+from services.task_events import on_review_ingested
 
 _ACCEPTED_BINARY_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -101,6 +102,15 @@ async def ingest(
             status_code=502,
             detail=result.get("erro") or "Extraction failed",
         )
+
+    if result.get("tipo_detectado") == "review":
+        ingestion_id = result.get("ingestion_id")
+        tarefas = (result.get("conteudo_estruturado") or {}).get("tarefas") or []
+        if ingestion_id and tarefas:
+            try:
+                on_review_ingested(db, ingestion_id, projeto_id, sprint_numero, tarefas)
+            except Exception:
+                pass  # sugestões são best-effort — não falham o upload
 
     return IngestResponse(
         status="ok",

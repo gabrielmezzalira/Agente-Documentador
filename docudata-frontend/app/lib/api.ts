@@ -1059,3 +1059,212 @@ export async function getFuncionalidadesRecomendadas(
   if (!res.ok) throw new Error("Erro ao buscar recomendações");
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Operacionais
+
+export interface OperacionalResponse {
+  id: string;
+  project_id: string;
+  nome: string;
+  email?: string | null;
+  papel?: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export async function listOperacionais(projectId: string): Promise<OperacionalResponse[]> {
+  const res = await fetch(`${API}/operacionais?project_id=${projectId}`);
+  if (!res.ok) throw new Error("Erro ao buscar operacionais");
+  return res.json();
+}
+
+export async function createOperacional(data: {
+  project_id: string;
+  nome: string;
+  email?: string;
+  papel?: string;
+}): Promise<OperacionalResponse> {
+  const res = await fetch(`${API}/operacionais`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Erro ao criar operacional");
+  return res.json();
+}
+
+export async function updateOperacional(
+  id: string,
+  data: { nome?: string; email?: string; papel?: string; ativo?: boolean }
+): Promise<OperacionalResponse> {
+  const res = await fetch(`${API}/operacionais/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Erro ao atualizar operacional");
+  return res.json();
+}
+
+export async function deleteOperacional(id: string): Promise<void> {
+  const res = await fetch(`${API}/operacionais/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao excluir operacional");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tasks (kanban de tasks — distinto de TaskItem do planning)
+
+export interface TaskKanbanResponse {
+  id: string;
+  project_id: string;
+  funcionalidade_id?: string | null;
+  sprint_id?: string | null;
+  operacional_id?: string | null;
+  titulo: string;
+  descricao?: string | null;
+  pontos: number;
+  coluna_kanban: "planejado" | "em_andamento" | "concluida";
+  bloqueado: boolean;
+  motivo_bloqueio?: string | null;
+  checklist: { texto: string; done: boolean }[];
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskTransicaoKanban {
+  id: string;
+  task_id: string;
+  campo: string;
+  de?: string | null;
+  para?: string | null;
+  autor?: string | null;
+  timestamp: string;
+  motivo?: string | null;
+  duracao_fase_anterior_segundos?: number | null;
+}
+
+export async function listTasksKanban(params: {
+  project_id: string;
+  sprint_id?: string;
+  operacional_id?: string;
+  funcionalidade_id?: string;
+  coluna?: string;
+}): Promise<TaskKanbanResponse[]> {
+  const q = new URLSearchParams({ project_id: params.project_id });
+  if (params.sprint_id) q.set("sprint_id", params.sprint_id);
+  if (params.operacional_id) q.set("operacional_id", params.operacional_id);
+  if (params.funcionalidade_id) q.set("funcionalidade_id", params.funcionalidade_id);
+  if (params.coluna) q.set("coluna", params.coluna);
+  const res = await fetch(`${API}/tasks?${q}`);
+  if (!res.ok) throw new Error("Erro ao buscar tasks");
+  return res.json();
+}
+
+export async function createTaskKanban(data: {
+  project_id: string;
+  titulo: string;
+  pontos: number;
+  sprint_id?: string;
+  operacional_id?: string;
+  funcionalidade_id?: string;
+  descricao?: string;
+  coluna_kanban?: string;
+}): Promise<TaskKanbanResponse> {
+  const res = await fetch(`${API}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Erro ao criar task");
+  return res.json();
+}
+
+export async function patchTaskKanban(
+  id: string,
+  data: {
+    titulo?: string;
+    descricao?: string;
+    pontos?: number;
+    coluna_kanban?: string;
+    operacional_id?: string;
+    sprint_id?: string;
+    funcionalidade_id?: string;
+    bloqueado?: boolean;
+    motivo_bloqueio?: string;
+    checklist?: { texto: string; done: boolean }[];
+    autor?: string;
+    motivo?: string;
+  }
+): Promise<TaskKanbanResponse> {
+  const res = await fetch(`${API}/tasks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
+  }
+  if (!res.ok) throw new Error("Erro ao atualizar task");
+  return res.json();
+}
+
+export async function moverTaskKanban(id: string, coluna_destino: string, autor?: string): Promise<TaskKanbanResponse> {
+  const q = new URLSearchParams({ coluna_destino });
+  if (autor) q.set("autor", autor);
+  const res = await fetch(`${API}/tasks/${id}/mover?${q}`, { method: "POST" });
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
+  }
+  if (!res.ok) throw new Error("Erro ao mover task");
+  return res.json();
+}
+
+export async function deleteTaskKanban(id: string): Promise<void> {
+  const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Erro ao excluir task");
+}
+
+export async function listTaskTransicoesKanban(taskId: string): Promise<TaskTransicaoKanban[]> {
+  const res = await fetch(`${API}/tasks/${taskId}/transicoes`);
+  if (!res.ok) throw new Error("Erro ao buscar histórico da task");
+  return res.json();
+}
+
+// ── Task sugestões ────────────────────────────────────────────────────────────
+
+export interface TaskSugestaoResponse {
+  id: string;
+  task_id: string;
+  task_titulo: string;
+  acao: string;
+  motivo: string | null;
+  origem_ingestion_id: string | null;
+  aceita: boolean | null;
+  criado_em: string;
+}
+
+export async function listTaskSugestoes(projectId: string): Promise<TaskSugestaoResponse[]> {
+  const res = await fetch(`${API}/tasks/sugestoes?project_id=${encodeURIComponent(projectId)}`);
+  if (!res.ok) throw new Error("Erro ao buscar sugestões");
+  return res.json();
+}
+
+export async function resolveTaskSugestao(
+  sugestaoId: string,
+  aceita: boolean
+): Promise<TaskSugestaoResponse> {
+  const res = await fetch(`${API}/tasks/sugestoes/${sugestaoId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ aceita }),
+  });
+  if (!res.ok) throw new Error("Erro ao resolver sugestão");
+  return res.json();
+}

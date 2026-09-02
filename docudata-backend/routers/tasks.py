@@ -9,8 +9,12 @@ from models.schemas import (
     TaskResponse,
     TaskReordenarItem,
     TaskTransicaoResponse,
+    TaskSugestaoResponse,
+    TaskSugestaoResolve,
 )
 from services.supabase_client import get_client
+from services.wip_check import check_wip
+from services.task_events import on_task_transition
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -142,6 +146,77 @@ async def list_tasks(
     return query.execute().data or []
 
 
+# ── Sugestões — rotas fixas antes de /{task_id} para evitar captura pelo path param ──
+
+@router.get("/sugestoes", response_model=list[TaskSugestaoResponse])
+async def list_task_sugestoes(project_id: str = Query(...)):
+    client = get_client()
+    resp = (
+        client.table("task_sugestoes")
+        .select("*, tasks(titulo, project_id)")
+        .is_("aceita", "null")
+        .execute()
+    )
+    rows = resp.data or []
+    result = []
+    for row in rows:
+        task_info = row.get("tasks") or {}
+        if task_info.get("project_id") != project_id:
+            continue
+        result.append(TaskSugestaoResponse(
+            id=row["id"],
+            task_id=row["task_id"],
+            task_titulo=task_info.get("titulo", ""),
+            acao=row["acao"],
+            motivo=row.get("motivo"),
+            origem_ingestion_id=row.get("origem_ingestion_id"),
+            aceita=row.get("aceita"),
+            criado_em=row["criado_em"],
+        ))
+    return result
+
+
+@router.patch("/sugestoes/{sugestao_id}", response_model=TaskSugestaoResponse)
+async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
+    client = get_client()
+    resp = (
+        client.table("task_sugestoes")
+        .select("*, tasks(titulo, project_id, coluna_kanban)")
+        .eq("id", sugestao_id)
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Sugestão não encontrada")
+    row = resp.data[0]
+
+    if data.aceita and row["acao"] == "mover_para_concluida":
+        task_id = row["task_id"]
+        client.table("tasks").update({
+            "coluna_kanban": "concluida",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", task_id).execute()
+
+    updated = (
+        client.table("task_sugestoes")
+        .update({"aceita": data.aceita})
+        .eq("id", sugestao_id)
+        .select("*, tasks(titulo, project_id)")
+        .execute()
+    )
+    row = updated.data[0]
+    task_info = row.get("tasks") or {}
+    return TaskSugestaoResponse(
+        id=row["id"],
+        task_id=row["task_id"],
+        task_titulo=task_info.get("titulo", ""),
+        acao=row["acao"],
+        motivo=row.get("motivo"),
+        origem_ingestion_id=row.get("origem_ingestion_id"),
+        aceita=row.get("aceita"),
+        criado_em=row["criado_em"],
+    )
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
     client = get_client()
@@ -196,6 +271,15 @@ async def patch_task(task_id: str, data: TaskUpdate):
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
+    # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado
+    coluna_nova = data.coluna_kanban
+    coluna_atual = task.get("coluna_kanban")
+    if coluna_nova is not None and coluna_nova != coluna_atual:
+        op_efetivo = data.operacional_id if data.operacional_id is not None else task.get("operacional_id")
+        ok, motivo = check_wip(client, project_id, op_efetivo, coluna_nova)
+        if not ok:
+            raise HTTPException(status_code=409, detail=motivo)
+
     agora = datetime.now(timezone.utc)
 
     # Registra transições para campos monitorados
@@ -222,6 +306,11 @@ async def patch_task(task_id: str, data: TaskUpdate):
         updates["bloqueado"] = data.bloqueado
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    # Dispara evento de transição de coluna para logging e detecção de funcionalidade completa
+    if coluna_nova is not None and coluna_nova != coluna_atual:
+        on_task_transition(client, task, "coluna_kanban", coluna_atual, coluna_nova)
+
     return result.data[0]
 
 

@@ -27,6 +27,10 @@ import {
   toggleDelivered,
   listFuncionalidades,
   gerarResumoSemanal,
+  listOperacionais,
+  createOperacional,
+  updateOperacional,
+  deleteOperacional,
   type Project,
   type Ingestion,
   type GeneratedDoc,
@@ -35,6 +39,7 @@ import {
   type SprintWithStatus,
   type SprintDocType,
   type FuncionalidadeResponse,
+  type OperacionalResponse,
 } from "../../lib/api";
 import Tabs from "../../components/Tabs";
 import SprintCard from "../../components/SprintCard";
@@ -44,13 +49,14 @@ import PainelTab from "../../components/PainelTab";
 import PlanningModal from "../../components/PlanningModal";
 import FuncionalidadesStatusModal from "../../components/FuncionalidadesStatusModal";
 import EscopoTab from "../../components/EscopoTab";
+import TasksKanbanTab from "../../components/TasksKanbanTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -87,6 +93,131 @@ function humanizeLabel(label: string): string {
   return map[label] ?? label.split(":").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(": ");
 }
 
+function OperacionaisSection({
+  projectId,
+  operacionais,
+  onUpdated,
+}: {
+  projectId: string;
+  operacionais: OperacionalResponse[];
+  onUpdated: (ops: OperacionalResponse[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [nome, setNome] = useState("");
+  const [papel, setPapel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const inputSm: React.CSSProperties = {
+    padding: "6px 10px",
+    border: "1px solid #e4e4ea",
+    borderRadius: 7,
+    fontSize: 13,
+    color: "#111116",
+    background: "#fff",
+  };
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const novo = await createOperacional({ project_id: projectId, nome: nome.trim(), papel: papel.trim() || undefined });
+      onUpdated([...operacionais, novo]);
+      setNome(""); setPapel(""); setAdding(false);
+    } catch {
+      setErr("Erro ao adicionar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleAtivo(op: OperacionalResponse) {
+    try {
+      const updated = await updateOperacional(op.id, { ativo: !op.ativo });
+      onUpdated(operacionais.map((o) => (o.id === updated.id ? updated : o)));
+    } catch {
+      alert("Erro ao atualizar operacional.");
+    }
+  }
+
+  async function handleDelete(op: OperacionalResponse) {
+    if (!confirm(`Excluir "${op.nome}"? Tasks vinculadas perdem o operacional.`)) return;
+    try {
+      await deleteOperacional(op.id);
+      onUpdated(operacionais.filter((o) => o.id !== op.id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao excluir");
+    }
+  }
+
+  return (
+    <section style={{ background: "#fff", border: "1px solid #e8e8ed", borderRadius: 14, padding: "20px 24px", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: 0 }}>Operacionais</h2>
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            style={{ background: "none", border: "none", fontSize: 12, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+          >
+            + Adicionar
+          </button>
+        )}
+      </div>
+
+      {operacionais.length === 0 && !adding && (
+        <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Nenhum operacional cadastrado.</p>
+      )}
+
+      {operacionais.map((op) => (
+        <div key={op.id} style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "8px 0", borderBottom: "1px solid #f0f0f4",
+          opacity: op.ativo ? 1 : 0.5,
+        }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#111116" }}>
+            {op.nome}
+            {op.papel && <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 8 }}>{op.papel}</span>}
+          </span>
+          <button
+            onClick={() => handleToggleAtivo(op)}
+            style={{ background: "none", border: "none", fontSize: 11, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+          >
+            {op.ativo ? "Desativar" : "Ativar"}
+          </button>
+          <button
+            onClick={() => handleDelete(op)}
+            style={{ background: "none", border: "none", fontSize: 11, color: "#dc2626", cursor: "pointer", padding: 0 }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+
+      {adding && (
+        <form onSubmit={handleAdd} style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 12, flexWrap: "wrap" }}>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Nome *</label>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João Silva" style={{ ...inputSm, width: 180 }} required />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Papel</label>
+            <input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Front, Back, DS…" style={{ ...inputSm, width: 140 }} />
+          </div>
+          <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            {saving ? "…" : "Salvar"}
+          </button>
+          <button type="button" onClick={() => { setAdding(false); setNome(""); setPapel(""); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+            Cancelar
+          </button>
+          {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+        </form>
+      )}
+    </section>
+  );
+}
+
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -98,6 +229,7 @@ export default function ProjectDashboard() {
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
   const [cost, setCost] = useState<ProjectCost | null>(null);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
+  const [operacionais, setOperacionais] = useState<OperacionalResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ---------- custos mensais ----------
@@ -171,14 +303,16 @@ export default function ProjectDashboard() {
       getProjectCost(id),
       listSprints(id),
       listFuncionalidades(id),
+      listOperacionais(id).catch(() => [] as OperacionalResponse[]),
     ])
-      .then(([p, ings, d, c, s, fs]) => {
+      .then(([p, ings, d, c, s, fs, ops]) => {
         setProject(p);
         setIngestions(ings);
         setDocs(d);
         setCost(c);
         setSprints(s);
         setFuncionalidades(fs);
+        setOperacionais(ops);
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -508,6 +642,7 @@ export default function ProjectDashboard() {
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
           { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
+          { id: "tasks", label: "Tasks" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
@@ -598,6 +733,16 @@ export default function ProjectDashboard() {
           sprints={sprints}
           project={project}
           onProjectUpdated={(updated) => setProject(updated)}
+        />
+      )}
+
+      {/* ABA: TASKS */}
+      {activeTab === "tasks" && (
+        <TasksKanbanTab
+          projectId={id}
+          sprints={sprints}
+          operacionais={operacionais}
+          funcionalidades={funcionalidades}
         />
       )}
 
@@ -999,6 +1144,12 @@ export default function ProjectDashboard() {
               {project.is_delivered ? "✓ Marcado como entregue (desfazer)" : "Marcar como entregue"}
             </button>
           </section>
+
+          <OperacionaisSection
+            projectId={id}
+            operacionais={operacionais}
+            onUpdated={setOperacionais}
+          />
 
           <section style={{ ...sectionStyle, borderColor: "#fecaca" }}>
             <h2 style={{ ...sectionTitle, color: "#dc2626" }}>Zona perigosa</h2>

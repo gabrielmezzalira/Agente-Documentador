@@ -8,6 +8,7 @@ import {
   createSprintFuncionalidades,
   updateSprintFuncionalidade,
   updateContrato,
+  listTasksKanban,
   type BlocoD,
   type FuncionalidadeResponse,
   type PainelData,
@@ -447,8 +448,15 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
-function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: string[] }) {
+function KanbanCard({
+  f, allSprints, taskCounts,
+}: {
+  f: FuncionalidadeResponse;
+  allSprints: string[];
+  taskCounts?: { total: number; concluidas: number };
+}) {
   const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
+  const hasTask = taskCounts && taskCounts.total > 0;
 
   return (
     <div
@@ -466,15 +474,22 @@ function KanbanCard({ f, allSprints }: { f: FuncionalidadeResponse; allSprints: 
       <span style={{ fontSize: 13, fontWeight: 600, color: "#111116", lineHeight: 1.4 }}>
         {f.titulo}
       </span>
-      {sprintsToShow.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {sprintsToShow.map((s) => (
-            <span key={s} style={{ ...chipBaseStyle, background: "#ede9fe", color: "#7c3aed" }}>
-              Sprint {s}
-            </span>
-          ))}
-        </div>
-      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {sprintsToShow.map((s) => (
+          <span key={s} style={{ ...chipBaseStyle, background: "#ede9fe", color: "#7c3aed" }}>
+            Sprint {s}
+          </span>
+        ))}
+        {hasTask && (
+          <span style={{
+            ...chipBaseStyle,
+            background: taskCounts.concluidas === taskCounts.total ? "#dcfce7" : "#f1f5f9",
+            color: taskCounts.concluidas === taskCounts.total ? "#166534" : "#64748b",
+          }}>
+            {taskCounts.concluidas}/{taskCounts.total} tasks ✓
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -493,6 +508,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
   const [addingFunc, setAddingFunc] = useState(false);
   const [addFuncId, setAddFuncId] = useState("");
   const [kanbanSaving, setKanbanSaving] = useState(false);
+  const [taskCountsByFuncId, setTaskCountsByFuncId] = useState<Map<string, { total: number; concluidas: number }>>(new Map());
 
   useEffect(() => {
     setLoading(true);
@@ -504,6 +520,21 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erro"))
       .finally(() => setLoading(false));
+  }, [projectId]);
+
+  useEffect(() => {
+    listTasksKanban({ project_id: projectId }).then((tasks) => {
+      const map = new Map<string, { total: number; concluidas: number }>();
+      for (const t of tasks) {
+        if (!t.funcionalidade_id) continue;
+        const prev = map.get(t.funcionalidade_id) ?? { total: 0, concluidas: 0 };
+        map.set(t.funcionalidade_id, {
+          total: prev.total + 1,
+          concluidas: prev.concluidas + (t.coluna_kanban === "concluida" ? 1 : 0),
+        });
+      }
+      setTaskCountsByFuncId(map);
+    }).catch(() => {});
   }, [projectId]);
 
   const selectedSprintObj = sprints.find((s) => s.numero === sprintSelecionada);
@@ -700,7 +731,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                 </div>
               ) : (
                 planejado.map((f) => (
-                  <KanbanCard key={f.id} f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
+                  <KanbanCard key={f.id} f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
                 ))
               )}
             </div>
@@ -730,7 +761,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                     onDragEnd={() => setDragFuncId(null)}
                     style={{ cursor: "grab" }}
                   >
-                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
+                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
                   </div>
                 ))
               )}
@@ -798,7 +829,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                     onDragEnd={() => setDragFuncId(null)}
                     style={{ cursor: "grab" }}
                   >
-                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} />
+                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
                   </div>
                 ))
               )}

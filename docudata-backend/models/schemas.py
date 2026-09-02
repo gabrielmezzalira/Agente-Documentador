@@ -479,3 +479,20 @@ class SprintBaselineResponse(SprintResponse):
     baseline_locked_at: Optional[datetime] = None
     data_inicio: Optional[date] = None
     data_fim: Optional[date] = None
+
+
+# ── Task sugestões ────────────────────────────────────────────────────────────
+
+class TaskSugestaoResponse(BaseModel):
+    id: str
+    task_id: str
+    task_titulo: str
+    acao: str
+    motivo: Optional[str] = None
+    origem_ingestion_id: Optional[str] = None
+    aceita: Optional[bool] = None
+    criado_em: datetime
+
+
+class TaskSugestaoResolve(BaseModel):
+    aceita: bool
