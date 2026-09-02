@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas
 from services.notification_checker import check_and_send_notifications
 
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +52,7 @@ app.include_router(boletins.router)
 app.include_router(sprint_funcionalidades.router)
 app.include_router(operacionais.router)
 app.include_router(tasks.router)
+app.include_router(metricas.router)
 
 
 @app.get("/health")

@@ -1268,3 +1268,57 @@ export async function resolveTaskSugestao(
   if (!res.ok) throw new Error("Erro ao resolver sugestão");
   return res.json();
 }
+
+// ── Métricas ──────────────────────────────────────────────────────────────────
+
+export interface SpiPoint {
+  sprint_numero: number;
+  pontos_previstos: number | null;
+  pontos_realizados: number;
+  spi: number | null;
+}
+
+export interface ThroughputPoint {
+  sprint_numero: number;
+  tasks_total: number;
+  tasks_concluidas: number;
+  pontos_concluidos: number;
+}
+
+export interface CycleTimePoint {
+  task_titulo: string;
+  sprint_numero: number | null;
+  cycle_time_horas: number;
+  operacional_nome: string | null;
+}
+
+export interface CfdPoint {
+  sprint_numero: number;
+  planejado: number;
+  em_andamento: number;
+  concluida: number;
+}
+
+export async function getMetricasSpi(projectId: string): Promise<SpiPoint[]> {
+  const res = await fetch(`${API}/metricas/${projectId}/spi`);
+  if (!res.ok) throw new Error("Erro ao buscar SPI");
+  return res.json();
+}
+
+export async function getMetricasThroughput(projectId: string): Promise<ThroughputPoint[]> {
+  const res = await fetch(`${API}/metricas/${projectId}/throughput`);
+  if (!res.ok) throw new Error("Erro ao buscar throughput");
+  return res.json();
+}
+
+export async function getMetricasCycleTime(projectId: string): Promise<CycleTimePoint[]> {
+  const res = await fetch(`${API}/metricas/${projectId}/cycle-time`);
+  if (!res.ok) throw new Error("Erro ao buscar cycle-time");
+  return res.json();
+}
+
+export async function getMetricasCfd(projectId: string): Promise<CfdPoint[]> {
+  const res = await fetch(`${API}/metricas/${projectId}/cfd`);
+  if (!res.ok) throw new Error("Erro ao buscar CFD");
+  return res.json();
+}

@@ -50,13 +50,14 @@ import PlanningModal from "../../components/PlanningModal";
 import FuncionalidadesStatusModal from "../../components/FuncionalidadesStatusModal";
 import EscopoTab from "../../components/EscopoTab";
 import TasksKanbanTab from "../../components/TasksKanbanTab";
+import MetricasTab from "../../components/MetricasTab";
 import DocTypeCard from "../../components/DocTypeCard";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -643,6 +644,7 @@ export default function ProjectDashboard() {
           { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
           { id: "tasks", label: "Tasks" },
+          { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
           { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
@@ -745,6 +747,9 @@ export default function ProjectDashboard() {
           funcionalidades={funcionalidades}
         />
       )}
+
+      {/* ABA: MÉTRICAS */}
+      {activeTab === "metricas" && <MetricasTab projectId={id} />}
 
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
