@@ -1,0 +1,251 @@
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
+
+from models.schemas import (
+    TaskCreate,
+    TaskUpdate,
+    TaskResponse,
+    TaskReordenarItem,
+    TaskTransicaoResponse,
+)
+from services.supabase_client import get_client
+
+router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+_CAMPOS_TRANSICAO = {"coluna_kanban", "operacional_id", "sprint_id", "bloqueado"}
+
+
+def _registrar_task_transicao(
+    client,
+    task_id: str,
+    task_atual: dict,
+    campo: str,
+    novo_valor,
+    autor: Optional[str],
+    motivo: Optional[str],
+    agora: datetime,
+) -> None:
+    anterior = (
+        client.table("task_transicoes")
+        .select("timestamp")
+        .eq("task_id", task_id)
+        .eq("campo", campo)
+        .order("timestamp", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if anterior.data:
+        ts_anterior = datetime.fromisoformat(anterior.data[0]["timestamp"]).replace(tzinfo=timezone.utc)
+    else:
+        ts_anterior = datetime.fromisoformat(task_atual["created_at"]).replace(tzinfo=timezone.utc)
+
+    duracao = int((agora - ts_anterior).total_seconds())
+    client.table("task_transicoes").insert({
+        "task_id": task_id,
+        "campo": campo,
+        "de": str(task_atual.get(campo)) if task_atual.get(campo) is not None else None,
+        "para": str(novo_valor) if novo_valor is not None else None,
+        "autor": autor,
+        "timestamp": agora.isoformat(),
+        "motivo": motivo,
+        "duracao_fase_anterior_segundos": duracao,
+    }).execute()
+
+
+@router.post("", response_model=TaskResponse, status_code=201)
+async def create_task(data: TaskCreate):
+    client = get_client()
+
+    check = client.table("projects").select("id").eq("id", data.project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if data.operacional_id:
+        op_check = (
+            client.table("operacionais")
+            .select("id")
+            .eq("id", data.operacional_id)
+            .eq("project_id", data.project_id)
+            .execute()
+        )
+        if not op_check.data:
+            raise HTTPException(status_code=422, detail="operacional_id não pertence a este projeto")
+
+    if data.funcionalidade_id:
+        fn_check = (
+            client.table("funcionalidades")
+            .select("id")
+            .eq("id", data.funcionalidade_id)
+            .eq("project_id", data.project_id)
+            .execute()
+        )
+        if not fn_check.data:
+            raise HTTPException(status_code=422, detail="funcionalidade_id não pertence a este projeto")
+
+    if data.sprint_id:
+        sp_check = (
+            client.table("sprints")
+            .select("id")
+            .eq("id", data.sprint_id)
+            .eq("project_id", data.project_id)
+            .execute()
+        )
+        if not sp_check.data:
+            raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
+
+    payload: dict = {
+        "project_id": data.project_id,
+        "titulo": data.titulo,
+        "pontos": data.pontos,
+        "coluna_kanban": data.coluna_kanban,
+        "ordem": data.ordem,
+        "checklist": data.checklist or [],
+    }
+    for field in ("funcionalidade_id", "sprint_id", "operacional_id", "descricao"):
+        val = getattr(data, field, None)
+        if val is not None:
+            payload[field] = val
+
+    resp = client.table("tasks").insert(payload).execute()
+    if not resp.data:
+        raise HTTPException(status_code=500, detail="Failed to create task")
+    return resp.data[0]
+
+
+@router.get("", response_model=list[TaskResponse])
+async def list_tasks(
+    project_id: str = Query(...),
+    sprint_id: Optional[str] = Query(default=None),
+    operacional_id: Optional[str] = Query(default=None),
+    coluna: Optional[str] = Query(default=None),
+    funcionalidade_id: Optional[str] = Query(default=None),
+):
+    client = get_client()
+    query = (
+        client.table("tasks")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("coluna_kanban", desc=False)
+        .order("ordem", desc=False)
+    )
+    if sprint_id is not None:
+        query = query.eq("sprint_id", sprint_id)
+    if operacional_id is not None:
+        query = query.eq("operacional_id", operacional_id)
+    if coluna is not None:
+        query = query.eq("coluna_kanban", coluna)
+    if funcionalidade_id is not None:
+        query = query.eq("funcionalidade_id", funcionalidade_id)
+
+    return query.execute().data or []
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(task_id: str):
+    client = get_client()
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return resp.data[0]
+
+
+@router.get("/{task_id}/transicoes", response_model=list[TaskTransicaoResponse])
+async def list_task_transicoes(task_id: str):
+    client = get_client()
+    resp = (
+        client.table("task_transicoes")
+        .select("*")
+        .eq("task_id", task_id)
+        .order("timestamp", desc=False)
+        .execute()
+    )
+    return resp.data or []
+
+
+@router.patch("/{task_id}", response_model=TaskResponse)
+async def patch_task(task_id: str, data: TaskUpdate):
+    client = get_client()
+
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+    project_id = task["project_id"]
+
+    if data.operacional_id is not None:
+        op_check = (
+            client.table("operacionais")
+            .select("id")
+            .eq("id", data.operacional_id)
+            .eq("project_id", project_id)
+            .execute()
+        )
+        if not op_check.data:
+            raise HTTPException(status_code=422, detail="operacional_id não pertence a este projeto")
+
+    if data.sprint_id is not None:
+        sp_check = (
+            client.table("sprints")
+            .select("id")
+            .eq("id", data.sprint_id)
+            .eq("project_id", project_id)
+            .execute()
+        )
+        if not sp_check.data:
+            raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
+
+    agora = datetime.now(timezone.utc)
+
+    # Registra transições para campos monitorados
+    for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
+        novo_valor = getattr(data, campo, None)
+        if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
+            continue
+        _registrar_task_transicao(client, task_id, task, campo, novo_valor, data.autor, data.motivo, agora)
+
+    if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
+        _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
+
+    updates: dict = {"updated_at": agora.isoformat()}
+    for field in (
+        "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
+        "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
+        "checklist", "ordem",
+    ):
+        val = getattr(data, field, None)
+        if val is not None:
+            updates[field] = val
+    # bloqueado pode ser False, precisa checar explicitamente
+    if data.bloqueado is not None:
+        updates["bloqueado"] = data.bloqueado
+
+    result = client.table("tasks").update(updates).eq("id", task_id).execute()
+    return result.data[0]
+
+
+@router.post("/{task_id}/mover", response_model=TaskResponse)
+async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = None):
+    """Endpoint semântico para drag-and-drop entre colunas."""
+    if coluna_destino not in {"planejado", "em_andamento", "concluida"}:
+        raise HTTPException(status_code=422, detail="coluna_destino inválida")
+    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor))
+
+
+@router.patch("/reordenar/batch", status_code=200)
+async def reordenar_tasks(itens: list[TaskReordenarItem]):
+    """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna)."""
+    client = get_client()
+    for item in itens:
+        client.table("tasks").update({"ordem": item.ordem}).eq("id", item.id).execute()
+    return {"updated": len(itens)}
+
+
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(task_id: str):
+    client = get_client()
+    check = client.table("tasks").select("id").eq("id", task_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    client.table("tasks").delete().eq("id", task_id).execute()

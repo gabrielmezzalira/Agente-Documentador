@@ -352,3 +352,130 @@ class BoletimResponse(BaseModel):
 
 class ResumoSemanalRequest(BaseModel):
     project_id: str
+
+
+# ── Operacionais ────────────────────────────────────────────────────────────
+
+class OperacionalCreate(BaseModel):
+    project_id: str
+    nome: str
+    email: Optional[str] = None
+    papel: Optional[str] = None  # texto livre: "Front", "Back", "Design", "Gerente"
+
+
+class OperacionalUpdate(BaseModel):
+    nome: Optional[str] = None
+    email: Optional[str] = None
+    papel: Optional[str] = None
+    ativo: Optional[bool] = None
+
+
+class OperacionalResponse(BaseModel):
+    id: str
+    project_id: str
+    nome: str
+    email: Optional[str] = None
+    papel: Optional[str] = None
+    ativo: bool
+    created_at: datetime
+
+
+# ── Tasks ────────────────────────────────────────────────────────────────────
+
+_COLUNAS_VALIDAS = {"planejado", "em_andamento", "concluida"}
+
+
+class TaskCreate(BaseModel):
+    project_id: str
+    titulo: str
+    pontos: int = Field(..., gt=0)
+    funcionalidade_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    operacional_id: Optional[str] = None
+    descricao: Optional[str] = None
+    coluna_kanban: str = "planejado"
+    checklist: Optional[list[dict]] = None  # [{texto, done}]
+    ordem: int = 0
+
+    @field_validator("coluna_kanban")
+    @classmethod
+    def coluna_valida(cls, v: str) -> str:
+        if v not in _COLUNAS_VALIDAS:
+            raise ValueError("coluna_kanban deve ser planejado | em_andamento | concluida")
+        return v
+
+
+class TaskUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    pontos: Optional[int] = Field(default=None, gt=0)
+    funcionalidade_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    operacional_id: Optional[str] = None
+    coluna_kanban: Optional[str] = None
+    bloqueado: Optional[bool] = None
+    motivo_bloqueio: Optional[str] = None
+    checklist: Optional[list[dict]] = None
+    ordem: Optional[int] = None
+    autor: Optional[str] = None
+    motivo: Optional[str] = None
+
+    @field_validator("coluna_kanban")
+    @classmethod
+    def coluna_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _COLUNAS_VALIDAS:
+            raise ValueError("coluna_kanban deve ser planejado | em_andamento | concluida")
+        return v
+
+
+class TaskResponse(BaseModel):
+    id: str
+    project_id: str
+    funcionalidade_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    operacional_id: Optional[str] = None
+    titulo: str
+    descricao: Optional[str] = None
+    pontos: int
+    coluna_kanban: str
+    bloqueado: bool
+    motivo_bloqueio: Optional[str] = None
+    checklist: list[dict] = []
+    ordem: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskReordenarItem(BaseModel):
+    id: str
+    ordem: int
+
+
+class TaskTransicaoResponse(BaseModel):
+    id: str
+    task_id: str
+    campo: str
+    de: Optional[str] = None
+    para: Optional[str] = None
+    autor: Optional[str] = None
+    timestamp: datetime
+    motivo: Optional[str] = None
+    duracao_fase_anterior_segundos: Optional[int] = None
+
+
+# ── Sprint baseline ──────────────────────────────────────────────────────────
+
+class SprintBaselineUpdate(BaseModel):
+    pontos_previstos: Optional[int] = Field(default=None, gt=0)
+    faturamento_previsto: Optional[float] = Field(default=None, ge=0)
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None
+    lock: bool = False
+
+
+class SprintBaselineResponse(SprintResponse):
+    pontos_previstos: Optional[int] = None
+    faturamento_previsto: Optional[float] = None
+    baseline_locked_at: Optional[datetime] = None
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None

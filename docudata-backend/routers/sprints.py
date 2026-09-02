@@ -8,6 +8,8 @@ from models.schemas import (
     SprintHealthUpdate,
     SprintResponse,
     SprintStatusResponse,
+    SprintBaselineUpdate,
+    SprintBaselineResponse,
 )
 from services.supabase_client import get_client
 
@@ -136,6 +138,42 @@ async def list_sprints(project_id: str):
             "pendencias": pendencias,
         })
     return enriched
+
+
+@router.patch("/sprints/{sprint_id}/baseline", response_model=SprintBaselineResponse)
+async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
+    """Define ou atualiza o baseline da sprint. Uma vez lockado, campos numéricos são imutáveis."""
+    client = get_client()
+    check = client.table("sprints").select("*").eq("id", sprint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = check.data[0]
+
+    if sprint.get("baseline_locked_at"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Baseline já lockado em {sprint['baseline_locked_at']}. Não pode ser alterado.",
+        )
+
+    updates: dict = {}
+    if data.pontos_previstos is not None:
+        updates["pontos_previstos"] = data.pontos_previstos
+    if data.faturamento_previsto is not None:
+        updates["faturamento_previsto"] = data.faturamento_previsto
+    if data.data_inicio is not None:
+        updates["data_inicio"] = data.data_inicio.isoformat()
+    if data.data_fim is not None:
+        updates["data_fim"] = data.data_fim.isoformat()
+    if data.lock:
+        updates["baseline_locked_at"] = datetime.now(timezone.utc).isoformat()
+
+    if not updates:
+        return sprint
+
+    resp = client.table("sprints").update(updates).eq("id", sprint_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=500, detail="Failed to update baseline")
+    return resp.data[0]
 
 
 @router.delete("/sprints/{sprint_id}", status_code=204)

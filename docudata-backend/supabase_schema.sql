@@ -238,3 +238,93 @@ CREATE INDEX IF NOT EXISTS idx_sprint_funcionalidades_sprint
 
 CREATE INDEX IF NOT EXISTS idx_sprint_funcionalidades_func
     ON sprint_funcionalidades (funcionalidade_id);
+
+-- ── Wave: Kanban de Tasks, Operacionais, SPI ─────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS operacionais (
+    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome        text        NOT NULL,
+    email       text,
+    papel       text,
+    ativo       boolean     NOT NULL DEFAULT true,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_operacionais_project_nome ON operacionais(project_id, nome);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id          uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    funcionalidade_id   uuid        REFERENCES funcionalidades(id) ON DELETE SET NULL,
+    sprint_id           uuid        REFERENCES sprints(id) ON DELETE SET NULL,
+    operacional_id      uuid        REFERENCES operacionais(id) ON DELETE SET NULL,
+    titulo              text        NOT NULL,
+    descricao           text,
+    pontos              int         NOT NULL CHECK (pontos > 0),
+    coluna_kanban       text        NOT NULL DEFAULT 'planejado'
+                            CHECK (coluna_kanban IN ('planejado','em_andamento','concluida')),
+    bloqueado           boolean     NOT NULL DEFAULT false,
+    motivo_bloqueio     text,
+    checklist           jsonb       NOT NULL DEFAULT '[]',
+    ordem               int         NOT NULL DEFAULT 0,
+    created_at          timestamptz DEFAULT now(),
+    updated_at          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_kanban ON tasks(project_id, coluna_kanban);
+CREATE INDEX IF NOT EXISTS idx_tasks_sprint ON tasks(sprint_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_operacional ON tasks(operacional_id);
+
+CREATE TABLE IF NOT EXISTS task_transicoes (
+    id                              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id                         uuid        NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    campo                           text        NOT NULL,
+    de                              text,
+    para                            text,
+    autor                           text,
+    timestamp                       timestamptz DEFAULT now(),
+    motivo                          text,
+    duracao_fase_anterior_segundos  int
+);
+CREATE INDEX IF NOT EXISTS idx_task_transicoes_task ON task_transicoes(task_id, timestamp);
+
+CREATE TABLE IF NOT EXISTS task_sugestoes (
+    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id             uuid        NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    acao                text        NOT NULL,
+    motivo              text,
+    origem_ingestion_id uuid        REFERENCES ingestions(id) ON DELETE SET NULL,
+    aceita              boolean,
+    criado_em           timestamptz DEFAULT now()
+);
+
+-- Baseline e faturamento por sprint
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS pontos_previstos       int;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS faturamento_previsto   numeric(10,2);
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS baseline_locked_at     timestamptz;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS data_inicio            date;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS data_fim               date;
+
+-- WIP config e valor por ponto no projeto
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS wip_config       jsonb DEFAULT '{"por_pessoa": null, "por_coluna_em_andamento": null}';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS valor_por_ponto  numeric(10,2);
+
+-- View de SPI por sprint
+CREATE OR REPLACE VIEW sprint_spi AS
+SELECT
+    s.id,
+    s.project_id,
+    s.numero,
+    s.pontos_previstos,
+    s.baseline_locked_at,
+    COALESCE(SUM(t.pontos) FILTER (WHERE t.coluna_kanban = 'concluida'), 0) AS pontos_realizados,
+    CASE
+        WHEN s.pontos_previstos IS NOT NULL AND s.pontos_previstos > 0
+        THEN ROUND(
+            COALESCE(SUM(t.pontos) FILTER (WHERE t.coluna_kanban = 'concluida'), 0)::numeric
+            / s.pontos_previstos, 3
+        )
+        ELSE NULL
+    END AS spi
+FROM sprints s
+LEFT JOIN tasks t ON t.sprint_id = s.id
+GROUP BY s.id;
