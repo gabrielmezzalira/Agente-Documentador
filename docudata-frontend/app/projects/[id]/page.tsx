@@ -57,7 +57,7 @@ import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "cross_sprint" | "documentos" | "custos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "custos" | "config";
 
 function shiftMonth(yyyymm: string, delta: number): string {
   const year = parseInt(yyyymm.slice(0, 4), 10);
@@ -658,7 +658,6 @@ export default function ProjectDashboard() {
           { id: "tasks", label: "Tasks" },
           { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
-          { id: "cross_sprint", label: "Cross-sprint" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "custos", label: "Custos" },
           { id: "config", label: "Configurações" },
@@ -766,34 +765,30 @@ export default function ProjectDashboard() {
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
 
-      {/* ABA: CROSS-SPRINT (geradores que olham o projeto inteiro) */}
-      {activeTab === "cross_sprint" && (
+      {/* ABA: DOCUMENTOS — gerar (por sprint na aba Sprints / cross-sprint aqui) + histórico */}
+      {activeTab === "documentos" && (
         <>
+          {/* ── Seção Cross-sprint ── */}
           <section style={sectionStyle}>
-            <h2 style={sectionTitle}>Documentos cross-sprint</h2>
-            <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
-              Documentos que olham o projeto como um todo. Clique em cada tipo abaixo pra ver o que é antes de gerar.
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Cross-sprint</span>
+              <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+            </div>
+            <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 14px", lineHeight: 1.5 }}>
+              Documentos que olham o projeto como um todo.
             </p>
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
               <textarea
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Contexto extra que deve ser considerado na geração — aplicado a qualquer tipo escolhido abaixo."
-                rows={3}
+                placeholder="Contexto extra que deve ser considerado na geração."
+                rows={2}
                 style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
               />
             </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-              {(
-                [
-                  "ata_reuniao",
-                  "log_decisoes",
-                  "onboarding",
-                  "documentacao_final",
-                ] as DocTypeKey[]
-              ).map((key) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => (
                 <DocTypeCard
                   key={key}
                   meta={DOC_TYPES[key]}
@@ -805,62 +800,33 @@ export default function ProjectDashboard() {
                 />
               ))}
             </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <button
-                onClick={() => setManualModal({ sprintNumero: null })}
-                style={btnSecondary}
-              >
+            <div style={{ marginBottom: 10 }}>
+              <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
                 + Adicionar documento manual
               </button>
-              <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>
-                Pra registrar um doc que você escreveu fora do sistema (sem custo de IA).
-              </span>
+              <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>Sem custo de IA.</span>
             </div>
-
             {generating && <p style={{ color: "#9696a0", fontSize: 14 }}>Gerando documento com IA...</p>}
             {generateError && <p style={{ color: "#dc2626", fontSize: 14 }}>{generateError}</p>}
-
             {generatedDoc && (
-              <div style={{ marginTop: 18 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontSize: 13, color: "#9696a0" }}>
                     {docTypeLabel(generatedDoc.doc_type)}
                     {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
                   </span>
-                  <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>
-                    Copiar markdown
-                  </button>
+                  <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>Copiar markdown</button>
                 </div>
-                <div style={markdownContainer}>
-                  <ReactMarkdown>{generatedDoc.content}</ReactMarkdown>
-                </div>
+                <div style={markdownContainer}><ReactMarkdown>{generatedDoc.content}</ReactMarkdown></div>
               </div>
             )}
           </section>
 
-        </>
-      )}
-
-      {/* ABA: DOCUMENTOS — visualização de todos os docs do projeto, agrupados */}
-      {activeTab === "documentos" && (
-        <>
-          <div style={{ marginBottom: 16, marginTop: 4 }}>
-            <h2 style={{
-              fontSize: 22,
-              fontWeight: 800,
-              color: "#0f172a",
-              letterSpacing: "-0.02em",
-              margin: 0,
-            }}>
-              Documentos do projeto
-              <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600, marginLeft: 10 }}>
-                {docs.length} {docs.length === 1 ? "documento" : "documentos"}
-              </span>
-            </h2>
-            <p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
-              Tudo que foi gerado ou adicionado manualmente, organizado por sprint e separando os docs cross-sprint.
-            </p>
+          {/* ── Seção Por sprint ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "20px 0 14px" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Por sprint</span>
+            <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{docs.length} {docs.length === 1 ? "documento" : "documentos"}</span>
           </div>
 
           {docs.length === 0 ? (
