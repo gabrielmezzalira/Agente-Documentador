@@ -305,6 +305,7 @@ def _montar_contexto_gerar(
     projeto: dict,
     throughput_ref: Optional[float],
     transbordos: list[dict],
+    backlog_tasks: Optional[list] = None,
 ) -> str:
     """Monta o bloco de contexto que será enviado como HumanMessage ao Gemini."""
     dados: dict = rascunho.get("dados_json") or {}
@@ -363,6 +364,15 @@ def _montar_contexto_gerar(
                 linhas.append(f"  - {criterios[i]}")
         else:
             linhas.append("Critérios de aceite: (nenhum recorte especificado)")
+
+    # Tasks da sprint no kanban
+    if backlog_tasks:
+        linhas.append("\n## Tasks da sprint no Kanban:")
+        for t in backlog_tasks:
+            col = (t.get("coluna_kanban") or "").replace("_", " ")
+            bloq = " [BLOQUEADA]" if t.get("bloqueado") else ""
+            pts = t.get("pontos") or 0
+            linhas.append(f"- [{col}] {t.get('titulo', '')} ({pts}pt){bloq}")
 
     return "\n".join(linhas)
 
@@ -438,8 +448,30 @@ async def gerar_planning(body: GerarBody):
     )
     transbordos = transbordos_resp.data or []
 
+    # Buscar tasks da sprint para incluir no contexto
+    backlog_tasks: list[dict] = []
+    sprint_resp = (
+        client.table("sprints")
+        .select("id")
+        .eq("project_id", body.project_id)
+        .eq("numero", body.sprint_numero)
+        .limit(1)
+        .execute()
+    )
+    if sprint_resp.data:
+        sprint_id = sprint_resp.data[0]["id"]
+        tasks_resp = (
+            client.table("tasks")
+            .select("titulo, pontos, coluna_kanban, bloqueado")
+            .eq("sprint_id", sprint_id)
+            .order("coluna_kanban")
+            .order("ordem")
+            .execute()
+        )
+        backlog_tasks = tasks_resp.data or []
+
     # Montar contexto
-    contexto = _montar_contexto_gerar(rascunho, funcs_map, projeto, throughput_ref, transbordos)
+    contexto = _montar_contexto_gerar(rascunho, funcs_map, projeto, throughput_ref, transbordos, backlog_tasks)
 
     # Chamar Gemini
     llm = ChatGoogleGenerativeAI(

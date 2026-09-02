@@ -6,6 +6,8 @@ import {
   enrichPlanningComCorrelacoes,
   submitPlanning,
   createSprintFuncionalidades,
+  getRascunho,
+  confirmarPlanning,
   type FuncionalidadeResponse,
   type TaskCorrelacao,
   type SprintDocResponse,
@@ -22,7 +24,7 @@ interface Props {
   onSubmitted?: (response: SprintDocResponse) => void;
 }
 
-type Step = "input" | "correlacoes" | "form" | "gerando" | "doc";
+type Step = "input" | "correlacoes" | "form" | "gerando" | "manual_text" | "doc";
 type InputTab = "texto" | "arquivo";
 
 // ---------- styles ----------
@@ -302,6 +304,10 @@ export default function PlanningModal({
   const [carryOver, setCarryOver] = useState<CarryItem[]>([]);
   const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
 
+  // manual path
+  const [manualMarkdown, setManualMarkdown] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
+
   // doc gerado
   const [docContent, setDocContent] = useState("");
   const [copied, setCopied] = useState(false);
@@ -326,6 +332,8 @@ export default function PlanningModal({
       setRiscos([]);
       setCarryOver([]);
       setAiFilledFields(new Set());
+      setManualMarkdown("");
+      setManualSaving(false);
       setDocContent("");
       setCopied(false);
     }
@@ -475,6 +483,37 @@ export default function PlanningModal({
     }
   }
 
+  async function handleEnterManual() {
+    setError("");
+    setLoading(true);
+    try {
+      await getRascunho(projetoId, sprintNumero);
+      setStep("manual_text");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao inicializar planning.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveManual() {
+    if (!manualMarkdown.trim()) {
+      setError("Digite o conteúdo do planning antes de salvar.");
+      return;
+    }
+    setError("");
+    setManualSaving(true);
+    try {
+      await confirmarPlanning(projetoId, sprintNumero, manualMarkdown);
+      setDocContent(manualMarkdown);
+      setStep("doc");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao salvar planning.");
+    } finally {
+      setManualSaving(false);
+    }
+  }
+
   function handleCopy() {
     navigator.clipboard.writeText(docContent);
     setCopied(true);
@@ -484,7 +523,10 @@ export default function PlanningModal({
   // ── step indicator helpers ─────────────────────────────────────────────────
 
   const STEPS: Step[] = ["input", "correlacoes", "form", "doc"];
-  const stepIndex = step === "gerando" ? 3 : STEPS.indexOf(step);
+  const stepIndex =
+    step === "gerando" ? 3
+    : step === "manual_text" ? 1
+    : STEPS.indexOf(step);
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -500,6 +542,7 @@ export default function PlanningModal({
               {step === "correlacoes" && "Revise a correlação de cada task com a funcionalidade — corrija onde a IA errou."}
               {step === "form" && "Revise e complemente os campos da planning antes de gerar."}
               {step === "gerando" && "Gerando documentação da sprint…"}
+              {step === "manual_text" && "Escreva o planning manualmente em markdown."}
               {step === "doc" && "Planning gerado com sucesso."}
             </p>
           </div>
@@ -599,15 +642,24 @@ export default function PlanningModal({
 
             {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-              <button style={btnSecondary} onClick={onClose}>Cancelar</button>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
-                style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
-                onClick={handleAnalisar}
+                style={{ ...btnSecondary, fontSize: 12, color: "#64748b" }}
+                onClick={handleEnterManual}
                 disabled={loading}
               >
-                {loading ? "Analisando…" : "Analisar com IA →"}
+                Escrever sem IA
               </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={btnSecondary} onClick={onClose}>Cancelar</button>
+                <button
+                  style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                  onClick={handleAnalisar}
+                  disabled={loading}
+                >
+                  {loading ? "Analisando…" : "Analisar com IA →"}
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -817,6 +869,32 @@ export default function PlanningModal({
           <div style={{ textAlign: "center", padding: "40px 0" }}>
             <p style={{ color: "#64748b", fontSize: 14 }}>Gerando documentação da sprint…</p>
           </div>
+        )}
+
+        {/* ── STEP: MANUAL TEXT ── */}
+        {step === "manual_text" && (
+          <>
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#64748b" }}>
+              Escreva o planning em markdown. Use <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}># Título</code>, <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}>## Seção</code> e <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}>- item</code> para estruturar o documento.
+            </div>
+            <textarea
+              style={{ ...ta, minHeight: 320, fontFamily: "monospace", fontSize: 12 }}
+              placeholder={`# Planning — Sprint ${sprintNumero}\n**Projeto:** ...\n**Data:** ...\n\n## Objetivo da sprint\n\n...\n\n## Backlog da sprint\n\n- Item 1\n- Item 2`}
+              value={manualMarkdown}
+              onChange={(e) => setManualMarkdown(e.target.value)}
+            />
+            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 8 }}>{error}</p>}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
+              <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
+              <button
+                style={{ ...btnPrimary, opacity: manualSaving ? 0.7 : 1 }}
+                onClick={handleSaveManual}
+                disabled={manualSaving}
+              >
+                {manualSaving ? "Salvando…" : "Salvar planning →"}
+              </button>
+            </div>
+          </>
         )}
 
         {/* ── STEP: DOC ── */}

@@ -869,7 +869,7 @@ def _serialize_campos(tipo: str, campos: dict) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
-_SPRINT_SCOPED_TYPES = {"repasse_semanal", "retrospectiva", "review"}
+_SPRINT_SCOPED_TYPES = {"repasse_semanal", "retrospectiva", "review", "planning"}
 
 
 def _bloco_kanban_tasks(projeto_id: str, sprint_numero: int) -> str:
