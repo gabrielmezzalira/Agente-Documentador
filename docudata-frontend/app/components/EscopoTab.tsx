@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import TutorialBanner from "./TutorialBanner";
 import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
@@ -211,9 +212,21 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
     ? funcList.filter((f) => !f.sprint_alvo)
     : funcList.filter((f) => f.sprint_alvo === sprintFiltro);
 
+  const escopoSteps = [
+    { title: "O que são funcionalidades", body: "São as entregas de alto nível do projeto — ex: 'Tela de Login', 'Dashboard', 'Relatório mensal'. Cada funcionalidade representa um entregável para o cliente, diferente das tasks (que são o trabalho técnico interno)." },
+    { title: "Importar do contrato", body: "Clique em 'Importar funcionalidades' e faça upload do PDF ou documento do contrato/proposta. O DocuData usa IA para extrair automaticamente as funcionalidades listadas. Você revisa antes de confirmar." },
+    { title: "Adicionar manualmente", body: "Clique em '+ Adicionar manualmente' para criar uma funcionalidade sem IA. Preencha o nome, a prioridade (Must/Should/Could/Won't — metodologia MoSCoW) e a categoria." },
+    { title: "Prioridades MoSCoW", body: "Must = obrigatório para entrega. Should = importante, mas não bloqueia. Could = desejável se houver tempo. Won't = fora do escopo desta versão. Use para alinhar expectativas com o cliente." },
+    { title: "Status das funcionalidades", body: "Cada funcionalidade tem: Não iniciada → Em andamento → Concluída. O status 'Concluída' é contabilizado no Painel como 'Escopo concluído %'. Atualize conforme o trabalho avança." },
+    { title: "Funcionalidade travada", body: "Marque uma funcionalidade como 'Travada' quando há um bloqueio externo (aguardando cliente, dependência técnica). Funcionalidades travadas aparecem em destaque no Painel > Itens em atenção." },
+    { title: "Vincular à sprint", body: "Defina em qual sprint cada funcionalidade está planejada. Isso alimenta o Kanban de Sprint no Painel e ajuda a visualizar o progresso sprint a sprint." },
+  ];
+
   return (
     <div>
       {/* Header */}
+      <TutorialBanner heading="Escopo e Funcionalidades" steps={escopoSteps} />
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, marginTop: 4 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>

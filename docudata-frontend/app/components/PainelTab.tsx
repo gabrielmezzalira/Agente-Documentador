@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TutorialBanner from "./TutorialBanner";
 import {
   getPainel,
   listFuncionalidades,
@@ -644,8 +645,19 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
     color,
   });
 
+  const painelSteps = [
+    { title: "Tempo × Escopo", body: "Compara o % do prazo já consumido com o % do escopo concluído (funcionalidades entregues). Se o prazo avança mais rápido que o escopo, há atraso. Configure data de início, data de término e tolerância clicando em 'Editar' no card." },
+    { title: "Desvio e tolerância", body: "Desvio = prazo consumido % − escopo concluído %. Se positivo, você está atrás do planejado. Tolerância define quantos pontos percentuais de desvio são aceitáveis — acima disso, aparece um alerta laranja." },
+    { title: "Itens em atenção", body: "Funcionalidades marcadas como 'Travadas' na aba Escopo aparecem aqui. São bloqueios que precisam de ação — aguardando cliente, dependência externa ou decisão pendente." },
+    { title: "WIP e Throughput de funcionalidades", body: "WIP (Work in Progress) = funcionalidades em andamento agora. Throughput = quantas foram concluídas por semana. Cycle-time = tempo médio de uma funcionalidade do início ao fim. Métricas calculadas a partir do histórico de status das funcionalidades." },
+    { title: "Eficiência de fluxo", body: "% do tempo total que as funcionalidades passaram em fase ativa (Em andamento) vs. em espera. Baixa eficiência indica que as funcionalidades ficam muito tempo paradas entre etapas." },
+    { title: "Tempo por fase", body: "Mostra quanto tempo (média e p85) as funcionalidades passaram em cada status. Útil para identificar qual fase é o gargalo do projeto." },
+    { title: "Kanban de Sprint", body: "Visualize as funcionalidades planejadas para cada sprint e mova entre Planejado / Em andamento / Concluído. Use o seletor de sprint no canto superior direito. Adicione funcionalidades existentes à sprint com '+ Adicionar funcionalidade'." },
+  ];
+
   return (
     <div>
+      <TutorialBanner heading="Painel do Projeto" steps={painelSteps} />
       <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111116", marginBottom: 16 }}>
         Painel do Projeto
       </h2>

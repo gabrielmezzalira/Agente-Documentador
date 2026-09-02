@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TutorialBanner from "./TutorialBanner";
 import {
   ResponsiveContainer,
   BarChart,
@@ -128,6 +129,15 @@ export default function MetricasTab({ projectId }: Props) {
   if (loading) return <p style={{ color: "#9696a0", fontSize: 13 }}>Carregando métricas...</p>;
   if (err) return <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>;
 
+  const tutorialSteps = [
+    { title: "Pontos por task", body: "Cada task tem 1, 2 ou 3 pontos conforme a complexidade: 1 = simples, 2 = médio, 3 = complexo. Os pontos têm valor financeiro — o total do projeto dividido pelo total de pontos define o 'preço' de cada ponto." },
+    { title: "SPI — Schedule Performance Index", body: "Mede se você está entregando o que planejou por sprint. SPI = pontos concluídos ÷ pontos previstos (baseline). ≥ 0,9 = saudável (verde) · 0,7–0,89 = atenção (amarelo) · < 0,7 = crítico (vermelho). Um SPI baixo significa faturamento abaixo do esperado." },
+    { title: "Como definir o baseline", body: "O SPI só aparece se a sprint tiver um 'baseline' (pontos previstos). Vá na aba Sprints, acesse a sprint e clique em 'Baseline'. Informe a soma dos pontos de todas as tasks planejadas para aquela sprint." },
+    { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
+    { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
+    { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
+  ];
+
   // Cycle-time — distribuição por faixas de horas
   const ctBuckets: { faixa: string; tasks: number }[] = [
     { faixa: "< 8h", tasks: cycleTime.filter((c) => c.cycle_time_horas < 8).length },
@@ -143,6 +153,7 @@ export default function MetricasTab({ projectId }: Props) {
 
   return (
     <div>
+      <TutorialBanner heading="Métricas" steps={tutorialSteps} />
       {/* SPI por sprint */}
       <div style={section}>
         <p style={title}>SPI — Schedule Performance Index <InfoTooltip id="spi" /></p>

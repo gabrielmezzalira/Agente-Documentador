@@ -50,6 +50,7 @@ import EscopoTab from "../../components/EscopoTab";
 import TasksKanbanTab from "../../components/TasksKanbanTab";
 import MetricasTab from "../../components/MetricasTab";
 import DocTypeCard from "../../components/DocTypeCard";
+import TutorialBanner from "../../components/TutorialBanner";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
@@ -606,6 +607,15 @@ export default function ProjectDashboard() {
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
         <>
+          <TutorialBanner heading="Sprints e Documentação" steps={[
+            { title: "Criar uma sprint", body: "Clique em '+ Nova sprint'. O número é atribuído automaticamente. Cada sprint representa um ciclo de trabalho (geralmente 1–2 semanas)." },
+            { title: "Planning", body: "Clique no chip 'Planning' na sprint. Registre a reunião de planejamento — faça upload de uma ata, PDF ou texto com o que foi decidido. O DocuData extrai tarefas, decisões e próximos passos automaticamente. Recomendado: antes de iniciar a sprint." },
+            { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
+            { title: "Review", body: "Ao final da sprint, registre o review (demo para o cliente, ata de review). O DocuData analisa o texto e detecta automaticamente quais tasks foram mencionadas como concluídas — criando sugestões na aba Tasks. Recomendado: último dia da sprint." },
+            { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa todas as ingestões da sprint (planning, dailys, review) para gerar: O que foi feito, O que funcionou, O que não funcionou, Aprendizados." },
+            { title: "Baseline (pontos previstos)", body: "Defina o baseline da sprint antes de iniciá-la: soma dos pontos de todas as tasks planejadas. Isso habilita o cálculo do SPI na aba Métricas. Sem baseline, o SPI não é exibido." },
+            { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
+          ]} />
           {/* SPRINTS — header destacado */}
           <div style={{
             display: "flex",
@@ -731,6 +741,16 @@ export default function ProjectDashboard() {
           {/* Sub-aba: Cross-sprint */}
           {docSubTab === "cross_sprint" && (
             <section style={sectionStyle}>
+              <TutorialBanner heading="Documentos Cross-sprint" steps={[
+                { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro — não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
+                { title: "Ata de Reunião", body: "Faça upload de um PDF ou arquivo de ata de reunião (com o cliente, stakeholders, etc). O DocuData gera uma ata formatada com pauta, decisões e próximos passos. Útil para registrar reuniões fora do ciclo de sprint." },
+                { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas em todas as ingestões do projeto (plannings, reviews, dailys). Ideal para onboarding de novos membros e auditoria." },
+                { title: "Onboarding", body: "Documento de integração para novos membros entrarem no projeto rapidamente: contexto do cliente, stack técnica, decisões tomadas, estado atual. Gerado a partir de todo o histórico de ingestões." },
+                { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final. Preenche o vazio de documentação que existe em muitos projetos de dados." },
+                { title: "Observações adicionais", body: "O campo de observações permite incluir contexto extra que a IA deve considerar na geração. Use para orientações específicas, tom desejado, ou informações que não estão nos uploads." },
+                { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA — cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
+                { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada. O link abre diretamente no navegador." },
+              ]} />
               <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 14px", lineHeight: 1.5 }}>
                 Documentos que olham o projeto como um todo.
               </p>
@@ -801,6 +821,12 @@ export default function ProjectDashboard() {
           {/* Sub-aba: Por sprint */}
           {docSubTab === "por_sprint" && (
             <>
+              <TutorialBanner heading="Documentos Por sprint" steps={[
+                { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
+                { title: "Retrospectiva", body: "Gerado ao final da sprint com base no planning, dailys e review. Inclui: O que foi feito, O que funcionou, O que não funcionou, Aprendizados. Gere pelo botão 'Retro' na sprint." },
+                { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
+                { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
+              ]} />
               {docs.filter((d) => d.sprint_number != null).length === 0 ? (
                 <section style={sectionStyle}>
                   <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>

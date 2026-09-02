@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import TutorialBanner from "./TutorialBanner";
 import {
   listTasksKanban,
   createTaskKanban,
@@ -558,8 +559,20 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
 
   const byColuna = (col: Coluna) => tasks.filter((t) => t.coluna_kanban === col);
 
+  const tasksSteps = [
+    { title: "Tasks vs Funcionalidades", body: "Funcionalidades (aba Escopo) são entregas de alto nível para o cliente. Tasks são o trabalho técnico interno: 'Criar endpoint de login', 'Estilizar header', etc. Uma funcionalidade geralmente envolve várias tasks." },
+    { title: "Criar uma task", body: "Clique em '+ Adicionar' em qualquer coluna do kanban. Informe o título, pontos e opcionalmente sprint, operacional e funcionalidade relacionada." },
+    { title: "Pontos (1, 2 ou 3)", body: "Cada task recebe pontos conforme a complexidade: 1 = simples (< 4h), 2 = médio (meio dia), 3 = complexo (dia inteiro ou mais). Os pontos têm valor financeiro — o total do contrato dividido pelo total de pontos define o valor de cada ponto. Tasks concluídas geram faturamento." },
+    { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Isso é o 'Definition of Ready' — garante que a task foi planejada antes de ser iniciada. Vincule a sprint ao editar a task." },
+    { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo. Se o limite for atingido, o sistema bloqueia novos movimentos para aquele membro. Configure o WIP em Configurações > Operacionais." },
+    { title: "Operacional", body: "Atribua a task a um membro da equipe (cadastrado em Configurações > Operacionais). O cycle-time e o WIP são calculados por operacional. Útil para ver quem está sobrecarregado." },
+    { title: "Sugestões automáticas do Review", body: "Quando um review é registrado na aba Sprints, o DocuData analisa o texto e detecta quais tasks foram mencionadas como concluídas. Sugestões aparecem no banner amarelo acima do kanban — você aceita ou ignora cada uma." },
+    { title: "Mover tasks entre colunas", body: "Arraste a task ou use o botão de edição para mudar a coluna. Planejado → Em andamento → Concluída. Cada transição é registrada no histórico e alimenta o cycle-time e o SPI." },
+  ];
+
   return (
     <div>
+      <TutorialBanner heading="Tasks e Kanban" steps={tasksSteps} />
       {/* Filters */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
         <select
