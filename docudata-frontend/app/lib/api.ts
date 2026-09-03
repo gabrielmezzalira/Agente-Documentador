@@ -1150,6 +1150,7 @@ export interface TaskKanbanResponse {
   motivo_bloqueio?: string | null;
   checklist: { texto: string; done: boolean }[];
   ordem: number;
+  contador_reaberturas: number;
   created_at: string;
   updated_at: string;
 }
@@ -1232,9 +1233,15 @@ export async function patchTaskKanban(
   return res.json();
 }
 
-export async function moverTaskKanban(id: string, coluna_destino: string, autor?: string): Promise<TaskKanbanResponse> {
+export async function moverTaskKanban(
+  id: string,
+  coluna_destino: string,
+  autor?: string,
+  motivo?: string
+): Promise<TaskKanbanResponse> {
   const q = new URLSearchParams({ coluna_destino });
   if (autor) q.set("autor", autor);
+  if (motivo) q.set("motivo", motivo);
   const res = await fetch(`${API}/tasks/${id}/mover?${q}`, { method: "POST" });
   if (res.status === 409) {
     const err = await res.json().catch(() => ({}));

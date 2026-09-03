@@ -31,7 +31,7 @@ def _registrar_task_transicao(
     autor: Optional[str],
     motivo: Optional[str],
     agora: datetime,
-) -> None:
+) -> Optional[str]:
     anterior = (
         client.table("task_transicoes")
         .select("timestamp")
@@ -47,7 +47,7 @@ def _registrar_task_transicao(
         ts_anterior = datetime.fromisoformat(task_atual["created_at"]).replace(tzinfo=timezone.utc)
 
     duracao = int((agora - ts_anterior).total_seconds())
-    client.table("task_transicoes").insert({
+    resp = client.table("task_transicoes").insert({
         "task_id": task_id,
         "campo": campo,
         "de": str(task_atual.get(campo)) if task_atual.get(campo) is not None else None,
@@ -56,6 +56,25 @@ def _registrar_task_transicao(
         "timestamp": agora.isoformat(),
         "motivo": motivo,
         "duracao_fase_anterior_segundos": duracao,
+    }).execute()
+    return resp.data[0]["id"] if resp.data else None
+
+
+def _registrar_reabertura(
+    client,
+    task_id: str,
+    transicao_id: Optional[str],
+    operacional_id: Optional[str],
+    motivo: Optional[str],
+    agora: datetime,
+) -> None:
+    """TRANS-03: concluida -> em_andamento é a única transição que conta como reabertura."""
+    client.table("task_reaberturas").insert({
+        "task_id": task_id,
+        "transicao_id": transicao_id,
+        "operacional_id": operacional_id,
+        "motivo": motivo,
+        "timestamp": agora.isoformat(),
     }).execute()
 
 
@@ -305,11 +324,17 @@ async def patch_task(task_id: str, data: TaskUpdate):
     agora = datetime.now(timezone.utc)
 
     # Registra transições para campos monitorados
+    houve_reabertura = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
         if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
             continue
-        _registrar_task_transicao(client, task_id, task, campo, novo_valor, data.autor, data.motivo, agora)
+        transicao_id = _registrar_task_transicao(client, task_id, task, campo, novo_valor, data.autor, data.motivo, agora)
+        # TRANS-03: reabertura é estritamente a saída concluida -> em_andamento.
+        # Nenhuma outra saída de concluida (ex.: concluida -> planejado) conta.
+        if campo == "coluna_kanban" and task.get("coluna_kanban") == "concluida" and novo_valor == "em_andamento":
+            _registrar_reabertura(client, task_id, transicao_id, task.get("operacional_id"), data.motivo, agora)
+            houve_reabertura = True
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
         _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
@@ -326,6 +351,8 @@ async def patch_task(task_id: str, data: TaskUpdate):
     # bloqueado pode ser False, precisa checar explicitamente
     if data.bloqueado is not None:
         updates["bloqueado"] = data.bloqueado
+    if houve_reabertura:
+        updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 
@@ -344,11 +371,11 @@ async def patch_task(task_id: str, data: TaskUpdate):
 
 
 @router.post("/{task_id}/mover", response_model=TaskResponse)
-async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = None):
+async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = None, motivo: Optional[str] = None):
     """Endpoint semântico para drag-and-drop entre colunas."""
     if coluna_destino not in {"planejado", "em_andamento", "concluida"}:
         raise HTTPException(status_code=422, detail="coluna_destino inválida")
-    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor))
+    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo))
 
 
 @router.patch("/reordenar/batch", status_code=200)

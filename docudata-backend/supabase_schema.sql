@@ -328,3 +328,25 @@ SELECT
 FROM sprints s
 LEFT JOIN tasks t ON t.sprint_id = s.id
 GROUP BY s.id;
+
+-- Phase 14: Confirmação de Transição + Reabertura + Bloqueio Manual
+CREATE TABLE IF NOT EXISTS task_reaberturas (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id         uuid        NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    transicao_id    uuid        REFERENCES task_transicoes(id) ON DELETE SET NULL,
+    operacional_id  uuid        REFERENCES operacionais(id) ON DELETE SET NULL,
+    motivo          text,
+    timestamp       timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_task_reaberturas_task ON task_reaberturas(task_id);
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS contador_reaberturas int NOT NULL DEFAULT 0;
+
+-- Bloqueio manual (dado de Autonomia) — antecipado aqui para não editar este arquivo de
+-- novo na Task 3; as colunas já existem a partir desta migration.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_manual boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_em timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_por text;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_resolvido_por text
+    CHECK (bloqueado_resolvido_por IS NULL OR bloqueado_resolvido_por IN ('operacional', 'gerente'));
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_resolvido_em timestamptz;

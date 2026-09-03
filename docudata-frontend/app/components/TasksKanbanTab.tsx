@@ -407,7 +407,7 @@ function labelForColuna(c: string): string {
 // do banner de sugestão da IA. Cancelar não chama nenhuma API.
 
 function ConfirmTransicaoModal({
-  taskTitulo, de, para, onConfirm, onCancel, confirming,
+  taskTitulo, de, para, onConfirm, onCancel, confirming, motivo, onMotivoChange,
 }: {
   taskTitulo: string;
   de: string;
@@ -415,7 +415,12 @@ function ConfirmTransicaoModal({
   onConfirm: () => void;
   onCancel: () => void;
   confirming: boolean;
+  motivo?: string;
+  onMotivoChange?: (v: string) => void;
 }) {
+  // Reabertura (TRANS-03): concluida -> em_andamento aceita um motivo opcional.
+  const isReabertura = de === "concluida" && para === "em_andamento";
+
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
@@ -435,6 +440,18 @@ function ConfirmTransicaoModal({
           Mover <strong>{taskTitulo}</strong> de <strong>{labelForColuna(de)}</strong> para{" "}
           <strong>{labelForColuna(para)}</strong>?
         </p>
+        {isReabertura && onMotivoChange && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelSt}>Motivo da reabertura (opcional)</label>
+            <textarea
+              value={motivo ?? ""}
+              onChange={(e) => onMotivoChange(e.target.value)}
+              rows={2}
+              placeholder="Por que essa task voltou para Em andamento?"
+              style={{ ...inputSt, resize: "vertical" }}
+            />
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button type="button" onClick={onCancel} disabled={confirming} style={btnGhost}>
             Cancelar
@@ -556,6 +573,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const [pendingMove, setPendingMove] = useState<{ taskId: string; taskTitulo: string; de: Coluna; para: Coluna } | null>(null);
   const [pendingSugestao, setPendingSugestao] = useState<TaskSugestaoResponse | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [motivoReabertura, setMotivoReabertura] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -598,6 +616,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     if (!task || task.coluna_kanban === coluna) return;
     // Nenhuma chamada de API ainda — apenas abre o modal de confirmação.
     // Cancelar depois não deixa rastro nenhum (TRANS-01).
+    setMotivoReabertura("");
     setPendingMove({ taskId: task.id, taskTitulo: task.titulo, de: task.coluna_kanban, para: coluna });
   }
 
@@ -606,7 +625,12 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     setConfirming(true);
     setWipError("");
     try {
-      const updated = await moverTaskKanban(pendingMove.taskId, pendingMove.para);
+      const updated = await moverTaskKanban(
+        pendingMove.taskId,
+        pendingMove.para,
+        undefined,
+        motivoReabertura.trim() || undefined
+      );
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setPendingMove(null);
     } catch (e) {
@@ -619,12 +643,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       setPendingMove(null);
     } finally {
       setConfirming(false);
+      setMotivoReabertura("");
     }
   }
 
   function cancelPendingMove() {
     // Nenhuma chamada de API — fecha o modal sem alterar nenhum estado.
     setPendingMove(null);
+    setMotivoReabertura("");
   }
 
   async function confirmPendingSugestao() {
@@ -866,6 +892,8 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           onConfirm={confirmPendingMove}
           onCancel={cancelPendingMove}
           confirming={confirming}
+          motivo={motivoReabertura}
+          onMotivoChange={setMotivoReabertura}
         />
       )}
 

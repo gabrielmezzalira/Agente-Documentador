@@ -442,6 +442,7 @@ class TaskResponse(BaseModel):
     motivo_bloqueio: Optional[str] = None
     checklist: list[dict] = []
     ordem: int
+    contador_reaberturas: int = 0
     created_at: datetime
     updated_at: datetime
 
