@@ -350,3 +350,10 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_por text;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_resolvido_por text
     CHECK (bloqueado_resolvido_por IS NULL OR bloqueado_resolvido_por IN ('operacional', 'gerente'));
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueado_resolvido_em timestamptz;
+
+-- Phase 15: Travamento Automático por Tempo (Parte 4 do SDD — ALERT-01/02/03)
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS entrou_em_andamento_em timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_automatico boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override_por text;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override_em timestamptz;

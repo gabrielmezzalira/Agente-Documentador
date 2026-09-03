@@ -461,6 +461,11 @@ class TaskResponse(BaseModel):
     bloqueado_por: Optional[str] = None
     bloqueado_resolvido_por: Optional[str] = None
     bloqueado_resolvido_em: Optional[datetime] = None
+    entrou_em_andamento_em: Optional[datetime] = None
+    travado_automatico: bool = False
+    travado_override: bool = False
+    travado_override_por: Optional[str] = None
+    travado_override_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

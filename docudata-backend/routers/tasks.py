@@ -132,6 +132,11 @@ async def create_task(data: TaskCreate):
         if val is not None:
             payload[field] = val
 
+    # ALERT-01: task já criada direto em em_andamento também ancora o relógio de
+    # travamento automático — sem isso o job diário nunca teria referência para ela.
+    if payload.get("coluna_kanban") == "em_andamento":
+        payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
@@ -338,6 +343,8 @@ async def patch_task(task_id: str, data: TaskUpdate):
 
     # Registra transições para campos monitorados
     houve_reabertura = False
+    houve_entrada_em_andamento = False
+    houve_saida_de_em_andamento = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
         if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
@@ -348,11 +355,34 @@ async def patch_task(task_id: str, data: TaskUpdate):
         if campo == "coluna_kanban" and task.get("coluna_kanban") == "concluida" and novo_valor == "em_andamento":
             _registrar_reabertura(client, task_id, transicao_id, task.get("operacional_id"), data.motivo, agora)
             houve_reabertura = True
+        # ALERT-01/ALERT-02: relógio de travamento automático — entrou_em_andamento_em
+        # ancora em toda entrada confirmada em em_andamento (de qualquer coluna,
+        # inclusive reabertura); reseta ao sair de em_andamento para qualquer coluna.
+        if campo == "coluna_kanban":
+            if novo_valor == "em_andamento":
+                houve_entrada_em_andamento = True
+            elif task.get("coluna_kanban") == "em_andamento":
+                houve_saida_de_em_andamento = True
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
         _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
 
     updates: dict = {"updated_at": agora.isoformat()}
+    # ALERT-01/ALERT-02: set/reset do relógio + reset dos campos de travado_* —
+    # mutuamente exclusivo (uma única transição de coluna só pode ser entrada OU
+    # saída de em_andamento, nunca as duas).
+    if houve_entrada_em_andamento:
+        updates["entrou_em_andamento_em"] = agora.isoformat()
+        updates["travado_automatico"] = False
+        updates["travado_override"] = False
+        updates["travado_override_por"] = None
+        updates["travado_override_em"] = None
+    elif houve_saida_de_em_andamento:
+        updates["entrou_em_andamento_em"] = None
+        updates["travado_automatico"] = False
+        updates["travado_override"] = False
+        updates["travado_override_por"] = None
+        updates["travado_override_em"] = None
     for field in (
         "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
         "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
