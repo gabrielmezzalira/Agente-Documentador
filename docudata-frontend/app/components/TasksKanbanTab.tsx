@@ -11,6 +11,7 @@ import {
   listTaskTransicoesKanban,
   listTaskSugestoes,
   resolveTaskSugestao,
+  overrideTravamentoTask,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
   type TaskSugestaoResponse,
@@ -119,6 +120,8 @@ function TaskModal({
   const [bloqueadoPor, setBloqueadoPor] = useState(task?.bloqueado_por ?? "");
   const [bloqueadoResolvidoPor, setBloqueadoResolvidoPor] = useState("");
   const jaEstavaBloqueadoManual = task?.bloqueado_manual ?? false;
+  const [travadoOverridePor, setTravadoOverridePor] = useState("");
+  const [overridingTravamento, setOverridingTravamento] = useState(false);
   const [checklist, setChecklist] = useState<{ texto: string; done: boolean }[]>(
     task?.checklist ?? []
   );
@@ -196,6 +199,21 @@ function TaskModal({
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao excluir");
       setSaving(false);
+    }
+  }
+
+  async function handleOverrideTravamento() {
+    if (!task) return;
+    setOverridingTravamento(true);
+    setErr("");
+    try {
+      const updated = await overrideTravamentoTask(task.id, travadoOverridePor.trim() || undefined);
+      onSaved(updated);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao suprimir alerta");
+    } finally {
+      setOverridingTravamento(false);
     }
   }
 
@@ -328,6 +346,32 @@ function TaskModal({
                     <option value="operacional">Operacional</option>
                     <option value="gerente">Gerente</option>
                   </select>
+                </div>
+              )}
+
+              {/* Travamento automático — ALERT-03: alerta, nunca pontuação */}
+              {task?.travado_automatico && !task?.travado_override && (
+                <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
+                  <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
+                    ⏱ Task parada em Em Andamento além do limiar esperado para {task.pontos} ponto(s)
+                    (~{task.pontos * 2} dias).
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      value={travadoOverridePor}
+                      onChange={(e) => setTravadoOverridePor(e.target.value)}
+                      placeholder="Seu nome (gerente)..."
+                      style={{ ...inputSt, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleOverrideTravamento}
+                      disabled={overridingTravamento}
+                      style={{ ...btnGhost, opacity: overridingTravamento ? 0.6 : 1 }}
+                    >
+                      {overridingTravamento ? "Suprimindo..." : "Suprimir alerta"}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -567,6 +611,10 @@ function TaskCard({
 
         {task.bloqueado && (
           <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>Bloqueada</span>
+        )}
+
+        {task.travado_automatico && !task.travado_override && (
+          <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }}>⏱ Travada</span>
         )}
 
         {total > 0 && (

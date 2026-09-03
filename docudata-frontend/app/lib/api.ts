@@ -1156,6 +1156,11 @@ export interface TaskKanbanResponse {
   bloqueado_por?: string | null;
   bloqueado_resolvido_por?: string | null;
   bloqueado_resolvido_em?: string | null;
+  entrou_em_andamento_em?: string | null;
+  travado_automatico: boolean;
+  travado_override: boolean;
+  travado_override_por?: string | null;
+  travado_override_em?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1256,6 +1261,18 @@ export async function moverTaskKanban(
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
   }
   if (!res.ok) throw new Error("Erro ao mover task");
+  return res.json();
+}
+
+export async function overrideTravamentoTask(id: string, autor?: string): Promise<TaskKanbanResponse> {
+  const q = new URLSearchParams();
+  if (autor) q.set("autor", autor);
+  const res = await fetch(`${API}/tasks/${id}/travado/override?${q}`, { method: "POST" });
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "Task não está em Em Andamento"), { status: 409 });
+  }
+  if (!res.ok) throw new Error("Erro ao suprimir alerta de travamento");
   return res.json();
 }
 
