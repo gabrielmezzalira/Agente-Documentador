@@ -492,6 +492,7 @@ class TaskSugestaoResponse(BaseModel):
     origem_ingestion_id: Optional[str] = None
     aceita: Optional[bool] = None
     criado_em: datetime
+    task_coluna_atual: Optional[str] = None
 
 
 class TaskSugestaoResolve(BaseModel):

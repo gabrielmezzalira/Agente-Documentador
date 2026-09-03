@@ -154,7 +154,7 @@ async def list_task_sugestoes(project_id: str = Query(...)):
     client = get_client()
     resp = (
         client.table("task_sugestoes")
-        .select("*, tasks(titulo, project_id)")
+        .select("*, tasks(titulo, project_id, coluna_kanban)")
         .is_("aceita", "null")
         .execute()
     )
@@ -173,6 +173,7 @@ async def list_task_sugestoes(project_id: str = Query(...)):
             origem_ingestion_id=row.get("origem_ingestion_id"),
             aceita=row.get("aceita"),
             criado_em=row["criado_em"],
+            task_coluna_atual=task_info.get("coluna_kanban"),
         ))
     return result
 
@@ -192,16 +193,17 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
 
     if data.aceita and row["acao"] == "mover_para_concluida":
         task_id = row["task_id"]
-        client.table("tasks").update({
-            "coluna_kanban": "concluida",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", task_id).execute()
+        # Delega ao mesmo caminho gated usado por PATCH /tasks/{id} e POST /tasks/{id}/mover
+        # (DoR/DoD/WIP + gravação em task_transicoes). Se patch_task levantar HTTPException
+        # (ex.: DoD com checklist incompleto), a exceção propaga e a sugestão continua não
+        # resolvida — o update de "aceita" abaixo nunca acontece.
+        await patch_task(task_id, TaskUpdate(coluna_kanban="concluida", autor="sugestao_ia"))
 
     updated = (
         client.table("task_sugestoes")
         .update({"aceita": data.aceita})
         .eq("id", sugestao_id)
-        .select("*, tasks(titulo, project_id)")
+        .select("*, tasks(titulo, project_id, coluna_kanban)")
         .execute()
     )
     row = updated.data[0]
@@ -215,6 +217,7 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
         origem_ingestion_id=row.get("origem_ingestion_id"),
         aceita=row.get("aceita"),
         criado_em=row["criado_em"],
+        task_coluna_atual=task_info.get("coluna_kanban"),
     )
 
 

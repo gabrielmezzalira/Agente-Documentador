@@ -1266,6 +1266,7 @@ export interface TaskSugestaoResponse {
   origem_ingestion_id: string | null;
   aceita: boolean | null;
   criado_em: string;
+  task_coluna_atual?: string | null;
 }
 
 export async function listTaskSugestoes(projectId: string): Promise<TaskSugestaoResponse[]> {

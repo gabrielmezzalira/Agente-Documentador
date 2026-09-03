@@ -398,6 +398,61 @@ function TaskModal({
   );
 }
 
+function labelForColuna(c: string): string {
+  return COLUNAS.find((col) => col.id === c)?.label ?? c;
+}
+
+// ---------------------------------------------------------------------------
+// Modal de confirmação de transição — usado pelo drag-and-drop e pelo aceite
+// do banner de sugestão da IA. Cancelar não chama nenhuma API.
+
+function ConfirmTransicaoModal({
+  taskTitulo, de, para, onConfirm, onCancel, confirming,
+}: {
+  taskTitulo: string;
+  de: string;
+  para: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirming: boolean;
+}) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+    }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div style={{
+        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        width: "100%", maxWidth: 420,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+      }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 14px" }}>
+          Confirmar mudança de status
+        </h3>
+        <p style={{ fontSize: 14, color: "#374151", margin: "0 0 20px", lineHeight: 1.5 }}>
+          Mover <strong>{taskTitulo}</strong> de <strong>{labelForColuna(de)}</strong> para{" "}
+          <strong>{labelForColuna(para)}</strong>?
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onCancel} disabled={confirming} style={btnGhost}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming}
+            style={{ ...btnPrimary, opacity: confirming ? 0.6 : 1 }}
+          >
+            {confirming ? "Movendo…" : "Confirmar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const labelSt: React.CSSProperties = {
   display: "block",
   fontSize: 11,
@@ -496,6 +551,12 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const [sugestoes, setSugestoes] = useState<TaskSugestaoResponse[]>([]);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
+  // confirmação de transição — drag-and-drop e aceite de sugestão passam por aqui
+  // antes de qualquer chamada de API (TRANS-01/TRANS-02)
+  const [pendingMove, setPendingMove] = useState<{ taskId: string; taskTitulo: string; de: Coluna; para: Coluna } | null>(null);
+  const [pendingSugestao, setPendingSugestao] = useState<TaskSugestaoResponse | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
   const load = useCallback(() => {
     setLoading(true);
     listTasksKanban({
@@ -530,15 +591,24 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     }
   }
 
-  async function handleDrop(coluna: Coluna) {
+  function handleDrop(coluna: Coluna) {
     if (!dragId) return;
     const task = tasks.find((t) => t.id === dragId);
-    if (!task || task.coluna_kanban === coluna) { setDragId(null); return; }
     setDragId(null);
+    if (!task || task.coluna_kanban === coluna) return;
+    // Nenhuma chamada de API ainda — apenas abre o modal de confirmação.
+    // Cancelar depois não deixa rastro nenhum (TRANS-01).
+    setPendingMove({ taskId: task.id, taskTitulo: task.titulo, de: task.coluna_kanban, para: coluna });
+  }
+
+  async function confirmPendingMove() {
+    if (!pendingMove) return;
+    setConfirming(true);
     setWipError("");
     try {
-      const updated = await moverTaskKanban(dragId, coluna);
+      const updated = await moverTaskKanban(pendingMove.taskId, pendingMove.para);
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setPendingMove(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao mover";
       if ((e as { status?: number }).status === 409) {
@@ -546,7 +616,31 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       } else {
         alert(msg);
       }
+      setPendingMove(null);
+    } finally {
+      setConfirming(false);
     }
+  }
+
+  function cancelPendingMove() {
+    // Nenhuma chamada de API — fecha o modal sem alterar nenhum estado.
+    setPendingMove(null);
+  }
+
+  async function confirmPendingSugestao() {
+    if (!pendingSugestao) return;
+    setConfirming(true);
+    try {
+      await handleResolveSugestao(pendingSugestao.id, true);
+    } finally {
+      setPendingSugestao(null);
+      setConfirming(false);
+    }
+  }
+
+  function cancelPendingSugestao() {
+    // Nenhuma chamada de API — fecha o modal sem resolver a sugestão.
+    setPendingSugestao(null);
   }
 
   function upsertTask(t: TaskKanbanResponse) {
@@ -650,7 +744,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 </span>
                 <button
                   disabled={resolvingId === s.id}
-                  onClick={() => handleResolveSugestao(s.id, true)}
+                  onClick={() => setPendingSugestao(s)}
                   style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534", opacity: resolvingId === s.id ? 0.5 : 1 }}
                 >
                   Aceitar
@@ -761,6 +855,28 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           onClose={() => setEditModal(null)}
           onSaved={(t) => { upsertTask(t); setEditModal(null); }}
           onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
+        />
+      )}
+
+      {pendingMove !== null && (
+        <ConfirmTransicaoModal
+          taskTitulo={pendingMove.taskTitulo}
+          de={pendingMove.de}
+          para={pendingMove.para}
+          onConfirm={confirmPendingMove}
+          onCancel={cancelPendingMove}
+          confirming={confirming}
+        />
+      )}
+
+      {pendingSugestao !== null && (
+        <ConfirmTransicaoModal
+          taskTitulo={pendingSugestao.task_titulo}
+          de={pendingSugestao.task_coluna_atual ?? "atual"}
+          para="concluida"
+          onConfirm={confirmPendingSugestao}
+          onCancel={cancelPendingSugestao}
+          confirming={confirming}
         />
       )}
     </div>
