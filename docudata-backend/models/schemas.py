@@ -405,6 +405,9 @@ class TaskCreate(BaseModel):
         return v
 
 
+_BLOQUEADO_RESOLVIDO_POR_VALIDOS = {"operacional", "gerente"}
+
+
 class TaskUpdate(BaseModel):
     titulo: Optional[str] = None
     descricao: Optional[str] = None
@@ -419,12 +422,22 @@ class TaskUpdate(BaseModel):
     ordem: Optional[int] = None
     autor: Optional[str] = None
     motivo: Optional[str] = None
+    bloqueado_manual: Optional[bool] = None
+    bloqueado_por: Optional[str] = None
+    bloqueado_resolvido_por: Optional[str] = None
 
     @field_validator("coluna_kanban")
     @classmethod
     def coluna_valida(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in _COLUNAS_VALIDAS:
             raise ValueError("coluna_kanban deve ser planejado | em_andamento | concluida")
+        return v
+
+    @field_validator("bloqueado_resolvido_por")
+    @classmethod
+    def bloqueado_resolvido_por_valido(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _BLOQUEADO_RESOLVIDO_POR_VALIDOS:
+            raise ValueError("bloqueado_resolvido_por deve ser operacional | gerente")
         return v
 
 
@@ -443,6 +456,11 @@ class TaskResponse(BaseModel):
     checklist: list[dict] = []
     ordem: int
     contador_reaberturas: int = 0
+    bloqueado_manual: bool = False
+    bloqueado_em: Optional[datetime] = None
+    bloqueado_por: Optional[str] = None
+    bloqueado_resolvido_por: Optional[str] = None
+    bloqueado_resolvido_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

@@ -1151,6 +1151,11 @@ export interface TaskKanbanResponse {
   checklist: { texto: string; done: boolean }[];
   ordem: number;
   contador_reaberturas: number;
+  bloqueado_manual: boolean;
+  bloqueado_em?: string | null;
+  bloqueado_por?: string | null;
+  bloqueado_resolvido_por?: string | null;
+  bloqueado_resolvido_em?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1218,6 +1223,9 @@ export async function patchTaskKanban(
     checklist?: { texto: string; done: boolean }[];
     autor?: string;
     motivo?: string;
+    bloqueado_manual?: boolean;
+    bloqueado_por?: string;
+    bloqueado_resolvido_por?: string;
   }
 ): Promise<TaskKanbanResponse> {
   const res = await fetch(`${API}/tasks/${id}`, {

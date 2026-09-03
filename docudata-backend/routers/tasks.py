@@ -321,6 +321,19 @@ async def patch_task(task_id: str, data: TaskUpdate):
         if not ok:
             raise HTTPException(status_code=409, detail=motivo)
 
+    # TRANS-05: desmarcar bloqueado_manual exige informar quem resolveu — gate roda
+    # independentemente de mudança de coluna, antes de qualquer escrita.
+    if (
+        data.bloqueado_manual is not None
+        and data.bloqueado_manual != task.get("bloqueado_manual", False)
+        and data.bloqueado_manual is False
+        and data.bloqueado_resolvido_por not in ("operacional", "gerente")
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Informe quem resolveu o bloqueio (operacional ou gerente) antes de desmarcar.",
+        )
+
     agora = datetime.now(timezone.utc)
 
     # Registra transições para campos monitorados
@@ -353,6 +366,17 @@ async def patch_task(task_id: str, data: TaskUpdate):
         updates["bloqueado"] = data.bloqueado
     if houve_reabertura:
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
+
+    # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
+    # desmarcar, bloqueado_resolvido_por veio válido)
+    if data.bloqueado_manual is not None and data.bloqueado_manual != task.get("bloqueado_manual", False):
+        updates["bloqueado_manual"] = data.bloqueado_manual
+        if data.bloqueado_manual is True:
+            updates["bloqueado_em"] = agora.isoformat()
+            updates["bloqueado_por"] = data.bloqueado_por
+        else:
+            updates["bloqueado_resolvido_por"] = data.bloqueado_resolvido_por
+            updates["bloqueado_resolvido_em"] = agora.isoformat()
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 

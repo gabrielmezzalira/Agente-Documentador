@@ -116,6 +116,9 @@ function TaskModal({
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
   const [bloqueado, setBloqueado] = useState(task?.bloqueado ?? false);
   const [motivoBloqueio, setMotivoBloqueio] = useState(task?.motivo_bloqueio ?? "");
+  const [bloqueadoPor, setBloqueadoPor] = useState(task?.bloqueado_por ?? "");
+  const [bloqueadoResolvidoPor, setBloqueadoResolvidoPor] = useState("");
+  const jaEstavaBloqueadoManual = task?.bloqueado_manual ?? false;
   const [checklist, setChecklist] = useState<{ texto: string; done: boolean }[]>(
     task?.checklist ?? []
   );
@@ -140,6 +143,10 @@ function TaskModal({
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
     if (pontos < 1) { setErr("Pontos deve ser ≥ 1."); return; }
+    if (jaEstavaBloqueadoManual && !bloqueado && !bloqueadoResolvidoPor) {
+      setErr("Informe quem resolveu o bloqueio.");
+      return;
+    }
     setSaving(true);
     setErr("");
     try {
@@ -165,6 +172,9 @@ function TaskModal({
           bloqueado,
           motivo_bloqueio: bloqueado ? motivoBloqueio.trim() || undefined : undefined,
           checklist,
+          bloqueado_manual: bloqueado,
+          bloqueado_por: (bloqueado && !jaEstavaBloqueadoManual) ? (bloqueadoPor.trim() || undefined) : undefined,
+          bloqueado_resolvido_por: (!bloqueado && jaEstavaBloqueadoManual) ? bloqueadoResolvidoPor : undefined,
         });
       }
       onSaved(saved);
@@ -282,14 +292,42 @@ function TaskModal({
                 </label>
               </div>
               {bloqueado && (
+                <div style={{ display: "grid", gridTemplateColumns: jaEstavaBloqueadoManual ? "1fr" : "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={labelSt}>Motivo do bloqueio</label>
+                    <input
+                      value={motivoBloqueio}
+                      onChange={(e) => setMotivoBloqueio(e.target.value)}
+                      placeholder="Descreva o bloqueio..."
+                      style={inputSt}
+                    />
+                  </div>
+                  {!jaEstavaBloqueadoManual && (
+                    <div>
+                      <label style={labelSt}>Quem bloqueou?</label>
+                      <input
+                        value={bloqueadoPor}
+                        onChange={(e) => setBloqueadoPor(e.target.value)}
+                        placeholder="Nome de quem bloqueou..."
+                        style={inputSt}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              {jaEstavaBloqueadoManual && !bloqueado && (
                 <div>
-                  <label style={labelSt}>Motivo do bloqueio</label>
-                  <input
-                    value={motivoBloqueio}
-                    onChange={(e) => setMotivoBloqueio(e.target.value)}
-                    placeholder="Descreva o bloqueio..."
+                  <label style={labelSt}>Quem resolveu? *</label>
+                  <select
+                    value={bloqueadoResolvidoPor}
+                    onChange={(e) => setBloqueadoResolvidoPor(e.target.value)}
                     style={inputSt}
-                  />
+                    required
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="operacional">Operacional</option>
+                    <option value="gerente">Gerente</option>
+                  </select>
                 </div>
               )}
 
