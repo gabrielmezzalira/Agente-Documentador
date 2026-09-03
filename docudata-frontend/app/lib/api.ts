@@ -1340,3 +1340,29 @@ export async function getMetricasCfd(projectId: string): Promise<CfdPoint[]> {
   if (!res.ok) throw new Error("Erro ao buscar CFD");
   return res.json();
 }
+
+export interface PerformanceOperacionalPoint {
+  operacional_id: string;
+  operacional_nome: string;
+  pontos_atribuidos: number;
+  pontos_realizados: number;
+  tasks_concluidas: number;
+  spi: number | null;
+}
+
+export interface CycleTimeStats {
+  p50_horas: number | null;
+  p85_horas: number | null;
+}
+
+export async function getMetricasPerformanceOperacional(projectId: string): Promise<PerformanceOperacionalPoint[]> {
+  const res = await fetch(`${API}/metricas/${projectId}/performance-operacional`);
+  if (!res.ok) throw new Error("Erro ao buscar performance por operacional");
+  return res.json();
+}
+
+export async function getMetricasCycleTimeStats(projectId: string): Promise<CycleTimeStats> {
+  const res = await fetch(`${API}/metricas/${projectId}/cycle-time/stats`);
+  if (!res.ok) throw new Error("Erro ao buscar estatísticas de cycle-time");
+  return res.json();
+}

@@ -22,10 +22,14 @@ import {
   getMetricasThroughput,
   getMetricasCycleTime,
   getMetricasCfd,
+  getMetricasPerformanceOperacional,
+  getMetricasCycleTimeStats,
   type SpiPoint,
   type ThroughputPoint,
   type CycleTimePoint,
   type CfdPoint,
+  type PerformanceOperacionalPoint,
+  type CycleTimeStats,
 } from "../lib/api";
 
 interface Props {
@@ -65,6 +69,7 @@ const TOOLTIPS: Record<string, string> = {
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
+  perfop: "SPI estimado por operacional — soma de todos os pontos já atribuídos ao operacional (qualquer coluna) dividida pelos pontos realizados. É um proxy interino, recomputado ao vivo, não um baseline travado por operacional.",
 };
 
 function InfoTooltip({ id }: { id: string }) {
@@ -104,6 +109,8 @@ export default function MetricasTab({ projectId }: Props) {
   const [throughput, setThroughput] = useState<ThroughputPoint[]>([]);
   const [cycleTime, setCycleTime] = useState<CycleTimePoint[]>([]);
   const [cfd, setCfd] = useState<CfdPoint[]>([]);
+  const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
+  const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -114,12 +121,16 @@ export default function MetricasTab({ projectId }: Props) {
       getMetricasThroughput(projectId),
       getMetricasCycleTime(projectId),
       getMetricasCfd(projectId),
+      getMetricasPerformanceOperacional(projectId),
+      getMetricasCycleTimeStats(projectId),
     ])
-      .then(([s, t, ct, c]) => {
+      .then(([s, t, ct, c, po, cts]) => {
         setSpi(s);
         setThroughput(t);
         setCycleTime(ct);
         setCfd(c);
+        setPerfOp(po);
+        setCtStats(cts);
         setErr("");
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar métricas"))
@@ -136,6 +147,7 @@ export default function MetricasTab({ projectId }: Props) {
     { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
+    { title: "SPI por operacional (estimado)", body: "Soma de todos os pontos já atribuídos a cada operacional dividida pelos pontos realizados. É um proxy interino recomputado ao vivo — não um baseline travado por operacional (esse mecanismo formal é de uma fase futura)." },
   ];
 
   // Cycle-time — distribuição por faixas de horas
@@ -208,6 +220,8 @@ export default function MetricasTab({ projectId }: Props) {
         <p style={subtitle}>
           Tempo em em_andamento antes de concluir.
           {avgCT !== null && ` Média: ${avgCT < 24 ? `${avgCT}h` : `${Math.round(avgCT / 24)}d`} · ${cycleTime.length} task${cycleTime.length !== 1 ? "s" : ""} com histórico`}
+          {ctStats?.p50_horas != null && ` · p50: ${ctStats.p50_horas}h`}
+          {ctStats?.p85_horas != null && ` · p85: ${ctStats.p85_horas}h`}
         </p>
         {ctBuckets.length === 0 ? (
           <p style={empty}>Nenhuma task concluída com histórico de transições ainda.</p>
@@ -262,6 +276,31 @@ export default function MetricasTab({ projectId }: Props) {
               <Area type="monotone" dataKey="em_andamento" stackId="1" stroke="#92400e" fill="#fef9c3" />
               <Area type="monotone" dataKey="planejado" stackId="1" stroke="#374151" fill="#f1f5f9" />
             </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Performance por operacional (SPI estimado) */}
+      <div style={section}>
+        <p style={title}>SPI por operacional (estimado) <InfoTooltip id="perfop" /></p>
+        {perfOp.length === 0 ? (
+          <p style={empty}>Nenhum operacional com tasks atribuídas ainda.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={perfOp} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="operacional_nome" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} domain={[0, "auto"]} />
+              <Tooltip
+                formatter={(v, name) => [
+                  v,
+                  name === "pontos_atribuidos" ? "Atribuídos" : name === "pontos_realizados" ? "Realizados" : name,
+                ]}
+              />
+              <Legend formatter={(v) => v === "pontos_atribuidos" ? "Atribuídos" : "Realizados"} />
+              <Bar dataKey="pontos_atribuidos" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         )}
       </div>
