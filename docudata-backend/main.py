@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas
 from services.notification_checker import check_and_send_notifications
+from services.travamento_checker import check_travamento_automatico
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,6 +19,7 @@ _scheduler = AsyncIOScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _scheduler.add_job(check_and_send_notifications, "interval", hours=1, id="sprint_notifications")
+    _scheduler.add_job(check_travamento_automatico, "interval", hours=24, id="task_travamento_check")
     _scheduler.start()
     yield
     _scheduler.shutdown()
@@ -66,3 +68,10 @@ async def trigger_notification_check(background_tasks: BackgroundTasks):
     """Dispara manualmente o check de notificações (uso em testes). Retorna imediatamente."""
     background_tasks.add_task(check_and_send_notifications)
     return {"status": "ok", "message": "Check iniciado em background — veja os logs do Railway para detalhes."}
+
+
+@app.post("/tasks/travamento/check")
+async def trigger_travamento_check(background_tasks: BackgroundTasks):
+    """Dispara manualmente o check de travamento automático (uso em testes). Retorna imediatamente."""
+    background_tasks.add_task(check_travamento_automatico)
+    return {"status": "ok", "message": "Check de travamento automático iniciado em background — veja os logs do Railway para detalhes."}

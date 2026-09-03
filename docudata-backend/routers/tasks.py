@@ -432,6 +432,37 @@ async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = N
     return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo))
 
 
+@router.post("/{task_id}/travado/override", response_model=TaskResponse)
+async def override_travamento(task_id: str, autor: Optional[str] = None):
+    """
+    ALERT-03: suprime a exibição do alerta de travamento automático sem apagar
+    o histórico de que o sistema sinalizou — travado_automatico NÃO é tocado
+    aqui, só travado_override/_por/_em. O badge some porque a condição de
+    exibição no frontend é travado_automatico && !travado_override.
+    """
+    client = get_client()
+
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+
+    if task.get("coluna_kanban") != "em_andamento":
+        raise HTTPException(
+            status_code=409,
+            detail="Task não está em Em Andamento — não há travamento automático para suprimir.",
+        )
+
+    agora = datetime.now(timezone.utc)
+    updates = {
+        "travado_override": True,
+        "travado_override_por": autor,
+        "travado_override_em": agora.isoformat(),
+    }
+    result = client.table("tasks").update(updates).eq("id", task_id).execute()
+    return result.data[0]
+
+
 @router.patch("/reordenar/batch", status_code=200)
 async def reordenar_tasks(itens: list[TaskReordenarItem]):
     """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna)."""
