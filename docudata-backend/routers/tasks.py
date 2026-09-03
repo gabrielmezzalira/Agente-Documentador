@@ -283,6 +283,17 @@ async def patch_task(task_id: str, data: TaskUpdate):
                 status_code=409,
                 detail="DoR: associe a task a uma sprint antes de movê-la para Em Andamento.",
             )
+        # DoD: checklist deve estar completo (ou vazio) antes de ir para Concluída.
+        # MET-07 (ganchos daily/commit/retrospectiva -> sinais de saúde) é explicitamente
+        # NÃO implementado nesta task — deferido, não silenciosamente descartado.
+        if coluna_nova == "concluida":
+            checklist_efetivo = data.checklist if data.checklist is not None else task.get("checklist", [])
+            pendentes = [item for item in (checklist_efetivo or []) if not item.get("done")]
+            if pendentes:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"DoD: {len(pendentes)} item(ns) do checklist ainda não concluído(s).",
+                )
         op_efetivo = data.operacional_id if data.operacional_id is not None else task.get("operacional_id")
         ok, motivo = check_wip(client, project_id, op_efetivo, coluna_nova)
         if not ok:
