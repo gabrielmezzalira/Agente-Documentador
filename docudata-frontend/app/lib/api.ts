@@ -209,6 +209,43 @@ export interface SprintWithStatus extends Sprint {
   pendencias: string[];          // subset de ['planning','review']
   pontos_previstos: number | null;
   baseline_locked_at: string | null;
+  avaliacao_completa_em?: string | null;
+}
+
+export interface AvaliacaoAnterior {
+  avaliacao_id: string;
+  project_name: string;
+  criado_em: string;
+  resposta_1: number;
+  resposta_2: number;
+  resposta_3: number;
+  resposta_4: number;
+  resposta_5: number;
+  resposta_6: number;
+  resposta_7: number;
+}
+
+export interface PendenciaAvaliacao {
+  operacional_id: string;
+  nome: string;
+  ultima_avaliacao_outro_projeto: AvaliacaoAnterior | null;
+}
+
+export interface AvaliacaoGerente {
+  id: string;
+  operacional_id: string;
+  gerente_id: string;
+  sprint_id: string;
+  resposta_1: number;
+  resposta_2: number;
+  resposta_3: number;
+  resposta_4: number;
+  resposta_5: number;
+  resposta_6: number;
+  resposta_7: number;
+  reaproveitada_de: string | null;
+  criado_em: string;
+  editavel_ate: string;
 }
 
 export interface TechTimelineEntry {
@@ -388,6 +425,45 @@ export async function updateSprintBaseline(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao definir baseline");
+  }
+  return res.json();
+}
+
+export async function listPendenciasAvaliacao(sprintId: string): Promise<PendenciaAvaliacao[]> {
+  const res = await apiFetch(`${API}/avaliacoes/${sprintId}/pendencias`);
+  if (!res.ok) throw new Error("Erro ao buscar pendências de avaliação");
+  return res.json();
+}
+
+export async function submitAvaliacao(data: {
+  operacional_id: string;
+  sprint_id: string;
+  resposta_1: number;
+  resposta_2: number;
+  resposta_3: number;
+  resposta_4: number;
+  resposta_5: number;
+  resposta_6: number;
+  resposta_7: number;
+  reaproveitada_de?: string;
+}): Promise<AvaliacaoGerente> {
+  const res = await apiFetch(`${API}/avaliacoes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao salvar avaliação");
+  }
+  return res.json();
+}
+
+export async function confirmarAvaliacaoSemanal(sprintId: string): Promise<{ sprint_id: string; avaliacao_completa_em: string }> {
+  const res = await apiFetch(`${API}/avaliacoes/${sprintId}/confirmar`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Ainda há avaliações pendentes");
   }
   return res.json();
 }

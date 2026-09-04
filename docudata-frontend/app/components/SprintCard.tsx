@@ -10,6 +10,7 @@ import type {
 } from "../lib/api";
 import { updateSprintBaseline } from "../lib/api";
 import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
+import { useAuth } from "./AuthGuard";
 
 const EXPECTED_DAILYS = 5;
 
@@ -34,6 +35,7 @@ interface Props {
   onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
   onSprintUpdated?: (updated: SprintWithStatus) => void;
+  onOpenAvaliacaoSemanal?: (sprint: SprintWithStatus) => void;
 }
 
 // ---------- styles ----------
@@ -286,7 +288,9 @@ export default function SprintCard({
   onMoveIngestion,
   onDeleteSprint,
   onSprintUpdated,
+  onOpenAvaliacaoSemanal,
 }: Props) {
+  const cargo = useAuth()?.cargo ?? "lider";
   const [expanded, setExpanded] = useState(false);
   const [baselineOpen, setBaselineOpen] = useState(false);
   const [baselineInput, setBaselineInput] = useState("");
@@ -491,6 +495,11 @@ export default function SprintCard({
         <button style={btnAction} onClick={() => onAddManualDoc(sprint.numero)}>
           + Documento manual
         </button>
+        {cargo !== "operacional" && (
+          <button style={btnAction} onClick={() => onOpenAvaliacaoSemanal?.(sprint)}>
+            {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
+          </button>
+        )}
       </div>
 
       {/* Painel de confirmação com explicação */}

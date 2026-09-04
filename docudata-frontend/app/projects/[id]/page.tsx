@@ -55,6 +55,7 @@ import TutorialBanner from "../../components/TutorialBanner";
 import ManualDocModal from "../../components/ManualDocModal";
 import UploadLivreModal from "../../components/UploadLivreModal";
 import RetroModal from "../../components/RetroModal";
+import AvaliacaoSemanalModal from "../../components/AvaliacaoSemanalModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
 
 type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
@@ -227,6 +228,7 @@ export default function ProjectDashboard() {
 
   // ---------- modal planning (novo fluxo) ----------
   const [planningModal, setPlanningModal] = useState<{ sprint: SprintWithStatus } | null>(null);
+  const [avaliacaoModal, setAvaliacaoModal] = useState<{ sprintId: string; sprintNumero: number } | null>(null);
 
   // ---------- resumo semanal ----------
   const [resumoSemanal, setResumoSemanal] = useState<string | null>(null);
@@ -685,6 +687,7 @@ export default function ProjectDashboard() {
                 onMoveIngestion={handleMoveIngestion}
                 onDeleteSprint={handleDeleteSprint}
                 onSprintUpdated={(updated) => setSprints((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s))}
+                onOpenAvaliacaoSemanal={(s2) => setAvaliacaoModal({ sprintId: s2.id, sprintNumero: s2.numero })}
               />
             ))
           )}
@@ -1037,6 +1040,22 @@ export default function ProjectDashboard() {
           onSubmitted={async () => {
             setPlanningModal(null);
             await refreshAll();
+          }}
+        />
+      )}
+
+      {/* MODAL Avaliação Semanal */}
+      {avaliacaoModal && (
+        <AvaliacaoSemanalModal
+          sprintId={avaliacaoModal.sprintId}
+          sprintNumero={avaliacaoModal.sprintNumero}
+          onClose={() => setAvaliacaoModal(null)}
+          onCompleted={() => {
+            setSprints((prev) =>
+              prev.map((s) =>
+                s.id === avaliacaoModal.sprintId ? { ...s, avaliacao_completa_em: new Date().toISOString() } : s
+              )
+            );
           }}
         />
       )}
