@@ -376,3 +376,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
     acao          text        NOT NULL,
     created_at    timestamptz DEFAULT now()
 );
+
+-- Phase 17: Avaliação do Gerente (AVAL-01..05)
+CREATE TABLE IF NOT EXISTS avaliacoes_gerente (
+    id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    operacional_id    uuid        NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    gerente_id        uuid        NOT NULL REFERENCES pessoa(id),
+    sprint_id         uuid        NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    resposta_1        int         NOT NULL CHECK (resposta_1 BETWEEN 0 AND 5),
+    resposta_2        int         NOT NULL CHECK (resposta_2 BETWEEN 0 AND 5),
+    resposta_3        int         NOT NULL CHECK (resposta_3 BETWEEN 0 AND 5),
+    resposta_4        int         NOT NULL CHECK (resposta_4 BETWEEN 0 AND 5),
+    resposta_5        int         NOT NULL CHECK (resposta_5 BETWEEN 0 AND 5),
+    resposta_6        int         NOT NULL CHECK (resposta_6 BETWEEN 0 AND 5),
+    resposta_7        int         NOT NULL CHECK (resposta_7 BETWEEN 0 AND 5),
+    reaproveitada_de  uuid        REFERENCES avaliacoes_gerente(id),
+    criado_em         timestamptz NOT NULL DEFAULT now(),
+    editavel_ate      timestamptz NOT NULL,
+    UNIQUE (operacional_id, sprint_id)
+);
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_gerente_sprint ON avaliacoes_gerente(sprint_id);
+
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS avaliacao_completa_em timestamptz;

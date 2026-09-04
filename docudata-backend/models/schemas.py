@@ -149,6 +149,7 @@ class SprintResponse(BaseModel):
     numero: int
     status_saude: Optional[str] = None
     plano_correcao: Optional[str] = None
+    avaliacao_completa_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -561,3 +562,62 @@ class SignupNovoRequest(BaseModel):
     nome: str
     email: str
     senha: str = Field(..., min_length=6)
+
+
+# ── Avaliação do Gerente (Phase 17) ─────────────────────────────────────────
+
+_RESPOSTA_MIN, _RESPOSTA_MAX = 0, 5
+
+
+class AvaliacaoGerenteCreate(BaseModel):
+    operacional_id: str
+    sprint_id: str
+    resposta_1: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_2: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_3: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_4: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_5: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_6: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_7: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    reaproveitada_de: Optional[str] = None
+
+
+class AvaliacaoGerenteResponse(BaseModel):
+    id: str
+    operacional_id: str
+    gerente_id: str
+    sprint_id: str
+    resposta_1: int
+    resposta_2: int
+    resposta_3: int
+    resposta_4: int
+    resposta_5: int
+    resposta_6: int
+    resposta_7: int
+    reaproveitada_de: Optional[str] = None
+    criado_em: datetime
+    editavel_ate: datetime
+
+
+class AvaliacaoAnteriorResponse(BaseModel):
+    avaliacao_id: str
+    project_name: str
+    criado_em: datetime
+    resposta_1: int
+    resposta_2: int
+    resposta_3: int
+    resposta_4: int
+    resposta_5: int
+    resposta_6: int
+    resposta_7: int
+
+
+class PendenciaAvaliacaoResponse(BaseModel):
+    operacional_id: str
+    nome: str
+    ultima_avaliacao_outro_projeto: Optional[AvaliacaoAnteriorResponse] = None
+
+
+class ConfirmarAvaliacaoResponse(BaseModel):
+    sprint_id: str
+    avaliacao_completa_em: datetime
