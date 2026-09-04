@@ -40,6 +40,7 @@ import {
   type OperacionalResponse,
 } from "../../lib/api";
 import Tabs from "../../components/Tabs";
+import { useAuth } from "../../components/AuthGuard";
 import SprintCard from "../../components/SprintCard";
 import SprintDocModal from "../../components/SprintDocModal";
 import TechnologiesTab from "../../components/TechnologiesTab";
@@ -200,6 +201,9 @@ export default function ProjectDashboard() {
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
+  const auth = useAuth();
+  const cargo = auth?.cargo ?? "lider";
+  const OPERACIONAL_TABS = new Set(["sprints", "tasks", "tecnologias", "documentos"]);
   const [descOpen, setDescOpen] = useState(false);
   const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
 
@@ -599,7 +603,7 @@ export default function ProjectDashboard() {
           { id: "tecnologias", label: "Tecnologias" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
-        ]}
+        ].filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
       />

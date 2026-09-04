@@ -1,5 +1,80 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, { ...init, credentials: "include" });
+}
+
+export interface MeResponse {
+  nome: string;
+  email: string;
+  cargo: "lider" | "gerente" | "operacional";
+}
+
+export interface LoginResponse {
+  nome: string;
+  cargo: "lider" | "gerente" | "operacional";
+}
+
+export interface OperacionalSemConta {
+  operacional_id: string;
+  nome: string;
+  project_id: string;
+  project_name: string;
+}
+
+export async function login(email: string, senha: string): Promise<LoginResponse> {
+  const res = await apiFetch(`${API}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, senha }),
+  });
+  if (res.status === 401) throw new Error("Email ou senha inválidos");
+  if (!res.ok) throw new Error("Erro ao fazer login");
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await apiFetch(`${API}/auth/logout`, { method: "POST" });
+}
+
+export async function getMe(): Promise<MeResponse> {
+  const res = await apiFetch(`${API}/auth/me`);
+  if (!res.ok) throw new Error("Não autenticado");
+  return res.json();
+}
+
+export async function listOperacionaisSemConta(): Promise<OperacionalSemConta[]> {
+  const res = await apiFetch(`${API}/auth/operacionais-sem-conta`);
+  if (!res.ok) throw new Error("Erro ao buscar operacionais");
+  return res.json();
+}
+
+export async function signupClaim(operacional_id: string, email: string, senha: string): Promise<LoginResponse> {
+  const res = await apiFetch(`${API}/auth/signup/claim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operacional_id, email, senha }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao criar conta");
+  }
+  return res.json();
+}
+
+export async function signupNovo(nome: string, email: string, senha: string): Promise<LoginResponse> {
+  const res = await apiFetch(`${API}/auth/signup/novo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome, email, senha }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao criar conta");
+  }
+  return res.json();
+}
+
 export interface ValidationError422 {
   tipo_detectado: string;
   tipo_esperado: string;
@@ -159,26 +234,26 @@ export interface SprintDocResponse {
 }
 
 export async function listProjects(): Promise<Project[]> {
-  const res = await fetch(`${API}/projects`);
+  const res = await apiFetch(`${API}/projects`);
   if (!res.ok) throw new Error("Erro ao buscar projetos");
   return res.json();
 }
 
 export async function getProject(id: string): Promise<Project> {
-  const res = await fetch(`${API}/projects/${id}`);
+  const res = await apiFetch(`${API}/projects/${id}`);
   if (!res.ok) throw new Error("Projeto não encontrado");
   return res.json();
 }
 
 export async function getProjectCost(projectId: string): Promise<ProjectCost> {
-  const res = await fetch(`${API}/projects/${projectId}/cost`);
+  const res = await apiFetch(`${API}/projects/${projectId}/cost`);
   if (!res.ok) throw new Error("Erro ao buscar custo do projeto");
   return res.json();
 }
 
 export async function getProjectUsage(projectId: string, month?: string): Promise<ProjectUsage> {
   const url = `${API}/projects/${projectId}/usage${month ? `?month=${month}` : ""}`;
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) throw new Error("Erro ao buscar uso mensal do projeto");
   return res.json();
 }
@@ -192,7 +267,7 @@ export async function updateContrato(
     periodo_garantia_dias?: number | null;
   }
 ): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/contrato`, {
+  const res = await apiFetch(`${API}/projects/${projectId}/contrato`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -202,7 +277,7 @@ export async function updateContrato(
 }
 
 export async function updateApiKey(projectId: string, key: string | null): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/api-key`, {
+  const res = await apiFetch(`${API}/projects/${projectId}/api-key`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ gemini_api_key: key }),
@@ -212,7 +287,7 @@ export async function updateApiKey(projectId: string, key: string | null): Promi
 }
 
 export async function updateGerenteEmail(projectId: string, email: string | null): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/gerente-email`, {
+  const res = await apiFetch(`${API}/projects/${projectId}/gerente-email`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ gerente_email: email || null }),
@@ -229,7 +304,7 @@ export async function createProject(data: {
   budget_usd?: number | null;
   gemini_api_key?: string;
 }): Promise<Project> {
-  const res = await fetch(`${API}/projects`, {
+  const res = await apiFetch(`${API}/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -250,7 +325,7 @@ export async function ingestFile(
   form.append("projeto_id", projectId);
   if (force) form.append("force", "true");
 
-  const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
+  const res = await apiFetch(`${API}/ingest`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
@@ -262,41 +337,41 @@ export async function ingestFile(
 }
 
 export async function listIngestions(projectId: string): Promise<Ingestion[]> {
-  const res = await fetch(`${API}/ingestions/${projectId}`);
+  const res = await apiFetch(`${API}/ingestions/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar ingestões");
   return res.json();
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const res = await fetch(`${API}/projects/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/projects/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir projeto");
 }
 
 export async function listDocs(projectId: string): Promise<GeneratedDoc[]> {
-  const res = await fetch(`${API}/docs/${projectId}`);
+  const res = await apiFetch(`${API}/docs/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar documentos");
   return res.json();
 }
 
 export async function deleteDoc(docId: string): Promise<void> {
-  const res = await fetch(`${API}/docs/${docId}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/docs/${docId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir documento");
 }
 
 export async function toggleDelivered(projectId: string): Promise<Project> {
-  const res = await fetch(`${API}/projects/${projectId}/delivered`, { method: "PATCH" });
+  const res = await apiFetch(`${API}/projects/${projectId}/delivered`, { method: "PATCH" });
   if (!res.ok) throw new Error("Erro ao atualizar status do projeto");
   return res.json();
 }
 
 export async function searchStack(query: string): Promise<StackSearchResponse> {
-  const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`);
+  const res = await apiFetch(`${API}/search?q=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error("Erro ao buscar stack");
   return res.json();
 }
 
 export async function listSprints(projectId: string): Promise<SprintWithStatus[]> {
-  const res = await fetch(`${API}/projects/${projectId}/sprints`);
+  const res = await apiFetch(`${API}/projects/${projectId}/sprints`);
   if (!res.ok) throw new Error("Erro ao buscar sprints");
   return res.json();
 }
@@ -305,7 +380,7 @@ export async function updateSprintBaseline(
   sprintId: string,
   pontosPrevistos: number
 ): Promise<SprintWithStatus> {
-  const res = await fetch(`${API}/sprints/${sprintId}/baseline`, {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/baseline`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pontos_previstos: pontosPrevistos }),
@@ -318,7 +393,7 @@ export async function updateSprintBaseline(
 }
 
 export async function deleteSprint(sprintId: string): Promise<void> {
-  const res = await fetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao excluir sprint");
@@ -326,7 +401,7 @@ export async function deleteSprint(sprintId: string): Promise<void> {
 }
 
 export async function createSprint(projectId: string, numero?: number): Promise<Sprint> {
-  const res = await fetch(`${API}/projects/${projectId}/sprints`, {
+  const res = await apiFetch(`${API}/projects/${projectId}/sprints`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ numero: numero ?? null }),
@@ -339,14 +414,14 @@ export async function createSprint(projectId: string, numero?: number): Promise<
 }
 
 export async function getTechnologies(projectId: string): Promise<TechTimeline> {
-  const res = await fetch(`${API}/projects/${projectId}/technologies`);
+  const res = await apiFetch(`${API}/projects/${projectId}/technologies`);
   if (!res.ok) throw new Error("Erro ao buscar tecnologias do projeto");
   return res.json();
 }
 
 
 async function _postSprintDoc(path: string, form: FormData): Promise<SprintDocResponse> {
-  const res = await fetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });
+  const res = await apiFetch(`${API}/sprint-docs/${path}`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 422 && err.detail && typeof err.detail === "object" && err.detail.tipo_detectado) {
@@ -511,7 +586,7 @@ export async function createManualDoc(input: {
   sprintNumero?: number | null;
   content: string;
 }): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/docs/manual`, {
+  const res = await apiFetch(`${API}/docs/manual`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -539,7 +614,7 @@ export async function uploadManualDocPdf(input: {
   form.append("doc_type", input.docType);
   if (input.sprintNumero != null) form.append("sprint_numero", String(input.sprintNumero));
   form.append("arquivo", input.arquivo);
-  const res = await fetch(`${API}/docs/manual/upload`, { method: "POST", body: form });
+  const res = await apiFetch(`${API}/docs/manual/upload`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao subir PDF do documento manual");
@@ -548,7 +623,7 @@ export async function uploadManualDocPdf(input: {
 }
 
 export async function exportToGdocs(docId: string): Promise<{ url: string }> {
-  const res = await fetch(`${API}/docs/${docId}/export-gdocs`, { method: "POST" });
+  const res = await apiFetch(`${API}/docs/${docId}/export-gdocs`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao exportar para Google Docs");
@@ -557,7 +632,7 @@ export async function exportToGdocs(docId: string): Promise<{ url: string }> {
 }
 
 export async function listIngestionsBySprint(projetoId: string, sprint: number): Promise<Ingestion[]> {
-  const res = await fetch(`${API}/ingestions/${projetoId}/${sprint}`);
+  const res = await apiFetch(`${API}/ingestions/${projetoId}/${sprint}`);
   if (!res.ok) throw new Error("Erro ao buscar ingestões da sprint");
   return res.json();
 }
@@ -612,7 +687,7 @@ export async function enrichContent(input: {
   form.append("doc_type", input.docType);
   if (input.texto) form.append("texto", input.texto);
   if (input.arquivo) form.append("arquivo", input.arquivo);
-  const res = await fetch(`${API}/enrich`, { method: "POST", body: form });
+  const res = await apiFetch(`${API}/enrich`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao analisar conteúdo");
@@ -621,12 +696,12 @@ export async function enrichContent(input: {
 }
 
 export async function deleteIngestion(ingestionId: string): Promise<void> {
-  const res = await fetch(`${API}/ingestions/${ingestionId}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/ingestions/${ingestionId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir ingestão");
 }
 
 export async function moveIngestion(ingestionId: string, sprintNumber: number): Promise<Ingestion> {
-  const res = await fetch(`${API}/ingestions/${ingestionId}`, {
+  const res = await apiFetch(`${API}/ingestions/${ingestionId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sprint_number: sprintNumber }),
@@ -639,7 +714,7 @@ export async function moveIngestion(ingestionId: string, sprintNumber: number): 
 }
 
 export async function moveDoc(docId: string, sprintNumber: number | null): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/docs/${docId}`, {
+  const res = await apiFetch(`${API}/docs/${docId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sprint_number: sprintNumber }),
@@ -658,7 +733,7 @@ export async function generateDoc(
   ingestionId?: string,
   observacoes?: string
 ): Promise<GeneratedDoc> {
-  const res = await fetch(`${API}/generate`, {
+  const res = await apiFetch(`${API}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -739,13 +814,13 @@ export interface PainelData {
 }
 
 export async function getPainel(projectId: string): Promise<PainelData> {
-  const res = await fetch(`${API}/projects/${projectId}/painel`);
+  const res = await apiFetch(`${API}/projects/${projectId}/painel`);
   if (!res.ok) throw new Error("Erro ao buscar painel");
   return res.json();
 }
 
 export async function listFuncionalidades(projectId: string): Promise<FuncionalidadeResponse[]> {
-  const res = await fetch(`${API}/funcionalidades?project_id=${projectId}`);
+  const res = await apiFetch(`${API}/funcionalidades?project_id=${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar funcionalidades");
   return res.json();
 }
@@ -762,7 +837,7 @@ export async function importarFuncionalidades(
   projectId: string,
   textoContrato: string,
 ): Promise<FuncionalidadeProposta[]> {
-  const res = await fetch(`${API}/funcionalidades/importar`, {
+  const res = await apiFetch(`${API}/funcionalidades/importar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId, texto_contrato: textoContrato }),
@@ -782,7 +857,7 @@ export async function importarFuncionalidadesArquivo(
   const form = new FormData();
   form.append("project_id", projectId);
   form.append("arquivo", arquivo);
-  const res = await fetch(`${API}/funcionalidades/importar/arquivo`, { method: "POST", body: form });
+  const res = await apiFetch(`${API}/funcionalidades/importar/arquivo`, { method: "POST", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao importar arquivo");
@@ -804,7 +879,7 @@ export async function updateFuncionalidade(
     sprint_alvo?: string;
   },
 ): Promise<FuncionalidadeResponse> {
-  const res = await fetch(`${API}/funcionalidades/${id}`, {
+  const res = await apiFetch(`${API}/funcionalidades/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -825,7 +900,7 @@ export async function createFuncionalidade(data: {
   prioridade: string;
   responsavel?: string;
 }): Promise<FuncionalidadeResponse> {
-  const res = await fetch(`${API}/funcionalidades`, {
+  const res = await apiFetch(`${API}/funcionalidades`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -841,7 +916,7 @@ export async function confirmarImportacao(
   projectId: string,
   itens: { proposta: FuncionalidadeProposta; confirmed: boolean }[],
 ): Promise<FuncionalidadeResponse[]> {
-  const res = await fetch(`${API}/funcionalidades/importar/confirmar`, {
+  const res = await apiFetch(`${API}/funcionalidades/importar/confirmar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId, itens }),
@@ -904,7 +979,7 @@ export async function getRascunho(
   projectId: string,
   sprintNumero: number
 ): Promise<GetRascunhoResponse> {
-  const res = await fetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`);
+  const res = await apiFetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao buscar rascunho");
@@ -917,7 +992,7 @@ export async function patchRascunho(
   sprintNumero: number,
   payload: { step_atual: number; dados_json: DadosJson }
 ): Promise<RascunhoData> {
-  const res = await fetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`, {
+  const res = await apiFetch(`${API}/composer/rascunho/${projectId}/${sprintNumero}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -933,7 +1008,7 @@ export async function gerarPlanning(
   projectId: string,
   sprintNumero: number
 ): Promise<GerarResponse> {
-  const res = await fetch(`${API}/composer/gerar`, {
+  const res = await apiFetch(`${API}/composer/gerar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId, sprint_numero: sprintNumero }),
@@ -950,7 +1025,7 @@ export async function confirmarPlanning(
   sprintNumero: number,
   markdown: string
 ): Promise<ConfirmarResponse> {
-  const res = await fetch(`${API}/composer/confirmar`, {
+  const res = await apiFetch(`${API}/composer/confirmar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId, sprint_numero: sprintNumero, markdown }),
@@ -965,7 +1040,7 @@ export async function confirmarPlanning(
 // ---------------------------------------------------------------------------
 // Suíte de Aceite — interfaces e funções
 export async function gerarResumoSemanal(projectId: string): Promise<{ content: string }> {
-  const res = await fetch(`${API}/boletins/resumo_semanal`, {
+  const res = await apiFetch(`${API}/boletins/resumo_semanal`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId }),
@@ -1024,7 +1099,7 @@ export async function enrichPlanningComCorrelacoes(
   if (texto) fd.append("texto", texto);
   if (arquivo) fd.append("arquivo", arquivo);
 
-  const res = await fetch(`${API}/enrich/planning-correlacoes`, { method: "POST", body: fd });
+  const res = await apiFetch(`${API}/enrich/planning-correlacoes`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao analisar conteúdo");
@@ -1036,7 +1111,7 @@ export async function createSprintFuncionalidades(
   sprintId: string,
   correlacoes: Correlacao[]
 ): Promise<{ created: number; sprint_funcionalidades: SprintFuncionalidade[] }> {
-  const res = await fetch(`${API}/sprint-funcionalidades`, {
+  const res = await apiFetch(`${API}/sprint-funcionalidades`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sprint_id: sprintId, correlacoes }),
@@ -1049,7 +1124,7 @@ export async function createSprintFuncionalidades(
 }
 
 export async function getSprintFuncionalidades(sprintId: string): Promise<SprintFuncionalidade[]> {
-  const res = await fetch(`${API}/sprint-funcionalidades/sprint/${sprintId}`);
+  const res = await apiFetch(`${API}/sprint-funcionalidades/sprint/${sprintId}`);
   if (!res.ok) throw new Error("Erro ao buscar funcionalidades da sprint");
   return res.json();
 }
@@ -1058,7 +1133,7 @@ export async function updateSprintFuncionalidade(
   sfId: string,
   data: { status?: "em_andamento" | "concluida"; tasks?: TaskItem[] }
 ): Promise<SprintFuncionalidade> {
-  const res = await fetch(`${API}/sprint-funcionalidades/${sfId}`, {
+  const res = await apiFetch(`${API}/sprint-funcionalidades/${sfId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1073,7 +1148,7 @@ export async function updateSprintFuncionalidade(
 export async function getFuncionalidadesRecomendadas(
   projectId: string
 ): Promise<Pick<FuncionalidadeResponse, "id" | "id_funcional" | "titulo" | "status" | "sprint_alvo">[]> {
-  const res = await fetch(`${API}/sprint-funcionalidades/recomendadas/${projectId}`);
+  const res = await apiFetch(`${API}/sprint-funcionalidades/recomendadas/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar recomendações");
   return res.json();
 }
@@ -1092,7 +1167,7 @@ export interface OperacionalResponse {
 }
 
 export async function listOperacionais(projectId: string): Promise<OperacionalResponse[]> {
-  const res = await fetch(`${API}/operacionais?project_id=${projectId}`);
+  const res = await apiFetch(`${API}/operacionais?project_id=${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar operacionais");
   return res.json();
 }
@@ -1103,7 +1178,7 @@ export async function createOperacional(data: {
   email?: string;
   papel?: string;
 }): Promise<OperacionalResponse> {
-  const res = await fetch(`${API}/operacionais`, {
+  const res = await apiFetch(`${API}/operacionais`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1116,7 +1191,7 @@ export async function updateOperacional(
   id: string,
   data: { nome?: string; email?: string; papel?: string; ativo?: boolean }
 ): Promise<OperacionalResponse> {
-  const res = await fetch(`${API}/operacionais/${id}`, {
+  const res = await apiFetch(`${API}/operacionais/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1126,7 +1201,7 @@ export async function updateOperacional(
 }
 
 export async function deleteOperacional(id: string): Promise<void> {
-  const res = await fetch(`${API}/operacionais/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/operacionais/${id}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao excluir operacional");
@@ -1189,7 +1264,7 @@ export async function listTasksKanban(params: {
   if (params.operacional_id) q.set("operacional_id", params.operacional_id);
   if (params.funcionalidade_id) q.set("funcionalidade_id", params.funcionalidade_id);
   if (params.coluna) q.set("coluna", params.coluna);
-  const res = await fetch(`${API}/tasks?${q}`);
+  const res = await apiFetch(`${API}/tasks?${q}`);
   if (!res.ok) throw new Error("Erro ao buscar tasks");
   return res.json();
 }
@@ -1204,7 +1279,7 @@ export async function createTaskKanban(data: {
   descricao?: string;
   coluna_kanban?: string;
 }): Promise<TaskKanbanResponse> {
-  const res = await fetch(`${API}/tasks`, {
+  const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1233,7 +1308,7 @@ export async function patchTaskKanban(
     bloqueado_resolvido_por?: string;
   }
 ): Promise<TaskKanbanResponse> {
-  const res = await fetch(`${API}/tasks/${id}`, {
+  const res = await apiFetch(`${API}/tasks/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1255,7 +1330,7 @@ export async function moverTaskKanban(
   const q = new URLSearchParams({ coluna_destino });
   if (autor) q.set("autor", autor);
   if (motivo) q.set("motivo", motivo);
-  const res = await fetch(`${API}/tasks/${id}/mover?${q}`, { method: "POST" });
+  const res = await apiFetch(`${API}/tasks/${id}/mover?${q}`, { method: "POST" });
   if (res.status === 409) {
     const err = await res.json().catch(() => ({}));
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
@@ -1267,7 +1342,7 @@ export async function moverTaskKanban(
 export async function overrideTravamentoTask(id: string, autor?: string): Promise<TaskKanbanResponse> {
   const q = new URLSearchParams();
   if (autor) q.set("autor", autor);
-  const res = await fetch(`${API}/tasks/${id}/travado/override?${q}`, { method: "POST" });
+  const res = await apiFetch(`${API}/tasks/${id}/travado/override?${q}`, { method: "POST" });
   if (res.status === 409) {
     const err = await res.json().catch(() => ({}));
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "Task não está em Em Andamento"), { status: 409 });
@@ -1277,12 +1352,12 @@ export async function overrideTravamentoTask(id: string, autor?: string): Promis
 }
 
 export async function deleteTaskKanban(id: string): Promise<void> {
-  const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`${API}/tasks/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Erro ao excluir task");
 }
 
 export async function listTaskTransicoesKanban(taskId: string): Promise<TaskTransicaoKanban[]> {
-  const res = await fetch(`${API}/tasks/${taskId}/transicoes`);
+  const res = await apiFetch(`${API}/tasks/${taskId}/transicoes`);
   if (!res.ok) throw new Error("Erro ao buscar histórico da task");
   return res.json();
 }
@@ -1302,7 +1377,7 @@ export interface TaskSugestaoResponse {
 }
 
 export async function listTaskSugestoes(projectId: string): Promise<TaskSugestaoResponse[]> {
-  const res = await fetch(`${API}/tasks/sugestoes?project_id=${encodeURIComponent(projectId)}`);
+  const res = await apiFetch(`${API}/tasks/sugestoes?project_id=${encodeURIComponent(projectId)}`);
   if (!res.ok) throw new Error("Erro ao buscar sugestões");
   return res.json();
 }
@@ -1311,7 +1386,7 @@ export async function resolveTaskSugestao(
   sugestaoId: string,
   aceita: boolean
 ): Promise<TaskSugestaoResponse> {
-  const res = await fetch(`${API}/tasks/sugestoes/${sugestaoId}`, {
+  const res = await apiFetch(`${API}/tasks/sugestoes/${sugestaoId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ aceita }),
@@ -1351,25 +1426,25 @@ export interface CfdPoint {
 }
 
 export async function getMetricasSpi(projectId: string): Promise<SpiPoint[]> {
-  const res = await fetch(`${API}/metricas/${projectId}/spi`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/spi`);
   if (!res.ok) throw new Error("Erro ao buscar SPI");
   return res.json();
 }
 
 export async function getMetricasThroughput(projectId: string): Promise<ThroughputPoint[]> {
-  const res = await fetch(`${API}/metricas/${projectId}/throughput`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/throughput`);
   if (!res.ok) throw new Error("Erro ao buscar throughput");
   return res.json();
 }
 
 export async function getMetricasCycleTime(projectId: string): Promise<CycleTimePoint[]> {
-  const res = await fetch(`${API}/metricas/${projectId}/cycle-time`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/cycle-time`);
   if (!res.ok) throw new Error("Erro ao buscar cycle-time");
   return res.json();
 }
 
 export async function getMetricasCfd(projectId: string): Promise<CfdPoint[]> {
-  const res = await fetch(`${API}/metricas/${projectId}/cfd`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/cfd`);
   if (!res.ok) throw new Error("Erro ao buscar CFD");
   return res.json();
 }
@@ -1389,13 +1464,13 @@ export interface CycleTimeStats {
 }
 
 export async function getMetricasPerformanceOperacional(projectId: string): Promise<PerformanceOperacionalPoint[]> {
-  const res = await fetch(`${API}/metricas/${projectId}/performance-operacional`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/performance-operacional`);
   if (!res.ok) throw new Error("Erro ao buscar performance por operacional");
   return res.json();
 }
 
 export async function getMetricasCycleTimeStats(projectId: string): Promise<CycleTimeStats> {
-  const res = await fetch(`${API}/metricas/${projectId}/cycle-time/stats`);
+  const res = await apiFetch(`${API}/metricas/${projectId}/cycle-time/stats`);
   if (!res.ok) throw new Error("Erro ao buscar estatísticas de cycle-time");
   return res.json();
 }
