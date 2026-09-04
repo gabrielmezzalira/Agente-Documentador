@@ -521,3 +521,43 @@ class TaskSugestaoResponse(BaseModel):
 
 class TaskSugestaoResolve(BaseModel):
     aceita: bool
+
+
+# ── Auth / RBAC (Phase 16) ─────────────────────────────────────────────────
+
+_CARGOS_VALIDOS = {"lider", "gerente", "operacional"}
+
+
+class LoginRequest(BaseModel):
+    email: str
+    senha: str
+
+
+class LoginResponse(BaseModel):
+    nome: str
+    cargo: str
+
+
+class MeResponse(BaseModel):
+    nome: str
+    email: str
+    cargo: str
+
+
+class OperacionalSemContaResponse(BaseModel):
+    operacional_id: str
+    nome: str
+    project_id: str
+    project_name: str
+
+
+class SignupClaimRequest(BaseModel):
+    operacional_id: str
+    email: str
+    senha: str = Field(..., min_length=6)
+
+
+class SignupNovoRequest(BaseModel):
+    nome: str
+    email: str
+    senha: str = Field(..., min_length=6)

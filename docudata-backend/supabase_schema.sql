@@ -357,3 +357,22 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_automatico boolean NOT NULL D
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override boolean NOT NULL DEFAULT false;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override_por text;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS travado_override_em timestamptz;
+
+-- Phase 16: RBAC — Login Leve e Papéis de Acesso (RBAC-01..05)
+CREATE TABLE IF NOT EXISTS pessoa (
+    id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email        text        NOT NULL UNIQUE,
+    nome         text        NOT NULL,
+    senha_hash   text        NOT NULL,
+    cargo        text        NOT NULL CHECK (cargo IN ('lider','gerente','operacional')),
+    created_at   timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    pessoa_id     uuid        REFERENCES pessoa(id),
+    pessoa_email  text        NOT NULL,
+    rota          text        NOT NULL,
+    acao          text        NOT NULL,
+    created_at    timestamptz DEFAULT now()
+);
