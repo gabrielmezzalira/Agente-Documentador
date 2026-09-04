@@ -91,10 +91,14 @@ def _make_mock_client(
 
 def _patch_and_client(monkeypatch, mock_supabase):
     """Injeta o mock via monkeypatch no módulo routers.metricas, que o router importa diretamente."""
+    monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.metricas as metricas_router
     monkeypatch.setattr(metricas_router, "get_client", lambda: mock_supabase)
     from main import app
-    return TestClient(app)
+    from services.auth import criar_jwt
+    tc = TestClient(app)
+    tc.cookies.set("docudata_session", criar_jwt("pessoa-test-1", "test@citi.com", "gerente"))
+    return tc
 
 
 # ─── performance-operacional (MET-01 + MET-06) ────────────────────────────────

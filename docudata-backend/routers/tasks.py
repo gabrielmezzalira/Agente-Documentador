@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
     TaskCreate,
@@ -12,6 +12,7 @@ from models.schemas import (
     TaskSugestaoResponse,
     TaskSugestaoResolve,
 )
+from services.auth import require_project_access
 from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
@@ -143,7 +144,7 @@ async def create_task(data: TaskCreate):
     return resp.data[0]
 
 
-@router.get("", response_model=list[TaskResponse])
+@router.get("", response_model=list[TaskResponse], dependencies=[Depends(require_project_access)])
 async def list_tasks(
     project_id: str = Query(...),
     sprint_id: Optional[str] = Query(default=None),

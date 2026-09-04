@@ -58,10 +58,14 @@ def _make_mock_client(ingestions_data=None, generated_docs_data=None, project_ex
 
 def _patch_and_client(monkeypatch, mock_supabase):
     """Injeta o mock via monkeypatch no módulo que o router importa diretamente."""
+    monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.projects as proj_router
     monkeypatch.setattr(proj_router, "get_client", lambda: mock_supabase)
     from main import app
-    return TestClient(app)
+    from services.auth import criar_jwt
+    tc = TestClient(app)
+    tc.cookies.set("docudata_session", criar_jwt("pessoa-test-1", "test@citi.com", "gerente"))
+    return tc
 
 
 # ─── Teste 1: sem query param month → retorna mês atual de São Paulo ──────────

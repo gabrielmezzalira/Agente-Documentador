@@ -105,10 +105,14 @@ def _make_mock_client(task_data):
 
 
 def _patch_and_client(monkeypatch, mock_supabase):
+    monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.tasks as tasks_router
     monkeypatch.setattr(tasks_router, "get_client", lambda: mock_supabase)
     from main import app
-    return TestClient(app)
+    from services.auth import criar_jwt
+    tc = TestClient(app)
+    tc.cookies.set("docudata_session", criar_jwt("pessoa-test-1", "test@citi.com", "gerente"))
+    return tc
 
 
 _BASE_TASK = {

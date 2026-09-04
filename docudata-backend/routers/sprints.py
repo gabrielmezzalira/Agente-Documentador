@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from models.schemas import (
     SprintCreate,
@@ -11,6 +11,7 @@ from models.schemas import (
     SprintBaselineUpdate,
     SprintBaselineResponse,
 )
+from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.spi_health import auto_update_sprint_health
 
@@ -19,7 +20,7 @@ router = APIRouter(tags=["sprints"])
 _VALID_HEALTH = {"verde", "amarelo", "vermelho"}
 
 
-@router.post("/projects/{project_id}/sprints", response_model=SprintResponse, status_code=201)
+@router.post("/projects/{project_id}/sprints", response_model=SprintResponse, status_code=201, dependencies=[Depends(require_project_access)])
 async def create_sprint(project_id: str, data: SprintCreate):
     """Cria uma sprint para o projeto. Se `numero` não vier, usa max(numero)+1 (ou 1 se primeira)."""
     client = get_client()
@@ -60,7 +61,7 @@ async def create_sprint(project_id: str, data: SprintCreate):
     return response.data[0]
 
 
-@router.get("/projects/{project_id}/sprints", response_model=list[SprintStatusResponse])
+@router.get("/projects/{project_id}/sprints", response_model=list[SprintStatusResponse], dependencies=[Depends(require_project_access)])
 async def list_sprints(project_id: str):
     """Lista sprints do projeto + agregados de mínimo obrigatório.
 
@@ -141,7 +142,7 @@ async def list_sprints(project_id: str):
     return enriched
 
 
-@router.patch("/sprints/{sprint_id}/baseline", response_model=SprintBaselineResponse)
+@router.patch("/sprints/{sprint_id}/baseline", response_model=SprintBaselineResponse, dependencies=[Depends(require_not_operacional)])
 async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
     """Define ou atualiza o baseline da sprint. Uma vez lockado, campos numéricos são imutáveis."""
     client = get_client()
@@ -184,7 +185,7 @@ async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
     return resp.data[0]
 
 
-@router.delete("/sprints/{sprint_id}", status_code=204)
+@router.delete("/sprints/{sprint_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_sprint(sprint_id: str):
     """Remove uma sprint. Falha com 409 se houver ingestões ou docs associados."""
     client = get_client()
@@ -226,7 +227,7 @@ async def delete_sprint(sprint_id: str):
     client.table("sprints").delete().eq("id", sprint_id).execute()
 
 
-@router.patch("/sprints/{sprint_id}/health", response_model=SprintResponse)
+@router.patch("/sprints/{sprint_id}/health", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
 async def update_health(sprint_id: str, data: SprintHealthUpdate):
     """Atualiza semáforo de saúde e plano de correção da sprint."""
     if data.status_saude is not None and data.status_saude not in _VALID_HEALTH:
