@@ -91,3 +91,12 @@ def test_gerente_recebe_403(monkeypatch):
     resp = tc.post("/baseline-evolucao", json={"operacional_id": "op-1", "ciclo": "2026-S2"})
 
     assert resp.status_code == 403
+
+
+def test_operacional_recebe_403(monkeypatch):
+    mock_sb, _ = _mock_client()
+    tc = _client_as(monkeypatch, mock_sb, "operacional")
+
+    resp = tc.post("/baseline-evolucao", json={"operacional_id": "op-1", "ciclo": "2026-S2"})
+
+    assert resp.status_code == 403

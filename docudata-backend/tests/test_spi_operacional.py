@@ -67,6 +67,41 @@ def test_spi_de_dois_projetos_e_media_simples_entre_projetos(monkeypatch):
     assert resp.json()["spi"] == 50.0
 
 
+def test_spi_com_alocacoes_assimetricas_usa_media_de_spi_por_projeto(monkeypatch):
+    """proj-1 (10/10=SPI 100) e proj-2 (5/20=SPI 25) têm alocações
+    diferentes: a média correta de SPIs por projeto é (100+25)/2=62.5,
+    diferente do que daria uma soma agrupada incorreta ((10+5)/(10+20)*100=50.0).
+    Este teste só passa com a fórmula de duas camadas correta."""
+    client = _mock_client([
+        {"projeto_id": "proj-1", "entrega_pontos_concluidos": 10, "entrega_pontos_alocados": 10},
+        {"projeto_id": "proj-2", "entrega_pontos_concluidos": 5, "entrega_pontos_alocados": 20},
+    ])
+    tc = _client_as(monkeypatch, client, "lider")
+
+    resp = tc.get("/operacionais/op-1/spi")
+
+    assert resp.status_code == 200
+    assert resp.json()["spi"] == 62.5
+
+
+def test_projeto_com_zero_alocados_e_excluido_da_media(monkeypatch):
+    """proj-2 tem entrega_pontos_alocados=0 — seu spi deve ser None e ele
+    deve ser EXCLUÍDO da média entre projetos (não contado como zero)."""
+    client = _mock_client([
+        {"projeto_id": "proj-1", "entrega_pontos_concluidos": 8, "entrega_pontos_alocados": 10},
+        {"projeto_id": "proj-2", "entrega_pontos_concluidos": 0, "entrega_pontos_alocados": 0},
+    ])
+    tc = _client_as(monkeypatch, client, "lider")
+
+    resp = tc.get("/operacionais/op-1/spi")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["spi"] == 80.0
+    por_projeto = {p["projeto_id"]: p["spi"] for p in body["por_projeto"]}
+    assert por_projeto["proj-2"] is None
+
+
 def test_sem_nenhuma_linha_spi_e_none(monkeypatch):
     client = _mock_client([])
     tc = _client_as(monkeypatch, client, "lider")
