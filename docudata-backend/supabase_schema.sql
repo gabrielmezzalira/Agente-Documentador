@@ -408,3 +408,61 @@ ALTER TABLE sprints ADD COLUMN IF NOT EXISTS avaliacao_completa_em timestamptz;
 ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_sprint_id_fkey;
 ALTER TABLE tasks ADD CONSTRAINT tasks_sprint_id_fkey
     FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Phase 18: Motor de Score — Dado Bruto por Sprint + SPI do
+-- Operacional + Baseline de Evolução (SCORE-01..05)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Snapshot do operacional no momento de cada transição — permite saber
+-- "quem estava com a task" em qualquer ponto do histórico, mesmo após
+-- reatribuição posterior (necessário pro cálculo de entrega_pontos_concluidos).
+ALTER TABLE task_transicoes ADD COLUMN IF NOT EXISTS operacional_id uuid REFERENCES operacionais(id);
+
+CREATE TABLE IF NOT EXISTS pontuacao_operacional_sprint (
+    id                                      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    operacional_id                          uuid        NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    sprint_id                               uuid        NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    projeto_id                              uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    sprint_fim                              timestamptz NOT NULL,
+    gerente_media                           numeric(4,2),
+    gerente_pergunta6                       int,
+    entrega_pontos_concluidos               int         NOT NULL DEFAULT 0,
+    entrega_pontos_alocados                 int         NOT NULL DEFAULT 0,
+    qualidade_reaberturas                   int         NOT NULL DEFAULT 0,
+    qualidade_tasks_concluidas              int         NOT NULL DEFAULT 0,
+    autonomia_bloqueios_resolvidos_proprio  int         NOT NULL DEFAULT 0,
+    autonomia_bloqueios_totais              int         NOT NULL DEFAULT 0,
+    arquetipo                               text,
+    finalizado_em                           timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (operacional_id, sprint_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_sprint ON pontuacao_operacional_sprint(sprint_id);
+CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_operacional ON pontuacao_operacional_sprint(operacional_id);
+
+CREATE TABLE IF NOT EXISTS baseline_evolucao (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    operacional_id  uuid        NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    ciclo           text        NOT NULL,
+    data_snapshot   timestamptz NOT NULL DEFAULT now(),
+    nota_inicial    numeric(5,2),
+    observacoes     text
+);
+
+-- Ledger desacoplado para eventos de qualidade/autonomia ocorridos numa task
+-- cujo sprint de origem já fechou (pontuacao_operacional_sprint travada).
+-- Existe pra não precisar reatribuir task.sprint_id (usado por outras telas)
+-- nem tratar bloqueio como histórico repetível (hoje é campo único na task).
+CREATE TABLE IF NOT EXISTS eventos_pontuacao_tardios (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    operacional_id  uuid        NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    sprint_id_alvo  uuid        NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    dimensao        text        NOT NULL CHECK (dimensao IN (
+                        'qualidade_reaberturas',
+                        'autonomia_bloqueios_totais',
+                        'autonomia_bloqueios_resolvidos_proprio'
+                    )),
+    task_id         uuid        REFERENCES tasks(id),
+    criado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_eventos_pontuacao_tardios_sprint_alvo ON eventos_pontuacao_tardios(sprint_id_alvo);
