@@ -1,0 +1,180 @@
+"""Motor de cálculo do Motor de Score (Phase 18).
+
+Fecha pontuacao_operacional_sprint no momento em que o gerente confirma a
+avaliação semanal (routers/avaliacoes.py::confirmar_avaliacao_semanal).
+
+O cálculo é feito uma única vez, a partir do estado final de
+tasks/task_transicoes/task_reaberturas/avaliacoes_gerente — não é um contador
+incremental mantido ao longo da sprint. Por isso reatribuição mid-sprint não
+precisa de tratamento especial: o cálculo simplesmente lê o estado atual (e o
+histórico de transições, pra "quem completou") quando roda.
+"""
+from datetime import datetime, timezone
+
+
+def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
+    """Calcula e trava uma linha de pontuacao_operacional_sprint por operacional
+    com task na sprint. Idempotente: se já existir alguma linha para esta
+    sprint, retorna as existentes sem recalcular."""
+    existentes = (
+        client.table("pontuacao_operacional_sprint")
+        .select("*")
+        .eq("sprint_id", sprint_id)
+        .execute()
+        .data
+    )
+    if existentes:
+        return existentes
+
+    sprint_resp = client.table("sprints").select("id, project_id").eq("id", sprint_id).execute()
+    if not sprint_resp.data:
+        return []
+    project_id = sprint_resp.data[0]["project_id"]
+
+    tasks = (
+        client.table("tasks")
+        .select("id, operacional_id, pontos, coluna_kanban, bloqueado_resolvido_por, bloqueado_resolvido_em")
+        .eq("sprint_id", sprint_id)
+        .execute()
+        .data or []
+    )
+    if not tasks:
+        return []
+
+    task_ids_concluidas = [t["id"] for t in tasks if t.get("coluna_kanban") == "concluida"]
+    quem_completou = _resolver_quem_completou(client, task_ids_concluidas)
+
+    pontos_concluidos: dict[str, int] = {}
+    pontos_alocados: dict[str, int] = {}
+    tasks_concluidas: dict[str, int] = {}
+    bloqueios_totais: dict[str, int] = {}
+    bloqueios_proprio: dict[str, int] = {}
+
+    for task in tasks:
+        pontos = task.get("pontos") or 0
+        if task.get("coluna_kanban") == "concluida":
+            operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
+            if operacional_id:
+                pontos_concluidos[operacional_id] = pontos_concluidos.get(operacional_id, 0) + pontos
+                pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
+                tasks_concluidas[operacional_id] = tasks_concluidas.get(operacional_id, 0) + 1
+        else:
+            operacional_id = task.get("operacional_id")
+            if operacional_id:
+                pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
+
+        if task.get("bloqueado_resolvido_em") and task.get("operacional_id"):
+            op = task["operacional_id"]
+            bloqueios_totais[op] = bloqueios_totais.get(op, 0) + 1
+            if task.get("bloqueado_resolvido_por") == "operacional":
+                bloqueios_proprio[op] = bloqueios_proprio.get(op, 0) + 1
+
+    reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks])
+
+    eventos_tardios = (
+        client.table("eventos_pontuacao_tardios")
+        .select("operacional_id, dimensao")
+        .eq("sprint_id_alvo", sprint_id)
+        .execute()
+        .data or []
+    )
+    for evento in eventos_tardios:
+        op = evento["operacional_id"]
+        if evento["dimensao"] == "qualidade_reaberturas":
+            reaberturas[op] = reaberturas.get(op, 0) + 1
+        elif evento["dimensao"] == "autonomia_bloqueios_totais":
+            bloqueios_totais[op] = bloqueios_totais.get(op, 0) + 1
+        elif evento["dimensao"] == "autonomia_bloqueios_resolvidos_proprio":
+            bloqueios_proprio[op] = bloqueios_proprio.get(op, 0) + 1
+
+    avaliacoes = (
+        client.table("avaliacoes_gerente")
+        .select("operacional_id, resposta_1, resposta_2, resposta_3, resposta_4, resposta_5, resposta_6, resposta_7")
+        .eq("sprint_id", sprint_id)
+        .execute()
+        .data or []
+    )
+    avaliacao_por_operacional = {a["operacional_id"]: a for a in avaliacoes}
+
+    operacional_ids = (
+        set(pontos_alocados)
+        | set(pontos_concluidos)
+        | set(reaberturas)
+        | set(bloqueios_totais)
+        | set(avaliacao_por_operacional)
+    )
+    if not operacional_ids:
+        return []
+
+    agora = datetime.now(timezone.utc).isoformat()
+    linhas = []
+    for operacional_id in operacional_ids:
+        aval = avaliacao_por_operacional.get(operacional_id)
+        gerente_media = None
+        gerente_pergunta6 = None
+        if aval:
+            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
+            gerente_media = round(sum(notas) / len(notas), 2)
+            gerente_pergunta6 = aval["resposta_6"]
+
+        linhas.append({
+            "operacional_id": operacional_id,
+            "sprint_id": sprint_id,
+            "projeto_id": project_id,
+            "sprint_fim": agora,
+            "gerente_media": gerente_media,
+            "gerente_pergunta6": gerente_pergunta6,
+            "entrega_pontos_concluidos": pontos_concluidos.get(operacional_id, 0),
+            "entrega_pontos_alocados": pontos_alocados.get(operacional_id, 0),
+            "qualidade_reaberturas": reaberturas.get(operacional_id, 0),
+            "qualidade_tasks_concluidas": tasks_concluidas.get(operacional_id, 0),
+            "autonomia_bloqueios_resolvidos_proprio": bloqueios_proprio.get(operacional_id, 0),
+            "autonomia_bloqueios_totais": bloqueios_totais.get(operacional_id, 0),
+            "arquetipo": None,
+            "finalizado_em": agora,
+        })
+
+    resp = client.table("pontuacao_operacional_sprint").insert(linhas).execute()
+    return resp.data or []
+
+
+def _resolver_quem_completou(client, task_ids: list[str]) -> dict[str, str]:
+    """Pra cada task_id concluída, acha quem estava alocado no momento da
+    transição pra 'concluida' (via snapshot gravado por _registrar_task_transicao,
+    Task 2). Se a task tiver sido concluída mais de uma vez (reabertura), pega
+    a transição mais recente."""
+    if not task_ids:
+        return {}
+    transicoes = (
+        client.table("task_transicoes")
+        .select("task_id, operacional_id, timestamp")
+        .in_("task_id", task_ids)
+        .eq("campo", "coluna_kanban")
+        .eq("para", "concluida")
+        .order("timestamp", desc=True)
+        .execute()
+        .data or []
+    )
+    resultado: dict[str, str] = {}
+    for row in transicoes:
+        if row["task_id"] not in resultado and row.get("operacional_id"):
+            resultado[row["task_id"]] = row["operacional_id"]
+    return resultado
+
+
+def _contar_reaberturas(client, task_ids: list[str]) -> dict[str, int]:
+    if not task_ids:
+        return {}
+    rows = (
+        client.table("task_reaberturas")
+        .select("operacional_id")
+        .in_("task_id", task_ids)
+        .execute()
+        .data or []
+    )
+    contagem: dict[str, int] = {}
+    for row in rows:
+        op = row.get("operacional_id")
+        if op:
+            contagem[op] = contagem.get(op, 0) + 1
+    return contagem
