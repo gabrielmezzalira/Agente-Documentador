@@ -454,10 +454,10 @@ Plans:
 | 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
 | 11. Suíte de Verificação de Aceite | 2/2 | Awaiting human verification (code 15/15 verified) | 2026-08-23 |
 | 12. Boletim de Aceite, Encerramento e Resumo Semanal | 3/3 | Awaiting human verification (code 5/6 verified, 1 descoped by override) | 2026-08-24 |
-| 13. Kanban de Tasks — Métricas + Ganchos | 0/TBD | Not started | - |
-| 14. Confirmação de Transição + Reabertura + Bloqueio Manual | 0/TBD | Not started | - |
-| 15. Travamento Automático + Trava do Baseline do SprintCard | 0/TBD | Not started | - |
-| 16. RBAC — Login Leve e Papéis de Acesso | 0/TBD | Not started | - |
-| 17. Avaliação do Gerente | 0/TBD | Not started | - |
-| 18. Motor de Score — Dado Bruto + SPI do Operacional + Baseline de Evolução | 0/TBD | Not started | - |
+| 13. Kanban de Tasks — Métricas + Ganchos | code present, no GSD plans | Code confirmed complete (2026-09-05) | - |
+| 14. Confirmação de Transição + Reabertura + Bloqueio Manual | code present, no GSD plans | Code confirmed complete (2026-09-05) | - |
+| 15. Travamento Automático + Trava do Baseline do SprintCard | code present, no GSD plans | Code confirmed complete (2026-09-05) | - |
+| 16. RBAC — Login Leve e Papéis de Acesso | code present, no GSD plans | Code confirmed complete (2026-09-05) | - |
+| 17. Avaliação do Gerente | code present, no GSD plans | Code confirmed complete (2026-09-05) | - |
+| 18. Motor de Score — Dado Bruto + SPI do Operacional + Baseline de Evolução | 7/7 | Complete | 2026-09-05 |
 | 19. Peso por Arquétipo + Área de Performance e Ranking | 0/TBD | Not started | - |
