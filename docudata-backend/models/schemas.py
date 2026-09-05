@@ -618,6 +618,25 @@ class PendenciaAvaliacaoResponse(BaseModel):
     ultima_avaliacao_outro_projeto: Optional[AvaliacaoAnteriorResponse] = None
 
 
+class PontuacaoOperacionalSprintResponse(BaseModel):
+    id: str
+    operacional_id: str
+    sprint_id: str
+    projeto_id: str
+    sprint_fim: datetime
+    gerente_media: Optional[float] = None
+    gerente_pergunta6: Optional[int] = None
+    entrega_pontos_concluidos: int
+    entrega_pontos_alocados: int
+    qualidade_reaberturas: int
+    qualidade_tasks_concluidas: int
+    autonomia_bloqueios_resolvidos_proprio: int
+    autonomia_bloqueios_totais: int
+    arquetipo: Optional[str] = None
+    finalizado_em: datetime
+
+
 class ConfirmarAvaliacaoResponse(BaseModel):
     sprint_id: str
     avaliacao_completa_em: datetime
+    pontuacao_operacional_sprint: list[PontuacaoOperacionalSprintResponse] = []

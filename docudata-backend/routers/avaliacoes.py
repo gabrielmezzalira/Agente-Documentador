@@ -10,6 +10,7 @@ from models.schemas import (
     PendenciaAvaliacaoResponse,
 )
 from services.auth import get_current_pessoa
+from services.pontuacao import calcular_e_travar_pontuacao
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/avaliacoes", tags=["avaliacoes"])
@@ -158,8 +159,14 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
         nomes = ", ".join(p["nome"] for p in pendencias)
         raise HTTPException(status_code=409, detail=f"Ainda há avaliações pendentes: {nomes}")
 
+    pontuacoes = calcular_e_travar_pontuacao(client, sprint_id)
+
     agora_iso = datetime.now(timezone.utc).isoformat()
     resp = client.table("sprints").update({"avaliacao_completa_em": agora_iso}).eq("id", sprint_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
-    return {"sprint_id": sprint_id, "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"]}
+    return {
+        "sprint_id": sprint_id,
+        "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"],
+        "pontuacao_operacional_sprint": pontuacoes,
+    }

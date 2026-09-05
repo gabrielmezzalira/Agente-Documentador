@@ -56,10 +56,15 @@ def _mock_client(tasks=None, operacionais=None, avaliacoes=None, sprint_update_o
     return client, calls
 
 
-def _patch_and_client(monkeypatch, mock_supabase):
+def _patch_and_client(monkeypatch, mock_supabase, pontuacao_stub=None):
     monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.avaliacoes as avaliacoes_router
     monkeypatch.setattr(avaliacoes_router, "get_client", lambda: mock_supabase)
+    monkeypatch.setattr(
+        avaliacoes_router,
+        "calcular_e_travar_pontuacao",
+        lambda client, sprint_id: pontuacao_stub if pontuacao_stub is not None else [],
+    )
     from main import app
     tc = TestClient(app)
     token = criar_jwt("pessoa-ger-1", "ger@citi.com", "gerente")
@@ -95,3 +100,27 @@ def test_confirma_com_pendencia_retorna_409(monkeypatch):
     assert resp.status_code == 409
     assert "Ana" in resp.json()["detail"]
     assert len(calls["sprint_update"]) == 0
+
+
+def test_confirma_inclui_pontuacao_calculada_no_response(monkeypatch):
+    mock_sb, calls = _mock_client(
+        tasks=[{"operacional_id": "op-1"}],
+        operacionais=[{"id": "op-1", "nome": "Ana", "email": None, "project_id": "proj-1"}],
+        avaliacoes=[{"operacional_id": "op-1", "sprint_id": "sprint-1"}],
+    )
+    linha_calculada = {
+        "id": "pont-1", "operacional_id": "op-1", "sprint_id": "sprint-1", "projeto_id": "proj-1",
+        "sprint_fim": "2026-09-05T00:00:00+00:00", "gerente_media": 3.0, "gerente_pergunta6": 3,
+        "entrega_pontos_concluidos": 5, "entrega_pontos_alocados": 5,
+        "qualidade_reaberturas": 0, "qualidade_tasks_concluidas": 2,
+        "autonomia_bloqueios_resolvidos_proprio": 0, "autonomia_bloqueios_totais": 0,
+        "arquetipo": None, "finalizado_em": "2026-09-05T00:00:00+00:00",
+    }
+    tc = _patch_and_client(monkeypatch, mock_sb, pontuacao_stub=[linha_calculada])
+
+    resp = tc.post("/avaliacoes/sprint-1/confirmar")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pontuacao_operacional_sprint"][0]["operacional_id"] == "op-1"
+    assert body["pontuacao_operacional_sprint"][0]["entrega_pontos_concluidos"] == 5
