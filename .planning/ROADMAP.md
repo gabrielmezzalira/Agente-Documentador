@@ -6,9 +6,16 @@ DocuData is built in three phases aligned to the 3-day MVP deadline. Phase 1 wir
 
 ## Phases
 
-- [ ] **Phase 1: Backend Foundation + Extraction Proof** - Supabase, schemas, file parsing, extraction graph for TXT — one upload lands a row in the DB
-- [ ] **Phase 2: Full Extraction Pipeline + Generation + Deploy** - All file types (DOCX, PDF, images), generation graph for all doc types, project CRUD, backend on Railway
-- [ ] **Phase 3: Frontend + End-to-End Demo** - All three Next.js screens, markdown rendering, clipboard copy, Vercel deploy
+- [x] **Phase 1: Backend Foundation + Extraction Proof** - Supabase, schemas, file parsing, extraction graph for TXT — one upload lands a row in the DB
+- [x] **Phase 2: Full Extraction Pipeline + Generation + Deploy** - All file types (DOCX, PDF, images), generation graph for all doc types, project CRUD, backend on Railway — code confirmed complete 2026-09-03 (never had formal GSD plans); Railway deploy/cold-start not independently verified
+- [x] **Phase 3: Frontend + End-to-End Demo** - All three Next.js screens, markdown rendering, clipboard copy, Vercel deploy — code confirmed complete 2026-09-03 (never had formal GSD plans); Vercel deploy not independently verified
+- [ ] **Phase 13: Kanban de Tasks — Métricas + Ganchos** - SPI por operacional, cycle-time, throughput, CFD via API + MetricasTab.tsx (Recharts); ganchos opcionais de daily/commit/retrospectiva e DoR/DoD — completa as waves 5-6 da thread Kanban de Tasks/Operacionais/SPI
+- [ ] **Phase 14: Confirmação de Transição + Reabertura + Bloqueio Manual** - Modal de confirmação obrigatório em toda mudança de status de task; task_reaberturas; bloqueado_manual com captura de quem resolveu
+- [ ] **Phase 15: Travamento Automático + Trava do Baseline do SprintCard** - Alerta de task parada por tempo proporcional a pontos (nunca pontuação); baseline de pontos do SprintCard trava ao iniciar a sprint
+- [ ] **Phase 16: RBAC — Login Leve e Papéis de Acesso** - Login email/senha por cargo (Líder/Gerente/Operacional); enforcement no backend; rota /performance isolada com 403 para não-Líder
+- [ ] **Phase 17: Avaliação do Gerente** - 7 perguntas fixas por operacional/projeto-sprint, reaproveitamento de avaliação de outro projeto, trava de fechamento de sprint
+- [ ] **Phase 18: Motor de Score — Dado Bruto + SPI do Operacional + Baseline de Evolução** - pontuacao_operacional_sprint travada no fechamento; SPI em duas camadas (soma no projeto, média entre projetos); baseline_evolucao
+- [ ] **Phase 19: Peso por Arquétipo + Área de Performance e Ranking** - Rota /performance (só Líder): ranking por janelas contadas em sprints, breakdown por dimensão, anúncio de top performer
 
 ## Phase Details
 
@@ -26,19 +33,19 @@ DocuData is built in three phases aligned to the 3-day MVP deadline. Phase 1 wir
   4. A malformed upload (wrong content type) returns a clear error response, not a 500
   5. The extraction graph retries JSON parsing up to 2 times before marking the ingestion as failed
 
-**Plans:** 3 plans
+**Plans:** 3 plans — all complete
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Backend foundation + project CRUD vertical slice (config, schemas, Supabase client, /projects, main.py)
+- [x] 01-01-PLAN.md — Backend foundation + project CRUD vertical slice (config, schemas, Supabase client, /projects, main.py)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Extraction graph + POST /ingest Walking Skeleton core (TXT -> Gemini -> ingestions row)
+- [x] 01-02-PLAN.md — Extraction graph + POST /ingest Walking Skeleton core (TXT -> Gemini -> ingestions row)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Code-based eval gates (AI-SPEC dims 1/5/6: schema validity, retry edge, write integrity)
+- [x] 01-03-PLAN.md — Code-based eval gates (AI-SPEC dims 1/5/6: schema validity, retry edge, write integrity)
 
 ### Phase 2: Full Extraction Pipeline + Generation + Deploy
 
@@ -54,7 +61,8 @@ Plans:
   4. `POST /generate` with `completo` returns a markdown document spanning all sprints of the project
   5. Backend is accessible at the Railway URL and cold-starts within 60 seconds
 
-**Plans**: TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-03):** Functionality already implemented in `docudata-backend/graphs/extraction_graph.py` (`file_parser.py`: `parse_docx`, `parse_txt`, `parse_pdf` with scanned-PDF→vision fallback, `parse_image` — all 5 file types) and `routers/generate.py`/`graphs/generation_graph.py`, outside formal GSD phase tracking. Confirmed by code read: criterion 1 (DOCX/PDF/scanned-PDF/PNG/JPEG all handled) ✓, criterion 2 (`GET /ingestions/{project_id}` and `/{sprint}` in `routers/ingestions.py`) ✓, criteria 3-4 (`POST /generate` supports sprint-scoped and project-wide doc types — the type names evolved past this phase's original `sprint_status`/`sprint_retro`/`decisoes`/`completo` into `repasse_semanal`/`retrospectiva`/`log_decisoes`/`documentacao_final` etc. via later phases, but the equivalent functionality exists) ✓. Criterion 5 (backend live on Railway, cold-start <60s) is **not verifiable statically** — a `Procfile` exists but no evidence of an actual deployed/verified Railway instance.
 **UI hint**: no
 
 ### Phase 3: Frontend + End-to-End Demo
@@ -71,7 +79,8 @@ Plans:
   4. Manager can click a generation button, enter a sprint number when required, and see the document rendered as formatted markdown on screen
   5. Manager can click the copy button and paste the raw markdown into any external tool
 
-**Plans**: TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-03):** Functionality already implemented in `docudata-frontend/app/projects/new/page.tsx` (create + redirect) and `app/projects/[id]/page.tsx`, outside formal GSD phase tracking. Confirmed by code read: criterion 1 (`createProject` + `router.push`) ✓, criterion 2 (`ingestFile`/`handleUploadLivre`) ✓, criterion 3 (`ingestionsBySprint` grouping) ✓, criterion 4 (generation buttons, sprint input, `ReactMarkdown` rendering) ✓, criterion 5 (`navigator.clipboard.writeText(generatedDoc.content)` copy button) ✓. Vercel deploy is **not verifiable statically** — no `vercel.json` found, no evidence of an actual deployed instance.
 **UI hint**: yes
 
 ### Phase 4: Template v2 + GitHub Integration
@@ -199,15 +208,15 @@ Plans:
   5. Gera duas saídas: versão gerente (macro, sem arquivo:linha) e versão time técnico (com arquivo:linha em tudo)
   6. Ao concluir, envia achados ao Agente Documentador criando registro RevisaoDiaria; achados CRITICA/ALTA com confiança ALTA aparecem no Bloco B do painel
 
-**Plans:** 2 plans
+**Plans:** 2 plans — all complete, verified 2026-08-23 (`09-VERIFICATION.md`: status passed, 6/6 must-haves verified)
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — Backend tracer: migration SQL revisoes_diarias + POST /ingest/revisao + calcular_bloco_b expandido com achados_criticos
+- [x] 09-01-PLAN.md — Backend tracer: migration SQL revisoes_diarias + POST /ingest/revisao + calcular_bloco_b expandido com achados_criticos
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-02-PLAN.md — Agente cliente: revisor_agent.py + revisor.yml + PainelTab.tsx com achados + toggle gerente/técnico
+- [x] 09-02-PLAN.md — Agente cliente: revisor_agent.py + revisor.yml + PainelTab.tsx com achados + toggle gerente/técnico
 
 **UI hint:** no
 
@@ -266,6 +275,7 @@ Plans:
 
 - [x] 11-02-PLAN.md — GitHub Actions agent (aceite_agent.py + aceite.yml) + painel.py cobertura_aceite + PainelTab badge Kanban + Bloco B sub-seção + api.ts types
 
+**Status (2026-08-23):** Code complete — `11-VERIFICATION.md` confirms 15/15 must-haves verified statically. Awaiting **human verification** only (not missing code): apply the `execucoes_aceite` migration on Supabase, confirm badges render in-browser, manually trigger `aceite.yml` and confirm the callback reaches the backend.
 **UI hint:** no
 
 ### Phase 12: Boletim de Aceite, Encerramento e Resumo Semanal
@@ -297,21 +307,152 @@ Plans:
 
 - [x] 12-03-PLAN.md — Frontend: api.ts types/functions + AceiteTab.tsx (duas seções, zero className) + page.tsx aba Aceite wiring
 
+**Status (2026-08-24):** Code complete — `12-VERIFICATION.md` confirms 5/6 must-haves verified statically (1 passed via user-accepted override: deploy-preview link and Termo de Encerramento were explicitly descoped per D-03/D-04/D-13 in `12-CONTEXT.md`, replaced by a simpler "Projeto encerrado" badge). Awaiting **human verification** only (not missing code): 2 behavior-dependent checks (status_cliente transition write, 422 validation paths) plus the end-to-end boletim flow — all require a live Supabase+Gemini run, not further implementation.
+
+**UI hint:** yes
+
+### Phase 13: Kanban de Tasks — Métricas + Ganchos
+
+**Goal:** As métricas do Kanban de Tasks (SPI por operacional, cycle-time, throughput, CFD) ficam disponíveis via API e visualizáveis na aba Tasks, completando o trabalho já iniciado nas waves 1-4b da thread "Kanban de Tasks, Operacionais, Pontos e SPI" (ver `.planning/.continue-here.md`).
+**Mode:** mvp
+**Depends on:** Phase 11 (última fase completa de kanban/painel; tasks/operacionais foram introduzidos fora deste roadmap formal — waves 1-4b já concluídas e commitadas, não re-fazer)
+**Requirements:** MET-01, MET-02, MET-03, MET-04, MET-05, MET-06 (wave 5, obrigatório), MET-07, MET-08, MET-09 (wave 6, opcional)
+**Success Criteria** (what must be TRUE):
+
+  1. Existe um endpoint que retorna SPI por operacional (Σ pontos_realizados ÷ Σ pontos_previstos), calculado a partir de `tasks`/`operacionais`
+  2. O mesmo endpoint (ou equivalente) retorna cycle-time (p50, p85) e throughput calculados a partir de `task_transicoes`
+  3. Um CFD (cumulative flow diagram) é calculável a partir do histórico de `task_transicoes`
+  4. `MetricasTab.tsx` (Recharts) exibe SPI/cycle-time/throughput/CFD na aba Tasks
+  5. *(opcional, wave 6)* Ganchos de daily/commit/retrospectiva alimentam sinais adicionais de saúde do projeto
+  6. *(opcional, wave 6)* DoR/DoD bloqueante impede transição de status de task sem critérios mínimos
+  7. *(opcional, wave 6)* `status_saude` do projeto é auto-derivado a partir do SPI quando não preenchido manualmente
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 14: Confirmação de Transição + Reabertura + Bloqueio Manual
+
+**Goal:** Nenhuma mudança de status de task acontece sem confirmação explícita do usuário, por qualquer caminho (drag-and-drop, chamada de API, banner de sugestão da IA); reabertura (`concluida → em_andamento`) é registrada em tabela própria; bloqueio manual captura quem resolveu.
+**Mode:** mvp
+**Depends on:** Phase 13
+**Requirements:** TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05
+**Success Criteria** (what must be TRUE):
+
+  1. Qualquer tentativa de mudar o status/coluna de uma task (drag-and-drop manual, chamada de API, aceite do banner de sugestão da IA) exige confirmação explícita antes de gravar; ao cancelar, nada muda e nada é gravado
+  2. O fluxo de aceite do banner de sugestão da IA (hoje grava direto em `coluna_kanban` sem passar por `task_transicoes` — ver `resolve_task_sugestao` em `docudata-backend/routers/tasks.py`) passa a abrir o mesmo modal de confirmação e grava a transição normalmente
+  3. Nova tabela `task_reaberturas` (id, task_id, transicao_id, operacional_id, timestamp) recebe um registro sempre que uma `task_transicoes` confirmada tiver `status_anterior=concluida` e `status_novo=em_andamento`; `task.contador_reaberturas` incrementa junto; motivo da reabertura é campo opcional
+  4. Task ganha os campos `bloqueado_manual`, `bloqueado_em`, `bloqueado_por`, `bloqueado_resolvido_por` (enum operacional|gerente), `bloqueado_resolvido_em`; desmarcar `bloqueado_manual` exige informar quem resolveu antes de salvar
+  5. Nenhuma outra saída de `concluida` além de `concluida → em_andamento` é tratada como reabertura
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 15: Travamento Automático por Tempo + Trava do Baseline do SprintCard
+
+**Goal:** Tasks paradas em `em_andamento` além de um limiar proporcional a pontos viram alerta visível para Líder/Gerente (nunca pontuação); o baseline de pontos previstos do SprintCard trava assim que a sprint entra em estado ativo.
+**Mode:** mvp
+**Depends on:** Phase 14 (usa `entrou_em_andamento_em` e o fluxo de reabertura para resetar o relógio)
+**Requirements:** ALERT-01, ALERT-02, ALERT-03
+**Success Criteria** (what must be TRUE):
+
+  1. Job diário marca `travado_automatico=true` quando `dias_desde(entrou_em_andamento_em) >= pontos_da_task × 2` e `travado_override != true`; o relógio reinicia a cada reentrada em `em_andamento`, inclusive por reabertura
+  2. `travado_automatico` e `travado_override` resetam para nulo ao sair de `em_andamento` ou reentrar
+  3. Override do gerente (`travado_override`, `travado_override_por`, `travado_override_em`) suprime a exibição sem apagar o histórico de que o sistema sinalizou
+  4. `travado_automatico` nunca alimenta nenhuma fórmula de score, em nenhuma dimensão (visibilidade real de "só Líder/Gerente" depende do RBAC da Phase 16)
+  5. Campo de pontos previstos do SprintCard vira somente leitura assim que a sprint entra em estado ativo; revisão posterior gera registro separado de replanejamento, preservando o valor original para o SPI histórico
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 16: RBAC — Login Leve e Papéis de Acesso
+
+**Goal:** Existe login simples (email/senha) que resolve o cargo do usuário (Líder, Gerente ou Operacional); o cargo determina o nível de acesso a dados de score/avaliação/ranking, com enforcement no backend; operacional só acessa projetos aos quais está vinculado.
+**Mode:** mvp
+**Depends on:** Phase 14 (fluxo de tasks que o RBAC vai proteger)
+**Requirements:** RBAC-01, RBAC-02, RBAC-03, RBAC-04, RBAC-05
+**Success Criteria** (what must be TRUE):
+
+  1. Existe uma tabela `pessoa` (email, nome, cargo ∈ {lider, gerente, operacional}) cadastrada manualmente pelo Líder; login por email/senha resolve o cargo da sessão
+  2. Cargo=gerente ou cargo=lider concede acesso de nível-gerente/líder a qualquer projeto, sem restrição de squad; cargo=operacional só concede acesso aos projetos aos quais a pessoa está vinculada como operacional (decisão Gabriel — ver `.planning/intel/decisions.md` #4)
+  3. Nenhum payload de API retorna score, peso, fórmula ou ranking para papel Gerente ou Operacional — testável diretamente via API, não só oculto no frontend
+  4. Rota `/performance` retorna 403 para qualquer papel diferente de Líder, testável direto por API; middleware de autorização é dedicado, não reaproveita o das rotas de projeto
+  5. Toda leitura de score, peso ou avaliação de gerente grava log de auditoria (autor, o quê, quando)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 17: Avaliação do Gerente
+
+**Goal:** Gerente (cargo=gerente) preenche 7 perguntas fixas por operacional a cada fechamento de sprint (por projeto-sprint), podendo reaproveitar a última avaliação de outro projeto; fechamento de sprint fica bloqueado até a avaliação estar completa.
+**Mode:** mvp
+**Depends on:** Phase 16
+**Requirements:** AVAL-01, AVAL-02, AVAL-03, AVAL-04, AVAL-05
+**Success Criteria** (what must be TRUE):
+
+  1. Nova tabela `avaliacoes_gerente` (id, operacional_id, gerente_id, sprint_id, data_preenchimento, resposta_1..7, criado_em, editavel_ate) — uma avaliação por operacional/gerente/sprint (sprint sempre de um projeto específico)
+  2. As 7 perguntas de texto fixo (não editáveis) aparecem automaticamente no fechamento de sprint para cada operacional do projeto; fechamento fica bloqueado enquanto houver avaliação pendente
+  3. Avaliação é editável por 48h após envio, depois trava
+  4. Ao avaliar um operacional que também está em outro projeto, a UI oferece reaproveitar a última avaliação desse outro projeto, mostrando data e projeto de origem, sem forçar formulário em branco — pode gerar mais de uma avaliação na mesma semana calendário se dois projetos fecharem sprint perto um do outro (comportamento aceito, não é bug)
+  5. Qualquer conta com cargo=gerente pode avaliar operacionais de qualquer projeto ao qual tenha acesso — sem restrição de "próprio squad" (decisão Gabriel — ver `.planning/intel/decisions.md` #4; o RBAC da Phase 16 não distingue gerentes entre si por projeto)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 18: Motor de Score — Dado Bruto por Sprint + SPI do Operacional + Baseline de Evolução
+
+**Goal:** Uma linha travada por operacional/sprint/projeto acumula os insumos brutos de cada dimensão de score; SPI do Operacional agrega em duas camadas (soma dentro do projeto, depois média entre projetos); baseline de evolução mede a pessoa contra ela mesma.
+**Mode:** mvp
+**Depends on:** Phase 14 (reaberturas/bloqueios como insumo), Phase 17 (avaliação do gerente como insumo)
+**Requirements:** SCORE-01, SCORE-02, SCORE-03, SCORE-04, SCORE-05
+**Success Criteria** (what must be TRUE):
+
+  1. Nova tabela `pontuacao_operacional_sprint` (operacional_id, sprint_id, projeto_id, sprint_fim, gerente_media, gerente_pergunta6, entrega_pontos_concluidos, entrega_pontos_alocados, qualidade_reaberturas, qualidade_tasks_concluidas, autonomia_bloqueios_resolvidos_proprio, autonomia_bloqueios_totais, arquetipo, finalizado_em) é gravada e travada no fechamento da sprint, junto com a exigência da avaliação completa (Phase 17) — somente leitura depois
+  2. Reabertura ou resolução de bloqueio ocorrida após o fechamento do sprint de origem é atribuída ao sprint ativo no momento do evento, nunca reabre uma linha travada
+  3. Quando uma task é reatribuída de um operacional para outro no meio do período, `entrega_pontos_alocados` é recalculado para o(s) operacional(is) afetado(s) no momento da reatribuição (decisão Gabriel — ver `.planning/intel/decisions.md` #2; mecânica exata de qual lado ganha/perde quantos pontos, e o que acontece com pontos já concluídos antes da reatribuição, precisa ser fechada no planning detalhado desta fase)
+  4. `SPI_projeto_X = Σ pontos concluídos no projeto X ÷ Σ pontos alocados no projeto X` (uma vez por projeto, dentro do período); `SPI_operacional = SPI_projeto_único` se atuou em 1 projeto, ou média simples de `SPI_projeto_1..N` se atuou em N projetos no período; normalizado × 100, teto 100
+  5. Nova tabela `baseline_evolucao` (operacional_id, ciclo, data_snapshot, nota_inicial, observacoes) captura snapshot no início de cada ciclo; Evolução é sempre pessoa contra ela mesma
+
+**Plans:** TBD
+**UI hint:** no
+
+### Phase 19: Peso por Arquétipo + Área de Performance e Ranking
+
+**Goal:** Rota `/performance` (só Líder) mostra ranking por 3 janelas contadas por sprints da sequência pessoal do operacional (não calendário), com breakdown por dimensão, comparação entre janelas e anúncio de top performer.
+**Mode:** mvp
+**Depends on:** Phase 16 (RBAC/rota isolada), Phase 18 (dado bruto travado)
+**Requirements:** PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06
+**Success Criteria** (what must be TRUE):
+
+  1. Campo `arquetipo` no projeto (dev/consultoria/agente_ia) e tabela `pesos_arquetipo` existem com os 5 pesos default, idênticos entre arquétipos e fixos permanentemente (decisão Gabriel — ver `.planning/intel/decisions.md` #3; sem diferenciação objetiva a implementar)
+  2. Sequência pessoal do operacional = todas as linhas de `pontuacao_operacional_sprint` com `entrega_pontos_alocados > 0`, ordenadas por `sprint_fim` desc, podendo misturar projetos; janelas por contagem: sprint=última 1 linha, quinzenal=últimas 2, mensal=últimas 4 — nunca por data de calendário
+  3. Agregação em duas camadas dentro da janela (agrupa por projeto, depois — se mais de um projeto — média simples entre os valores já calculados por projeto, não ponderada por volume), replicando o método da Phase 18
+  4. Arquétipo da janela = arquétipo do projeto com mais linhas (sprints) na janela, não mais pontos; empate quebrado pela linha mais recente
+  5. Janela incompleta (operacional com menos linhas do que a janela pede) calcula com o que existe e vem sinalizada visualmente como "janela parcial" no ranking
+  6. Tela do Líder: ranking completo por janela, breakdown por dimensão, comparação entre as 3 janelas, botão de anúncio do top performer (nome + frase, sem número) para qualquer janela
+
+**Plans:** TBD
 **UI hint:** yes
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Foundation + Extraction Proof | 0/3 | Not started | - |
-| 2. Full Extraction Pipeline + Generation + Deploy | 0/TBD | Not started | - |
-| 3. Frontend + End-to-End Demo | 0/TBD | Not started | - |
+| 1. Backend Foundation + Extraction Proof | 3/3 | Complete | 2026-08-13 |
+| 2. Full Extraction Pipeline + Generation + Deploy | code present, no GSD plans | Code confirmed complete (2026-09-03) | - |
+| 3. Frontend + End-to-End Demo | code present, no GSD plans | Code confirmed complete (2026-09-03) | - |
 | 4. Template v2 + GitHub Integration | 4/4 | Complete | 2026-07-28 |
 | 5. Content-Type Validation on Ingestion | 2/2 | Complete | 2026-08-13 |
 | ~~6. Token Usage Panel~~ | — | Removed | — |
 | 7. Matriz de Escopo + TransicaoStatus + Campos Novos em Projeto | 3/3 | Complete | 2026-08-22 |
 | 8. Painel do Gerente + Kanban de Sprint | 2/2 | Complete | 2026-08-22 |
-| 9. Revisor Diário Generalizado | 0/TBD | Not started | - |
+| 9. Revisor Diário Generalizado | 2/2 | Complete | 2026-08-23 |
 | 10. Composer de Planning | 3/3 | Complete    | 2026-08-23 |
-| 11. Suíte de Verificação de Aceite | 2/2 | In Progress|  |
-| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 3/3 | In Progress|  |
+| 11. Suíte de Verificação de Aceite | 2/2 | Awaiting human verification (code 15/15 verified) | 2026-08-23 |
+| 12. Boletim de Aceite, Encerramento e Resumo Semanal | 3/3 | Awaiting human verification (code 5/6 verified, 1 descoped by override) | 2026-08-24 |
+| 13. Kanban de Tasks — Métricas + Ganchos | 0/TBD | Not started | - |
+| 14. Confirmação de Transição + Reabertura + Bloqueio Manual | 0/TBD | Not started | - |
+| 15. Travamento Automático + Trava do Baseline do SprintCard | 0/TBD | Not started | - |
+| 16. RBAC — Login Leve e Papéis de Acesso | 0/TBD | Not started | - |
+| 17. Avaliação do Gerente | 0/TBD | Not started | - |
+| 18. Motor de Score — Dado Bruto + SPI do Operacional + Baseline de Evolução | 0/TBD | Not started | - |
+| 19. Peso por Arquétipo + Área de Performance e Ranking | 0/TBD | Not started | - |
