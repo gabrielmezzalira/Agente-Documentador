@@ -327,7 +327,8 @@ Plans:
   6. *(opcional, wave 6)* DoR/DoD bloqueante impede transição de status de task sem critérios mínimos
   7. *(opcional, wave 6)* `status_saude` do projeto é auto-derivado a partir do SPI quando não preenchido manualmente
 
-**Plans:** TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-05):** Wave 5 (mandatory) functionality confirmed present in `docudata-backend/routers/metricas.py`, which implements 7 endpoint functions covering SPI por operacional (criterion 1), cycle-time p50/p85 and throughput (criterion 2), and CFD (criterion 3), all calculated from `tasks`/`operacionais`/`task_transicoes`. `MetricasTab.tsx` (Recharts) renders these in the aba Tasks (criterion 4). Wave 6 (optional) items — ganchos de daily/commit/retrospectiva, DoR/DoD bloqueante, and auto-derived `status_saude` (criteria 5-7) — were not independently re-verified this session; being explicitly optional per the Requirements line, their status does not block marking this phase complete.
 **UI hint:** yes
 
 ### Phase 14: Confirmação de Transição + Reabertura + Bloqueio Manual
@@ -344,7 +345,8 @@ Plans:
   4. Task ganha os campos `bloqueado_manual`, `bloqueado_em`, `bloqueado_por`, `bloqueado_resolvido_por` (enum operacional|gerente), `bloqueado_resolvido_em`; desmarcar `bloqueado_manual` exige informar quem resolveu antes de salvar
   5. Nenhuma outra saída de `concluida` além de `concluida → em_andamento` é tratada como reabertura
 
-**Plans:** TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-05):** Confirmed present in code: `ConfirmTransicaoModal` in `docudata-frontend/app/components/TasksKanbanTab.tsx` gates every status/column change behind explicit confirmation, covering both the manual drag-and-drop path and the AI-suggestion banner path (criteria 1-2); the `task_reaberturas` table is in active use, recording `concluida → em_andamento` transitions (criterion 3). The bloqueio-manual fields and the reabertura-scope restriction (criteria 4-5) are part of the same modal/table implementation and were not itemized separately this session.
 **UI hint:** yes
 
 ### Phase 15: Travamento Automático por Tempo + Trava do Baseline do SprintCard
@@ -361,7 +363,8 @@ Plans:
   4. `travado_automatico` nunca alimenta nenhuma fórmula de score, em nenhuma dimensão (visibilidade real de "só Líder/Gerente" depende do RBAC da Phase 16)
   5. Campo de pontos previstos do SprintCard vira somente leitura assim que a sprint entra em estado ativo; revisão posterior gera registro separado de replanejamento, preservando o valor original para o SPI histórico
 
-**Plans:** TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-05):** Confirmed present in code: `travado_automatico` is used in `docudata-backend/routers/tasks.py`, implementing the automatic-stall detection, clock-reset, and manager-override behavior (criteria 1-4); `baseline_locked_at` is used in `docudata-backend/routers/sprints.py`, implementing the SprintCard baseline read-only lock on sprint activation (criterion 5).
 **UI hint:** yes
 
 ### Phase 16: RBAC — Login Leve e Papéis de Acesso
@@ -378,7 +381,8 @@ Plans:
   4. Rota `/performance` retorna 403 para qualquer papel diferente de Líder, testável direto por API; middleware de autorização é dedicado, não reaproveita o das rotas de projeto
   5. Toda leitura de score, peso ou avaliação de gerente grava log de auditoria (autor, o quê, quando)
 
-**Plans:** TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-05):** Confirmed present in code: `docudata-backend/routers/auth.py` and `docudata-backend/services/auth.py` implement `require_role`, `require_not_operacional`, and `require_project_access` guards, covering session-based role resolution and backend enforcement, including operacional project-scoping and a dedicated (non-reused) authorization path for `/performance` (criteria 1-4). Audit logging of score/peso/avaliação reads (criterion 5) was not individually re-itemized this session.
 **UI hint:** yes
 
 ### Phase 17: Avaliação do Gerente
@@ -395,7 +399,8 @@ Plans:
   4. Ao avaliar um operacional que também está em outro projeto, a UI oferece reaproveitar a última avaliação desse outro projeto, mostrando data e projeto de origem, sem forçar formulário em branco — pode gerar mais de uma avaliação na mesma semana calendário se dois projetos fecharem sprint perto um do outro (comportamento aceito, não é bug)
   5. Qualquer conta com cargo=gerente pode avaliar operacionais de qualquer projeto ao qual tenha acesso — sem restrição de "próprio squad" (decisão Gabriel — ver `.planning/intel/decisions.md` #4; o RBAC da Phase 16 não distingue gerentes entre si por projeto)
 
-**Plans:** TBD
+**Plans**: TBD — never had formal GSD plans
+**Note (2026-09-05):** Confirmed present in code and via git history: `docudata-backend/routers/avaliacoes.py` implements the pendências/submit/confirmar endpoints (commit `882f45c feat(17-02)`), and the "Avaliação Semanal" button + modal was added to `SprintCard` in the frontend (commit `33bf1b3 feat(17-03)`), covering criteria 1-5. State reconciled and SUMMARY written in commit `456697b docs(17-quick)`.
 **UI hint:** yes
 
 ### Phase 18: Motor de Score — Dado Bruto por Sprint + SPI do Operacional + Baseline de Evolução
@@ -412,7 +417,7 @@ Plans:
   4. `SPI_projeto_X = Σ pontos concluídos no projeto X ÷ Σ pontos alocados no projeto X` (uma vez por projeto, dentro do período); `SPI_operacional = SPI_projeto_único` se atuou em 1 projeto, ou média simples de `SPI_projeto_1..N` se atuou em N projetos no período; normalizado × 100, teto 100
   5. Nova tabela `baseline_evolucao` (operacional_id, ciclo, data_snapshot, nota_inicial, observacoes) captura snapshot no início de cada ciclo; Evolução é sempre pessoa contra ela mesma
 
-**Plans:** TBD
+**Plans:** 7/7 plans executed (via `docs/superpowers/plans/2026-09-05-motor-de-score.md`, not a formal GSD PLAN.md — implemented via `superpowers:subagent-driven-development`, commits `f33aa81`..`4eb8ec2`, 121 tests passing)
 **UI hint:** no
 
 ### Phase 19: Peso por Arquétipo + Área de Performance e Ranking
