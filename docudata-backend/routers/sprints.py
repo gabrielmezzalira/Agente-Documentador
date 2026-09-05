@@ -187,7 +187,14 @@ async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
 
 @router.delete("/sprints/{sprint_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_sprint(sprint_id: str):
-    """Remove uma sprint. Falha com 409 se houver ingestões ou docs associados."""
+    """
+    Remove uma sprint e TUDO associado a ela (cascade completo):
+    tasks, ingestões e documentos gerados. Sem confirmação adicional no backend —
+    o frontend já exige confirmação explícita do usuário antes de chamar este endpoint.
+
+    ingestions/generated_docs não têm FK pra sprints (ligam por project_id +
+    sprint_number), então o cascade é feito aqui em vez de depender do banco.
+    """
     client = get_client()
     check = client.table("sprints").select("id, project_id, numero").eq("id", sprint_id).execute()
     if not check.data:
@@ -197,32 +204,15 @@ async def delete_sprint(sprint_id: str):
     project_id = sprint["project_id"]
     numero = sprint["numero"]
 
-    has_ingestions = (
-        client.table("ingestions")
-        .select("id")
-        .eq("project_id", project_id)
-        .eq("sprint_number", numero)
-        .limit(1)
-        .execute()
-    ).data
+    # tasks.sprint_id é FK real — apaga explícito (não depende da migration de
+    # ON DELETE CASCADE já ter sido aplicada em produção). task_transicoes e
+    # task_sugestoes cascadeiam a partir de tasks no schema.
+    client.table("tasks").delete().eq("sprint_id", sprint_id).execute()
 
-    has_docs = (
-        client.table("generated_docs")
-        .select("id")
-        .eq("project_id", project_id)
-        .eq("sprint_number", numero)
-        .limit(1)
-        .execute()
-    ).data
-
-    if has_ingestions or has_docs:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Sprint {numero} tem ingestões ou documentos associados. "
-                "Exclua-os primeiro antes de remover a sprint."
-            ),
-        )
+    # ingestions e generated_docs ligam por (project_id, sprint_number) — sem FK.
+    client.table("ingestions").delete().eq("project_id", project_id).eq("sprint_number", numero).execute()
+    client.table("generated_docs").delete().eq("project_id", project_id).eq("sprint_number", numero).execute()
+    client.table("planning_rascunhos").delete().eq("project_id", project_id).eq("sprint_numero", numero).execute()
 
     client.table("sprints").delete().eq("id", sprint_id).execute()
 

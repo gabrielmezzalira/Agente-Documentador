@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id          uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     funcionalidade_id   uuid        REFERENCES funcionalidades(id) ON DELETE SET NULL,
-    sprint_id           uuid        REFERENCES sprints(id) ON DELETE SET NULL,
+    sprint_id           uuid        REFERENCES sprints(id) ON DELETE CASCADE,
     operacional_id      uuid        REFERENCES operacionais(id) ON DELETE SET NULL,
     titulo              text        NOT NULL,
     descricao           text,
@@ -398,3 +398,13 @@ CREATE TABLE IF NOT EXISTS avaliacoes_gerente (
 CREATE INDEX IF NOT EXISTS idx_avaliacoes_gerente_sprint ON avaliacoes_gerente(sprint_id);
 
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS avaliacao_completa_em timestamptz;
+
+-- Migration: tasks.sprint_id passa de ON DELETE SET NULL para ON DELETE CASCADE.
+-- Sem isso, apagar uma sprint deixava tasks órfãs (sprint_id NULL) que continuavam
+-- aparecendo em /metricas/{id}/cycle-time e /performance-operacional (consultam
+-- tasks por project_id, sem passar por sprints), gerando dashboard inconsistente.
+-- O nome da constraint abaixo é o default gerado pelo Postgres para a FK declarada
+-- inline em CREATE TABLE tasks (schema anterior); confirme com \d tasks se divergir.
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_sprint_id_fkey;
+ALTER TABLE tasks ADD CONSTRAINT tasks_sprint_id_fkey
+    FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE;

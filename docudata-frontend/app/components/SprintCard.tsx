@@ -392,7 +392,7 @@ export default function SprintCard({
           <button
             style={{ ...btnSubtle, color: "#dc2626" }}
             onClick={() => {
-              if (confirm(`Excluir Sprint ${sprint.numero}? Esta ação é irreversível.`))
+              if (confirm(`Excluir Sprint ${sprint.numero} e TUDO associado a ela (tasks, ingestões e documentos gerados)? Esta ação é irreversível.`))
                 onDeleteSprint(sprint.id);
             }}
             title="Excluir sprint"
