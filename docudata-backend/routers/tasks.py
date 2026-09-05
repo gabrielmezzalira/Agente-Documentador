@@ -57,6 +57,7 @@ def _registrar_task_transicao(
         "timestamp": agora.isoformat(),
         "motivo": motivo,
         "duracao_fase_anterior_segundos": duracao,
+        "operacional_id": task_atual.get("operacional_id"),
     }).execute()
     return resp.data[0]["id"] if resp.data else None
 
