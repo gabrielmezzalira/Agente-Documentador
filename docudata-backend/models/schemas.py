@@ -639,7 +639,7 @@ class PontuacaoOperacionalSprintResponse(BaseModel):
 class ConfirmarAvaliacaoResponse(BaseModel):
     sprint_id: str
     avaliacao_completa_em: datetime
-    pontuacao_operacional_sprint: list[PontuacaoOperacionalSprintResponse] = []
+    pontuacao_travada_count: int = 0
 
 
 class BaselineEvolucaoCreate(BaseModel):

@@ -33,6 +33,16 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         return []
     project_id = sprint_resp.data[0]["project_id"]
 
+    cutoff_resp = (
+        client.table("pontuacao_operacional_sprint")
+        .select("finalizado_em")
+        .eq("projeto_id", project_id)
+        .order("finalizado_em", desc=True)
+        .limit(1)
+        .execute()
+    )
+    cutoff = cutoff_resp.data[0]["finalizado_em"] if cutoff_resp.data else None
+
     tasks = (
         client.table("tasks")
         .select("id, operacional_id, pontos, coluna_kanban, bloqueado_resolvido_por, bloqueado_resolvido_em")
@@ -66,12 +76,14 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
                 pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
 
         if task.get("bloqueado_resolvido_em") and task.get("operacional_id"):
-            op = task["operacional_id"]
-            bloqueios_totais[op] = bloqueios_totais.get(op, 0) + 1
-            if task.get("bloqueado_resolvido_por") == "operacional":
-                bloqueios_proprio[op] = bloqueios_proprio.get(op, 0) + 1
+            resolvido_em = task["bloqueado_resolvido_em"]
+            if cutoff is None or resolvido_em > cutoff:
+                op = task["operacional_id"]
+                bloqueios_totais[op] = bloqueios_totais.get(op, 0) + 1
+                if task.get("bloqueado_resolvido_por") == "operacional":
+                    bloqueios_proprio[op] = bloqueios_proprio.get(op, 0) + 1
 
-    reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks])
+    reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks], cutoff)
 
     eventos_tardios = (
         client.table("eventos_pontuacao_tardios")
@@ -164,16 +176,17 @@ def _resolver_quem_completou(client, task_ids: list[str]) -> dict[str, str]:
     return resultado
 
 
-def _contar_reaberturas(client, task_ids: list[str]) -> dict[str, int]:
+def _contar_reaberturas(client, task_ids: list[str], cutoff: str | None = None) -> dict[str, int]:
     if not task_ids:
         return {}
-    rows = (
+    query = (
         client.table("task_reaberturas")
-        .select("operacional_id")
+        .select("operacional_id, timestamp")
         .in_("task_id", task_ids)
-        .execute()
-        .data or []
     )
+    if cutoff is not None:
+        query = query.gt("timestamp", cutoff)
+    rows = query.execute().data or []
     contagem: dict[str, int] = {}
     for row in rows:
         op = row.get("operacional_id")

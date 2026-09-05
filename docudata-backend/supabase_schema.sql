@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS eventos_pontuacao_tardios (
                         'autonomia_bloqueios_totais',
                         'autonomia_bloqueios_resolvidos_proprio'
                     )),
-    task_id         uuid        REFERENCES tasks(id),
+    task_id         uuid        REFERENCES tasks(id) ON DELETE SET NULL,
     criado_em       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_eventos_pontuacao_tardios_sprint_alvo ON eventos_pontuacao_tardios(sprint_id_alvo);

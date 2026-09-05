@@ -13,6 +13,7 @@ from services.pontuacao import calcular_e_travar_pontuacao
 
 def _mock_client(
     pontuacao_existente=None,
+    cutoff_existente=None,
     sprint=None,
     tasks=None,
     task_transicoes=None,
@@ -22,6 +23,7 @@ def _mock_client(
     insert_capture=None,
 ):
     pontuacao_existente = pontuacao_existente or []
+    cutoff_existente = cutoff_existente or []
     tasks = tasks or []
     task_transicoes = task_transicoes or []
     task_reaberturas = task_reaberturas or []
@@ -36,11 +38,32 @@ def _mock_client(
 
         if name == "pontuacao_operacional_sprint":
             def select_side_effect(cols):
+                # Duas queries diferentes passam por aqui: a checagem de
+                # idempotência (.eq("sprint_id", ...)) e a busca de cutoff
+                # (.eq("projeto_id", ...).order(...).limit(...)) — distingue
+                # pela presença de .order() na chain.
                 q = MagicMock()
-                q.eq = MagicMock(return_value=q)
-                resp = MagicMock()
-                resp.data = pontuacao_existente
-                q.execute = MagicMock(return_value=resp)
+                state = {"order_called": False}
+
+                def eq_effect(*a, **kw):
+                    return q
+
+                def order_effect(*a, **kw):
+                    state["order_called"] = True
+                    return q
+
+                def limit_effect(*a, **kw):
+                    return q
+
+                def execute_effect():
+                    resp = MagicMock()
+                    resp.data = cutoff_existente if state["order_called"] else pontuacao_existente
+                    return resp
+
+                q.eq = MagicMock(side_effect=eq_effect)
+                q.order = MagicMock(side_effect=order_effect)
+                q.limit = MagicMock(side_effect=limit_effect)
+                q.execute = MagicMock(side_effect=execute_effect)
                 return q
 
             def insert_side_effect(payload):
@@ -89,10 +112,26 @@ def _mock_client(
         elif name == "task_reaberturas":
             def select_side_effect(cols):
                 q = MagicMock()
-                q.in_ = MagicMock(return_value=q)
-                resp = MagicMock()
-                resp.data = task_reaberturas
-                q.execute = MagicMock(return_value=resp)
+                state = {"gt_timestamp": None}
+
+                def in_effect(*a, **kw):
+                    return q
+
+                def gt_effect(field, value):
+                    state["gt_timestamp"] = value
+                    return q
+
+                def execute_effect():
+                    resp = MagicMock()
+                    data = task_reaberturas
+                    if state["gt_timestamp"] is not None:
+                        data = [r for r in data if r.get("timestamp", "") > state["gt_timestamp"]]
+                    resp.data = data
+                    return resp
+
+                q.in_ = MagicMock(side_effect=in_effect)
+                q.gt = MagicMock(side_effect=gt_effect)
+                q.execute = MagicMock(side_effect=execute_effect)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
 
@@ -236,3 +275,61 @@ def test_sprint_inexistente_retorna_lista_vazia(monkeypatch):
 def test_sprint_sem_nenhuma_task_retorna_lista_vazia(monkeypatch):
     client = _mock_client(sprint=_SPRINT, tasks=[])
     assert calcular_e_travar_pontuacao(client, "sprint-1") == []
+
+
+# --- Regressão: carry-over cross-sprint não pode dobrar a contagem (Finding 2) ---
+
+_SPRINT_2 = {"id": "sprint-2", "project_id": "proj-1"}
+_CUTOFF = "2026-09-01T12:00:00+00:00"
+
+
+def test_reabertura_de_sprint_anterior_ja_travada_nao_e_recontada_mas_nova_e_contada(monkeypatch):
+    """Task T foi reaberta na sprint-1 (evento já contabilizado quando a
+    sprint-1 fechou, travando pontuacao_operacional_sprint com
+    finalizado_em=_CUTOFF). T segue sem terminar e é reatribuída pra
+    sprint-2 (task.sprint_id vira sprint-2, sem mudar mais nada). Quando
+    sprint-2 fecha, _contar_reaberturas não pode encontrar de novo a mesma
+    linha antiga de task_reaberturas (timestamp antes do cutoff) — só uma
+    reabertura genuinamente nova (timestamp depois do cutoff) deve contar."""
+    client = _mock_client(
+        cutoff_existente=[{"finalizado_em": _CUTOFF}],
+        sprint=_SPRINT_2,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        task_reaberturas=[
+            {"operacional_id": "op-1", "timestamp": "2026-08-30T00:00:00+00:00"},  # sprint-1, já contabilizada
+            {"operacional_id": "op-1", "timestamp": "2026-09-03T00:00:00+00:00"},  # nova, pós-cutoff
+        ],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-2")
+
+    linha = next(l for l in resultado if l["operacional_id"] == "op-1")
+    assert linha["qualidade_reaberturas"] == 1
+
+
+def test_bloqueio_resolvido_antes_do_cutoff_nao_e_recontado_mas_novo_e_contado(monkeypatch):
+    """Mesmo cenário de carry-over, mas para o campo bloqueado_resolvido_em:
+    task-1 tem uma resolução de bloqueio antiga (de antes do cutoff, já
+    contabilizada quando a sprint-1 fechou) e não deve ser recontada quando
+    a sprint-2 (que agora contém task-1) fecha. task-2, com resolução após o
+    cutoff, deve ser contada normalmente."""
+    client = _mock_client(
+        cutoff_existente=[{"finalizado_em": _CUTOFF}],
+        sprint=_SPRINT_2,
+        tasks=[
+            {
+                "id": "task-1", "operacional_id": "op-1", "pontos": 2, "coluna_kanban": "em_andamento",
+                "bloqueado_resolvido_por": "operacional", "bloqueado_resolvido_em": "2026-08-30T00:00:00+00:00",
+            },
+            {
+                "id": "task-2", "operacional_id": "op-1", "pontos": 2, "coluna_kanban": "em_andamento",
+                "bloqueado_resolvido_por": "operacional", "bloqueado_resolvido_em": "2026-09-03T00:00:00+00:00",
+            },
+        ],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-2")
+
+    linha = next(l for l in resultado if l["operacional_id"] == "op-1")
+    assert linha["autonomia_bloqueios_totais"] == 1
+    assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1

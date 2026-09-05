@@ -168,5 +168,5 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
     return {
         "sprint_id": sprint_id,
         "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"],
-        "pontuacao_operacional_sprint": pontuacoes,
+        "pontuacao_travada_count": len(pontuacoes),
     }

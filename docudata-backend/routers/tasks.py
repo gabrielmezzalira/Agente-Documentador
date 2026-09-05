@@ -415,12 +415,15 @@ async def patch_task(task_id: str, data: TaskUpdate):
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 
-    if houve_reabertura:
-        rotear_evento_pos_fechamento(client, task, "qualidade_reaberturas")
-    if houve_bloqueio_resolvido:
-        rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_totais")
-        if data.bloqueado_resolvido_por == "operacional":
-            rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_resolvidos_proprio")
+    try:
+        if houve_reabertura:
+            rotear_evento_pos_fechamento(client, task, "qualidade_reaberturas")
+        if houve_bloqueio_resolvido:
+            rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_totais")
+            if data.bloqueado_resolvido_por == "operacional":
+                rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_resolvidos_proprio")
+    except Exception:
+        pass  # best-effort
 
     # Dispara evento de transição de coluna para logging e detecção de funcionalidade completa
     if coluna_nova is not None and coluna_nova != coluna_atual:

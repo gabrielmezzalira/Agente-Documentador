@@ -122,5 +122,5 @@ def test_confirma_inclui_pontuacao_calculada_no_response(monkeypatch):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["pontuacao_operacional_sprint"][0]["operacional_id"] == "op-1"
-    assert body["pontuacao_operacional_sprint"][0]["entrega_pontos_concluidos"] == 5
+    assert body["pontuacao_travada_count"] == 1
+    assert "pontuacao_operacional_sprint" not in body
