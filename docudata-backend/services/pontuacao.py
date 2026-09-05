@@ -11,6 +11,8 @@ histórico de transições, pra "quem completou") quando roda.
 """
 from datetime import datetime, timezone
 
+from services.sprints import get_current_sprint_id
+
 
 def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     """Calcula e trava uma linha de pontuacao_operacional_sprint por operacional
@@ -178,3 +180,52 @@ def _contar_reaberturas(client, task_ids: list[str]) -> dict[str, int]:
         if op:
             contagem[op] = contagem.get(op, 0) + 1
     return contagem
+
+
+def rotear_evento_pos_fechamento(client, task: dict, dimensao: str) -> None:
+    """Se a sprint de origem da task já tiver pontuacao_operacional_sprint
+    travada, redireciona o evento de qualidade/autonomia pra sprint ativa do
+    projeto (via ledger eventos_pontuacao_tardios) em vez de descartá-lo.
+
+    Sem efeito se a sprint de origem ainda não fechou (fluxo normal — o
+    evento será capturado no próprio fechamento dessa sprint) ou se a sprint
+    ativa também já estiver travada (evento fica só no histórico de
+    task_transicoes/task_reaberturas, sem afetar nenhuma pontuação)."""
+    sprint_id_origem = task.get("sprint_id")
+    if not sprint_id_origem:
+        return
+
+    travada = (
+        client.table("pontuacao_operacional_sprint")
+        .select("id")
+        .eq("sprint_id", sprint_id_origem)
+        .execute()
+        .data
+    )
+    if not travada:
+        return
+
+    sprint_ativa_id = get_current_sprint_id(client, task["project_id"])
+    if not sprint_ativa_id:
+        return
+
+    sprint_ativa_travada = (
+        client.table("pontuacao_operacional_sprint")
+        .select("id")
+        .eq("sprint_id", sprint_ativa_id)
+        .execute()
+        .data
+    )
+    if sprint_ativa_travada:
+        return
+
+    operacional_id = task.get("operacional_id")
+    if not operacional_id:
+        return
+
+    client.table("eventos_pontuacao_tardios").insert({
+        "operacional_id": operacional_id,
+        "sprint_id_alvo": sprint_ativa_id,
+        "dimensao": dimensao,
+        "task_id": task.get("id"),
+    }).execute()

@@ -17,6 +17,7 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
+from services.pontuacao import rotear_evento_pos_fechamento
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -345,6 +346,7 @@ async def patch_task(task_id: str, data: TaskUpdate):
 
     # Registra transições para campos monitorados
     houve_reabertura = False
+    houve_bloqueio_resolvido = False
     houve_entrada_em_andamento = False
     houve_saida_de_em_andamento = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
@@ -409,8 +411,16 @@ async def patch_task(task_id: str, data: TaskUpdate):
         else:
             updates["bloqueado_resolvido_por"] = data.bloqueado_resolvido_por
             updates["bloqueado_resolvido_em"] = agora.isoformat()
+            houve_bloqueio_resolvido = True
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if houve_reabertura:
+        rotear_evento_pos_fechamento(client, task, "qualidade_reaberturas")
+    if houve_bloqueio_resolvido:
+        rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_totais")
+        if data.bloqueado_resolvido_por == "operacional":
+            rotear_evento_pos_fechamento(client, task, "autonomia_bloqueios_resolvidos_proprio")
 
     # Dispara evento de transição de coluna para logging e detecção de funcionalidade completa
     if coluna_nova is not None and coluna_nova != coluna_atual:
