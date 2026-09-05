@@ -640,3 +640,29 @@ class ConfirmarAvaliacaoResponse(BaseModel):
     sprint_id: str
     avaliacao_completa_em: datetime
     pontuacao_operacional_sprint: list[PontuacaoOperacionalSprintResponse] = []
+
+
+class BaselineEvolucaoCreate(BaseModel):
+    operacional_id: str
+    ciclo: str
+    observacoes: Optional[str] = None
+
+
+class BaselineEvolucaoResponse(BaseModel):
+    id: str
+    operacional_id: str
+    ciclo: str
+    data_snapshot: datetime
+    nota_inicial: Optional[float] = None
+    observacoes: Optional[str] = None
+
+
+class SpiPorProjetoResponse(BaseModel):
+    projeto_id: str
+    spi: Optional[float] = None
+
+
+class SpiOperacionalResponse(BaseModel):
+    operacional_id: str
+    spi: Optional[float] = None
+    por_projeto: list[SpiPorProjetoResponse] = []

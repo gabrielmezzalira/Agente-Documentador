@@ -229,3 +229,33 @@ def rotear_evento_pos_fechamento(client, task: dict, dimensao: str) -> None:
         "dimensao": dimensao,
         "task_id": task.get("id"),
     }).execute()
+
+
+def calcular_spi_operacional(client, operacional_id: str) -> dict:
+    """SPI em duas camadas: soma dentro de cada projeto, depois média simples
+    entre projetos se o operacional atuou em mais de um. Teto 100."""
+    linhas = (
+        client.table("pontuacao_operacional_sprint")
+        .select("projeto_id, entrega_pontos_concluidos, entrega_pontos_alocados")
+        .eq("operacional_id", operacional_id)
+        .execute()
+        .data or []
+    )
+
+    por_projeto_raw: dict[str, dict] = {}
+    for linha in linhas:
+        acumulado = por_projeto_raw.setdefault(linha["projeto_id"], {"concluidos": 0, "alocados": 0})
+        acumulado["concluidos"] += linha["entrega_pontos_concluidos"]
+        acumulado["alocados"] += linha["entrega_pontos_alocados"]
+
+    por_projeto = []
+    for projeto_id, soma in por_projeto_raw.items():
+        spi_projeto = None
+        if soma["alocados"] > 0:
+            spi_projeto = round(min(soma["concluidos"] / soma["alocados"] * 100, 100), 2)
+        por_projeto.append({"projeto_id": projeto_id, "spi": spi_projeto})
+
+    validos = [p["spi"] for p in por_projeto if p["spi"] is not None]
+    spi_operacional = round(sum(validos) / len(validos), 2) if validos else None
+
+    return {"operacional_id": operacional_id, "spi": spi_operacional, "por_projeto": por_projeto}
