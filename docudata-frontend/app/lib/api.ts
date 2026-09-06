@@ -1245,7 +1245,10 @@ export interface OperacionalResponse {
 }
 
 export async function listOperacionais(projectId: string): Promise<OperacionalResponse[]> {
-  const res = await apiFetch(`${API}/operacionais?project_id=${projectId}`);
+  // ativo=false faz o backend não aplicar o filtro de ativo (ver Query(default=True) em
+  // routers/operacionais.py) — retorna TODOS os operacionais, ativos e inativos, para que
+  // Configurações consiga exibir e gerenciar (reativar/excluir) mesmo os desativados.
+  const res = await apiFetch(`${API}/operacionais/projects/${projectId}?ativo=false`);
   if (!res.ok) throw new Error("Erro ao buscar operacionais");
   return res.json();
 }
