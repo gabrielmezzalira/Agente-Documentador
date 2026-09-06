@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Literal, Optional
 from datetime import date, datetime
 
 
@@ -56,6 +56,7 @@ class ProjectResponse(BaseModel):
     periodo_garantia_dias: Optional[int] = None
     has_github_config: bool = False
     gerente_email: Optional[str] = None
+    arquetipo: str = "padrao"
 
 
 class GerenteEmailUpdate(BaseModel):
@@ -309,6 +310,7 @@ class ContratoUpdate(BaseModel):
     data_fim_contratada: Optional[date] = None
     tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
+    arquetipo: Optional[Literal["padrao", "consultoria_discovery"]] = None
 
 
 class ExecucaoAceitePayload(BaseModel):
