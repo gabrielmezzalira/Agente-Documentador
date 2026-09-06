@@ -84,6 +84,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
                     bloqueios_proprio[op] = bloqueios_proprio.get(op, 0) + 1
 
     reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks], cutoff)
+    qualidade_commit = _calcular_qualidade_commit(client, project_id, cutoff)
 
     eventos_tardios = (
         client.table("eventos_pontuacao_tardios")
@@ -144,6 +145,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "qualidade_tasks_concluidas": tasks_concluidas.get(operacional_id, 0),
             "autonomia_bloqueios_resolvidos_proprio": bloqueios_proprio.get(operacional_id, 0),
             "autonomia_bloqueios_totais": bloqueios_totais.get(operacional_id, 0),
+            "qualidade_commit_media": qualidade_commit.get(operacional_id),
             "arquetipo": None,
             "finalizado_em": agora,
         })
@@ -193,6 +195,23 @@ def _contar_reaberturas(client, task_ids: list[str], cutoff: str | None = None) 
         if op:
             contagem[op] = contagem.get(op, 0) + 1
     return contagem
+
+
+def _calcular_qualidade_commit(client, projeto_id: str, cutoff: str | None) -> dict[str, float]:
+    query = (
+        client.table("commit_qualidade")
+        .select("operacional_id, nota")
+        .eq("projeto_id", projeto_id)
+    )
+    if cutoff is not None:
+        query = query.gt("criado_em", cutoff)
+    rows = query.execute().data or []
+    por_operacional: dict[str, list[int]] = {}
+    for row in rows:
+        op = row.get("operacional_id")
+        if op:
+            por_operacional.setdefault(op, []).append(row["nota"])
+    return {op: round(sum(notas) / len(notas), 2) for op, notas in por_operacional.items()}
 
 
 def rotear_evento_pos_fechamento(client, task: dict, dimensao: str) -> None:

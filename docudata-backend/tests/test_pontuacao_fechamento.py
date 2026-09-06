@@ -20,6 +20,7 @@ def _mock_client(
     task_reaberturas=None,
     eventos_tardios=None,
     avaliacoes=None,
+    commit_qualidade=None,
     insert_capture=None,
 ):
     pontuacao_existente = pontuacao_existente or []
@@ -29,6 +30,7 @@ def _mock_client(
     task_reaberturas = task_reaberturas or []
     eventos_tardios = eventos_tardios or []
     avaliacoes = avaliacoes or []
+    commit_qualidade = commit_qualidade or []
     insert_capture = insert_capture if insert_capture is not None else []
 
     client = MagicMock()
@@ -151,6 +153,17 @@ def _mock_client(
                 q.eq = MagicMock(return_value=q)
                 resp = MagicMock()
                 resp.data = avaliacoes
+                q.execute = MagicMock(return_value=resp)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
+        if name == "commit_qualidade":
+            def select_side_effect(cols):
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                q.gt = MagicMock(return_value=q)
+                resp = MagicMock()
+                resp.data = commit_qualidade
                 q.execute = MagicMock(return_value=resp)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
@@ -353,3 +366,32 @@ def test_gerente_media_usa_as_sete_respostas(monkeypatch):
     # Média das 7 respostas (inclui resposta_6=0), não das 6 que excluíam resposta_6.
     assert linha["gerente_media"] == round((5 + 5 + 5 + 5 + 5 + 0 + 5) / 7, 2)
     assert linha["gerente_pergunta6"] == 0
+
+
+def test_qualidade_commit_media_calculada_no_fechamento(monkeypatch):
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        commit_qualidade=[
+            {"operacional_id": "op-1", "nota": 8},
+            {"operacional_id": "op-1", "nota": 6},
+        ],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    linha = next(l for l in resultado if l["operacional_id"] == "op-1")
+    assert linha["qualidade_commit_media"] == round((8 + 6) / 2, 2)
+
+
+def test_qualidade_commit_media_null_sem_commit_no_periodo(monkeypatch):
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        commit_qualidade=[],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    linha = next(l for l in resultado if l["operacional_id"] == "op-1")
+    assert linha["qualidade_commit_media"] is None
