@@ -1552,3 +1552,31 @@ export async function getMetricasCycleTimeStats(projectId: string): Promise<Cycl
   if (!res.ok) throw new Error("Erro ao buscar estatísticas de cycle-time");
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Performance — ranking de operacionais (líder)
+
+export interface PerformanceOperacional {
+  email: string;
+  nome: string;
+  score_final: number;
+  entrega?: number | null;
+  gerente?: number | null;
+  qualidade?: number | null;
+  autonomia?: number | null;
+  evolucao?: number | null;
+  janela_parcial: boolean;
+  arquetipo_usado: string;
+}
+
+export interface PerformanceResponse {
+  sprint: PerformanceOperacional[];
+  quinzenal: PerformanceOperacional[];
+  mensal: PerformanceOperacional[];
+}
+
+export async function getPerformance(): Promise<PerformanceResponse> {
+  const res = await apiFetch(`${API}/performance`);
+  if (!res.ok) throw new Error("Erro ao buscar ranking de performance");
+  return res.json();
+}

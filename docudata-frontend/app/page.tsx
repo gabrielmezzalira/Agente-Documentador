@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "./components/AuthGuard";
 import { listProjects, searchStack, type Project, type StackSearchResult } from "./lib/api";
 
 const STALE_DAYS = 7;
@@ -65,6 +66,7 @@ function ProjectCard({ p }: { p: Project }) {
 }
 
 export default function Home() {
+  const auth = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -102,9 +104,18 @@ export default function Home() {
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#16a34a" }}>
             citi · subárea de dados
           </span>
-          <Link href="/projects/new">
-            <button style={btnPrimary}>+ Novo projeto</button>
-          </Link>
+          <div style={{ display: "flex", gap: 10 }}>
+            {auth?.cargo === "lider" && (
+              <Link href="/performance">
+                <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
+                  Performance
+                </button>
+              </Link>
+            )}
+            <Link href="/projects/new">
+              <button style={btnPrimary}>+ Novo projeto</button>
+            </Link>
+          </div>
         </div>
         <h1 style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em", color: "#111116", lineHeight: 1.05 }}>
           Agente Documentador
