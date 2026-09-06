@@ -127,7 +127,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         gerente_media = None
         gerente_pergunta6 = None
         if aval:
-            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
+            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_6"], aval["resposta_7"]]
             gerente_media = round(sum(notas) / len(notas), 2)
             gerente_pergunta6 = aval["resposta_6"]
 

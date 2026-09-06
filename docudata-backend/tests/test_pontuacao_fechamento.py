@@ -195,7 +195,7 @@ def test_calcula_entrega_qualidade_autonomia_gerente_para_task_simples(monkeypat
     assert linha["qualidade_reaberturas"] == 1
     assert linha["autonomia_bloqueios_totais"] == 1
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
-    assert linha["gerente_media"] == round((5 + 4 + 3 + 4 + 5 + 3) / 6, 2)
+    assert linha["gerente_media"] == round((5 + 4 + 3 + 4 + 5 + 2 + 3) / 7, 2)
     assert linha["gerente_pergunta6"] == 2
     assert linha["arquetipo"] is None
     assert len(insert_capture) == 1
@@ -333,3 +333,23 @@ def test_bloqueio_resolvido_antes_do_cutoff_nao_e_recontado_mas_novo_e_contado(m
     linha = next(l for l in resultado if l["operacional_id"] == "op-1")
     assert linha["autonomia_bloqueios_totais"] == 1
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
+
+
+def test_gerente_media_usa_as_sete_respostas(monkeypatch):
+    aval = {
+        "operacional_id": "op-1",
+        "resposta_1": 5, "resposta_2": 5, "resposta_3": 5, "resposta_4": 5,
+        "resposta_5": 5, "resposta_6": 0, "resposta_7": 5,
+    }
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 1, "coluna_kanban": "em_andamento"}],
+        avaliacoes=[aval],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    linha = next(l for l in resultado if l["operacional_id"] == "op-1")
+    # Média das 7 respostas (inclui resposta_6=0), não das 6 que excluíam resposta_6.
+    assert linha["gerente_media"] == round((5 + 5 + 5 + 5 + 5 + 0 + 5) / 7, 2)
+    assert linha["gerente_pergunta6"] == 0
