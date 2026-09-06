@@ -490,7 +490,17 @@ async def reordenar_tasks(itens: list[TaskReordenarItem]):
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(task_id: str):
     client = get_client()
-    check = client.table("tasks").select("id").eq("id", task_id).execute()
+    check = client.table("tasks").select("id, sprint_id").eq("id", task_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    sprint_id = check.data[0].get("sprint_id")
+    if sprint_id:
+        sprint = client.table("sprints").select("avaliacao_completa_em").eq("id", sprint_id).execute()
+        if sprint.data and sprint.data[0].get("avaliacao_completa_em"):
+            raise HTTPException(
+                status_code=409,
+                detail="A pontuação desta sprint já foi travada (Avaliação Semanal confirmada); exclusão de task bloqueada.",
+            )
+
     client.table("tasks").delete().eq("id", task_id).execute()
