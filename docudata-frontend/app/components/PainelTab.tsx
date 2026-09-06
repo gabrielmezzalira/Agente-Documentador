@@ -283,7 +283,10 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
 function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
   return (
     <div style={cardStyle}>
-      <span style={cardTitleStyle}>Métricas de Fluxo</span>
+      <span style={cardTitleStyle}>
+        Métricas de Fluxo
+        <InfoTooltip text="WIP (Work in Progress) = funcionalidades em andamento agora. Throughput = quantas foram concluídas por semana. Cycle-time = tempo médio de uma funcionalidade do início ao fim. Métricas calculadas a partir do histórico de status das funcionalidades." />
+      </span>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
           <p style={metricLabelStyle}>WIP agora</p>
