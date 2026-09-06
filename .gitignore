@@ -24,3 +24,7 @@ out/
 
 # Claude Code
 .claude/
+
+# graphify (regenerable knowledge graph cache)
+graphify-out/
+.knowledge-graph/

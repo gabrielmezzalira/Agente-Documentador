@@ -29,10 +29,11 @@ O fluxo de ingestão + geração precisa funcionar de ponta a ponta — subir um
 
 ### Out of Scope
 
-- Autenticação e controle de acesso — MVP compartilhado sem login, toda a subárea usa o mesmo espaço
-- Múltiplos usuários simultâneos com isolamento por conta — fora do escopo v1
+- ~~Autenticação e controle de acesso~~ — **revisto 2026-09-02**: login leve (email/senha) por cargo entra em escopo a partir da Phase 16 (RBAC), ver "Key Decisions" abaixo. Isolamento por projeto continua fora de escopo para Líder e Gerente — só Operacional é restrito aos projetos aos quais está vinculado.
+- Múltiplos usuários simultâneos com isolamento por conta — fora do escopo v1 (RBAC da Phase 16 distingue cargo, não isola dados entre contas do mesmo cargo além da restrição de projeto do Operacional)
 - Notificações e alertas — não planejado
 - Exportação para DOCX/PDF — markdown é suficiente para v1
+- Rename "DocuData"/"Agente Documentador" → "Hub de Projetos" — **adiado** (decisão Gabriel, 2026-09-02, ver `.planning/intel/decisions.md` #1): SDD v3 Parte 0 propõe o rename, mas ficou fora das Phases 13-19 desta rodada. Vira fase própria mais tarde, quando o resto do SDD estiver estável. `PROJECT.md` mantém o título "DocuData" até lá.
 
 ## Context
 
@@ -60,7 +61,8 @@ O fluxo de ingestão + geração precisa funcionar de ponta a ponta — subir um
 | JSON com 6 campos fixos como schema de extração | Permite filtrar, agregar e referenciar campos específicos na compilação de contexto | — Pending |
 | Markdown como formato de output de geração | Renderizável no frontend, copiável, portável | — Pending |
 | FastAPI separado do Next.js | Permite escalar backend independentemente e usar Python com bibliotecas de dados | — Pending |
-| Sem autenticação no v1 | Simplifica MVP — toda a subárea usa espaço compartilhado | — Pending |
+| Sem autenticação no v1 | Simplifica MVP — toda a subárea usa espaço compartilhado | Superseded 2026-09-02 — ver linha abaixo |
+| RBAC com login leve por cargo (email/senha) | SDD v3 "Hub de Projetos" (Parte 6) exige distinguir Líder/Gerente/Operacional no backend para score/avaliação/ranking, com enforcement real — não dá para fazer sem alguma noção de identidade. Cargo (não squad/projeto) determina acesso para Líder/Gerente; Operacional continua restrito por vínculo de projeto. Decisão de Gabriel em resposta a um risco levantado no ingest do SDD v3 — ver `.planning/intel/decisions.md` #4. | — Pending (Phase 16) |
 
 ## Evolution
 

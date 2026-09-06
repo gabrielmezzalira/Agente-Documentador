@@ -1,0 +1,4 @@
+docs:
+  - path: .planning/incoming/SDD-hub-de-projetos-v3.md
+    type: SPEC
+    supersedes: .planning/incoming/SDD-hub-de-projetos-v2.md

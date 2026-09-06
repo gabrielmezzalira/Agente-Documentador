@@ -1,0 +1,31 @@
+## Conflict Detection Report
+
+### BLOCKERS (0)
+
+(none)
+
+### WARNINGS (0 open, 2 resolved by Gabriel — 2026-09-02)
+
+[RESOLVED] Rename "DocuData"/"Agente Documentador" → "Hub de Projetos" contradicts current project identity in PROJECT.md
+  Found: .planning/incoming/SDD-hub-de-projetos-v3.md, Parte 0, mandates a recursive (case-insensitive) rename across ~117 files including the top-level folders `docudata-backend/`/`docudata-frontend/` and `package.json`.
+  Resolution (Gabriel, direct answer): **deferred, not rejected.** Proceed with Partes 1-12 under the current name; the rename becomes its own phase later, once the rest of the SDD is stable. No rename phase is included in this ingest's phase additions to ROADMAP.md. See `.planning/intel/decisions.md` decision #1.
+
+[RESOLVED] Two items from v2's "Decisões em aberto" had unresolved status after re-synthesis
+  Found: (1) v2 Parte 9's open item on point attribution when a task is reassigned mid-period, absent from v3 entirely. (2) v3's own still-open item: whether archetype weight differentiation is needed now that CSAT is gone.
+  Resolution (Gabriel, direct answers):
+  (1) "os pontos previstos daquele operacional é recalculado" — task reassignment mid-period triggers a recalculation of `entrega_pontos_alocados` for the affected operacional(s), rather than leaving all points with whoever holds the task at sprint close. Exact recalculation mechanics still need to be nailed down during Parte 9/11 phase planning. See `.planning/intel/decisions.md` decision #2.
+  (2) "pesos iguais, nao precisa ter essa divisao" — closed permanently, not deferred. No archetype weight differentiation will be built; `pesos_arquetipo` ships with identical default weights and no further design work on a CSAT replacement. See `.planning/intel/decisions.md` decision #3.
+
+### INFO (3)
+
+[INFO] Auto-resolved: v3 overwrites v2's SPI do Operacional calculation method — explicit author decision, not a contradiction to arbitrate
+  Note: v2 (source: superseded/SDD-hub-de-projetos-v2.md#parte-9, no longer in the active classification set) specified summing points across all projects before dividing once, explicitly rejecting per-project SPI averaging. v3 (source: .planning/incoming/SDD-hub-de-projetos-v3.md#parte-9, #parte-11, #parte-12) inverts this: sum within a single project across its sprints first, then take a simple average across projects. v3's own provenance note at the top of the document and the inline flag before Parte 9 both explicitly call this out as an intentional calibration decision by the document's author (Gabriel), applying the same "don't let volume dominate" principle one level up. Per the supersession instructions for this run, v3 fully overwrites the v2-derived constraints.md entry for Parte 9 — including the stale DoD line "SPI do Operacional soma pontos através de projetos antes de dividir, nunca faz média de proporções," which is now replaced in constraints.md with v3's inverted rule. No user gate needed — the document itself resolves this, not synthesis inference.
+
+[INFO] Auto-resolved: Parte 10's archetype-selection rule relocated to Parte 12 with a different, more specific criterion
+  Note: v2 Parte 10 stated the archetype-selection rule inline ("usa o arquétipo do projeto onde concentrou mais pontos alocados; critério de desempate ainda não definido"). v3 Parte 10 (source: .planning/incoming/SDD-hub-de-projetos-v3.md#parte-10) drops this rule entirely from Parte 10, which now only defines the `pesos_arquetipo` table and default weights. The selection rule reappears in v3 Parte 12 (source: .planning/incoming/SDD-hub-de-projetos-v3.md#parte-12, "Arquétipo da janela") under a materially different criterion: most sprint-rows (lines) within the ranking window, not most points allocated — with ties broken by the most recent row ("empate quebrado pela linha mais recente"). This tie-break rule also resolves v2's old open item on archetype tie-breaking, though it is stated in the Parte 12 body text rather than in v3's "Decisões em aberto" section. Recorded for transparency; no user action required — constraints.md represents both the relocation and the criterion change explicitly under Parte 10 and Parte 12.
+
+[INFO] Compatible: Parte 1 (confirmação obrigatória em toda transição de status) and Parte 4 (travamento automático) remain unchanged from v2 and continue to not contradict the "marcação manual soberana" principle
+  Note: `.planning/feature-flow-state.md` states the project's core principle as "marcação manual do gerente é soberana — nenhuma automação reverte status," and `.planning/phases/07-.../07-CONTEXT.md` scopes it as "nenhuma automação reverte ou bloqueia transição de status feita pelo gerente. TransicaoStatus registra, não decide." v3 Parte 1 and Parte 4 text is unchanged from v2 (re-verified against v3 source) — Parte 1 adds a human-confirmed gate (not automation deciding or reverting), and Parte 4 sets a boolean alert flag that never touches `status`/`coluna_kanban` and is explicitly excluded from the score formula. Re-verified against current code: `docudata-backend/routers/tasks.py` (`resolve_task_sugestao`, lines 181-206) still confirms the AI-suggestion-accept path updates `coluna_kanban` directly without writing to `task_transicoes` today — Parte 1 still fixes this actual gap. `docudata-backend/models/schemas.py` (line 391, `pontos: int = Field(..., gt=0)`) still confirms tasks carry a `pontos` field consistent with Parte 4's threshold formula. No blocker or warning needed; recorded for transparency.
+
+---
+Every entry above traces to `.planning/incoming/SDD-hub-de-projetos-v3.md` (classified SPEC, `.planning/intel/classifications/SDD-hub-de-projetos-v3-a1f2b3c4.json`), cross-referenced against the superseded v2 classification (`.planning/intel/classifications/superseded/SDD-hub-de-projetos-v2-6f3e0e9a.json`, retained only for delta comparison, not treated as an active or competing document), `.planning/PROJECT.md`, `.planning/feature-flow-state.md`, `.planning/phases/07-.../07-CONTEXT.md`, `.planning/phases/09-.../09-CONTEXT.md`, `.planning/phases/11-.../11-CONTEXT.md`, `docudata-backend/routers/tasks.py`, and `docudata-backend/models/schemas.py`.

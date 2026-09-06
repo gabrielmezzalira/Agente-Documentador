@@ -1,0 +1,13 @@
+{
+  "source_path": "/Users/gabrielmezzalira/Documents/Faculdade/CIti/Liderança Dados/Agentes/Documentador/.planning/incoming/SDD-hub-de-projetos-v3.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "SDD Completo — Hub de Projetos: Rename + Módulo de Avaliação de Performance v3",
+  "summary": "Technical spec for renaming DocuData to Hub de Projetos and adding a performance evaluation module with SPI, RBAC, and scoring rules.",
+  "scope": ["rename DocuData to Hub de Projetos", "task status transitions", "task reabertura", "bloqueio manual", "travamento automatico", "avaliacao do gerente", "RBAC", "baseline de evolucao", "SPI do operacional", "peso por arquetipo de projeto", "area de performance e ranking"],
+  "cross_refs": ["SDD-hub-de-projetos-v2.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

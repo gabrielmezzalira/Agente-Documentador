@@ -1,27 +1,31 @@
 # Feature Flow State
-feature: "Phase 17: Avaliação do Gerente"
+feature: "Phase 19: Peso por Arquétipo + Área de Performance e Ranking"
 modo: "FULL"
-tier: "PADRAO"
-stack: "FastAPI (Python) + Supabase PostgreSQL + Next.js"
-etapa: 12
-etapa_nome: "Concluído"
-gates_reusados: ["knowledge-graph (grafos de código atualizados via graphify update --no-cluster, incorporando Phase 16, sem custo de LLM)", "design-system (inexistente no projeto — Task 3 seguiu padrão visual já estabelecido em PlanningModal/SprintCard, sem gerar MASTER.md/DESIGN.md novo)", "prototype (pulado — padrão visual já existente, sem incerteza)"]
-started_at: "2026-09-04T00:00:00Z"
-last_saved: "2026-09-04T23:15:00Z"
-status: "concluido"
+tier: "COMPLEXA"
+stack: "FastAPI (Python) + Supabase PostgreSQL + Next.js (React)"
+etapa: 2
+etapa_nome: "Execução do back-end (Onda 1)"
+gates_reusados: ["knowledge-graph (docudata-backend/graphify-out atualizado na Etapa 0 — estava desatualizado em relação aos arquivos novos da Phase 18, como routers/pontuacao.py; reextração estrutural sem LLM, 851 nodes/2069 edges)"]
+started_at: "2026-09-05T20:15:00Z"
+last_saved: "2026-09-06T00:33:00Z"
+status: "em_progresso"
 
 ## Concluído
-- [x] Etapa 0 — Onboarding de repositório: grafos estruturais atualizados (docudata-backend: 723 nós/1757 edges; docudata-frontend: 553 nós/1035 edges), já incorporando as mudanças da Phase 16.
-- [x] Etapa 1 — Requisitos via /brainstorm: spec aprovada e commitada em `docs/superpowers/specs/2026-09-04-avaliacao-do-gerente-design.md` (commit e996fff)
-- [x] Etapa 2 — Plano de implementação: executado via `/gsd-quick` (`.planning/quick/260904-av1-implementar-phase-17-avaliacao-do-gerente/260904-av1-PLAN.md`), não pela sessão feature-flow-lean original — plano com 3 tasks (migração+schemas, router, frontend)
-- [x] Etapa 3 — Onda 1 (back-end): Task 1 (migração `avaliacoes_gerente` + schemas, commit 6205223) e Task 2 (router `avaliacoes.py`, commit 882f45c). 13/13 testes de avaliação passando; suíte completa 109 passed / 4 failed pré-existentes (falhas do MVP original em `test_schemas_and_client.py`, não relacionadas a esta phase — confirmado via `git stash`)
-- [x] Etapas 4-9 (gates de UI) — reaproveitadas: projeto não usa design system formal (`MASTER.md`/`DESIGN.md` inexistentes); Task 3 já especificava seguir o padrão visual existente de `PlanningModal`/`SprintCard`; nenhuma lib nova necessária; prototipagem pulada por padrão visual já estabelecido
-- [x] Etapa 10 — Onda 2 (frontend): botão "Avaliação Semanal" em `SprintCard.tsx` (visível só para `cargo != operacional`), modal novo `AvaliacaoSemanalModal.tsx` (pendências, formulário de 7 perguntas, reaproveitar, confirmar), integração em `page.tsx`. `tsc --noEmit` e `npm run build` sem erros.
-- [x] Etapa 11 — Auditoria: estilo/padrão consistente com `PlanningModal` (inline styles, sem ARIA — mesma convenção usada em todos os modais existentes do projeto, não é regressão introduzida aqui)
-- [x] Etapa 12 — Verificação final: back-end testado, frontend compilando, integração ponta a ponta (botão → modal → GET pendências → POST avaliação → POST confirmar → atualização local do card) implementada conforme spec
+- [x] Etapa 0 — Onboarding de repositório: grafo estrutural do backend reextraído; grafo do frontend já estava atual, reaproveitado sem regenerar.
+- [x] Etapa 1 — Requisitos via `/brainstorm` (caminho Architectural): spec aprovada e commitada em `docs/superpowers/specs/2026-09-06-peso-arquetipo-performance-design.md`.
+- [x] Etapa 2 — Plano de implementação via `/write-plan`: `docs/superpowers/plans/2026-09-06-peso-arquetipo-performance.md`, 9 tasks (Onda 1: Tasks 1-7 back-end; Onda 2: Tasks 8-9 UI).
+
+## Pausado — retomar em sessão nova
+Usuário escolheu subagent-driven-development pra execução, mas a sessão atingiu ~69% de contexto antes de despachar a Task 1 (nenhum subagente foi despachado ainda — nada a recuperar). Pra retomar: numa sessão nova, invocar `superpowers:subagent-driven-development` apontando pro plano `docs/superpowers/plans/2026-09-06-peso-arquetipo-performance.md` (ou `/feature-flow-lean` pra Phase 19, que detecta este state file e vai direto pra Etapa 3 execução). O workspace da SDD já existe em `.superpowers/sdd/2026-09-06-peso-arquetipo-performance/` mas está vazio (sem ledger ainda) — a skill vai iniciar do zero na Task 1 normalmente.
 
 ## Contexto relevante
-- Phase 16 (RBAC) concluída, commitada e pushada.
-- Phase 17 = ROADMAP.md linhas ~384-399, requisitos AVAL-01..05 — todos os 5 implementados e cobertos por teste no back-end; frontend implementado nesta sessão.
-- Falta apenas: commitar as mudanças de frontend (Task 3) e criar o SUMMARY.md do plano em `.planning/quick/260904-av1-implementar-phase-17-avaliacao-do-gerente/`.
-- Migration `avaliacoes_gerente` ainda precisa ser aplicada manualmente no Supabase de produção (não roda sozinha — é SQL em `supabase_schema.sql`).
+- Modo FULL, tier COMPLEXA (sem design-system/MASTER.md nem DESIGN.md no repo; tela de ranking sem equivalente visual existente).
+- Depends on: Phase 16 (RBAC) e Phase 18 (Motor de Score) — ambas concluídas.
+- Requirements: PERF-01..06.
+- Escopo fechado no brainstorm ficou maior que o ROADMAP original — duas peças extras:
+  1. Correção retroativa em `services/pontuacao.py` (Phase 18): `gerente_media` passa a usar as 7 respostas, não 6 (pergunta 6 entra duas vezes por design — na média geral e isolada em Evolução). Sem migração de dado (nenhuma linha real ainda existe).
+  2. Pipeline novo de qualidade de commit via IA (tabela `commit_qualidade`, extensão de `POST /ingest/commit`, sem gatilho novo) — alimenta a dimensão Qualidade só pra `arquetipo=padrao`.
+- 5 dimensões e pesos fechados: Gerente 35% · Entrega 20% · Qualidade 20% · Autonomia 15% · Evolução 10%. Normalização por escala fixa (não percentil). Detalhes completos e fórmulas exatas na spec.
+- Descopado nesta sessão: botão de anúncio de top performer (só ranking). Arquétipos reduzidos a 2 valores: `padrao` \| `consultoria_discovery` (não os 3 que o ROADMAP original sugeria).
+- `GET /performance` já existe como stub (Phase 16) com `require_role("lider")` + `registrar_auditoria` — Phase 19 implementa o corpo real, preservando a auditoria.
+- Próximo passo: invocar `/write-plan` (superpowers:writing-plans) usando a spec acima — Onda 1 back-end (migração + correção Phase 18 + pipeline de commit + cálculo de ranking + endpoint), Onda 2 UI (`/performance`).

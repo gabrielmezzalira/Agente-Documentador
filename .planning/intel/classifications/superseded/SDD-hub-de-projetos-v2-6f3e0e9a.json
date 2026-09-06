@@ -1,0 +1,23 @@
+{
+  "source_path": "/Users/gabrielmezzalira/Documents/Faculdade/CIti/Liderança Dados/Agentes/Documentador/.planning/incoming/SDD-hub-de-projetos-v2.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "SDD Completo — Hub de Projetos: Rename + Módulo de Avaliação de Performance v2",
+  "summary": "Technical spec for renaming DocuData to Hub de Projetos and adding status-transition confirmation, reopening tracking, blocking resolution, auto-lock alerts, manager evaluation, and RBAC.",
+  "scope": [
+    "rename DocuData to Hub de Projetos",
+    "kanban status transitions",
+    "task_transicoes",
+    "task_reaberturas",
+    "bloqueado_manual",
+    "travado_automatico",
+    "avaliacoes_gerente",
+    "RBAC roles",
+    "performance score dimensions (Autonomia, Qualidade Técnica)"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
