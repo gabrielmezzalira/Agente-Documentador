@@ -304,6 +304,7 @@ CREATE TABLE IF NOT EXISTS task_sugestoes (
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS pontos_previstos       int;
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS faturamento_previsto   numeric(10,2);
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS baseline_locked_at     timestamptz;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS pontos_orcamento int CHECK (pontos_orcamento IS NULL OR pontos_orcamento >= 0);
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS data_inicio            date;
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS data_fim               date;
 

@@ -8,8 +8,7 @@ from models.schemas import (
     SprintHealthUpdate,
     SprintResponse,
     SprintStatusResponse,
-    SprintBaselineUpdate,
-    SprintBaselineResponse,
+    SprintOrcamentoUpdate,
 )
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
@@ -142,45 +141,51 @@ async def list_sprints(project_id: str):
     return enriched
 
 
-@router.patch("/sprints/{sprint_id}/baseline", response_model=SprintBaselineResponse, dependencies=[Depends(require_not_operacional)])
-async def update_baseline(sprint_id: str, data: SprintBaselineUpdate):
-    """Define ou atualiza o baseline da sprint. Uma vez lockado, campos numéricos são imutáveis."""
+@router.patch("/sprints/{sprint_id}/orcamento", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
+async def update_orcamento(sprint_id: str, data: SprintOrcamentoUpdate):
+    """Define quantos dos 100 pontos do projeto esta sprint recebe (planejamento, aba Escopo)."""
     client = get_client()
     check = client.table("sprints").select("*").eq("id", sprint_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
     sprint = check.data[0]
+    project_id = sprint["project_id"]
 
-    if sprint.get("baseline_locked_at"):
+    tasks_existentes = (
+        client.table("tasks")
+        .select("pontos")
+        .eq("sprint_id", sprint_id)
+        .execute()
+    ).data or []
+    usados = sum(t["pontos"] for t in tasks_existentes)
+    if data.pontos_orcamento < usados:
         raise HTTPException(
             status_code=409,
-            detail=f"Baseline já lockado em {sprint['baseline_locked_at']}. Não pode ser alterado.",
+            detail=f"Não é possível reduzir o orçamento abaixo dos {usados} pontos já usados em tasks desta sprint.",
         )
 
-    updates: dict = {}
-    if data.pontos_previstos is not None:
-        updates["pontos_previstos"] = data.pontos_previstos
-    if data.faturamento_previsto is not None:
-        updates["faturamento_previsto"] = data.faturamento_previsto
-    if data.data_inicio is not None:
-        updates["data_inicio"] = data.data_inicio.isoformat()
-    if data.data_fim is not None:
-        updates["data_fim"] = data.data_fim.isoformat()
-    if data.lock:
-        updates["baseline_locked_at"] = datetime.now(timezone.utc).isoformat()
+    outras_sprints = (
+        client.table("sprints")
+        .select("pontos_orcamento")
+        .eq("project_id", project_id)
+        .neq("id", sprint_id)
+        .execute()
+    ).data or []
+    total_outras = sum(s["pontos_orcamento"] or 0 for s in outras_sprints)
+    if total_outras + data.pontos_orcamento > 100:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Orçamento do projeto excedido: restam {100 - total_outras} pontos pra distribuir entre as sprints.",
+        )
 
-    if not updates:
-        return sprint
-
-    resp = client.table("sprints").update(updates).eq("id", sprint_id).execute()
+    resp = client.table("sprints").update({"pontos_orcamento": data.pontos_orcamento}).eq("id", sprint_id).execute()
     if not resp.data:
-        raise HTTPException(status_code=500, detail="Failed to update baseline")
+        raise HTTPException(status_code=500, detail="Failed to update orcamento")
 
-    if "pontos_previstos" in updates:
-        try:
-            auto_update_sprint_health(client, sprint_id)
-        except Exception:
-            pass  # best-effort
+    try:
+        auto_update_sprint_health(client, sprint_id)
+    except Exception:
+        pass  # best-effort
 
     return resp.data[0]
 

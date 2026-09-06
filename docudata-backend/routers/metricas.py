@@ -21,7 +21,7 @@ def _percentiles(cycle_times_horas: list[float]) -> dict:
 
 @router.get("/{project_id}/spi")
 async def get_spi(project_id: str):
-    """SPI por sprint: pontos_previstos, pontos_realizados, spi."""
+    """SPI por sprint: pontos_previstos (derivado de pontos_orcamento), pontos_realizados, spi."""
     client = get_client()
     proj = client.table("projects").select("id").eq("id", project_id).execute()
     if not proj.data:
@@ -29,7 +29,7 @@ async def get_spi(project_id: str):
 
     sprints = (
         client.table("sprints")
-        .select("id, numero, pontos_previstos")
+        .select("id, numero, pontos_orcamento")
         .eq("project_id", project_id)
         .order("numero")
         .execute()
@@ -46,7 +46,7 @@ async def get_spi(project_id: str):
         )
         tasks = tasks_resp.data or []
         pontos_realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida")
-        pontos_previstos = s.get("pontos_previstos")
+        pontos_previstos = s.get("pontos_orcamento")
         spi = None
         if pontos_previstos and pontos_previstos > 0:
             spi = round(pontos_realizados / pontos_previstos, 3)

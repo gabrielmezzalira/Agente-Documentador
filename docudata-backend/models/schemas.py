@@ -150,6 +150,7 @@ class SprintResponse(BaseModel):
     numero: int
     status_saude: Optional[str] = None
     plano_correcao: Optional[str] = None
+    pontos_orcamento: Optional[int] = None
     avaliacao_completa_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -490,22 +491,10 @@ class TaskTransicaoResponse(BaseModel):
     duracao_fase_anterior_segundos: Optional[int] = None
 
 
-# ── Sprint baseline ──────────────────────────────────────────────────────────
+# ── Sprint orçamento ─────────────────────────────────────────────────────────
 
-class SprintBaselineUpdate(BaseModel):
-    pontos_previstos: Optional[int] = Field(default=None, gt=0)
-    faturamento_previsto: Optional[float] = Field(default=None, ge=0)
-    data_inicio: Optional[date] = None
-    data_fim: Optional[date] = None
-    lock: bool = False
-
-
-class SprintBaselineResponse(SprintResponse):
-    pontos_previstos: Optional[int] = None
-    faturamento_previsto: Optional[float] = None
-    baseline_locked_at: Optional[datetime] = None
-    data_inicio: Optional[date] = None
-    data_fim: Optional[date] = None
+class SprintOrcamentoUpdate(BaseModel):
+    pontos_orcamento: int = Field(..., ge=0)
 
 
 # ── Task sugestões ────────────────────────────────────────────────────────────

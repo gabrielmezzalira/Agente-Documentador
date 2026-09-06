@@ -5,10 +5,10 @@ Regras:
   SPI >= 0.9  → verde
   SPI >= 0.7  → amarelo
   SPI <  0.7  → vermelho
-  sem baseline (pontos_previstos = NULL) → não altera (mantém manual)
+  sem orçamento (pontos_orcamento = NULL) → não altera (mantém manual)
 
 Chamado após:
-  - baseline update (quando pontos_previstos é definido)
+  - orçamento de sprint definido (pontos_orcamento)
   - task movida para concluida
 """
 
@@ -16,19 +16,19 @@ Chamado após:
 def auto_update_sprint_health(client, sprint_id: str) -> str | None:
     """
     Recalcula status_saude da sprint com base no SPI atual.
-    Retorna o novo status_saude, ou None se não havia baseline.
+    Retorna o novo status_saude, ou None se não havia orçamento definido.
     """
     sprint = (
         client.table("sprints")
-        .select("pontos_previstos")
+        .select("pontos_orcamento")
         .eq("id", sprint_id)
         .execute()
     )
     if not sprint.data:
         return None
 
-    pontos_previstos = sprint.data[0].get("pontos_previstos")
-    if not pontos_previstos or pontos_previstos <= 0:
+    pontos_orcamento = sprint.data[0].get("pontos_orcamento")
+    if not pontos_orcamento or pontos_orcamento <= 0:
         return None
 
     tasks = (
@@ -39,7 +39,7 @@ def auto_update_sprint_health(client, sprint_id: str) -> str | None:
         .data or []
     )
     pontos_realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida")
-    spi = pontos_realizados / pontos_previstos
+    spi = pontos_realizados / pontos_orcamento
 
     if spi >= 0.9:
         novo_status = "verde"
