@@ -1370,7 +1370,10 @@ export async function createTaskKanban(data: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Erro ao criar task");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao criar task");
+  }
   return res.json();
 }
 
