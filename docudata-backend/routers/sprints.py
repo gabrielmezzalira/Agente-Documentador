@@ -87,6 +87,22 @@ async def list_sprints(project_id: str):
     if not sprints:
         return []
 
+    valor_por_ponto = (
+        client.table("projects").select("valor_por_ponto").eq("id", project_id).execute()
+    ).data[0].get("valor_por_ponto")
+
+    tasks_resp = (
+        client.table("tasks")
+        .select("sprint_id, pontos")
+        .eq("project_id", project_id)
+        .execute()
+    )
+    pontos_usados_por_sprint: defaultdict = defaultdict(int)
+    for t in (tasks_resp.data or []):
+        sid = t.get("sprint_id")
+        if sid:
+            pontos_usados_por_sprint[sid] += t["pontos"]
+
     ing_resp = (
         client.table("ingestions")
         .select("sprint_number, tipo_documentacao")
@@ -137,6 +153,12 @@ async def list_sprints(project_id: str):
             "ingestions_count": agg["total"],
             "docs_gerados_count": docs_by_sprint[n],
             "pendencias": pendencias,
+            "pontos_usados": pontos_usados_por_sprint.get(sprint["id"], 0),
+            "faturamento_previsto": (
+                round(sprint["pontos_orcamento"] * valor_por_ponto, 2)
+                if sprint.get("pontos_orcamento") is not None and valor_por_ponto is not None
+                else None
+            ),
         })
     return enriched
 

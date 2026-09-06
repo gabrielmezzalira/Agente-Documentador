@@ -167,6 +167,8 @@ class SprintStatusResponse(SprintResponse):
     ingestions_count: int = 0          # total de ingestões da sprint (qualquer tipo)
     docs_gerados_count: int = 0        # total de generated_docs da sprint
     pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
+    pontos_usados: int = 0
+    faturamento_previsto: Optional[float] = None
 
 
 class SprintDocResponse(BaseModel):
