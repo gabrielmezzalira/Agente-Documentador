@@ -8,7 +8,6 @@ import type {
   SprintDocType,
   SprintWithStatus,
 } from "../lib/api";
-import { updateSprintBaseline } from "../lib/api";
 import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 import { useAuth } from "./AuthGuard";
 
@@ -303,10 +302,6 @@ export default function SprintCard({
 }: Props) {
   const cargo = useAuth()?.cargo ?? "lider";
   const [expanded, setExpanded] = useState(false);
-  const [baselineOpen, setBaselineOpen] = useState(false);
-  const [baselineInput, setBaselineInput] = useState("");
-  const [baselineSaving, setBaselineSaving] = useState(false);
-  const [baselineErr, setBaselineErr] = useState("");
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [expandedSourcesId, setExpandedSourcesId] = useState<string | null>(null);
   const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
@@ -315,22 +310,6 @@ export default function SprintCard({
   const [moveIngSprint, setMoveIngSprint] = useState<string>("");
   const [movingDocId, setMovingDocId] = useState<string | null>(null);
   const [moveDocSprint, setMoveDocSprint] = useState<string>("");
-
-  async function handleSaveBaseline(e: React.FormEvent) {
-    e.preventDefault();
-    const n = parseInt(baselineInput);
-    if (isNaN(n) || n <= 0) { setBaselineErr("Informe um número válido."); return; }
-    setBaselineSaving(true); setBaselineErr("");
-    try {
-      const updated = await updateSprintBaseline(sprint.id, n);
-      onSprintUpdated?.(updated as unknown as SprintWithStatus);
-      setBaselineOpen(false); setBaselineInput("");
-    } catch (err) {
-      setBaselineErr(err instanceof Error ? err.message : "Erro ao salvar");
-    } finally {
-      setBaselineSaving(false);
-    }
-  }
 
   function confirmGenerate() {
     if (pendingGen) {
@@ -453,51 +432,18 @@ export default function SprintCard({
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-        <button
-          type="button"
-          onClick={() => { setBaselineOpen((v) => !v); setBaselineInput(sprint.pontos_previstos ? String(sprint.pontos_previstos) : ""); setBaselineErr(""); }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            fontSize: 12,
-            fontWeight: 600,
-            color: sprint.pontos_previstos != null ? "#4338ca" : "#9696a0",
-            textDecoration: "underline",
-            cursor: "pointer",
-          }}
-          title="Definir baseline (pontos previstos)"
-        >
-          {sprint.pontos_previstos != null ? `Baseline: ${sprint.pontos_previstos} pts` : "+ Definir baseline"}
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: sprint.pontos_orcamento != null ? "#4338ca" : "#9696a0" }}>
+          {sprint.pontos_orcamento != null
+            ? `${sprint.pontos_usados}/${sprint.pontos_orcamento} pts em tasks${
+                sprint.faturamento_previsto != null ? ` · R$ ${sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos` : ""
+              }`
+            : "Orçamento de pontos não definido (defina na aba Escopo)"}
+        </span>
         <span style={muted}>
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
         </span>
       </div>
-
-      {/* Baseline inline form */}
-      {baselineOpen && (
-        <form onSubmit={handleSaveBaseline} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "12px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e0e7ff" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#4338ca" }}>Baseline — pontos previstos para esta sprint:</span>
-          <input
-            type="number"
-            min={1}
-            value={baselineInput}
-            onChange={(e) => setBaselineInput(e.target.value)}
-            placeholder="Ex: 18"
-            autoFocus
-            style={{ width: 80, padding: "6px 10px", border: "1px solid #c7d2fe", borderRadius: 7, fontSize: 14, textAlign: "center" }}
-          />
-          <button type="submit" disabled={baselineSaving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            {baselineSaving ? "…" : "Salvar"}
-          </button>
-          <button type="button" onClick={() => setBaselineOpen(false)} style={{ background: "none", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer", color: "#64748b" }}>
-            Cancelar
-          </button>
-          {baselineErr && <span style={{ fontSize: 12, color: "#dc2626" }}>{baselineErr}</span>}
-        </form>
-      )}
 
       <div style={actionRow}>
         {cargo !== "operacional" && (
