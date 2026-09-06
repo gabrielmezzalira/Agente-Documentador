@@ -1,42 +1,29 @@
 # Feature Flow State
-feature: "Backlog UAT Phase 19 — 6 bugs/polish (contraste gráficos, duplicata operacional case-sensitive, ícones info faltando, aba Sprints poluída, cascade delete operacional + bug de listagem, delete de task não limpa pontuação)"
+feature: "Reforma do modelo de pontuação — 100 pontos fixos por projeto, orçamento por sprint (Escopo), distribuídos em tasks (Kanban)"
 modo: "FULL"
-tier: "PADRAO"
+tier: "COMPLEXA"
 stack: "FastAPI (Python) + Supabase PostgreSQL + Next.js (React)"
-etapa: 12
-etapa_nome: "Verificação final (parcial — UI adiada pelo usuário)"
-gates_reusados: ["knowledge-graph (docudata-backend e docudata-frontend reextraídos nesta etapa — ambos estavam desatualizados em relação aos commits da Phase 19; backend agora 907 nodes/2227 edges, frontend 578 nodes/1092 edges, reextração estrutural sem LLM)", "design-system/DESIGN.md (tier PADRÃO, mas sem MASTER.md/DESIGN.md no repo — Etapas 4-6 do feature-flow-lean puladas como na Phase 19, UI seguiu o padrão visual existente em estilos inline)"]
+etapa: 2
+etapa_nome: "Execução (aguardando escolha: subagent-driven vs inline)"
+gates_reusados: ["knowledge-graph (docudata-backend e docudata-frontend reextraídos nesta etapa — backend 926 nodes/2272 edges, frontend 579 nodes/1093 edges, reextração estrutural sem LLM)"]
 started_at: "2026-09-06T00:00:00Z"
 last_saved: "2026-09-06T00:00:00Z"
-status: "concluido"
+status: "em_progresso"
 
 ## Concluído
-- [x] Etapa 0 — Onboarding de repositório: grafos estrutural do backend e frontend reextraídos (ambos estavam desatualizados em relação aos 17 commits da Phase 19).
-- [x] Etapa 1 — Requisitos via `/brainstorm` (caminho Bounded, sem spec file — 6 itens são mudanças pontuais a fluxos já existentes). Design aprovado pelo usuário em chat (sem doc separado, path Bounded). Decisões de produto fechadas:
-  - Item 2 (duplicata case-insensitive): só bloquear DAQUI PRA FRENTE — sem merge automático das duplicatas já existentes em produção. Implicação técnica: vira checagem em app-level (lower() no create_operacional), não índice único de banco, porque `CREATE UNIQUE INDEX` falharia com duplicatas existentes.
-  - Item 5 (cascade delete operacional): ao forçar exclusão com tasks vinculadas, desvincula tasks (`operacional_id = NULL`) e apaga pontuação/ranking via `ON DELETE CASCADE` já existente no schema. Tasks continuam existindo, só ficam sem operacional.
-  - Item 6 (delete de task pós-trava): bloquear com 409 se a task pertence a sprint com `avaliacao_completa_em` preenchido (pontuação já travada). `task_transicoes`/`task_reaberturas` já cascateiam via FK existente — não era o gap real.
-- [x] Etapa 2 — Plano de implementação via `/write-plan`: `docs/superpowers/plans/2026-09-06-backlog-uat-phase19.md`, 8 tasks (Onda 1: Tasks 1-4 back-end; Onda 2: Tasks 5-8 UI). Execução escolhida: inline (executing-plans), direto na main.
-- [x] Etapa 3 — Onda 1 (back-end) executada e verificada: Tasks 1-4 completas, cada uma com testes TDD (falha→implementa→passa), commits atômicos (`cbca20a`, `e4a6a1c`, `991d803`, `d47573c`). Suíte completa rodada ao final: 171 passed, 4 failed — as 4 falhas são pré-existentes em `test_schemas_and_client.py` (schema legado do MVP, confirmado via `git stash` que já falhavam antes desta sessão), sem relação com o backlog. Sem regressão.
-- [x] Onda 2 (UI) executada: Tasks 5-8 completas — contraste WCAG (MetricasTab.tsx), InfoTooltip faltando (PainelTab.tsx), redesign da aba Sprints (SprintCard.tsx), mensagem de confirmação de exclusão (page.tsx). Verificadas via `npm run build` (type-check limpo). Checagem visual em navegador NÃO foi feita nesta sessão — Claude in Chrome e playwright MCP ambos falharam ao conectar; usuário optou explicitamente por testar manualmente depois ("eu testo dps") em vez de reconectar a extensão.
-- [x] `finishing-a-development-branch`: suíte completa rodada de novo (171 passed, 4 failed — mesmas 4 falhas pré-existentes não relacionadas, confirmadas via git stash antes desta sessão). Trabalho direto na main (sem branch separada, por escolha do usuário). Push feito pra `origin/main` (9 commits: 4 back-end + 4 front-end + 1 do plano) — dispara deploy automático via Railway + Vercel.
+- [x] Etapa 0 — Onboarding de repositório: grafos estrutural do backend e frontend reextraídos.
+- [x] Etapa 1 — Requisitos via `/brainstorm` (caminho Architectural, como esperado dado o escopo). Spec aprovada pelo usuário e commitada em `docs/superpowers/specs/2026-09-06-reforma-pontuacao-design.md` (commit `c3f0e08`). O design evoluiu bastante durante o brainstorm em relação à ideia original da memória — ver resumo abaixo.
 
-## Status: CONCLUÍDO (verificação visual pendente do usuário)
-Onda 1 e Onda 2 implementadas, testadas (backend) e pushadas pra produção. Falta apenas a confirmação visual das 4 mudanças de UI em produção, que o usuário disse que vai fazer depois por conta própria — não é um bloqueio, é uma decisão explícita de adiar o UAT ao vivo desta vez.
-
-## Próximo passo
-Nenhum pendente nesta feature. Se o usuário voltar com algum ajuste visual depois de testar em produção, é continuação natural desta mesma feature (não precisa nova sessão de feature-flow-lean do zero).
-
-## Contexto relevante
-- Origem: memória `project_uat_backlog_phase19` — 6 itens descobertos no UAT ao vivo de produção da Phase 19 (2026-09-06), todos independentes entre si e menores que a reforma de pontuação (`project_pontuacao_redesign_pendente`, adiada de propósito).
-- Modo FULL porque os itens tocam back-end (migração de índice único, cascade delete, cleanup de pontuação) e UI (contraste, ícones, layout da aba Sprints).
-- Tier PADRÃO: não são TRIVIAL puro (envolvem lógica de cascade delete e migração de índice único), mas também não são COMPLEXA (sem área nova do produto, dentro do design existente).
-- Sem `design-system/MASTER.md` nem `DESIGN.md` no repo — gates de reuso (Etapas 4-6) provavelmente serão pulados de novo, como na Phase 19.
-- Itens do backlog:
-  1. Contraste baixo em gráficos de Métricas (SPI, Throughput, SPI por operacional) — barras/legendas cinza-claras quase invisíveis, provável violação WCAG AA.
-  2. Duplicata de operacional por maiúscula/minúscula — `idx_operacionais_project_nome` é `UNIQUE(project_id, nome)` case-sensitive; precisa `lower(nome)` no índice único + normalização no insert.
-  3. Ícones "i" faltando no card "Métricas de Fluxo" (WIP agora / Throughput), presentes nos cards vizinhos.
-  4. Aba Sprints poluída visualmente — muitos chips/badges do mesmo estilo competindo por atenção.
-  5. Sem exclusão em cascata de operacional (Configurações do projeto) + bug de listagem: card "Operacionais" em Configurações mostra "Nenhum operacional cadastrado" enquanto aba Métricas mostra operacionais reais — `routers/operacionais.py:42` (`list_operacionais`) filtra por `ativo=True`, precisa investigar qual query cada aba usa.
-  6. Delete de task não limpa pontuação já gerada — `routers/tasks.py:490-496` (`delete_task`) é `DELETE` puro sem cleanup de `pontuacao_operacional_sprint`/`task_transicoes`/`task_reaberturas`; relacionado a `calcular_e_travar_pontuacao` (`routers/avaliacoes.py:162-165`) que trava snapshot.
-- Próximo passo: invocar `/brainstorm` (superpowers) cobrindo os 6 itens — provavelmente vale separar em sub-tópicos dado que são independentes entre si, mas percorrer o mesmo brainstorm/write-plan pra manter uma única onda 1 (back-end) e onda 2 (UI) coesas.
+## Contexto relevante — design final aprovado
+- **Onde os pontos nascem:** NÃO na funcionalidade (ideia original da memória, descartada) — a "Etapa Específica" da planilha real do usuário é do tamanho de uma TASK (1-3 pontos, atribuível a 1 pessoa), não de uma funcionalidade (que é maior, com critérios de aceite). Pontos continuam nascendo em `tasks.pontos`, como já é hoje.
+- **Como o total de 100 é garantido sem saber o escopo completo de antemão:** decompor em dois níveis. (1) Planejamento (aba Escopo, Phase 7): gerente define quantos dos 100 pontos cada SPRINT recebe (`sprints.pontos_orcamento`, novo campo) — soma de todas as sprints do projeto ≤ 100, validado aqui. (2) Execução (Kanban): pontos de tasks dentro de uma sprint ≤ orçamento já fixado daquela sprint — validação local e simples, não mais contra o total do projeto toda vez. Ideia do usuário, não minha — muito mais simples que minha proposta inicial de checar contra 100 a cada task criada.
+- **Faturamento:** reaproveita `projects.valor_por_ponto`, campo dormente desde a Phase 12 (nunca lido em nenhum código). Novo campo `projects.valor_projeto` (valor do contrato, NÃO confundir com `budget_usd` que é teto de custo de IA). `valor_por_ponto = valor_projeto / 100`, calculado uma vez. Trava: `valor_projeto` só editável enquanto nenhuma sprint tiver `pontos_orcamento` definido ainda (edição fica em `PainelTab.tsx`, formulário de Contrato onde já vive `arquetipo`/datas/tolerância — Phase 19-08).
+- **Sprint faturamento previsto:** `pontos_orcamento × valor_por_ponto`, calculado em memória — nunca mais uma coluna gravada manualmente.
+- **Baseline manual antigo (Phase 12, que eu mesmo toquei no backlog anterior — Task 7 do ciclo passado):** removido. `PATCH /sprints/{id}/baseline` sai, `SprintBaselineUpdate`/`SprintBaselineResponse` saem dos schemas. Substituído por `PATCH /sprints/{id}/orcamento`. SprintCard.tsx perde o link de Baseline, ganha texto derivado read-only.
+- **"Marcar como entregue":** aviso não-bloqueante (confirm() no frontend) se soma dos `pontos_orcamento` das sprints ≠ 100. Sem mudança no backend do endpoint `/projects/{id}/delivered`.
+- **Exibição de saldo:** pool do projeto (soma de pontos_orcamento das sprints vs 100) na aba Escopo. Saldo de uso por sprint (pontos usados em tasks vs pontos_orcamento) no card da sprint, aba Sprints.
+- **Fora de escopo (YAGNI), registrado na spec:** divisão automática de pontos entre sprints, rebalanceamento retroativo, `funcionalidades.sprint_alvo` virar FK real, migração/backfill de dados existentes (não há pontuação real em produção ainda).
+- **Nota operacional:** `supabase_schema.sql` não roda sozinho — as duas `ALTER TABLE` (`sprints.pontos_orcamento`, `projects.valor_projeto`) precisam de aplicação manual em produção depois do deploy (ver memória `project_manual_migrations`).
+- Arquivos-chave já identificados durante a exploração: `routers/sprints.py` (create_sprint, list_sprints ~64-142, update_baseline ~145-186 a remover), `routers/tasks.py` (create_task ~84, patch_task ~273-394), `routers/projects.py` (create_project, update_contrato ~344), `models/schemas.py` (ContratoUpdate ~308, SprintBaselineUpdate/Response ~495-508 a remover), `supabase_schema.sql` (sprints ~101-110, projects valor_por_ponto ~311, tasks ~258-275), `EscopoTab.tsx`, `PainelTab.tsx` (formulário de contrato ~109-125), `SprintCard.tsx`, `app/lib/api.ts` (updateSprintBaseline ~418 a remover).
+- [x] Etapa 2 — Plano de implementação via `/write-plan`: `docs/superpowers/plans/2026-09-06-reforma-pontuacao.md`, 9 tasks (Onda 1: Tasks 1-4 back-end; Onda 2: Tasks 5-9 UI). Self-review interno da skill passou sem gaps. Ainda não commitado, execução ainda não escolhida.
+- Próximo passo: usuário escolhe subagent-driven vs inline; depois execução das 9 tasks seguindo TDD (backend) e npm run build (frontend), mesmo padrão do ciclo anterior (backlog UAT Phase 19).
