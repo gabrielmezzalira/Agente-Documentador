@@ -675,3 +675,24 @@ class SpiOperacionalResponse(BaseModel):
 class AvaliacaoQualidadeCommit(BaseModel):
     nota: int = Field(ge=0, le=10, description="Nota de 0 a 10 avaliando a qualidade tecnica da entrega deste commit")
     evidencia: str = Field(description="Frase curta explicando o motivo da nota — nunca uma lista de pendencias a corrigir")
+
+
+# ── Ranking de Performance (Phase 19) ────────────────────────────────────────
+
+class PerformanceOperacionalResponse(BaseModel):
+    email: str
+    nome: str
+    score_final: float
+    entrega: Optional[float] = None
+    gerente: Optional[float] = None
+    qualidade: Optional[float] = None
+    autonomia: Optional[float] = None
+    evolucao: Optional[float] = None
+    janela_parcial: bool
+    arquetipo_usado: str
+
+
+class PerformanceResponse(BaseModel):
+    sprint: list[PerformanceOperacionalResponse] = []
+    quinzenal: list[PerformanceOperacionalResponse] = []
+    mensal: list[PerformanceOperacionalResponse] = []
