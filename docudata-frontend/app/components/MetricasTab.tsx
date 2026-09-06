@@ -187,7 +187,7 @@ export default function MetricasTab({ projectId }: Props) {
               <Legend formatter={(v) => v === "pontos_previstos" ? "Previstos" : v === "pontos_realizados" ? "Realizados" : "SPI"} />
               <ReferenceLine y={0.9} stroke="#166534" strokeDasharray="4 2" label={{ value: "0.9", position: "right", fontSize: 11, fill: "#166534" }} />
               <ReferenceLine y={0.7} stroke="#dc2626" strokeDasharray="4 2" label={{ value: "0.7", position: "right", fontSize: 11, fill: "#dc2626" }} />
-              <Bar dataKey="pontos_previstos" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pontos_previstos" fill="#64748b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -207,7 +207,7 @@ export default function MetricasTab({ projectId }: Props) {
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip labelFormatter={(l) => `Sprint ${l}`} formatter={(v, n) => [v, n === "tasks_concluidas" ? "Concluídas" : n === "tasks_total" ? "Total" : "Pontos"]} />
               <Legend formatter={(v) => v === "tasks_total" ? "Total" : v === "tasks_concluidas" ? "Concluídas" : "Pontos concluídos"} />
-              <Bar dataKey="tasks_total" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="tasks_total" fill="#64748b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="tasks_concluidas" fill="#166534" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -298,7 +298,7 @@ export default function MetricasTab({ projectId }: Props) {
                 ]}
               />
               <Legend formatter={(v) => v === "pontos_atribuidos" ? "Atribuídos" : "Realizados"} />
-              <Bar dataKey="pontos_atribuidos" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pontos_atribuidos" fill="#64748b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
