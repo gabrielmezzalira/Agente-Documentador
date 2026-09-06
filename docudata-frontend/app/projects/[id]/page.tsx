@@ -373,6 +373,15 @@ export default function ProjectDashboard() {
   }
 
   async function handleToggleDelivered() {
+    if (!project?.is_delivered) {
+      const totalOrcamento = sprints.reduce((acc, s) => acc + (s.pontos_orcamento ?? 0), 0);
+      if (totalOrcamento !== 100) {
+        const ok = confirm(
+          `${totalOrcamento}/100 pontos alocados entre as sprints. Marcar como entregue mesmo assim?`
+        );
+        if (!ok) return;
+      }
+    }
     try {
       const updated = await toggleDelivered(id);
       setProject(updated);
