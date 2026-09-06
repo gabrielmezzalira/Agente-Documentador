@@ -1,10 +1,6 @@
-## Feature Flow em Progresso
+## Nenhum feature-flow ativo
 
-> **Sessão anterior encerrada com feature-flow ativo.**
-> Use `/feature-flow` para retomar de onde parou.
+> Último ciclo concluído: Backlog UAT Phase 19 (bugs/polish), 2026-09-06T00:00:00Z.
+> Ver `.planning/feature-flow-state.md` para o histórico completo.
 
-- **Feature:** Phase 19: Peso por Arquétipo + Área de Performance e Ranking
-- **Etapa atual:** Execução do back-end (Onda 1)
-- **Última sessão:** 2026-09-06T00:33:00Z
-
-Para retomar: `/feature-flow` — a skill vai detectar o estado automaticamente.
+Sem etapa pendente. Próximo trabalho é uma nova invocação de `/feature-flow-lean`.
