@@ -46,6 +46,9 @@ async def create_project(data: ProjectCreate):
     payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
     if data.budget_usd is not None:
         payload["budget_usd"] = data.budget_usd
+    if data.valor_projeto is not None:
+        payload["valor_projeto"] = data.valor_projeto
+        payload["valor_por_ponto"] = round(data.valor_projeto / 100, 2)
     if data.gemini_api_key:
         payload["gemini_api_key"] = data.gemini_api_key
     response = client.table("projects").insert(payload).execute()
@@ -343,12 +346,32 @@ async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
 
 @router.patch("/{project_id}/contrato", response_model=ProjectResponse)
 async def update_contrato(project_id: str, data: ContratoUpdate):
-    """Atualiza campos de contrato do projeto: datas, tolerancia e garantia."""
+    """Atualiza campos de contrato do projeto: datas, tolerancia, garantia e valor do projeto."""
     client = get_client()
     check = client.table("projects").select("id").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    payload = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    campos = data.model_dump()
+    valor_projeto = campos.pop("valor_projeto", None)
+    payload = {k: v for k, v in campos.items() if v is not None}
+
+    if valor_projeto is not None:
+        sprints_com_orcamento = (
+            client.table("sprints")
+            .select("id")
+            .eq("project_id", project_id)
+            .not_.is_("pontos_orcamento", "null")
+            .execute()
+        ).data or []
+        if sprints_com_orcamento:
+            raise HTTPException(
+                status_code=409,
+                detail="Não é possível alterar o valor do projeto: já existe orçamento de pontos definido em pelo menos uma sprint.",
+            )
+        payload["valor_projeto"] = valor_projeto
+        payload["valor_por_ponto"] = round(valor_projeto / 100, 2)
+
     if not payload:
         raise HTTPException(status_code=422, detail="Nenhum campo fornecido")
     for k, v in list(payload.items()):

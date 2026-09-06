@@ -36,6 +36,7 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
     squad: Optional[str] = None
     budget_usd: Optional[float] = None
+    valor_projeto: Optional[float] = None
     gemini_api_key: Optional[str] = None
 
 
@@ -46,6 +47,8 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     squad: Optional[str] = None
     budget_usd: Optional[float] = None
+    valor_projeto: Optional[float] = None
+    valor_por_ponto: Optional[float] = None
     has_api_key: bool = False
     is_delivered: bool = False
     created_at: datetime
@@ -312,6 +315,7 @@ class ContratoUpdate(BaseModel):
     tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
     arquetipo: Optional[Literal["padrao", "consultoria_discovery"]] = None
+    valor_projeto: Optional[float] = None
 
 
 class ExecucaoAceitePayload(BaseModel):

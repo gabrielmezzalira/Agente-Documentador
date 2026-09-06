@@ -311,6 +311,7 @@ ALTER TABLE sprints ADD COLUMN IF NOT EXISTS data_fim               date;
 -- WIP config e valor por ponto no projeto
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS wip_config       jsonb DEFAULT '{"por_pessoa": null, "por_coluna_em_andamento": null}';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS valor_por_ponto  numeric(10,2);
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS valor_projeto numeric(10,2);
 
 -- View de SPI por sprint
 -- DROP + CREATE em vez de CREATE OR REPLACE: Postgres recusa reordenar/renomear
