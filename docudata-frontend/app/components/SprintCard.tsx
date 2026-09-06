@@ -71,7 +71,7 @@ const statusRow: React.CSSProperties = {
   alignItems: "center",
   flexWrap: "wrap",
   marginTop: 18,
-  marginBottom: 18,
+  marginBottom: 10,
 };
 
 const statusChip = (done: boolean): React.CSSProperties => ({
@@ -129,6 +129,17 @@ const btnActionActive: React.CSSProperties = {
   background: "#dcfce7",
   borderColor: "#86efac",
   color: "#15803d",
+};
+
+const btnPrimary: React.CSSProperties = {
+  background: "#0f172a",
+  color: "#fff",
+  border: "none",
+  borderRadius: 10,
+  padding: "11px 18px",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const btnSubtle: React.CSSProperties = {
@@ -433,26 +444,32 @@ export default function SprintCard({
         </button>
         <button
           type="button"
-          onClick={() => { setBaselineOpen((v) => !v); setBaselineInput(sprint.pontos_previstos ? String(sprint.pontos_previstos) : ""); setBaselineErr(""); }}
-          style={{
-            ...statusChip(sprint.pontos_previstos != null),
-            background: sprint.pontos_previstos != null ? "#e0e7ff" : "#f1f5f9",
-            color: sprint.pontos_previstos != null ? "#4338ca" : "#64748b",
-            border: `1px solid ${sprint.pontos_previstos != null ? "#c7d2fe" : "#e2e8f0"}`,
-          }}
-          title="Definir baseline (pontos previstos)"
-        >
-          {sprint.pontos_previstos != null ? `${sprint.pontos_previstos} pts` : "Baseline"}
-          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
-        </button>
-        <button
-          type="button"
           style={dailyChip(sprint.dailys_count)}
           onClick={() => onOpenSprintDoc("daily", sprint.numero)}
           title="Adicionar Daily"
         >
           Dailys
           <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
+        </button>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+        <button
+          type="button"
+          onClick={() => { setBaselineOpen((v) => !v); setBaselineInput(sprint.pontos_previstos ? String(sprint.pontos_previstos) : ""); setBaselineErr(""); }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 600,
+            color: sprint.pontos_previstos != null ? "#4338ca" : "#9696a0",
+            textDecoration: "underline",
+            cursor: "pointer",
+          }}
+          title="Definir baseline (pontos previstos)"
+        >
+          {sprint.pontos_previstos != null ? `Baseline: ${sprint.pontos_previstos} pts` : "+ Definir baseline"}
         </button>
         <span style={muted}>
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
@@ -483,23 +500,32 @@ export default function SprintCard({
       )}
 
       <div style={actionRow}>
+        {cargo !== "operacional" && (
+          <button
+            style={sprint.avaliacao_completa_em ? btnAction : btnPrimary}
+            onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
+          >
+            {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
+          </button>
+        )}
         <button
-          style={pendingGen === "repasse_semanal" ? btnActionActive : btnAction}
+          style={
+            pendingGen === "repasse_semanal"
+              ? btnActionActive
+              : sprint.avaliacao_completa_em
+              ? btnPrimary
+              : btnAction
+          }
           onClick={() => setPendingGen(pendingGen === "repasse_semanal" ? null : "repasse_semanal")}
         >
           Gerar Repasse Semanal
         </button>
-        <button style={btnAction} onClick={() => onUploadLivre(sprint.numero)}>
+        <button style={btnSubtle} onClick={() => onUploadLivre(sprint.numero)}>
           Upload livre
         </button>
-        <button style={btnAction} onClick={() => onAddManualDoc(sprint.numero)}>
+        <button style={btnSubtle} onClick={() => onAddManualDoc(sprint.numero)}>
           + Documento manual
         </button>
-        {cargo !== "operacional" && (
-          <button style={btnAction} onClick={() => onOpenAvaliacaoSemanal?.(sprint)}>
-            {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
-          </button>
-        )}
       </div>
 
       {/* Painel de confirmação com explicação */}
