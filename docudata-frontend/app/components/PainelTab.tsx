@@ -96,10 +96,12 @@ const labelSmStyle: React.CSSProperties = {
 function BlocoACard({
   bloco,
   project,
+  sprints,
   onSaved,
 }: {
   bloco: PainelData["bloco_a"];
   project: Project;
+  sprints: SprintWithStatus[];
   onSaved?: (updated: Project) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -109,8 +111,13 @@ function BlocoACard({
     project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : ""
   );
   const [arquetipo, setArquetipo] = useState<"padrao" | "consultoria_discovery">(project.arquetipo ?? "padrao");
+  const [valorProjeto, setValorProjeto] = useState(
+    project.valor_projeto != null ? String(project.valor_projeto) : ""
+  );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  const valorTravado = sprints.some((s) => s.pontos_orcamento != null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -123,6 +130,7 @@ function BlocoACard({
         data_fim_contratada: dataFim,
         tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
         arquetipo,
+        valor_projeto: !valorTravado && valorProjeto !== "" ? Number(valorProjeto) : undefined,
       });
       onSaved?.(updated);
       setEditing(false);
@@ -184,6 +192,26 @@ function BlocoACard({
               <option value="padrao">Padrão</option>
               <option value="consultoria_discovery">Consultoria / Discovery</option>
             </select>
+          </div>
+          <div>
+            <label style={labelSmStyle}>
+              Valor do projeto (R$) <span style={{ fontWeight: 400 }}>— opcional</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={valorProjeto}
+              onChange={(e) => setValorProjeto(e.target.value)}
+              placeholder="ex: 35000"
+              style={inputSmStyle}
+              disabled={valorTravado}
+            />
+            {valorTravado && (
+              <p style={{ fontSize: 11, color: "#9696a0", margin: "4px 0 0" }}>
+                Travado: já existe orçamento de pontos definido em pelo menos uma sprint.
+              </p>
+            )}
           </div>
           {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
           <button
@@ -690,6 +718,7 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
         <BlocoACard
           bloco={data.bloco_a}
           project={project}
+          sprints={sprints}
           onSaved={(updated) => {
             onProjectUpdated?.(updated);
             getPainel(projectId).then(setData).catch(() => {});
