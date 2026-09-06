@@ -20,10 +20,24 @@ def _mock_client(pesos=None, operacionais=None, pontuacao=None, projetos=None):
     pontuacao = pontuacao or []
     projetos = projetos or []
     client = MagicMock()
+    audit_calls: list[dict] = []
+    client.audit_calls = audit_calls
 
     def table_side_effect(name):
         tbl = MagicMock()
-        if name == "pesos_arquetipo":
+        if name == "audit_log":
+            # Captura os inserts de registrar_auditoria — sem isso, um
+            # MagicMock() genérico aceitaria qualquer payload (ou nenhum
+            # insert) silenciosamente, sem nenhum teste flagrar a regressão.
+            def insert_side_effect(payload):
+                audit_calls.append(payload)
+                q = MagicMock()
+                resp = MagicMock()
+                resp.data = [dict(payload, id="audit-1")]
+                q.execute = MagicMock(return_value=resp)
+                return q
+            tbl.insert = MagicMock(side_effect=insert_side_effect)
+        elif name == "pesos_arquetipo":
             q = MagicMock()
             resp = MagicMock()
             resp.data = pesos
@@ -126,6 +140,14 @@ def test_ranking_ordenado_por_score_desc(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert [p["nome"] for p in body["sprint"]] == ["Ana", "Bia"]
+
+    # registrar_auditoria precisa gravar exatamente 1 linha de audit_log pro
+    # acesso do líder — regressão coberta aqui após a remoção do teste
+    # equivalente em test_performance_stub.py (o stub antigo não existe mais).
+    assert len(client.audit_calls) == 1
+    assert client.audit_calls[0]["pessoa_email"] == "p@citi.com"
+    assert client.audit_calls[0]["rota"] == "/performance"
+    assert client.audit_calls[0]["acao"] == "acesso"
 
 
 def test_gerente_recebe_403(monkeypatch):
