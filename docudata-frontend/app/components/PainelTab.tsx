@@ -108,6 +108,7 @@ function BlocoACard({
   const [tolerancia, setTolerancia] = useState(
     project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : ""
   );
+  const [arquetipo, setArquetipo] = useState<"padrao" | "consultoria_discovery">(project.arquetipo ?? "padrao");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -121,6 +122,7 @@ function BlocoACard({
         data_inicio: dataInicio,
         data_fim_contratada: dataFim,
         tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
+        arquetipo,
       });
       onSaved?.(updated);
       setEditing(false);
@@ -171,6 +173,17 @@ function BlocoACard({
               placeholder="ex: 5"
               style={inputSmStyle}
             />
+          </div>
+          <div>
+            <label style={labelSmStyle}>Arquétipo do projeto</label>
+            <select
+              value={arquetipo}
+              onChange={(e) => setArquetipo(e.target.value as "padrao" | "consultoria_discovery")}
+              style={inputSmStyle}
+            >
+              <option value="padrao">Padrão</option>
+              <option value="consultoria_discovery">Consultoria / Discovery</option>
+            </select>
           </div>
           {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
           <button

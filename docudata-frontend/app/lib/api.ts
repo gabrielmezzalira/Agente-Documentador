@@ -105,6 +105,7 @@ export interface Project {
   data_fim_contratada?: string | null;
   tolerancia_desvio_pontos?: number | null;
   periodo_garantia_dias?: number | null;
+  arquetipo?: "padrao" | "consultoria_discovery";
   gerente_email?: string | null;
 }
 
@@ -302,6 +303,7 @@ export async function updateContrato(
     data_fim_contratada?: string | null;
     tolerancia_desvio_pontos?: number | null;
     periodo_garantia_dias?: number | null;
+    arquetipo?: "padrao" | "consultoria_discovery";
   }
 ): Promise<Project> {
   const res = await apiFetch(`${API}/projects/${projectId}/contrato`, {
