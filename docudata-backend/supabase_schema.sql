@@ -466,3 +466,38 @@ CREATE TABLE IF NOT EXISTS eventos_pontuacao_tardios (
     criado_em       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_eventos_pontuacao_tardios_sprint_alvo ON eventos_pontuacao_tardios(sprint_id_alvo);
+
+-- ═══════════════════════════════════════════════════════════════
+-- Phase 19: Peso por Arquétipo + Área de Performance e Ranking
+-- (PERF-01..06)
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS arquetipo text NOT NULL DEFAULT 'padrao'
+    CHECK (arquetipo IN ('padrao', 'consultoria_discovery'));
+
+CREATE TABLE IF NOT EXISTS pesos_arquetipo (
+    arquetipo               text        PRIMARY KEY CHECK (arquetipo IN ('padrao', 'consultoria_discovery')),
+    peso_gerente            numeric(3,2) NOT NULL DEFAULT 0.35,
+    peso_entrega            numeric(3,2) NOT NULL DEFAULT 0.20,
+    peso_qualidade          numeric(3,2) NOT NULL DEFAULT 0.20,
+    peso_autonomia          numeric(3,2) NOT NULL DEFAULT 0.15,
+    peso_evolucao           numeric(3,2) NOT NULL DEFAULT 0.10,
+    peso_commit_qualidade   numeric(3,2) NOT NULL DEFAULT 0.50
+);
+INSERT INTO pesos_arquetipo (arquetipo) VALUES ('padrao'), ('consultoria_discovery')
+    ON CONFLICT (arquetipo) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS commit_qualidade (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    commit_hash     text        NOT NULL,
+    task_id         uuid        REFERENCES tasks(id) ON DELETE SET NULL,
+    operacional_id  uuid        REFERENCES operacionais(id) ON DELETE SET NULL,
+    projeto_id      uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nota            int         NOT NULL CHECK (nota BETWEEN 0 AND 10),
+    evidencia       text,
+    criado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_commit_qualidade_operacional ON commit_qualidade(operacional_id);
+CREATE INDEX IF NOT EXISTS idx_commit_qualidade_projeto ON commit_qualidade(projeto_id);
+
+ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS qualidade_commit_media numeric(4,2);
