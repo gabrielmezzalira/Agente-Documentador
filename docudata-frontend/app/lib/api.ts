@@ -1246,6 +1246,7 @@ export interface OperacionalResponse {
   email?: string | null;
   papel?: string | null;
   ativo: boolean;
+  github_login?: string | null;
   created_at: string;
 }
 
@@ -1263,6 +1264,7 @@ export async function createOperacional(data: {
   nome: string;
   email?: string;
   papel?: string;
+  github_login?: string;
 }): Promise<OperacionalResponse> {
   const res = await apiFetch(`${API}/operacionais`, {
     method: "POST",
@@ -1275,7 +1277,7 @@ export async function createOperacional(data: {
 
 export async function updateOperacional(
   id: string,
-  data: { nome?: string; email?: string; papel?: string; ativo?: boolean }
+  data: { nome?: string; email?: string; papel?: string; ativo?: boolean; github_login?: string }
 ): Promise<OperacionalResponse> {
   const res = await apiFetch(`${API}/operacionais/${id}`, {
     method: "PATCH",

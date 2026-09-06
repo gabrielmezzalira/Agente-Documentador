@@ -73,6 +73,7 @@ function OperacionaisSection({
   const [adding, setAdding] = useState(false);
   const [nome, setNome] = useState("");
   const [papel, setPapel] = useState("");
+  const [githubLogin, setGithubLogin] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -91,9 +92,14 @@ function OperacionaisSection({
     setSaving(true);
     setErr("");
     try {
-      const novo = await createOperacional({ project_id: projectId, nome: nome.trim(), papel: papel.trim() || undefined });
+      const novo = await createOperacional({
+        project_id: projectId,
+        nome: nome.trim(),
+        papel: papel.trim() || undefined,
+        github_login: githubLogin.trim() || undefined,
+      });
       onUpdated([...operacionais, novo]);
-      setNome(""); setPapel(""); setAdding(false);
+      setNome(""); setPapel(""); setGithubLogin(""); setAdding(false);
     } catch {
       setErr("Erro ao adicionar.");
     } finally {
@@ -173,10 +179,14 @@ function OperacionaisSection({
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Papel</label>
             <input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Front, Back, DS…" style={{ ...inputSm, width: 140 }} />
           </div>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>GitHub username</label>
+            <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} placeholder="ex: joaosilva" style={{ ...inputSm, width: 140 }} />
+          </div>
           <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {saving ? "…" : "Salvar"}
           </button>
-          <button type="button" onClick={() => { setAdding(false); setNome(""); setPapel(""); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+          <button type="button" onClick={() => { setAdding(false); setNome(""); setPapel(""); setGithubLogin(""); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
             Cancelar
           </button>
           {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
