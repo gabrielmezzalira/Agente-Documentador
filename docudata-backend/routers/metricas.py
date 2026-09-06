@@ -237,13 +237,14 @@ async def get_performance_operacional(project_id: str):
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    operacionais = (
+    operacionais_raw = (
         client.table("operacionais")
-        .select("id, nome")
+        .select("id, nome, ativo")
         .eq("project_id", project_id)
         .execute()
         .data or []
     )
+    operacionais = [o for o in operacionais_raw if o.get("ativo", True)]
     tasks = (
         client.table("tasks")
         .select("operacional_id, pontos, coluna_kanban")

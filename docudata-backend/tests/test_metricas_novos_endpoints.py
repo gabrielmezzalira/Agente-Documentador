@@ -157,6 +157,25 @@ def test_performance_operacional_operacional_sem_tasks_retorna_zeros(monkeypatch
     assert data[0]["spi"] is None
 
 
+def test_performance_operacional_exclui_operacionais_inativos(monkeypatch):
+    operacionais = [
+        {"id": "op-1", "nome": "Ana", "ativo": True},
+        {"id": "op-2", "nome": "Bruno (desativado)", "ativo": False},
+    ]
+    tasks = [
+        {"operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"},
+        {"operacional_id": "op-2", "pontos": 3, "coluna_kanban": "concluida"},
+    ]
+    mock_sb = _make_mock_client(operacionais_data=operacionais, tasks_data=tasks)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/metricas/test-project-id/performance-operacional")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["operacional_id"] == "op-1"
+
+
 def test_performance_operacional_project_not_found(monkeypatch):
     mock_sb = _make_mock_client(project_exists=False)
     tc = _patch_and_client(monkeypatch, mock_sb)
