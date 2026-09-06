@@ -3,11 +3,11 @@ feature: "Reforma do modelo de pontuação — 100 pontos fixos por projeto, or�
 modo: "FULL"
 tier: "COMPLEXA"
 stack: "FastAPI (Python) + Supabase PostgreSQL + Next.js (React)"
-etapa: 2
-etapa_nome: "Execução (aguardando escolha: subagent-driven vs inline)"
+etapa: 12
+etapa_nome: "Verificação final / finishing-a-development-branch"
 gates_reusados: ["knowledge-graph (docudata-backend e docudata-frontend reextraídos nesta etapa — backend 926 nodes/2272 edges, frontend 579 nodes/1093 edges, reextração estrutural sem LLM)"]
 started_at: "2026-09-06T00:00:00Z"
-last_saved: "2026-09-06T00:00:00Z"
+last_saved: "2026-09-06T18:43:32Z"
 status: "em_progresso"
 
 ## Concluído
@@ -25,5 +25,9 @@ status: "em_progresso"
 - **Fora de escopo (YAGNI), registrado na spec:** divisão automática de pontos entre sprints, rebalanceamento retroativo, `funcionalidades.sprint_alvo` virar FK real, migração/backfill de dados existentes (não há pontuação real em produção ainda).
 - **Nota operacional:** `supabase_schema.sql` não roda sozinho — as duas `ALTER TABLE` (`sprints.pontos_orcamento`, `projects.valor_projeto`) precisam de aplicação manual em produção depois do deploy (ver memória `project_manual_migrations`).
 - Arquivos-chave já identificados durante a exploração: `routers/sprints.py` (create_sprint, list_sprints ~64-142, update_baseline ~145-186 a remover), `routers/tasks.py` (create_task ~84, patch_task ~273-394), `routers/projects.py` (create_project, update_contrato ~344), `models/schemas.py` (ContratoUpdate ~308, SprintBaselineUpdate/Response ~495-508 a remover), `supabase_schema.sql` (sprints ~101-110, projects valor_por_ponto ~311, tasks ~258-275), `EscopoTab.tsx`, `PainelTab.tsx` (formulário de contrato ~109-125), `SprintCard.tsx`, `app/lib/api.ts` (updateSprintBaseline ~418 a remover).
-- [x] Etapa 2 — Plano de implementação via `/write-plan`: `docs/superpowers/plans/2026-09-06-reforma-pontuacao.md`, 9 tasks (Onda 1: Tasks 1-4 back-end; Onda 2: Tasks 5-9 UI). Self-review interno da skill passou sem gaps. Ainda não commitado, execução ainda não escolhida.
-- Próximo passo: usuário escolhe subagent-driven vs inline; depois execução das 9 tasks seguindo TDD (backend) e npm run build (frontend), mesmo padrão do ciclo anterior (backlog UAT Phase 19).
+- [x] Etapa 2 — Plano de implementação via `/write-plan`: `docs/superpowers/plans/2026-09-06-reforma-pontuacao.md`, 9 tasks. Execução escolhida: inline, direto na main (mesmo padrão do ciclo anterior).
+- [x] Etapa 3 — Onda 1 (back-end) executada e verificada: Tasks 1-4 completas, TDD em todas, commits atômicos (`15db630`, `63f5c87`, `420f36b`, `87045ca`). Suíte completa: 187 passed, 4 failed (mesmas falhas pré-existentes de `test_schemas_and_client.py`, sem relação). Sem regressão.
+- **Descoberta durante a execução (fora do plano original, corrigida na Task 1):** `services/spi_health.py` (status_saude verde/amarelo/vermelho, calculado após orçamento definido ou task concluída) e `routers/metricas.py` (`GET /metricas/{id}/spi`, gráfico "SPI — Schedule Performance Index" na aba Métricas) ambos liam `sprints.pontos_previstos` diretamente — ficariam permanentemente mortos pra qualquer sprint nova assim que o baseline manual saiu. Adaptados pra ler `pontos_orcamento` em vez disso; mesma fórmula, mesmo contrato de resposta (`GET /metricas/.../spi` continua devolvendo a chave `pontos_previstos` no JSON, só a coluna fonte no banco mudou — não quebra o `dataKey="pontos_previstos"` do gráfico em MetricasTab.tsx).
+- [x] Onda 2 (UI) executada: Tasks 5-9 completas — api.ts (tipos/funções), SprintCard.tsx (baseline removido), SprintOrcamentoPlanner.tsx (novo) + EscopoTab.tsx (planejamento de orçamento por sprint), PainelTab.tsx (campo valor_projeto travável), page.tsx (aviso não-bloqueante em Marcar como entregue). `npm run build` limpo após cada task. Commits: `6850293`, `f3d098c`, `8bdc3ec`, `52ca1b0`, `a4f7e2d`.
+- **Lembrete pós-deploy pendente:** aplicar manualmente em produção (Supabase) as duas migrações — `ALTER TABLE sprints ADD COLUMN IF NOT EXISTS pontos_orcamento int CHECK (pontos_orcamento IS NULL OR pontos_orcamento >= 0);` e `ALTER TABLE projects ADD COLUMN IF NOT EXISTS valor_projeto numeric(10,2);` — `supabase_schema.sql` não roda sozinho.
+- Próximo passo: `finishing-a-development-branch` (rodar suíte, decidir sobre push).
