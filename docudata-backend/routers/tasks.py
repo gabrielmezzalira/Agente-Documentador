@@ -114,13 +114,27 @@ async def create_task(data: TaskCreate):
     if data.sprint_id:
         sp_check = (
             client.table("sprints")
-            .select("id")
+            .select("id, pontos_orcamento")
             .eq("id", data.sprint_id)
             .eq("project_id", data.project_id)
             .execute()
         )
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
+        orcamento = sp_check.data[0].get("pontos_orcamento")
+        if orcamento is not None:
+            tasks_na_sprint = (
+                client.table("tasks")
+                .select("pontos")
+                .eq("sprint_id", data.sprint_id)
+                .execute()
+            ).data or []
+            usados = sum(t["pontos"] for t in tasks_na_sprint)
+            if usados + data.pontos > orcamento:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Orçamento da sprint excedido: restam {orcamento - usados} pontos.",
+                )
 
     payload: dict = {
         "project_id": data.project_id,
@@ -301,6 +315,27 @@ async def patch_task(task_id: str, data: TaskUpdate):
         )
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
+
+    if data.pontos is not None or data.sprint_id is not None:
+        sprint_id_efetivo = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
+        pontos_efetivo = data.pontos if data.pontos is not None else task["pontos"]
+        if sprint_id_efetivo:
+            sp_orc = client.table("sprints").select("pontos_orcamento").eq("id", sprint_id_efetivo).execute()
+            orcamento = sp_orc.data[0].get("pontos_orcamento") if sp_orc.data else None
+            if orcamento is not None:
+                outras_tasks = (
+                    client.table("tasks")
+                    .select("pontos")
+                    .eq("sprint_id", sprint_id_efetivo)
+                    .neq("id", task_id)
+                    .execute()
+                ).data or []
+                usados = sum(t["pontos"] for t in outras_tasks)
+                if usados + pontos_efetivo > orcamento:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Orçamento da sprint excedido: restam {orcamento - usados} pontos.",
+                    )
 
     # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado
     coluna_nova = data.coluna_kanban
