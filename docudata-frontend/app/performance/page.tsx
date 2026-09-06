@@ -33,7 +33,7 @@ export default function PerformancePage() {
   const [erro, setErro] = useState("");
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || auth.cargo !== "lider") return;
     getPerformance()
       .then(setDados)
       .catch((e: Error) => setErro(e.message));
