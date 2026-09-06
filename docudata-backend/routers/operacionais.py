@@ -35,6 +35,8 @@ async def create_operacional(data: OperacionalCreate):
         payload["email"] = data.email
     if data.papel is not None:
         payload["papel"] = data.papel
+    if data.github_login is not None:
+        payload["github_login"] = data.github_login
 
     try:
         resp = client.table("operacionais").insert(payload).execute()
@@ -79,7 +81,7 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
         raise HTTPException(status_code=404, detail="Operacional not found")
 
     updates: dict = {}
-    for field in ("nome", "email", "papel", "ativo"):
+    for field in ("nome", "email", "papel", "ativo", "github_login"):
         val = getattr(data, field, None)
         if val is not None:
             updates[field] = val

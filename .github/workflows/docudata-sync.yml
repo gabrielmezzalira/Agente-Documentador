@@ -31,6 +31,8 @@ jobs:
           COMMIT_HASH=$(git log -1 --pretty=format:"%H")
           COMMIT_MSG=$(git log -1 --pretty=format:"%B")
           AUTHOR=$(git log -1 --pretty=format:"%an")
+          AUTHOR_EMAIL=$(git log -1 --pretty=format:"%ae")
+          GITHUB_LOGIN="${{ github.actor }}"
           DATE=$(git log -1 --pretty=format:"%ad")
           BRANCH="${GITHUB_REF_NAME}"
           DIFF_STAT=$(git diff HEAD~1 HEAD --stat)
@@ -45,8 +47,10 @@ jobs:
               --arg hash "$COMMIT_HASH" \
               --arg msg "$COMMIT_MSG" \
               --arg author "$AUTHOR" \
+              --arg author_email "$AUTHOR_EMAIL" \
+              --arg author_github_login "$GITHUB_LOGIN" \
               --arg date "$DATE" \
               --arg branch "$BRANCH" \
               --arg stat "$DIFF_STAT" \
               --arg diff "$DIFF" \
-              '{project_id: $project_id, sprint_number: $sprint, commit_hash: $hash, commit_message: $msg, author: $author, date: $date, branch: $branch, diff_stat: $stat, diff: $diff}')" || true
+              '{project_id: $project_id, sprint_number: $sprint, commit_hash: $hash, commit_message: $msg, author: $author, author_email: $author_email, author_github_login: $author_github_login, date: $date, branch: $branch, diff_stat: $stat, diff: $diff}')" || true

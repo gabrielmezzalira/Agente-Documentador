@@ -43,10 +43,25 @@ def _mock_client(arquetipo="padrao", operacionais=None, commit_qualidade_insert=
         elif name == "operacionais":
             def select_side_effect(cols):
                 q = MagicMock()
-                q.eq = MagicMock(return_value=q)
-                resp = MagicMock()
-                resp.data = operacionais
-                q.execute = MagicMock(return_value=resp)
+                filtros: dict = {}
+
+                def eq_side_effect(field, value):
+                    filtros[field] = value
+                    return q
+
+                q.eq = MagicMock(side_effect=eq_side_effect)
+
+                def execute_side_effect():
+                    resp = MagicMock()
+                    if "github_login" in filtros:
+                        resp.data = [o for o in operacionais if o.get("github_login") == filtros["github_login"]]
+                    elif "email" in filtros:
+                        resp.data = [o for o in operacionais if o.get("email") == filtros["email"]]
+                    else:
+                        resp.data = operacionais
+                    return resp
+
+                q.execute = MagicMock(side_effect=execute_side_effect)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
         elif name == "commit_qualidade":
@@ -113,7 +128,7 @@ def test_padrao_com_email_bate_grava_commit_qualidade(monkeypatch):
     insert_capture = []
     mock_sb = _mock_client(
         arquetipo="padrao",
-        operacionais=[{"id": "op-1"}],
+        operacionais=[{"id": "op-1", "email": "ana@citi.com"}],
         commit_qualidade_insert=insert_capture,
     )
     _mock_gemini(monkeypatch, _CONTEUDO, AvaliacaoQualidadeCommit(nota=8, evidencia="Boa cobertura de testes"))
@@ -139,6 +154,42 @@ def test_consultoria_discovery_nao_avalia_qualidade(monkeypatch):
 
     assert resp.status_code == 201
     assert insert_capture == []
+
+
+def test_github_login_tem_prioridade_sobre_email(monkeypatch):
+    insert_capture = []
+    payload = dict(_PAYLOAD, author_github_login="anasilva-gh")
+    mock_sb = _mock_client(
+        arquetipo="padrao",
+        operacionais=[
+            {"id": "op-por-email", "email": "ana@citi.com"},
+            {"id": "op-por-github", "github_login": "anasilva-gh"},
+        ],
+        commit_qualidade_insert=insert_capture,
+    )
+    _mock_gemini(monkeypatch, _CONTEUDO, AvaliacaoQualidadeCommit(nota=8, evidencia="x"))
+    tc = _client(monkeypatch, mock_sb)
+
+    resp = tc.post("/ingest/commit", json=payload)
+
+    assert resp.status_code == 201
+    assert insert_capture[0]["operacional_id"] == "op-por-github"
+
+
+def test_sem_github_login_cai_pro_email(monkeypatch):
+    insert_capture = []
+    mock_sb = _mock_client(
+        arquetipo="padrao",
+        operacionais=[{"id": "op-1", "email": "ana@citi.com"}],
+        commit_qualidade_insert=insert_capture,
+    )
+    _mock_gemini(monkeypatch, _CONTEUDO, AvaliacaoQualidadeCommit(nota=8, evidencia="x"))
+    tc = _client(monkeypatch, mock_sb)
+
+    resp = tc.post("/ingest/commit", json=_PAYLOAD)
+
+    assert resp.status_code == 201
+    assert insert_capture[0]["operacional_id"] == "op-1"
 
 
 def test_sem_email_correspondente_grava_operacional_id_none(monkeypatch):

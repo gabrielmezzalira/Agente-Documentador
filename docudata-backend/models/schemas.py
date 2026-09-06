@@ -371,6 +371,7 @@ class OperacionalCreate(BaseModel):
     nome: str
     email: Optional[str] = None
     papel: Optional[str] = None  # texto livre: "Front", "Back", "Design", "Gerente"
+    github_login: Optional[str] = None
 
 
 class OperacionalUpdate(BaseModel):
@@ -378,6 +379,7 @@ class OperacionalUpdate(BaseModel):
     email: Optional[str] = None
     papel: Optional[str] = None
     ativo: Optional[bool] = None
+    github_login: Optional[str] = None
 
 
 class OperacionalResponse(BaseModel):
@@ -387,6 +389,7 @@ class OperacionalResponse(BaseModel):
     email: Optional[str] = None
     papel: Optional[str] = None
     ativo: bool
+    github_login: Optional[str] = None
     created_at: datetime
 
 

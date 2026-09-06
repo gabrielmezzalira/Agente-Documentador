@@ -254,6 +254,7 @@ CREATE TABLE IF NOT EXISTS operacionais (
     created_at  timestamptz DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_operacionais_project_nome ON operacionais(project_id, nome);
+ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS github_login text;
 
 CREATE TABLE IF NOT EXISTS tasks (
     id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

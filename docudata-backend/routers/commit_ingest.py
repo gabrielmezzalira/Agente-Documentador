@@ -31,6 +31,7 @@ class CommitPayload(BaseModel):
     commit_message: str
     author: str
     author_email: Optional[str] = None
+    author_github_login: Optional[str] = None
     date: str
     branch: Optional[str] = None
     diff_stat: Optional[str] = None
@@ -209,7 +210,17 @@ async def ingest_commit(payload: CommitPayload):
                 task_id = match_task.group(1)
 
             operacional_id = None
-            if payload.author_email:
+            if payload.author_github_login:
+                op_resp = (
+                    client.table("operacionais")
+                    .select("id")
+                    .eq("project_id", payload.project_id)
+                    .eq("github_login", payload.author_github_login)
+                    .execute()
+                )
+                if op_resp.data:
+                    operacional_id = op_resp.data[0]["id"]
+            if operacional_id is None and payload.author_email:
                 op_resp = (
                     client.table("operacionais")
                     .select("id")
