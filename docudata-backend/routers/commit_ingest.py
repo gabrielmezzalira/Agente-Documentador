@@ -5,6 +5,7 @@ POST /ingest/commit  — recebe metadados + diff de um commit e extrai
 GET  /projects/{project_id}/current-sprint — retorna a sprint atual do
                        projeto baseada na última ingestion de tipo 'planning'.
 """
+import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from models.schemas import ConteudoEstruturado
+from models.schemas import ConteudoEstruturado, AvaliacaoQualidadeCommit
 from services.supabase_client import get_client
 from services.sprints import ensure_sprint_row
 
@@ -29,6 +30,7 @@ class CommitPayload(BaseModel):
     commit_hash: str
     commit_message: str
     author: str
+    author_email: Optional[str] = None
     date: str
     branch: Optional[str] = None
     diff_stat: Optional[str] = None
@@ -96,6 +98,17 @@ _COMMIT_SYSTEM_PROMPT = (
     "Se nao houver remocao explicita e completa, deixe tecnologias_removidas como lista vazia."
 )
 
+_COMMIT_QUALIDADE_PROMPT = (
+    "Voce avalia a qualidade tecnica de uma entrega de codigo a partir do commit e do diff "
+    "fornecidos. Pontue de 0 a 10 olhando: complexidade da tarefa resolvida no contexto do "
+    "commit, qualidade da documentacao e das mensagens de commit, e aderencia a boas praticas "
+    "esperadas (nomes claros, tratamento de erro, testes quando cabivel). "
+    "Nunca liste pendencia pra corrigir — devolva so a nota e uma frase curta explicando o "
+    "porque, no mesmo espirito de um placar."
+)
+
+_TASK_TAG_RE = re.compile(r"\[task:([0-9a-fA-F-]{36})\]")
+
 
 @router.post("/ingest/commit", status_code=201)
 async def ingest_commit(payload: CommitPayload):
@@ -103,7 +116,7 @@ async def ingest_commit(payload: CommitPayload):
     client = get_client()
 
     # Verifica que projeto existe e busca api_key
-    project_resp = client.table("projects").select("gemini_api_key").eq("id", payload.project_id).execute()
+    project_resp = client.table("projects").select("gemini_api_key, arquetipo").eq("id", payload.project_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
     api_key = project_resp.data[0].get("gemini_api_key") or ""
@@ -186,6 +199,43 @@ async def ingest_commit(payload: CommitPayload):
         f"tokens in={in_tok} out={out_tok} cost=${cost:.6f} "
         f"id={ingestion_id}"
     )
+
+    arquetipo = project_resp.data[0].get("arquetipo") or "padrao"
+    if arquetipo == "padrao":
+        try:
+            task_id = None
+            match_task = _TASK_TAG_RE.search(payload.commit_message)
+            if match_task:
+                task_id = match_task.group(1)
+
+            operacional_id = None
+            if payload.author_email:
+                op_resp = (
+                    client.table("operacionais")
+                    .select("id")
+                    .eq("project_id", payload.project_id)
+                    .eq("email", payload.author_email)
+                    .execute()
+                )
+                if op_resp.data:
+                    operacional_id = op_resp.data[0]["id"]
+
+            qualidade_llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", max_tokens=512, google_api_key=api_key)
+            qualidade_structured = qualidade_llm.with_structured_output(AvaliacaoQualidadeCommit)
+            avaliacao: AvaliacaoQualidadeCommit = await qualidade_structured.ainvoke([
+                SystemMessage(content=_COMMIT_QUALIDADE_PROMPT),
+                HumanMessage(content=user_content),
+            ])
+            client.table("commit_qualidade").insert({
+                "commit_hash": payload.commit_hash,
+                "task_id": task_id,
+                "operacional_id": operacional_id,
+                "projeto_id": payload.project_id,
+                "nota": avaliacao.nota,
+                "evidencia": avaliacao.evidencia,
+            }).execute()
+        except Exception as exc:
+            print(f"[ingest_commit] Aviso: avaliacao de qualidade de commit falhou ({exc}) — continuando")
 
     return {
         "status": "ok",

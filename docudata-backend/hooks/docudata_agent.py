@@ -52,6 +52,7 @@ else:
 # 3. Coletar metadados do commit
 commit_hash  = git("log", "-1", "--pretty=%H")
 author       = git("log", "-1", "--pretty=%an")
+author_email = git("log", "-1", "--pretty=%ae")
 date         = git("log", "-1", "--pretty=%aI")
 diff_stat    = git("diff", "HEAD~1", "HEAD", "--stat")
 # Diff real truncado em 8000 chars para não estourar o contexto do Gemini
@@ -64,6 +65,7 @@ payload = {
     "commit_hash":   commit_hash,
     "commit_message": commit_msg,
     "author":        author,
+    "author_email":  author_email,
     "date":          date,
     "diff_stat":     diff_stat,
     "diff":          diff_full,

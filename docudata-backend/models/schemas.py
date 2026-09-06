@@ -668,3 +668,10 @@ class SpiOperacionalResponse(BaseModel):
     operacional_id: str
     spi: Optional[float] = None
     por_projeto: list[SpiPorProjetoResponse] = []
+
+
+# ── Qualidade de commit via IA (Phase 19) ────────────────────────────────────
+
+class AvaliacaoQualidadeCommit(BaseModel):
+    nota: int = Field(ge=0, le=10, description="Nota de 0 a 10 avaliando a qualidade tecnica da entrega deste commit")
+    evidencia: str = Field(description="Frase curta explicando o motivo da nota — nunca uma lista de pendencias a corrigir")
