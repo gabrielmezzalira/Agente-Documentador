@@ -97,6 +97,8 @@ export interface Project {
   client: string;
   description?: string;
   budget_usd?: number | null;
+  valor_projeto?: number | null;
+  valor_por_ponto?: number | null;
   has_api_key: boolean;
   is_delivered: boolean;
   created_at: string;
@@ -208,8 +210,9 @@ export interface SprintWithStatus extends Sprint {
   ingestions_count: number;
   docs_gerados_count: number;
   pendencias: string[];          // subset de ['planning','review']
-  pontos_previstos: number | null;
-  baseline_locked_at: string | null;
+  pontos_orcamento: number | null;
+  pontos_usados: number;
+  faturamento_previsto: number | null;
   avaliacao_completa_em?: string | null;
 }
 
@@ -304,6 +307,7 @@ export async function updateContrato(
     tolerancia_desvio_pontos?: number | null;
     periodo_garantia_dias?: number | null;
     arquetipo?: "padrao" | "consultoria_discovery";
+    valor_projeto?: number | null;
   }
 ): Promise<Project> {
   const res = await apiFetch(`${API}/projects/${projectId}/contrato`, {
@@ -341,6 +345,7 @@ export async function createProject(data: {
   description?: string;
   squad?: string;
   budget_usd?: number | null;
+  valor_projeto?: number | null;
   gemini_api_key?: string;
 }): Promise<Project> {
   const res = await apiFetch(`${API}/projects`, {
@@ -415,18 +420,18 @@ export async function listSprints(projectId: string): Promise<SprintWithStatus[]
   return res.json();
 }
 
-export async function updateSprintBaseline(
+export async function updateSprintOrcamento(
   sprintId: string,
-  pontosPrevistos: number
+  pontosOrcamento: number
 ): Promise<SprintWithStatus> {
-  const res = await apiFetch(`${API}/sprints/${sprintId}/baseline`, {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/orcamento`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pontos_previstos: pontosPrevistos }),
+    body: JSON.stringify({ pontos_orcamento: pontosOrcamento }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro ao definir baseline");
+    throw new Error(err.detail ?? "Erro ao definir orçamento da sprint");
   }
   return res.json();
 }
