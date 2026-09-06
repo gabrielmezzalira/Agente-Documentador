@@ -105,18 +105,5 @@ async def delete_operacional(operacional_id: str):
     if not check.data:
         raise HTTPException(status_code=404, detail="Operacional not found")
 
-    # Bloqueia se houver tasks vinculadas
-    has_tasks = (
-        client.table("tasks")
-        .select("id")
-        .eq("operacional_id", operacional_id)
-        .limit(1)
-        .execute()
-    ).data
-    if has_tasks:
-        raise HTTPException(
-            status_code=409,
-            detail="Operacional possui tasks associadas. Reatribua-as antes de excluir.",
-        )
-
+    client.table("tasks").update({"operacional_id": None}).eq("operacional_id", operacional_id).execute()
     client.table("operacionais").delete().eq("id", operacional_id).execute()
