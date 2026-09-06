@@ -1009,6 +1009,10 @@ export default function ProjectDashboard() {
           projectId={id}
           funcionalidades={funcionalidades}
           onImported={(novas) => setFuncionalidades((prev) => [...prev, ...novas])}
+          sprints={sprints}
+          onSprintUpdated={(updated) =>
+            setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+          }
         />
       )}
 

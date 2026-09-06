@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import TutorialBanner from "./TutorialBanner";
+import SprintOrcamentoPlanner from "./SprintOrcamentoPlanner";
 import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
+  SprintWithStatus,
   importarFuncionalidades,
   importarFuncionalidadesArquivo,
   confirmarImportacao,
@@ -45,9 +47,11 @@ interface Props {
   projectId: string;
   funcionalidades: FuncionalidadeResponse[];
   onImported: (novas: FuncionalidadeResponse[]) => void;
+  sprints: SprintWithStatus[];
+  onSprintUpdated: (updated: SprintWithStatus) => void;
 }
 
-export default function EscopoTab({ projectId, funcionalidades, onImported }: Props) {
+export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
@@ -262,6 +266,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported }: Pr
           </div>
         )}
       </div>
+
+      <SprintOrcamentoPlanner sprints={sprints} onSprintUpdated={onSprintUpdated} />
 
       {/* Filtro por sprint */}
       {sprintsDisponiveis.length > 0 && (
