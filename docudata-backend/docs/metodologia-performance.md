@@ -316,9 +316,6 @@ cross-projeto incomparável.
 Qualidade:** em `consultoria_discovery` não há nota de commit, então Qualidade
 cai para retrabalho puro. Mesma régua, uma fonte a menos.
 
-> A metodologia de referência propunha migrar 10 pontos de peso de Qualidade para
-> Entrega em projetos de consultoria, com CSAT morando em Entrega. **Isso não foi
-> implementado** e o CSAT não é coletado em lugar nenhum do sistema. Ver Anexo B.
 
 ### 6.4 Qual arquétipo a janela usa
 
@@ -1096,8 +1093,6 @@ reprocessamento — o que torna a recalibração barata de propósito.
    pergunta 3 para dentro de Autonomia como blend.
 5. **Valor final de `peso_commit_qualidade`** (hoje 0.5), a decidir com dado do
    piloto.
-6. **CSAT do projeto.** Não é coletado hoje. Se entrar, o desenho de referência o
-   colocava dentro de Entrega para o arquétipo de consultoria.
 
 ---
 
@@ -1159,7 +1154,6 @@ sistema.
 | Ponto | Metodologia de referência | Implementado hoje |
 |---|---|---|
 | Pesos por arquétipo | Consultoria: Entrega 30%, Qualidade 20% | **Pesos idênticos** nos dois arquétipos. Muda só a presença do sinal de commit dentro de Qualidade (decisão fechada, `.planning/intel/decisions.md` #3) |
-| CSAT do projeto | Entra em Entrega para consultoria | **Não coletado** em lugar nenhum |
 | SPI de cronograma, previsibilidade, aderência a escopo | Fontes de Entrega | Entrega usa **só** pontos concluídos ÷ alocados |
 | Cycle time | Fonte de dimensão objetiva | Existe como métrica de projeto, **fora do score** |
 | Colaboração | "Peso de verdade no cálculo" | Pergunta 5, diluída na média das 7 → **5% do score final** |
