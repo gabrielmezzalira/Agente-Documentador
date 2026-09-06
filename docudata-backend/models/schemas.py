@@ -694,3 +694,10 @@ class PerformanceResponse(BaseModel):
     sprint: list[PerformanceOperacionalResponse] = []
     quinzenal: list[PerformanceOperacionalResponse] = []
     mensal: list[PerformanceOperacionalResponse] = []
+
+
+# ── Metodologia (documento interno, Líder/Gerente) ───────────────────────────
+
+class MetodologiaResponse(BaseModel):
+    titulo: str
+    conteudo: str

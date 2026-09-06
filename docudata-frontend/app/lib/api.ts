@@ -1593,3 +1593,17 @@ export async function getPerformance(): Promise<PerformanceResponse> {
   if (!res.ok) throw new Error("Erro ao buscar ranking de performance");
   return res.json();
 }
+
+// Metodologia — documento interno (Líder e Gerente; bloqueado para operacional)
+
+export interface MetodologiaResponse {
+  titulo: string;
+  conteudo: string;
+}
+
+export async function getMetodologia(slug: string): Promise<MetodologiaResponse> {
+  const res = await apiFetch(`${API}/metodologia/${slug}`);
+  if (res.status === 403) throw new Error("Acesso restrito a Líder e Gerente");
+  if (!res.ok) throw new Error("Erro ao carregar o documento");
+  return res.json();
+}

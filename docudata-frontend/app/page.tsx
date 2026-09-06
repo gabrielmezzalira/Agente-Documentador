@@ -105,6 +105,13 @@ export default function Home() {
             citi · subárea de dados
           </span>
           <div style={{ display: "flex", gap: 10 }}>
+            {auth && auth.cargo !== "operacional" && (
+              <Link href="/metodologia">
+                <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
+                  Metodologia
+                </button>
+              </Link>
+            )}
             {auth?.cargo === "lider" && (
               <Link href="/performance">
                 <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
