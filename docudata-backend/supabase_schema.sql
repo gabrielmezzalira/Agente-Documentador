@@ -1,7 +1,10 @@
 -- DocuData — Supabase schema
--- Run this in the Supabase SQL Editor to create all three tables.
+-- Todo o arquivo é idempotente (CREATE TABLE/INDEX IF NOT EXISTS, ALTER TABLE
+-- ADD COLUMN IF NOT EXISTS, DROP VIEW IF EXISTS + CREATE) — pode ser colado e
+-- executado por inteiro no SQL Editor do Supabase a qualquer momento, mesmo
+-- que parte já esteja aplicada. Nunca roda sozinho (sem CI/CD de schema).
 
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     name            text        NOT NULL,
     client          text        NOT NULL,
@@ -13,7 +16,7 @@ CREATE TABLE projects (
     created_at      timestamptz DEFAULT now()
 );
 
-CREATE TABLE ingestions (
+CREATE TABLE IF NOT EXISTS ingestions (
     id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id        uuid        REFERENCES projects(id) ON DELETE CASCADE,
     sprint_number     int         NOT NULL,
@@ -47,7 +50,7 @@ CREATE TABLE ingestions (
 -- ALTER TABLE ingestions ADD CONSTRAINT ingestions_tipo_documentacao_check
 --   CHECK (tipo_documentacao IS NULL OR tipo_documentacao IN ('planning','daily','review','retrospectiva','commit','outro'));
 
-CREATE TABLE generated_docs (
+CREATE TABLE IF NOT EXISTS generated_docs (
     id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id    uuid        REFERENCES projects(id) ON DELETE CASCADE,
     doc_type      text        NOT NULL,
@@ -95,7 +98,7 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS tolerancia_desvio_pontos integer D
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS periodo_garantia_dias    integer DEFAULT 30;
 
 -- v1.1 — Sprint como entidade + semáforo de saúde
-CREATE TABLE sprints (
+CREATE TABLE IF NOT EXISTS sprints (
     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id      uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     numero          int         NOT NULL,
@@ -309,7 +312,11 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS wip_config       jsonb DEFAULT '{"
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS valor_por_ponto  numeric(10,2);
 
 -- View de SPI por sprint
-CREATE OR REPLACE VIEW sprint_spi AS
+-- DROP + CREATE em vez de CREATE OR REPLACE: Postgres recusa reordenar/renomear
+-- colunas de uma view existente via REPLACE (erro 42P16); um DROP explícito é
+-- seguro aqui porque é só uma view calculada, sem dado próprio armazenado.
+DROP VIEW IF EXISTS sprint_spi;
+CREATE VIEW sprint_spi AS
 SELECT
     s.id,
     s.project_id,
