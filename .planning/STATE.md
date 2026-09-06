@@ -1,14 +1,18 @@
-## Feature Flow
+## Feature Flow em Progresso
 
-- **Última feature concluída:** Phase 18: Motor de Score — Dado Bruto por Sprint + SPI do Operacional + Baseline de Evolução (via `superpowers:subagent-driven-development`, 9 commits `f33aa81`..`4eb8ec2`, pushed pra `origin/main`)
-- **Próxima feature:** Phase 19: Peso por Arquétipo + Área de Performance e Ranking
+> **Sessão anterior encerrada com feature-flow ativo.**
+> Use `/feature-flow` para retomar de onde parou.
 
-Para retomar o fluxo de features: `/feature-flow-lean`.
+- **Feature:** Phase 19: Peso por Arquétipo + Área de Performance e Ranking
+- **Etapa atual:** Requisitos via /brainstorm
+- **Última sessão:** 2026-09-06T00:13:44Z
+
+Para retomar: `/feature-flow` — a skill vai detectar o estado automaticamente.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260905-mrn | Atualizar tabela de progresso do ROADMAP.md: marcar Phases 13-18 como Complete (evidência de código confirmada nesta sessão) | 2026-09-05 | 783fa8d | [260905-mrn-atualizar-tabela-de-progresso-do-roadmap](./quick/260905-mrn-atualizar-tabela-de-progresso-do-roadmap/) |
+| 260905-tf7 | Remover autenticação (get_current_pessoa) do commit_ingest.router em docudata-backend/main.py para as rotas /ingest/commit e /projects/{id}/current-sprint voltarem a ser públicas (chamadas por CI/curl anônimo do workflow docudata-sync.yml) | 2026-09-06 | a99631a | [260905-tf7-remover-autentica-o-get-current-pessoa-d](./quick/260905-tf7-remover-autentica-o-get-current-pessoa-d/) |
 
-Last activity: 2026-09-05 - Completed quick task 260905-mrn: Atualizar tabela de progresso do ROADMAP.md
+Last activity: 2026-09-06 - Completed quick task 260905-tf7: Remover autenticação (get_current_pessoa) do commit_ingest.router em docudata-backend/main.py
