@@ -111,7 +111,7 @@ function OperacionaisSection({
   }
 
   async function handleDelete(op: OperacionalResponse) {
-    if (!confirm(`Excluir "${op.nome}"? Tasks vinculadas perdem o operacional.`)) return;
+    if (!confirm(`Excluir "${op.nome}"? As tasks vinculadas ficam sem operacional atribuído, e toda a pontuação/ranking desse operacional será apagada. Esta ação não pode ser desfeita.`)) return;
     try {
       await deleteOperacional(op.id);
       onUpdated(operacionais.filter((o) => o.id !== op.id));
