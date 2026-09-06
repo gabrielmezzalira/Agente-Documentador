@@ -13,6 +13,20 @@ async def create_operacional(data: OperacionalCreate):
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    nome_normalizado = data.nome.strip().lower()
+    existentes = (
+        client.table("operacionais")
+        .select("nome")
+        .eq("project_id", data.project_id)
+        .execute()
+        .data or []
+    )
+    if any(e["nome"].strip().lower() == nome_normalizado for e in existentes):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Já existe um operacional com o nome '{data.nome}' neste projeto",
+        )
+
     payload = {
         "project_id": data.project_id,
         "nome": data.nome,
