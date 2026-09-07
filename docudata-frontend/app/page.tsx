@@ -105,14 +105,19 @@ export default function Home() {
             citi · subárea de dados
           </span>
           <div style={{ display: "flex", gap: 10 }}>
-            {auth && auth.cargo !== "operacional" && (
-              <Link href="/metodologia">
+            <Link href="/metodologia">
+              <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
+                Documentos
+              </button>
+            </Link>
+            {(auth?.cargo === "owner" || auth?.cargo === "lider") && (
+              <Link href="/pessoas">
                 <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
-                  Metodologia
+                  Pessoas
                 </button>
               </Link>
             )}
-            {auth?.cargo === "lider" && (
+            {(auth?.cargo === "owner" || auth?.cargo === "lider") && (
               <Link href="/performance">
                 <button style={{ ...btnPrimary, background: "#fff", color: "#111116", border: "1px solid #e8e8ed" }}>
                   Performance

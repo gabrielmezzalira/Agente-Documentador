@@ -593,3 +593,13 @@ UPDATE pesos_arquetipo SET
     peso_autonomia = 0.15,
     peso_evolucao  = 0.10
 WHERE arquetipo = 'padrao';
+
+-- ═══════════════════════════════════════════════════════════════
+-- Cargo Owner + painel de pessoas (2026-09-07)
+-- ═══════════════════════════════════════════════════════════════
+
+-- 'owner' fica acima de 'lider': mesmo acesso, mais a gestão dos cargos das
+-- pessoas. É o único cargo que pode promover ou rebaixar alguém.
+ALTER TABLE pessoa DROP CONSTRAINT IF EXISTS pessoa_cargo_check;
+ALTER TABLE pessoa ADD CONSTRAINT pessoa_cargo_check
+    CHECK (cargo IN ('owner','lider','gerente','operacional'));

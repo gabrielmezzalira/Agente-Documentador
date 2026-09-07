@@ -74,10 +74,11 @@ Esse princípio não é só um acordo social, ele é imposto pelo próprio siste
 
 | O que | Quem enxerga |
 |---|---|
-| Ranking e score final | Só o Líder |
-| Entrega consolidada e evolução de cada operacional | Líder e Gerente |
-| Notas cruas do questionário e métricas do projeto | Líder e Gerente |
-| Esta metodologia | Líder e Gerente |
+| Ranking e score final | Owner e Líder |
+| Entrega consolidada e evolução de cada operacional | Owner, Líder e Gerente |
+| Notas cruas do questionário e métricas do projeto | Owner, Líder e Gerente |
+| Esta metodologia | Owner, Líder e Gerente |
+| A versão pública deste documento e o guia do sistema | Todo mundo |
 | Kanban, tasks e sprints do próprio projeto | Todos os vinculados ao projeto |
 
 Toda vez que alguém abre a tela de ranking, o acesso fica registrado.
@@ -1001,14 +1002,23 @@ do gerente.
 
 ### 13.1 Quem vê o quê
 
-| Recurso | Líder | Gerente | Operacional |
-|---|---|---|---|
-| Ranking e score final | ✅ | ❌ | ❌ |
-| Entrega consolidada e evolução por pessoa | ✅ | ✅ | ❌ |
-| Preencher e ler o questionário | ✅ | ✅ | ❌ |
-| Métricas e painel do projeto | ✅ | ✅ | ❌ |
-| Esta metodologia | ✅ | ✅ | ❌ |
-| Kanban, tasks e sprints | ✅ | ✅ | ✅ só nos projetos em que está |
+| Recurso | Owner | Líder | Gerente | Operacional |
+|---|---|---|---|---|
+| Alterar o cargo das pessoas | ✅ | ❌ | ❌ | ❌ |
+| Ver quem tem acesso ao sistema | ✅ | ✅ | ❌ | ❌ |
+| Ranking e score final | ✅ | ✅ | ❌ | ❌ |
+| Reabrir um fechamento de sprint | ✅ | ✅ | ❌ | ❌ |
+| Entrega consolidada e evolução por pessoa | ✅ | ✅ | ✅ | ❌ |
+| Preencher e ler o questionário | ✅ | ✅ | ✅ | ❌ |
+| Métricas e painel do projeto | ✅ | ✅ | ✅ | ❌ |
+| Esta metodologia | ✅ | ✅ | ✅ | ❌ |
+| Guia do sistema e versão pública do acompanhamento | ✅ | ✅ | ✅ | ✅ |
+| Kanban, tasks e sprints | ✅ | ✅ | ✅ | ✅ só nos projetos em que está |
+
+**Owner** é o cargo acima de Líder. Alcança tudo o que o Líder alcança, e é o
+único que promove ou rebaixa alguém, na tela de Pessoas. Um Owner não consegue
+mudar o próprio cargo: para sair, precisa promover outra pessoa a Owner antes.
+Toda troca de cargo fica registrada.
 
 O gerente **não** enxerga o score final nem a posição de ninguém no ranking. Ele
 produz o insumo, que são as sete notas, e enxerga a entrega consolidada e a
@@ -1040,6 +1050,13 @@ Leitura de score deixa rastro.
 - Que **ajudar os outros conta a favor**, e não contra.
 - Que nenhuma métrica isolada define a posição de ninguém.
 - Que o objetivo é reconhecer e desenvolver.
+
+Isso tudo está escrito no documento **"Como sua contribuição é acompanhada"**,
+que qualquer pessoa logada consegue abrir na tela de Documentos. Ele é a versão
+pública desta metodologia: traz as cinco direções, o que não conta, o que se
+espera do operacional no dia a dia e como funciona o reconhecimento, sem nenhum
+peso, fórmula ou nota. Aponte o time para lá em vez de explicar de boca, porque
+explicação de boca é onde os pesos vazam.
 
 **Nunca deve ser dito:**
 

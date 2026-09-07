@@ -705,6 +705,13 @@ class PerformanceResponse(BaseModel):
 class MetodologiaResponse(BaseModel):
     titulo: str
     conteudo: str
+    restrito: bool = False
+
+
+class MetodologiaItem(BaseModel):
+    slug: str
+    titulo: str
+    resumo: str
 
 
 class SpiEvolucaoOperacionalResponse(BaseModel):
@@ -751,3 +758,18 @@ class RedistribuirPontosRequest(BaseModel):
     `pontos_novos`, em vez de simplesmente recusar a task nova."""
     sprint_id: str
     pontos_novos: int
+
+
+# ── Painel de pessoas com acesso ao sistema ──────────────────────────────────
+
+class PessoaResponse(BaseModel):
+    id: str
+    nome: str
+    email: str
+    cargo: str
+    projetos: list[str] = []
+    created_at: Optional[datetime] = None
+
+
+class PessoaCargoUpdate(BaseModel):
+    cargo: Literal["owner", "lider", "gerente", "operacional"]

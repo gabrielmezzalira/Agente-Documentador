@@ -33,16 +33,16 @@ export default function PerformancePage() {
   const [erro, setErro] = useState("");
 
   useEffect(() => {
-    if (!auth || auth.cargo !== "lider") return;
+    if (!auth || (auth.cargo !== "lider" && auth.cargo !== "owner")) return;
     getPerformance()
       .then(setDados)
       .catch((e: Error) => setErro(e.message));
   }, [auth]);
 
-  if (auth && auth.cargo !== "lider") {
+  if (auth && auth.cargo !== "lider" && auth.cargo !== "owner") {
     return (
       <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <p style={{ color: "#dc2626" }}>Acesso restrito a Líder.</p>
+        <p style={{ color: "#dc2626" }}>Acesso restrito a Líder e Owner.</p>
       </main>
     );
   }

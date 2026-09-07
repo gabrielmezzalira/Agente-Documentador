@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas
 from services.notification_checker import check_and_send_notifications
 from services.travamento_checker import check_travamento_automatico
 from services.auth import get_current_pessoa, require_not_operacional
@@ -63,8 +63,9 @@ app.include_router(metricas.router, dependencies=[Depends(require_not_operaciona
 app.include_router(avaliacoes.router, dependencies=[Depends(require_not_operacional)])
 app.include_router(pontuacao.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(performance.router)
-app.include_router(metodologia.router, dependencies=[Depends(require_not_operacional)])
+app.include_router(metodologia.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(solicitacoes.router, dependencies=[Depends(get_current_pessoa)])
+app.include_router(pessoas.router, dependencies=[Depends(get_current_pessoa)])
 
 
 @app.get("/health")

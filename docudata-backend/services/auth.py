@@ -17,6 +17,15 @@ _JWT_ALG = "HS256"
 _JWT_EXP_HOURS = 8
 COOKIE_NAME = "docudata_session"
 
+# Hierarquia de acesso. Um cargo alcança tudo que os abaixo dele alcançam, então
+# require_role("lider") também passa para owner. Sem isso, cada rota restrita ao
+# Líder precisaria listar owner à mão e uma delas ia ficar para trás.
+_HIERARQUIA = ["operacional", "gerente", "lider", "owner"]
+
+
+def nivel(cargo: str) -> int:
+    return _HIERARQUIA.index(cargo) if cargo in _HIERARQUIA else -1
+
 
 def hash_senha(senha: str) -> str:
     return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -54,10 +63,11 @@ async def get_current_pessoa(
     return {"id": payload["sub"], "email": payload["email"], "cargo": payload["cargo"]}
 
 
-def require_role(cargo_permitido: str):
+def require_role(cargo_minimo: str):
+    """Exige o cargo informado ou qualquer um acima dele na hierarquia."""
     async def _dep(pessoa: dict = Depends(get_current_pessoa)) -> dict:
-        if pessoa["cargo"] != cargo_permitido:
-            raise HTTPException(status_code=403, detail=f"Acesso restrito a {cargo_permitido}")
+        if nivel(pessoa["cargo"]) < nivel(cargo_minimo):
+            raise HTTPException(status_code=403, detail=f"Acesso restrito a {cargo_minimo}")
         return pessoa
     return _dep
 
@@ -69,7 +79,7 @@ async def require_not_operacional(pessoa: dict = Depends(get_current_pessoa)) ->
 
 
 async def require_project_access(project_id: str, pessoa: dict = Depends(get_current_pessoa)) -> dict:
-    if pessoa["cargo"] in ("lider", "gerente"):
+    if pessoa["cargo"] in ("owner", "lider", "gerente"):
         return pessoa
     client = get_client()
     check = (

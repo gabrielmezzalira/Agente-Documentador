@@ -5,11 +5,16 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "../components/AuthGuard";
-import { getMetodologia, type MetodologiaResponse } from "../lib/api";
+import {
+  listMetodologia,
+  getMetodologia,
+  type MetodologiaItem,
+  type MetodologiaResponse,
+} from "../lib/api";
 
 /* O reset global (`* { margin: 0; padding: 0 }`) zera tipografia de markdown —
-   este documento é longo e cheio de tabelas, então precisa da folha abaixo pra
-   ser legível. Escopada em .doc pra não vazar pro resto do app. */
+   estes documentos são longos e cheios de tabelas, então precisam da folha
+   abaixo para serem legíveis. Escopada em .doc para não vazar pro resto do app. */
 const DOC_CSS = `
 .doc { color: #33333d; font-size: 15px; line-height: 1.75; }
 .doc h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #111116; line-height: 1.2; margin: 0 0 20px; }
@@ -33,47 +38,76 @@ const DOC_CSS = `
 .doc th { background: #f7f7fa; font-weight: 700; color: #111116; white-space: nowrap; }
 `;
 
-export default function MetodologiaPage() {
+export default function DocumentosPage() {
   const auth = useAuth();
+  const [itens, setItens] = useState<MetodologiaItem[]>([]);
+  const [slug, setSlug] = useState<string | null>(null);
   const [doc, setDoc] = useState<MetodologiaResponse | null>(null);
   const [erro, setErro] = useState("");
 
   useEffect(() => {
-    if (!auth || auth.cargo === "operacional") return;
-    getMetodologia("performance")
-      .then(setDoc)
+    if (!auth) return;
+    listMetodologia()
+      .then((lista) => {
+        setItens(lista);
+        if (lista.length > 0) setSlug((atual) => atual ?? lista[0].slug);
+      })
       .catch((e: Error) => setErro(e.message));
   }, [auth]);
 
-  if (auth && auth.cargo === "operacional") {
-    return (
-      <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <p style={{ color: "#dc2626" }}>Acesso restrito a Líder e Gerente.</p>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!slug) return;
+    setDoc(null);
+    setErro("");
+    getMetodologia(slug)
+      .then(setDoc)
+      .catch((e: Error) => setErro(e.message));
+  }, [slug]);
 
   return (
-    <main style={{ maxWidth: 880, margin: "0 auto", padding: "48px 24px 96px" }}>
+    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 24px 96px" }}>
       <style>{DOC_CSS}</style>
 
       <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
 
-      <div
-        style={{
-          marginTop: 20,
-          marginBottom: 28,
-          background: "#fffbeb",
-          border: "1px solid #fde68a",
-          borderRadius: 10,
-          padding: "12px 16px",
-          fontSize: 13,
-          color: "#92400e",
-        }}
-      >
-        Documento interno — Líder e Gerente. Pesos, fórmulas e notas cruas não são
-        divulgados a operacionais.
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", margin: "20px 0 20px" }}>
+        Documentos
+      </h1>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
+        {itens.map((item) => (
+          <button
+            key={item.slug}
+            onClick={() => setSlug(item.slug)}
+            style={{
+              textAlign: "left",
+              flex: "1 1 240px",
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: item.slug === slug ? "2px solid #16a34a" : "1px solid #e8e8ed",
+              background: item.slug === slug ? "#f0fdf4" : "#fff",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#111116" }}>
+              {item.titulo}
+            </span>
+            <span style={{ display: "block", fontSize: 12, color: "#64748b", marginTop: 3 }}>
+              {item.resumo}
+            </span>
+          </button>
+        ))}
       </div>
+
+      {doc?.restrito && (
+        <div style={{
+          background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
+          padding: "12px 16px", marginBottom: 24, fontSize: 13, color: "#92400e",
+        }}>
+          Documento interno, restrito a Gerente para cima. Pesos, fórmulas e notas
+          cruas não são divulgados a operacionais.
+        </div>
+      )}
 
       {erro && <p style={{ color: "#dc2626" }}>{erro}</p>}
       {!doc && !erro && <p style={{ color: "#9696a0" }}>Carregando...</p>}

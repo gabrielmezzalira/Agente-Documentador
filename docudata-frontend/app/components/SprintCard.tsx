@@ -474,7 +474,7 @@ export default function SprintCard({
             {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
           </button>
         )}
-        {cargo === "lider" && sprint.avaliacao_completa_em && (
+        {(cargo === "lider" || cargo === "owner") && sprint.avaliacao_completa_em && (
           <button
             style={btnSubtle}
             disabled={reabrindo}

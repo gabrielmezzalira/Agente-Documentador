@@ -4,15 +4,17 @@ function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   return globalThis.fetch(input, { ...init, credentials: "include" });
 }
 
+export type Cargo = "owner" | "lider" | "gerente" | "operacional";
+
 export interface MeResponse {
   nome: string;
   email: string;
-  cargo: "lider" | "gerente" | "operacional";
+  cargo: Cargo;
 }
 
 export interface LoginResponse {
   nome: string;
-  cargo: "lider" | "gerente" | "operacional";
+  cargo: Cargo;
 }
 
 export interface OperacionalSemConta {
@@ -1615,12 +1617,56 @@ export async function getPerformance(): Promise<PerformanceResponse> {
 export interface MetodologiaResponse {
   titulo: string;
   conteudo: string;
+  restrito: boolean;
+}
+
+export interface MetodologiaItem {
+  slug: string;
+  titulo: string;
+  resumo: string;
+}
+
+export async function listMetodologia(): Promise<MetodologiaItem[]> {
+  const res = await apiFetch(`${API}/metodologia`);
+  if (!res.ok) throw new Error("Erro ao carregar os documentos");
+  return res.json();
 }
 
 export async function getMetodologia(slug: string): Promise<MetodologiaResponse> {
   const res = await apiFetch(`${API}/metodologia/${slug}`);
-  if (res.status === 403) throw new Error("Acesso restrito a Líder e Gerente");
+  if (res.status === 403) throw new Error("Acesso restrito a Gerente e Líder");
   if (!res.ok) throw new Error("Erro ao carregar o documento");
+  return res.json();
+}
+
+// Painel de pessoas com acesso ao sistema
+
+export interface PessoaResponse {
+  id: string;
+  nome: string;
+  email: string;
+  cargo: Cargo;
+  projetos: string[];
+  created_at: string | null;
+}
+
+export async function listPessoas(): Promise<PessoaResponse[]> {
+  const res = await apiFetch(`${API}/pessoas`);
+  if (res.status === 403) throw new Error("Acesso restrito a Líder e Owner");
+  if (!res.ok) throw new Error("Erro ao carregar as pessoas");
+  return res.json();
+}
+
+export async function alterarCargoPessoa(id: string, cargo: Cargo): Promise<PessoaResponse> {
+  const res = await apiFetch(`${API}/pessoas/${id}/cargo`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cargo }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao alterar o cargo");
+  }
   return res.json();
 }
 
