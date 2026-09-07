@@ -192,6 +192,11 @@ async def ingest_commit(payload: CommitPayload):
             if match_task:
                 task_id = match_task.group(1)
 
+            # Três fontes de identidade, nesta ordem: usuário do GitHub (mais
+            # específico), email do GitHub configurado no cadastro (o que o
+            # git commit realmente carrega como autor, que pode ser diferente
+            # do email de login) e, por último, o email de login como
+            # fallback fraco para quem nunca preencheu os dois de cima.
             operacional_id = None
             if payload.author_github_login:
                 op_resp = (
@@ -199,6 +204,16 @@ async def ingest_commit(payload: CommitPayload):
                     .select("id")
                     .eq("project_id", payload.project_id)
                     .eq("github_login", payload.author_github_login)
+                    .execute()
+                )
+                if op_resp.data:
+                    operacional_id = op_resp.data[0]["id"]
+            if operacional_id is None and payload.author_email:
+                op_resp = (
+                    client.table("operacionais")
+                    .select("id")
+                    .eq("project_id", payload.project_id)
+                    .eq("github_email", payload.author_email)
                     .execute()
                 )
                 if op_resp.data:

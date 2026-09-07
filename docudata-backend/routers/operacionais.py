@@ -42,15 +42,21 @@ async def create_operacional(data: OperacionalCreate):
         payload["papel"] = data.papel
     if data.github_login is not None:
         payload["github_login"] = data.github_login
-    elif data.email:
-        # A pessoa pode ter informado o usuário do GitHub no próprio cadastro,
-        # antes de existir qualquer vínculo com projeto. Pré-preenche daqui em
-        # vez de exigir que o gerente redigite o que a pessoa já disse.
+    if data.github_email is not None:
+        payload["github_email"] = data.github_email
+    if (data.github_login is None or data.github_email is None) and data.email:
+        # A pessoa pode ter informado usuário/email do GitHub no próprio
+        # cadastro, antes de existir qualquer vínculo com projeto. Pré-preenche
+        # daqui em vez de exigir que o gerente redigite o que ela já disse.
         pessoa_resp = (
-            client.table("pessoa").select("github_login").eq("email", data.email).execute()
+            client.table("pessoa").select("github_login, github_email").eq("email", data.email).execute()
         )
-        if pessoa_resp.data and pessoa_resp.data[0].get("github_login"):
-            payload["github_login"] = pessoa_resp.data[0]["github_login"]
+        if pessoa_resp.data:
+            pessoa_row = pessoa_resp.data[0]
+            if data.github_login is None and pessoa_row.get("github_login"):
+                payload["github_login"] = pessoa_row["github_login"]
+            if data.github_email is None and pessoa_row.get("github_email"):
+                payload["github_email"] = pessoa_row["github_email"]
 
     try:
         resp = client.table("operacionais").insert(payload).execute()
@@ -102,7 +108,7 @@ async def listar_operacionais_disponiveis(project_id: str):
 
     todos = (
         client.table("operacionais")
-        .select("nome, email, papel, github_login, project_id")
+        .select("nome, email, papel, github_login, github_email, project_id")
         .eq("ativo", True)
         .execute()
         .data or []
@@ -131,10 +137,11 @@ async def listar_operacionais_disponiveis(project_id: str):
             "email": o.get("email"),
             "papel": o.get("papel"),
             "github_login": o.get("github_login"),
+            "github_email": o.get("github_email"),
             "projetos": [],
         })
         # Preenche lacunas com o cadastro mais completo encontrado.
-        for campo in ("email", "papel", "github_login"):
+        for campo in ("email", "papel", "github_login", "github_email"):
             if not entrada.get(campo) and o.get(campo):
                 entrada[campo] = o[campo]
         nome_projeto = projetos.get(o["project_id"])
@@ -152,7 +159,7 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
         raise HTTPException(status_code=404, detail="Operacional not found")
 
     updates: dict = {}
-    for field in ("nome", "email", "papel", "ativo", "github_login"):
+    for field in ("nome", "email", "papel", "ativo", "github_login", "github_email"):
         val = getattr(data, field, None)
         if val is not None:
             updates[field] = val

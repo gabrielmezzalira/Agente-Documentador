@@ -102,6 +102,8 @@ async def signup_claim(data: SignupClaimRequest, response: Response):
         client.table("operacionais").update({"email": data.email}).eq("id", data.operacional_id).execute()
     if data.github_login and not operacional.get("github_login"):
         client.table("operacionais").update({"github_login": data.github_login}).eq("id", data.operacional_id).execute()
+    if data.github_email and not operacional.get("github_email"):
+        client.table("operacionais").update({"github_email": data.github_email}).eq("id", data.operacional_id).execute()
 
     senha_hash = hash_senha(data.senha)
     novo = client.table("pessoa").insert({
@@ -110,6 +112,7 @@ async def signup_claim(data: SignupClaimRequest, response: Response):
         "senha_hash": senha_hash,
         "cargo": "operacional",
         "github_login": data.github_login,
+        "github_email": data.github_email,
     }).execute()
     pessoa = novo.data[0]
     _set_session_cookie(response, pessoa["id"], pessoa["email"], pessoa["cargo"])
@@ -130,6 +133,7 @@ async def signup_novo(data: SignupNovoRequest, response: Response):
         "senha_hash": senha_hash,
         "cargo": "operacional",
         "github_login": data.github_login,
+        "github_email": data.github_email,
     }).execute()
     pessoa = novo.data[0]
     _set_session_cookie(response, pessoa["id"], pessoa["email"], pessoa["cargo"])

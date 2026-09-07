@@ -76,6 +76,7 @@ function OperacionaisSection({
   const [email, setEmail] = useState("");
   const [papel, setPapel] = useState("");
   const [githubLogin, setGithubLogin] = useState("");
+  const [githubEmail, setGithubEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [disponiveis, setDisponiveis] = useState<OperacionalDisponivel[]>([]);
@@ -92,10 +93,11 @@ function OperacionaisSection({
     setEmail(pessoa.email ?? "");
     setPapel(pessoa.papel ?? "");
     setGithubLogin(pessoa.github_login ?? "");
+    setGithubEmail(pessoa.github_email ?? "");
   }
 
   function limparForm() {
-    setNome(""); setEmail(""); setPapel(""); setGithubLogin("");
+    setNome(""); setEmail(""); setPapel(""); setGithubLogin(""); setGithubEmail("");
   }
 
   const inputSm: React.CSSProperties = {
@@ -119,6 +121,7 @@ function OperacionaisSection({
         email: email.trim() || undefined,
         papel: papel.trim() || undefined,
         github_login: githubLogin.trim() || undefined,
+        github_email: githubEmail.trim() || undefined,
       });
       onUpdated([...operacionais, novo]);
       limparForm();
@@ -264,6 +267,10 @@ function OperacionaisSection({
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>GitHub username</label>
               <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} placeholder="ex: joaosilva" style={{ ...inputSm, width: 140 }} />
             </div>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Email do GitHub</label>
+              <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} placeholder="se for diferente do e-mail" style={{ ...inputSm, width: 170 }} />
+            </div>
             <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {saving ? "…" : "Salvar"}
             </button>
@@ -276,6 +283,8 @@ function OperacionaisSection({
           <p style={{ fontSize: 11, color: "#9696a0", marginTop: 8 }}>
             E-mail e GitHub username não são obrigatórios, mas sem eles a pessoa não é
             reconhecida entre projetos e os commits dela não contam na nota de qualidade.
+            O email do commit é o que o Git usa localmente — se for diferente do e-mail
+            de login, preencha o campo "Email do GitHub" para o commit ser reconhecido.
           </p>
         </div>
       )}

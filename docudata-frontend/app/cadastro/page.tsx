@@ -13,6 +13,7 @@ export default function CadastroPage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [githubLogin, setGithubLogin] = useState("");
+  const [githubEmail, setGithubEmail] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +27,7 @@ export default function CadastroPage() {
     setLoading(true);
     setErr("");
     try {
-      await signupClaim(selecionado.operacional_id, email, senha, githubLogin);
+      await signupClaim(selecionado.operacional_id, email, senha, githubLogin, githubEmail);
       router.push("/");
       router.refresh();
     } catch (e) {
@@ -41,7 +42,7 @@ export default function CadastroPage() {
     setLoading(true);
     setErr("");
     try {
-      await signupNovo(nome, email, senha, githubLogin);
+      await signupNovo(nome, email, senha, githubLogin, githubEmail);
       router.push("/");
       router.refresh();
     } catch (e) {
@@ -106,8 +107,15 @@ export default function CadastroPage() {
                   Usuário do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} style={inputStyle} placeholder="ex: joaosilva" />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Email do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} style={inputStyle} placeholder="pode ser diferente do email de login" />
                 <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
-                  O email acima e este usuário são o que o sistema usa para reconhecer seus commits automaticamente.
+                  Você pode criar a conta com qualquer email. O que conta para reconhecer seus
+                  commits é o email que o Git usa no seu computador, informado aqui.
                 </p>
               </div>
               {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
@@ -135,8 +143,15 @@ export default function CadastroPage() {
                   Usuário do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} style={inputStyle} placeholder="ex: joaosilva" />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Email do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} style={inputStyle} placeholder="pode ser diferente do email de login" />
                 <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
-                  O email acima e este usuário são o que o sistema usa para reconhecer seus commits automaticamente, assim que você entrar em um projeto.
+                  Você pode criar a conta com qualquer email. O que conta para reconhecer seus
+                  commits é o email que o Git usa no seu computador, informado aqui.
                 </p>
               </div>
               {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}

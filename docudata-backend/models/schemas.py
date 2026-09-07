@@ -331,6 +331,7 @@ class OperacionalCreate(BaseModel):
     email: Optional[str] = None
     papel: Optional[str] = None  # texto livre: "Front", "Back", "Design", "Gerente"
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
 
 
 class OperacionalUpdate(BaseModel):
@@ -339,6 +340,7 @@ class OperacionalUpdate(BaseModel):
     papel: Optional[str] = None
     ativo: Optional[bool] = None
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
 
 
 class OperacionalResponse(BaseModel):
@@ -349,6 +351,7 @@ class OperacionalResponse(BaseModel):
     papel: Optional[str] = None
     ativo: bool
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
     created_at: datetime
 
 
@@ -519,6 +522,7 @@ class SignupClaimRequest(BaseModel):
     email: str
     senha: str = Field(..., min_length=6)
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
 
 
 class SignupNovoRequest(BaseModel):
@@ -526,6 +530,7 @@ class SignupNovoRequest(BaseModel):
     email: str
     senha: str = Field(..., min_length=6)
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
 
 
 # ── Avaliação do Gerente (Phase 17) ─────────────────────────────────────────
@@ -690,6 +695,7 @@ class OperacionalDisponivelResponse(BaseModel):
     email: Optional[str] = None
     papel: Optional[str] = None
     github_login: Optional[str] = None
+    github_email: Optional[str] = None
     projetos: list[str] = []
 
 

@@ -613,3 +613,13 @@ ALTER TABLE pessoa ADD CONSTRAINT pessoa_cargo_check
 -- adiciona essa pessoa a um projeto depois, o cadastro do operacional é
 -- pré-preenchido a partir daqui se o gerente não informar o campo à mão.
 ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_login text;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Email do GitHub separado do email de login (2026-09-07)
+-- ═══════════════════════════════════════════════════════════════
+
+-- A pessoa pode logar com qualquer email, mas o que casa commit é o email que
+-- o Git usa localmente (git config user.email), que costuma ser o email da
+-- conta do GitHub — nem sempre igual ao email de login do CITi.
+ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS github_email text;
+ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_email text;

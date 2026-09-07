@@ -56,11 +56,16 @@ export async function signupClaim(
   email: string,
   senha: string,
   github_login?: string,
+  github_email?: string,
 ): Promise<LoginResponse> {
   const res = await apiFetch(`${API}/auth/signup/claim`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ operacional_id, email, senha, github_login: github_login || undefined }),
+    body: JSON.stringify({
+      operacional_id, email, senha,
+      github_login: github_login || undefined,
+      github_email: github_email || undefined,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -74,11 +79,16 @@ export async function signupNovo(
   email: string,
   senha: string,
   github_login?: string,
+  github_email?: string,
 ): Promise<LoginResponse> {
   const res = await apiFetch(`${API}/auth/signup/novo`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, email, senha, github_login: github_login || undefined }),
+    body: JSON.stringify({
+      nome, email, senha,
+      github_login: github_login || undefined,
+      github_email: github_email || undefined,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -1218,6 +1228,7 @@ export interface OperacionalResponse {
   papel?: string | null;
   ativo: boolean;
   github_login?: string | null;
+  github_email?: string | null;
   created_at: string;
 }
 
@@ -1236,6 +1247,7 @@ export async function createOperacional(data: {
   email?: string;
   papel?: string;
   github_login?: string;
+  github_email?: string;
 }): Promise<OperacionalResponse> {
   const res = await apiFetch(`${API}/operacionais`, {
     method: "POST",
@@ -1248,7 +1260,7 @@ export async function createOperacional(data: {
 
 export async function updateOperacional(
   id: string,
-  data: { nome?: string; email?: string; papel?: string; ativo?: boolean; github_login?: string }
+  data: { nome?: string; email?: string; papel?: string; ativo?: boolean; github_login?: string; github_email?: string }
 ): Promise<OperacionalResponse> {
   const res = await apiFetch(`${API}/operacionais/${id}`, {
     method: "PATCH",
@@ -1650,6 +1662,7 @@ export interface OperacionalDisponivel {
   email: string | null;
   papel: string | null;
   github_login: string | null;
+  github_email: string | null;
   projetos: string[];
 }
 
