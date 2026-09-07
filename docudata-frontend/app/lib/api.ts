@@ -529,6 +529,7 @@ export async function submitPlanning(input: {
   horasEstimadas?: number;
   dependenciasCliente?: string;
   carryOver?: string;
+  contextoLivre?: string;
   anexo?: File | null;
   force?: boolean;
 }): Promise<SprintDocResponse> {
@@ -541,6 +542,7 @@ export async function submitPlanning(input: {
   if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
   if (input.horasDisponiveis != null) form.append("horas_disponiveis", String(input.horasDisponiveis));
   if (input.horasEstimadas != null) form.append("horas_estimadas", String(input.horasEstimadas));
+  if (input.contextoLivre?.trim()) form.append("contexto_livre", input.contextoLivre.trim());
   if (input.dependenciasItems?.length) form.append("dependencias_items", JSON.stringify(input.dependenciasItems));
   if (input.riscosItems?.length) form.append("riscos_items", JSON.stringify(input.riscosItems));
   if (input.carryOverItems?.length) form.append("carry_over_items", JSON.stringify(input.carryOverItems));
@@ -1042,10 +1044,21 @@ export interface TransbordoItem {
   criterios_aceite: string[];
 }
 
+export interface BacklogTask {
+  id: string;
+  titulo: string;
+  pontos: number;
+  coluna_kanban: string;
+  operacional_id: string | null;
+  funcionalidade_id: string | null;
+  bloqueado: boolean;
+}
+
 export interface GetRascunhoResponse {
   rascunho: RascunhoData;
   throughput_ref: number | null;
   transbordos: TransbordoItem[];
+  backlog_tasks: BacklogTask[];
 }
 
 export interface GerarResponse {

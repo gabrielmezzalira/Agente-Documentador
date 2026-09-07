@@ -318,6 +318,44 @@ function TaskModal({
             </p>
           </div>
 
+          {/* Checklist */}
+          <div>
+            <label style={labelSt}>Checklist</label>
+            {checklist.map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={item.done}
+                  onChange={(e) => {
+                    const copy = [...checklist];
+                    copy[i] = { ...copy[i], done: e.target.checked };
+                    setChecklist(copy);
+                  }}
+                />
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
+                  {item.texto}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setChecklist((prev) => prev.filter((_, j) => j !== i))}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 14, padding: 0 }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                value={novoItem}
+                onChange={(e) => setNovoItem(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); } }}
+                placeholder="Novo item..."
+                style={{ ...inputSt, flex: 1 }}
+              />
+              <button type="button" onClick={addChecklistItem} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
+            </div>
+          </div>
+
           <div>
             <label style={labelSt}>Funcionalidade</label>
             <select value={funcId} onChange={(e) => setFuncId(e.target.value)} style={inputSt}>
@@ -397,7 +435,7 @@ function TaskModal({
                 <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
                   <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
                     ⏱ Task parada em Em Andamento além do limiar esperado para {task.pontos} ponto(s)
-                    (~{task.pontos * 2} dias).
+                    (~{Math.round(task.pontos * 1.5)} dias).
                   </p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
@@ -417,44 +455,6 @@ function TaskModal({
                   </div>
                 </div>
               )}
-
-              {/* Checklist */}
-              <div>
-                <label style={labelSt}>Checklist</label>
-                {checklist.map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={item.done}
-                      onChange={(e) => {
-                        const copy = [...checklist];
-                        copy[i] = { ...copy[i], done: e.target.checked };
-                        setChecklist(copy);
-                      }}
-                    />
-                    <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
-                      {item.texto}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setChecklist((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 14, padding: 0 }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <input
-                    value={novoItem}
-                    onChange={(e) => setNovoItem(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); } }}
-                    placeholder="Novo item..."
-                    style={{ ...inputSt, flex: 1 }}
-                  />
-                  <button type="button" onClick={addChecklistItem} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
-                </div>
-              </div>
 
               {/* Histórico */}
               <div>
@@ -877,14 +877,17 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
 
   const tasksSteps = [
     { title: "Tasks vs Funcionalidades", body: "Funcionalidades (aba Escopo) são entregas de alto nível para o cliente. Tasks são o trabalho técnico interno: 'Criar endpoint de login', 'Estilizar header', etc. Uma funcionalidade geralmente envolve várias tasks." },
-    { title: "Criar uma task", body: "Clique em '+ Adicionar' em qualquer coluna do kanban. Informe o título, pontos e opcionalmente sprint, operacional e funcionalidade relacionada." },
-    { title: "Pontos (1, 2 ou 3)", body: "Cada task recebe pontos conforme a complexidade: 1 = simples (< 4h), 2 = médio (meio dia), 3 = complexo (dia inteiro ou mais). Os pontos têm valor financeiro — o total do contrato dividido pelo total de pontos define o valor de cada ponto. Tasks concluídas geram faturamento." },
-    { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Isso é o 'Definition of Ready' — garante que a task foi planejada antes de ser iniciada. Vincule a sprint ao editar a task." },
-    { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo. Se o limite for atingido, o sistema bloqueia novos movimentos para aquele membro. Configure o WIP em Configurações > Operacionais." },
-    { title: "Operacional", body: "Atribua a task a um membro da equipe (cadastrado em Configurações > Operacionais). O cycle-time e o WIP são calculados por operacional. Útil para ver quem está sobrecarregado." },
-    { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint no momento da geração — cada task com coluna, pontos e se está bloqueada é injetada automaticamente no contexto. Ou seja: o que você vê aqui é exatamente o que a IA usa para escrever os documentos. Mantenha o kanban atualizado para documentação mais precisa." },
+    { title: "Criar uma task", body: "Clique em '+ Nova task'. Informe título e pontos, e opcionalmente sprint, operacional, funcionalidade e checklist. O checklist já aparece na criação: são os itens que precisam estar prontos para a task poder ir para Concluída." },
+    { title: "Pontos da task", body: "Todo projeto vale 100 pontos, fixo. Você distribui esses 100 entre as sprints na aba Escopo, e os pontos de cada sprint entre as tasks dela. A soma das tasks não pode passar do que a sprint recebeu; se passar, aparece o botão 'Redistribuir pontos', que encolhe as tasks existentes proporcionalmente. Pontue com honestidade: os pontos são o denominador da entrega de cada pessoa." },
+    { title: "Checklist e Definition of Done", body: "Dentro da task você monta uma lista de itens e vai marcando conforme fica pronto. O card mostra o progresso no formato '3/5'. Se sobrar item aberto, o sistema recusa mover a task para Concluída. Task sem checklist não trava nada: a regra só vale se você criou a lista." },
+    { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
+    { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo, e o projeto também. Se o limite for atingido, o sistema bloqueia novos movimentos. Configure em Configurações." },
+    { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia." },
+    { title: "Task travada por tempo", body: "Se uma task fica parada em 'Em andamento' por mais de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. O gerente pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
+    { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não consome o orçamento de pontos da sprint e, se for concluída antes do fechamento, rende um bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
+    { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint — cada task com coluna, pontos e se está bloqueada entra automaticamente no contexto. O que você vê aqui é exatamente o que a IA usa para escrever os documentos." },
     { title: "Sugestões automáticas do Review", body: "Quando um review é registrado na aba Sprints, o DocuData analisa o texto e detecta quais tasks foram mencionadas como concluídas. Sugestões aparecem no banner amarelo acima do kanban — você aceita ou ignora cada uma." },
-    { title: "Mover tasks entre colunas", body: "Arraste a task ou use o botão de edição para mudar a coluna. Planejado → Em andamento → Concluída. Cada transição é registrada no histórico e alimenta o cycle-time e o SPI." },
+    { title: "Mover tasks entre colunas", body: "Arraste a task ou use o botão de edição para mudar a coluna. Planejado → Em andamento → Concluída. Cada transição é registrada com quem estava na task naquele momento, e é isso que define quem recebe os pontos da entrega." },
   ];
 
   return (

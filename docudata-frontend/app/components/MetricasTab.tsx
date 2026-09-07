@@ -147,13 +147,14 @@ export default function MetricasTab({ projectId }: Props) {
   if (err) return <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>;
 
   const tutorialSteps = [
-    { title: "Pontos por task", body: "Cada task tem 1, 2 ou 3 pontos conforme a complexidade: 1 = simples, 2 = médio, 3 = complexo. Os pontos têm valor financeiro — o total do projeto dividido pelo total de pontos define o 'preço' de cada ponto." },
+    { title: "Pontos por task", body: "Todo projeto vale 100 pontos, fixo. Esses 100 são distribuídos entre as sprints na aba Escopo, e os pontos de cada sprint entre as tasks dela. Se você informou o valor do projeto em reais, cada ponto vale um centésimo desse valor, e o faturamento previsto de cada sprint sai daí." },
     { title: "SPI — Schedule Performance Index", body: "Mede se você está entregando o que planejou por sprint. SPI = pontos concluídos ÷ pontos previstos (baseline). ≥ 0,9 = saudável (verde) · 0,7–0,89 = atenção (amarelo) · < 0,7 = crítico (vermelho). Um SPI baixo significa faturamento abaixo do esperado." },
-    { title: "Como definir o baseline", body: "O SPI só aparece se a sprint tiver um 'baseline' (pontos previstos). Vá na aba Sprints, acesse a sprint e clique em 'Baseline'. Informe a soma dos pontos de todas as tasks planejadas para aquela sprint." },
+    { title: "Como definir o previsto da sprint", body: "O SPI só aparece se a sprint tiver orçamento de pontos. Vá na aba Escopo e distribua os 100 pontos do projeto entre as sprints. O card de cada sprint passa a mostrar quanto ela recebeu e quanto já foi gasto em tasks." },
     { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
-    { title: "SPI por operacional (estimado)", body: "Soma de todos os pontos já atribuídos a cada operacional dividida pelos pontos realizados. É um proxy interino recomputado ao vivo — não um baseline travado por operacional (esse mecanismo formal é de uma fase futura)." },
+    { title: "SPI por operacional (estimado)", body: "Proxy calculado ao vivo sobre todas as tasks atribuídas a cada pessoa, em qualquer coluna. Serve para ver quem está sobrecarregado agora; não é o número que alimenta o acompanhamento de performance." },
+    { title: "Entrega e evolução por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Mostra a entrega de cada pessoa (já descontando o que foi penalizado por task travada), a nota de evolução dada por você, quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
   ];
 
   // Cycle-time — distribuição por faixas de horas

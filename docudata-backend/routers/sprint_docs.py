@@ -242,6 +242,7 @@ async def submit_planning(
     dependencias_items: str = Form("[]"),   # [{item, prazo?, consequencia?, confianca?}]
     riscos_items: str = Form("[]"),         # [{risco, consequencia?}]
     carry_over_items: str = Form("[]"),     # [{item, causa_raiz?}]
+    contexto_livre: Optional[str] = Form(None),  # texto solto do gerente, sem formato
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
 ):
@@ -290,6 +291,9 @@ async def submit_planning(
         "proximos_passos": tarefas_fmt,
         "tecnologias": [],
         "campos_planning": {
+            # Texto que o gerente escreveu do jeito dele. Costuma trazer o porquê
+            # da sprint, que nenhum campo estruturado captura.
+            "contexto_livre": (contexto_livre or "").strip(),
             "squad": squad or "",
             "periodo_inicio": periodo_inicio or "",
             "periodo_fim": periodo_fim or "",

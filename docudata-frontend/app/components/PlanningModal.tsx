@@ -7,6 +7,7 @@ import {
   submitPlanning,
   createSprintFuncionalidades,
   getRascunho,
+  type BacklogTask,
   confirmarPlanning,
   type FuncionalidadeResponse,
   type TaskCorrelacao,
@@ -24,7 +25,7 @@ interface Props {
   onSubmitted?: (response: SprintDocResponse) => void;
 }
 
-type Step = "input" | "correlacoes" | "form" | "gerando" | "manual_text" | "doc";
+type Step = "input" | "importar" | "correlacoes" | "form" | "gerando" | "manual_text" | "doc";
 type InputTab = "texto" | "arquivo";
 
 // ---------- styles ----------
@@ -308,6 +309,11 @@ export default function PlanningModal({
   const [manualMarkdown, setManualMarkdown] = useState("");
   const [manualSaving, setManualSaving] = useState(false);
 
+  // tasks que já estão no Kanban desta sprint, e contexto escrito à mão
+  const [tasksDaSprint, setTasksDaSprint] = useState<BacklogTask[]>([]);
+  const [carregandoTasks, setCarregandoTasks] = useState(false);
+  const [contextoLivre, setContextoLivre] = useState("");
+
   // doc gerado
   const [docContent, setDocContent] = useState("");
   const [copied, setCopied] = useState(false);
@@ -334,10 +340,21 @@ export default function PlanningModal({
       setAiFilledFields(new Set());
       setManualMarkdown("");
       setManualSaving(false);
+      setTasksDaSprint([]);
+      setContextoLivre("");
       setDocContent("");
       setCopied(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setCarregandoTasks(true);
+    getRascunho(projetoId, sprintNumero)
+      .then((r) => setTasksDaSprint(r.backlog_tasks ?? []))
+      .catch(() => setTasksDaSprint([]))
+      .finally(() => setCarregandoTasks(false));
+  }, [open, projetoId, sprintNumero]);
 
   if (!open) return null;
 
@@ -441,6 +458,7 @@ export default function PlanningModal({
           projetoId,
           sprintNumero,
           descricao: descricao || `Planning da Sprint ${sprintNumero}`,
+          contextoLivre: contextoLivre || undefined,
           itensBacklog,
           periodoInicio: periodoInicio || undefined,
           periodoFim: periodoFim || undefined,
@@ -526,6 +544,7 @@ export default function PlanningModal({
   const stepIndex =
     step === "gerando" ? 3
     : step === "manual_text" ? 1
+    : step === "importar" ? 0
     : STEPS.indexOf(step);
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -538,11 +557,12 @@ export default function PlanningModal({
           <div>
             <h2 style={heading}>Planning — Sprint {sprintNumero}</h2>
             <p style={sub}>
-              {step === "input" && "Suba o kanban ou cole as tasks da sprint para a IA extrair e correlacionar."}
+              {step === "input" && "Confira as tasks da sprint e conte o contexto que só você sabe."}
+              {step === "importar" && "Suba o print do kanban ou cole as tasks para a IA extrair e correlacionar."}
               {step === "correlacoes" && "Revise a correlação de cada task com a funcionalidade — corrija onde a IA errou."}
               {step === "form" && "Revise e complemente os campos da planning antes de gerar."}
               {step === "gerando" && "Gerando documentação da sprint…"}
-              {step === "manual_text" && "Escreva o planning manualmente em markdown."}
+              {step === "manual_text" && "Escreva o planning do seu jeito, sem IA e sem formatação obrigatória."}
               {step === "doc" && "Planning gerado com sucesso."}
             </p>
           </div>
@@ -564,6 +584,103 @@ export default function PlanningModal({
 
         {/* ── STEP: INPUT ── */}
         {step === "input" && (
+          <>
+            <button
+              onClick={() => setStep("importar")}
+              style={{
+                background: "none", border: "none", padding: 0, marginBottom: 14,
+                fontSize: 12, color: "#0284c7", cursor: "pointer", textDecoration: "underline",
+              }}
+            >
+              As tasks desta sprint estão em outro lugar (Notion, planilha, print)?
+            </button>
+
+            {recomendadas.length > 0 && (
+              <div style={banner("yellow")}>
+                <strong>
+                  {recomendadas.length}{" "}
+                  {recomendadas.length === 1 ? "funcionalidade em andamento" : "funcionalidades em andamento"} da sprint anterior:
+                </strong>
+                <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                  {recomendadas.map((f) => (
+                    <li key={f.id} style={{ lineHeight: 1.5 }}>{f.id_funcional} — {f.titulo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <span style={lbl}>Tasks desta sprint no Kanban</span>
+            {carregandoTasks ? (
+              <p style={{ fontSize: 13, color: "#94a3b8", margin: "6px 0 16px" }}>Carregando…</p>
+            ) : tasksDaSprint.length === 0 ? (
+              <div style={{ ...banner("yellow"), marginTop: 6 }}>
+                <strong>Nenhuma task cadastrada nesta sprint ainda.</strong> Vá na aba{" "}
+                <strong>Kanban</strong> e crie as tasks, ou use o link acima se elas estiverem
+                fora do DocuData. Dá para seguir mesmo assim, mas o planning sai sem backlog.
+              </div>
+            ) : (
+              <div style={{
+                border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 6, marginBottom: 16,
+                maxHeight: 220, overflowY: "auto",
+              }}>
+                {tasksDaSprint.map((t) => (
+                  <div key={t.id} style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13,
+                  }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                      color: t.coluna_kanban === "em_andamento" ? "#a16207" : "#64748b",
+                      minWidth: 84,
+                    }}>
+                      {t.coluna_kanban === "em_andamento" ? "em andamento" : "planejado"}
+                    </span>
+                    <span style={{ flex: 1, color: "#374151" }}>{t.titulo}</span>
+                    {t.bloqueado && (
+                      <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>bloqueada</span>
+                    )}
+                    <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{t.pontos}pt</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <span style={lbl}>Contexto da sprint (opcional)</span>
+            <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 6px" }}>
+              Escreva do seu jeito, sem formatação. O que você contar aqui entra como
+              insumo para a IA montar o documento: o porquê da sprint, o que mudou com o
+              cliente, o que preocupa. É o que o Kanban não consegue dizer sozinho.
+            </p>
+            <textarea
+              style={ta}
+              rows={5}
+              placeholder="Ex: essa sprint é curta porque temos feriado na quinta. O cliente pediu para adiantar o dashboard, então o modelo de churn ficou para a próxima. A Ana entra agora e vai pegar as tasks menores para se ambientar."
+              value={contextoLivre}
+              onChange={(e) => setContextoLivre(e.target.value)}
+            />
+
+            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
+              <button
+                style={{ ...btnSecondary, fontSize: 12, color: "#64748b" }}
+                onClick={handleEnterManual}
+                disabled={loading}
+              >
+                Escrever sem IA
+              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={btnSecondary} onClick={onClose}>Cancelar</button>
+                <button style={btnPrimary} onClick={() => setStep("form")}>
+                  Continuar →
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP: INPUT ── */}
+        {step === "importar" && (
           <>
             {recomendadas.length > 0 && (
               <div style={banner("yellow")}>
@@ -645,10 +762,10 @@ export default function PlanningModal({
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
                 style={{ ...btnSecondary, fontSize: 12, color: "#64748b" }}
-                onClick={handleEnterManual}
+                onClick={() => setStep("input")}
                 disabled={loading}
               >
-                Escrever sem IA
+                ← Voltar
               </button>
               <div style={{ display: "flex", gap: 10 }}>
                 <button style={btnSecondary} onClick={onClose}>Cancelar</button>
@@ -875,11 +992,13 @@ export default function PlanningModal({
         {step === "manual_text" && (
           <>
             <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#64748b" }}>
-              Escreva o planning em markdown. Use <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}># Título</code>, <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}>## Seção</code> e <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: 3 }}>- item</code> para estruturar o documento.
+              Escreva do jeito que preferir. Não precisa de formatação nenhuma: o texto é
+              salvo como o planning desta sprint exatamente como você escrever. Se quiser
+              que a IA organize e formate para você, volte e use o caminho normal.
             </div>
             <textarea
-              style={{ ...ta, minHeight: 320, fontFamily: "monospace", fontSize: 12 }}
-              placeholder={`# Planning — Sprint ${sprintNumero}\n**Projeto:** ...\n**Data:** ...\n\n## Objetivo da sprint\n\n...\n\n## Backlog da sprint\n\n- Item 1\n- Item 2`}
+              style={{ ...ta, minHeight: 320 }}
+              placeholder={`Objetivo da sprint ${sprintNumero}\n\nO que vamos entregar, por quê, e o que ficou de fora.\n\nQuem está em quê, prazos combinados, o que depende do cliente, o que pode dar errado.`}
               value={manualMarkdown}
               onChange={(e) => setManualMarkdown(e.target.value)}
             />

@@ -126,6 +126,7 @@ Enquanto a sprint corre, o sistema observa o trabalho normal de gestão:
 - os bloqueios registrados e quem os resolveu
 - as tasks que ficaram paradas tempo demais
 - os commits enviados, que recebem uma nota de qualidade avaliada por IA
+- os pedidos de mais trabalho, quando alguém termina tudo que tinha
 
 Nada disso é "nota" ainda. É dado bruto vivo, que muda o tempo todo.
 
@@ -305,7 +306,7 @@ absoluto. É o que dá chance real a quem entrou mais júnior.
 
 Não é uma dimensão, é um acréscimo direto no score final.
 
-Quando o operacional termina tudo o que tinha e pede mais trabalho (seção 8.8), a
+Quando o operacional termina tudo o que tinha e pede mais trabalho (seção 8.9), a
 task concedida é marcada como **extra**. Ela não consome o orçamento de pontos da
 sprint e não entra em Entrega. Se for concluída antes do fechamento:
 
@@ -489,7 +490,7 @@ Na prática:
   a sprint de destino, que é quem vai pagar por aqueles pontos.
 - **Task marcada como extra não entra nessa conta.** Ela é trabalho concedido
   além do planejado, então por definição não cabe no orçamento e não é validada
-  contra ele (seção 8.8).
+  contra ele (seção 8.9).
 - **Tasks e sprints criadas antes desta regra existir** não são revalidadas. Nada
   quebra retroativamente.
 
@@ -507,9 +508,9 @@ regras controlam o movimento entre elas.
 não existe a quem creditar aquele trabalho quando a semana fechar, então o sistema
 recusa o movimento e pede que você escolha a sprint antes.
 
-**Uma task só vai para Concluída com o checklist completo.** Toda task tem uma
-lista de itens que você adiciona ao abri-la, e o card mostra quantos já foram
-marcados, no formato "3/5". Se sobrou item desmarcado, o sistema recusa mover para
+**Uma task só vai para Concluída com o checklist completo.** O checklist é uma
+lista de itens que você monta já na criação da task, e pode editar depois a
+qualquer momento. O card mostra quantos já foram marcados, no formato "3/5". Se sobrou item desmarcado, o sistema recusa mover para
 Concluída. Task sem checklist nenhum não trava nada: a regra só vale se você
 criou a lista. É o freio contra a "concluída" nominal, aquela que volta como
 reabertura três dias depois e derruba a nota de Qualidade da pessoa sem
@@ -634,7 +635,42 @@ porquê, no espírito de um placar.
 Se a avaliação da IA falhar por qualquer motivo, o commit continua sendo registrado
 normalmente. A nota é um extra, não um pré-requisito.
 
-### 8.8 Pedir mais trabalho quando a fila zera
+### 8.8 Como a planning se conecta com as tasks
+
+O documento de planning não é escrito à parte do Kanban: ele é montado a partir
+dele. O caminho é este.
+
+1. **Antes de abrir a planning**, cadastre as tasks da sprint no Kanban, com
+   pontos e responsável. É delas que sai o backlog do documento.
+2. **Ao abrir a planning** no card da sprint, a tela já mostra as tasks que estão
+   naquela sprint, com coluna, pontos e se alguma está bloqueada. Você não precisa
+   listar nada à mão.
+3. **Se as tasks estiverem fora do sistema**, num Notion ou numa planilha, o link
+   no topo da tela leva para a importação: você sobe um print ou cola o texto, e a
+   IA extrai as tasks e correlaciona com as funcionalidades do escopo.
+4. **Você escreve o contexto da sprint** num campo de texto livre, sem formatação
+   nenhuma. É onde entra o que o Kanban não consegue dizer: por que a sprint é
+   curta, o que mudou com o cliente, quem entrou agora, o que preocupa. Esse texto
+   vai como insumo para a IA, não como documento final.
+5. **Você completa os campos estruturados**: período, horas disponíveis e
+   estimadas, dependências, riscos, carry-over da sprint anterior, e quais
+   funcionalidades do escopo entram nesta sprint.
+6. **A IA gera o documento** juntando tudo: as tasks do Kanban, o seu texto livre,
+   os campos estruturados, as funcionalidades selecionadas com os critérios de
+   aceite recortados, o que transbordou da sprint anterior e o ritmo médio das
+   últimas sprints.
+7. **Você revisa e confirma.** Só na confirmação o documento é salvo.
+
+Se preferir escrever o documento inteiro na mão, sem IA nenhuma, existe o caminho
+"Escrever sem IA". Ele salva exatamente o que você escrever, sem formatação
+obrigatória.
+
+**Por que isso importa para o acompanhamento:** o Kanban é a fonte, e ele alimenta
+duas coisas ao mesmo tempo. A documentação da sprint sai dele, e a pontuação de
+cada pessoa também. Manter o Kanban fiel à realidade não é burocracia a mais: é o
+que faz os dois funcionarem sem trabalho dobrado.
+
+### 8.9 Pedir mais trabalho quando a fila zera
 
 Veio de um feedback real: operacional termina o que tinha e não tem proximidade,
 ou não sabe como pedir mais task, e fica parado. O custo disso é duplo, porque o

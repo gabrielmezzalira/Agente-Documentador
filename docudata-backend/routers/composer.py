@@ -365,6 +365,13 @@ def _montar_contexto_gerar(
         else:
             linhas.append("Critérios de aceite: (nenhum recorte especificado)")
 
+    # Contexto escrito à mão pelo gerente, em texto livre. Vem antes das tasks
+    # porque costuma trazer o "porquê" da sprint, que o Kanban não carrega.
+    contexto_livre = (dados.get("contexto_livre") or "").strip()
+    if contexto_livre:
+        linhas.append("\n## Contexto escrito pelo gerente:")
+        linhas.append(contexto_livre)
+
     # Tasks da sprint no kanban
     if backlog_tasks:
         linhas.append("\n## Tasks da sprint no Kanban:")
