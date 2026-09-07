@@ -27,23 +27,33 @@ async def listar_pessoas():
     if not pessoas:
         return []
 
-    # Em quais projetos cada pessoa aparece como operacional. Serve para o Owner
-    # não promover alguém por engano achando que é outra pessoa de mesmo nome.
+    # Em quais projetos cada pessoa aparece. Duas fontes, porque o vínculo é
+    # gravado de dois jeitos diferentes conforme o cargo: operacional entra na
+    # tabela operacionais (por projeto), gerente entra em projects.gerente_email
+    # (usado pra lembrete por email). Sem juntar as duas, todo gerente aparecia
+    # com "—" mesmo estando de fato vinculado a um projeto.
     operacionais = (
         client.table("operacionais").select("email, project_id, ativo").execute().data or []
     )
-    projetos = {
-        p["id"]: p["name"]
-        for p in (client.table("projects").select("id, name").execute().data or [])
-    }
+    projects_rows = client.table("projects").select("id, name, gerente_email").execute().data or []
+    projetos = {p["id"]: p["name"] for p in projects_rows}
+
     por_email: dict[str, list[str]] = {}
+
+    def _adicionar(email: str | None, nome_projeto: str | None) -> None:
+        chave = (email or "").strip().lower()
+        if not chave or not nome_projeto:
+            return
+        if nome_projeto not in por_email.setdefault(chave, []):
+            por_email[chave].append(nome_projeto)
+
     for op in operacionais:
-        email = (op.get("email") or "").strip().lower()
-        if not email or not op.get("ativo", True):
+        if not op.get("ativo", True):
             continue
-        nome_projeto = projetos.get(op["project_id"])
-        if nome_projeto and nome_projeto not in por_email.setdefault(email, []):
-            por_email[email].append(nome_projeto)
+        _adicionar(op.get("email"), projetos.get(op["project_id"]))
+
+    for proj in projects_rows:
+        _adicionar(proj.get("gerente_email"), proj.get("name"))
 
     return [
         {**p, "projetos": por_email.get((p.get("email") or "").strip().lower(), [])}

@@ -23,8 +23,6 @@ class ExtractionState(TypedDict):
     valido: bool
     tentativas: int
     erro: Optional[str]
-    input_tokens: int
-    output_tokens: int
     ingestion_id: Optional[str]
     # Validation fields — set by router before invoke
     tipo_esperado: Optional[str]
@@ -36,10 +34,6 @@ class ExtractionState(TypedDict):
     tipo_detectado: Optional[str]
     mensagem_validacao: Optional[str]
     valido_tipo: Optional[bool]
-
-
-_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
-_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
 
 
 def _make_structured_llm(api_key: str):
@@ -343,11 +337,6 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
             print(f"[extrair_conteudo] Structured output parsing failed: {pe}")
             return {"valido": False, "tentativas": tentativas + 1, "erro": f"Structured output parsing failed: {pe}"}
 
-        usage = getattr(raw_msg, "usage_metadata", None) or {}
-        in_tok = usage.get("input_tokens", 0) or 0
-        out_tok = usage.get("output_tokens", 0) or 0
-
-
         content = parsed.model_dump()
 
         # Completeness guardrail — rejeita extrações completamente vazias
@@ -361,16 +350,12 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
             return {
                 "valido": False,
                 "tentativas": tentativas + 1,
-                "input_tokens": in_tok,
-                "output_tokens": out_tok,
                 "erro": "Completeness check failed: all extracted fields are empty",
             }
 
         return {
             "conteudo_estruturado": content,
             "valido": True,
-            "input_tokens": in_tok,
-            "output_tokens": out_tok,
         }
     except Exception as exc:
         return {"valido": False, "tentativas": tentativas + 1, "erro": str(exc)}
@@ -378,10 +363,6 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
 
 async def salvar(state: ExtractionState) -> dict:
     client = get_client()
-    in_tok = state.get("input_tokens", 0) or 0
-    out_tok = state.get("output_tokens", 0) or 0
-    cost = in_tok * _COST_PER_INPUT_TOKEN + out_tok * _COST_PER_OUTPUT_TOKEN
-    print(f"[salvar] tokens in={in_tok} out={out_tok} cost=${cost:.6f}")
     try:
         # Enrich extracted_content with validation metadata for traceability
         content_to_save = dict(state["conteudo_estruturado"])
@@ -396,9 +377,6 @@ async def salvar(state: ExtractionState) -> dict:
                 "file_name": state["arquivo_nome"],
                 "file_type": state["tipo"],
                 "extracted_content": content_to_save,
-                "input_tokens": in_tok,
-                "output_tokens": out_tok,
-                "cost_usd": round(cost, 8),
             })
             .execute()
         )

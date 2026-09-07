@@ -267,9 +267,6 @@ async def confirmar_planning(body: ConfirmarBody):
                 "doc_type": "planning",
                 "sprint_number": body.sprint_numero,
                 "content": body.markdown,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "cost_usd": 0,
             }
         )
         .execute()

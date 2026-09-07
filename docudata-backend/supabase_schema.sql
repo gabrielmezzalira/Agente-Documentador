@@ -603,3 +603,13 @@ WHERE arquetipo = 'padrao';
 ALTER TABLE pessoa DROP CONSTRAINT IF EXISTS pessoa_cargo_check;
 ALTER TABLE pessoa ADD CONSTRAINT pessoa_cargo_check
     CHECK (cargo IN ('owner','lider','gerente','operacional'));
+
+-- ═══════════════════════════════════════════════════════════════
+-- GitHub no cadastro do operacional (2026-09-07)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Usuário do GitHub coletado no momento do cadastro/login, antes mesmo de a
+-- pessoa ser vinculada a um projeto como operacional. Quando um gerente
+-- adiciona essa pessoa a um projeto depois, o cadastro do operacional é
+-- pré-preenchido a partir daqui se o gerente não informar o campo à mão.
+ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_login text;

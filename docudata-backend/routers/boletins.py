@@ -435,9 +435,6 @@ async def gerar_resumo_semanal(body: ResumoSemanalRequest):
             "doc_type": "resumo_semanal",
             "sprint_number": None,
             "content": markdown_content,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cost_usd": 0.0,
         }
     ).execute()
 

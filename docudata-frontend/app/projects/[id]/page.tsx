@@ -6,7 +6,6 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import {
   getProject,
-  getProjectCost,
   updateApiKey,
   updateGerenteEmail,
   listIngestions,
@@ -36,7 +35,6 @@ import {
   type Project,
   type Ingestion,
   type GeneratedDoc,
-  type ProjectCost,
   type SprintWithStatus,
   type SprintDocType,
   type FuncionalidadeResponse,
@@ -294,7 +292,6 @@ export default function ProjectDashboard() {
   const [ingestions, setIngestions] = useState<Ingestion[]>([]);
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
-  const [cost, setCost] = useState<ProjectCost | null>(null);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
   const [operacionais, setOperacionais] = useState<OperacionalResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -357,16 +354,14 @@ export default function ProjectDashboard() {
       getProject(id),
       listIngestions(id),
       listDocs(id),
-      getProjectCost(id),
       listSprints(id),
       listFuncionalidades(id),
       listOperacionais(id).catch(() => [] as OperacionalResponse[]),
     ])
-      .then(([p, ings, d, c, s, fs, ops]) => {
+      .then(([p, ings, d, s, fs, ops]) => {
         setProject(p);
         setIngestions(ings);
         setDocs(d);
-        setCost(c);
         setSprints(s);
         setFuncionalidades(fs);
         setOperacionais(ops);
@@ -375,22 +370,17 @@ export default function ProjectDashboard() {
   }, [id]);
 
 
-  function refreshCost() {
-    getProjectCost(id).then(setCost).catch(() => {});
-  }
   function refreshSprints() {
     listSprints(id).then(setSprints).catch(() => {});
   }
   async function refreshAll() {
-    const [ings, d, c, s] = await Promise.all([
+    const [ings, d, s] = await Promise.all([
       listIngestions(id),
       listDocs(id),
-      getProjectCost(id),
       listSprints(id),
     ]);
     setIngestions(ings);
     setDocs(d);
-    setCost(c);
     setSprints(s);
   }
 
@@ -660,16 +650,6 @@ export default function ProjectDashboard() {
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-          {cost && (
-            <div style={{ fontSize: 12, color: "#6a6a7a", display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontWeight: 700, color: "#111116" }}>
-                ${cost.total_usd < 0.001 && cost.total_usd > 0 ? cost.total_usd.toFixed(6) : cost.total_usd.toFixed(4)}
-              </span>
-              {cost.budget_usd != null && (
-                <span style={{ color: "#b8b8c0" }}>/ ${cost.budget_usd.toFixed(2)}</span>
-              )}
-            </div>
-          )}
           {project.is_delivered && (
             <span style={{ ...badgeChip, background: "#dcfce7", color: "#16a34a" }}>✓ Entregue</span>
           )}
@@ -1016,32 +996,6 @@ export default function ProjectDashboard() {
             {apiKeyMsg && <p style={{ marginTop: 10, fontSize: 13, color: apiKeyMsg.ok ? "#16a34a" : "#dc2626" }}>{apiKeyMsg.text}</p>}
           </section>
 
-          {cost !== null && (
-            <section style={sectionStyle}>
-              <h2 style={sectionTitle}>Custo de IA</h2>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: cost.budget_usd ? 12 : 0 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "#111116" }}>
-                  ${cost.total_usd < 0.001 && cost.total_usd > 0 ? cost.total_usd.toFixed(6) : cost.total_usd.toFixed(4)}
-                  {cost.budget_usd != null && <span style={{ color: "#b8b8c0", fontWeight: 400, marginLeft: 8 }}>de ${cost.budget_usd.toFixed(2)}</span>}
-                </span>
-                <span style={{ color: "#9696a0", fontSize: 12 }}>
-                  {cost.input_tokens.toLocaleString("pt-BR")} in · {cost.output_tokens.toLocaleString("pt-BR")} out tokens
-                </span>
-              </div>
-              {cost.budget_usd != null && cost.budget_usd > 0 && (() => {
-                const pct = Math.min((cost.total_usd / cost.budget_usd) * 100, 100);
-                const color = pct >= 90 ? "#dc2626" : pct >= 70 ? "#d97706" : "#22c55e";
-                return (
-                  <div>
-                    <div style={{ background: "#f0f0f4", borderRadius: 4, height: 6 }}>
-                      <div style={{ background: color, borderRadius: 4, height: 6, width: `${pct}%`, transition: "width 0.3s" }} />
-                    </div>
-                    {pct >= 90 && <p style={{ marginTop: 8, fontSize: 12, color: "#dc2626", fontWeight: 500 }}>{pct.toFixed(0)}% do budget consumido.</p>}
-                  </div>
-                );
-              })()}
-            </section>
-          )}
 
           <section style={sectionStyle}>
             <h2 style={sectionTitle}>Lembretes por email</h2>

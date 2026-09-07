@@ -67,8 +67,6 @@ async def _extract_anexo_to_content(
         "valido": False,
         "tentativas": 0,
         "erro": None,
-        "input_tokens": 0,
-        "output_tokens": 0,
         "ingestion_id": None,
         "tipo_esperado": tipo_esperado,
         "force": force,
@@ -172,8 +170,6 @@ async def _run_generation(
         "ingestions": [],
         "contexto": "",
         "documento": "",
-        "input_tokens": 0,
-        "output_tokens": 0,
         "erro_contexto": None,
     }
     result = await generation_graph.ainvoke(state)
@@ -212,9 +208,6 @@ def _insert_ingestion(
             "file_type": "texto",
             "tipo_documentacao": tipo_documentacao,
             "extracted_content": extracted_content,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cost_usd": 0,
         })
         .execute()
     )
@@ -444,8 +437,6 @@ async def submit_ata_with_upload(
         "valido": False,
         "tentativas": 0,
         "erro": None,
-        "input_tokens": 0,
-        "output_tokens": 0,
         "ingestion_id": None,
         "tipo_esperado": "ata_reuniao",
         "force": force,

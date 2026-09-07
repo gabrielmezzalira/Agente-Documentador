@@ -63,8 +63,6 @@ async def generate(req: GenerateRequest):
         "ingestions": [],
         "contexto": "",
         "documento": "",
-        "input_tokens": 0,
-        "output_tokens": 0,
         "erro_contexto": None,
     }
 
@@ -120,9 +118,6 @@ async def create_manual_doc(req: ManualDocCreate):
             "doc_type": req.doc_type,
             "sprint_number": req.sprint_numero,
             "content": req.content,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cost_usd": 0,
         })
         .execute()
     )
@@ -170,9 +165,6 @@ async def create_manual_doc_from_pdf(
             "doc_type": doc_type,
             "sprint_number": sprint_numero,
             "content": text,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cost_usd": 0,
         })
         .execute()
     )

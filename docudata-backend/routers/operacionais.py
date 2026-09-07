@@ -42,6 +42,15 @@ async def create_operacional(data: OperacionalCreate):
         payload["papel"] = data.papel
     if data.github_login is not None:
         payload["github_login"] = data.github_login
+    elif data.email:
+        # A pessoa pode ter informado o usuário do GitHub no próprio cadastro,
+        # antes de existir qualquer vínculo com projeto. Pré-preenche daqui em
+        # vez de exigir que o gerente redigite o que a pessoa já disse.
+        pessoa_resp = (
+            client.table("pessoa").select("github_login").eq("email", data.email).execute()
+        )
+        if pessoa_resp.data and pessoa_resp.data[0].get("github_login"):
+            payload["github_login"] = pessoa_resp.data[0]["github_login"]
 
     try:
         resp = client.table("operacionais").insert(payload).execute()

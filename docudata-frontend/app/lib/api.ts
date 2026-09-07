@@ -51,11 +51,16 @@ export async function listOperacionaisSemConta(): Promise<OperacionalSemConta[]>
   return res.json();
 }
 
-export async function signupClaim(operacional_id: string, email: string, senha: string): Promise<LoginResponse> {
+export async function signupClaim(
+  operacional_id: string,
+  email: string,
+  senha: string,
+  github_login?: string,
+): Promise<LoginResponse> {
   const res = await apiFetch(`${API}/auth/signup/claim`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ operacional_id, email, senha }),
+    body: JSON.stringify({ operacional_id, email, senha, github_login: github_login || undefined }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -64,11 +69,16 @@ export async function signupClaim(operacional_id: string, email: string, senha: 
   return res.json();
 }
 
-export async function signupNovo(nome: string, email: string, senha: string): Promise<LoginResponse> {
+export async function signupNovo(
+  nome: string,
+  email: string,
+  senha: string,
+  github_login?: string,
+): Promise<LoginResponse> {
   const res = await apiFetch(`${API}/auth/signup/novo`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, email, senha }),
+    body: JSON.stringify({ nome, email, senha, github_login: github_login || undefined }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -98,7 +108,6 @@ export interface Project {
   name: string;
   client: string;
   description?: string;
-  budget_usd?: number | null;
   valor_projeto?: number | null;
   valor_por_ponto?: number | null;
   has_api_key: boolean;
@@ -126,42 +135,6 @@ export interface StackSearchResponse {
   results: StackSearchResult[];
 }
 
-export interface ProjectCost {
-  project_id: string;
-  total_usd: number;
-  budget_usd?: number | null;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface UsageBucket {
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-  count: number;
-}
-
-export interface UsageItem {
-  source: "ingestion" | "generated_doc";
-  id: string;
-  label: string;
-  created_at: string;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-}
-
-export interface ProjectUsage {
-  project_id: string;
-  month: string;          // formato YYYY-MM
-  total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-  breakdown: Record<string, UsageBucket>;
-  items: UsageItem[];
-  truncated: boolean;
-}
-
 export interface Ingestion {
   id: string;
   project_id: string;
@@ -182,9 +155,6 @@ export interface Ingestion {
     _meta_commit_msg?: string;
     _meta_branch?: string;
   };
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
   created_at: string;
 }
 
@@ -288,19 +258,6 @@ export async function getProject(id: string): Promise<Project> {
   return res.json();
 }
 
-export async function getProjectCost(projectId: string): Promise<ProjectCost> {
-  const res = await apiFetch(`${API}/projects/${projectId}/cost`);
-  if (!res.ok) throw new Error("Erro ao buscar custo do projeto");
-  return res.json();
-}
-
-export async function getProjectUsage(projectId: string, month?: string): Promise<ProjectUsage> {
-  const url = `${API}/projects/${projectId}/usage${month ? `?month=${month}` : ""}`;
-  const res = await apiFetch(url);
-  if (!res.ok) throw new Error("Erro ao buscar uso mensal do projeto");
-  return res.json();
-}
-
 export async function updateContrato(
   projectId: string,
   data: {
@@ -346,7 +303,6 @@ export async function createProject(data: {
   client: string;
   description?: string;
   squad?: string;
-  budget_usd?: number | null;
   valor_projeto?: number | null;
   gemini_api_key?: string;
 }): Promise<Project> {

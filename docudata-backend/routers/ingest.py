@@ -72,8 +72,6 @@ async def ingest(
         "valido": False,
         "tentativas": 0,
         "erro": None,
-        "input_tokens": 0,
-        "output_tokens": 0,
         "ingestion_id": None,
         "tipo_esperado": "upload_livre",
         "force": force,

@@ -12,6 +12,7 @@ export default function CadastroPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [githubLogin, setGithubLogin] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,17 +20,13 @@ export default function CadastroPage() {
     listOperacionaisSemConta().then(setOperacionais).catch(() => setOperacionais([]));
   }, []);
 
-  const inputSt: React.CSSProperties = { padding: "10px 12px", border: "1px solid #e4e4ea", borderRadius: 8, fontSize: 14 };
-  const btnPrimary: React.CSSProperties = { padding: "10px 12px", borderRadius: 8, background: "#111116", color: "#fff", border: "none", fontWeight: 600 };
-  const btnGhost: React.CSSProperties = { fontSize: 13, background: "none", border: "none", color: "#9696a0", cursor: "pointer" };
-
   async function handleClaim(e: React.FormEvent) {
     e.preventDefault();
     if (!selecionado) return;
     setLoading(true);
     setErr("");
     try {
-      await signupClaim(selecionado.operacional_id, email, senha);
+      await signupClaim(selecionado.operacional_id, email, senha, githubLogin);
       router.push("/");
       router.refresh();
     } catch (e) {
@@ -44,7 +41,7 @@ export default function CadastroPage() {
     setLoading(true);
     setErr("");
     try {
-      await signupNovo(nome, email, senha);
+      await signupNovo(nome, email, senha, githubLogin);
       router.push("/");
       router.refresh();
     } catch (e) {
@@ -55,50 +52,179 @@ export default function CadastroPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "60px auto", padding: 24 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Criar conta — DocuData</h1>
-
-      {modo === "lista" && (
-        <div>
-          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>Você já é operacional em algum projeto?</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
-            {operacionais.map((op) => (
-              <button
-                key={op.operacional_id}
-                onClick={() => { setSelecionado(op); setModo("claim"); }}
-                style={{ textAlign: "left", padding: "8px 12px", border: "1px solid #e4e4ea", borderRadius: 8, background: "#fff", cursor: "pointer" }}
-              >
-                {op.nome} <span style={{ color: "#9696a0", fontSize: 12 }}>— {op.project_name}</span>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setModo("novo")} style={{ ...btnGhost, marginTop: 16 }}>
-            Não me encontrei na lista — sou novo
-          </button>
+    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#16a34a" }}>
+            citi · subárea de dados
+          </span>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 10 }}>
+            Criar conta
+          </h1>
         </div>
-      )}
 
-      {modo === "claim" && selecionado && (
-        <form onSubmit={handleClaim} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 13 }}>Criando conta para <strong>{selecionado.nome}</strong> ({selecionado.project_name})</p>
-          <input type="email" placeholder="Seu email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputSt} />
-          <input type="password" placeholder="Crie uma senha" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={6} style={inputSt} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
-          <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
-          <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
-        </form>
-      )}
+        <div style={cardStyle}>
+          {modo === "lista" && (
+            <div>
+              <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>Você já é operacional em algum projeto?</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+                {operacionais.map((op) => (
+                  <button
+                    key={op.operacional_id}
+                    onClick={() => { setSelecionado(op); setModo("claim"); }}
+                    style={pickBtnStyle}
+                  >
+                    <span style={{ fontWeight: 600, color: "#111116" }}>{op.nome}</span>
+                    <span style={{ color: "#9696a0", fontSize: 12, marginLeft: 8 }}>{op.project_name}</span>
+                  </button>
+                ))}
+                {operacionais.length === 0 && (
+                  <p style={{ fontSize: 13, color: "#b8b8c0" }}>Nenhum operacional pendente de conta no momento.</p>
+                )}
+              </div>
+              <button onClick={() => setModo("novo")} style={destaqueBtnStyle}>
+                Não me encontrei na lista, sou novo
+              </button>
+            </div>
+          )}
 
-      {modo === "novo" && (
-        <form onSubmit={handleNovo} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} required style={inputSt} />
-          <input type="email" placeholder="Seu email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputSt} />
-          <input type="password" placeholder="Crie uma senha" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={6} style={inputSt} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
-          <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
-          <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
-        </form>
-      )}
-    </div>
+          {modo === "claim" && selecionado && (
+            <form onSubmit={handleClaim} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <p style={{ fontSize: 13, color: "#374151" }}>
+                Criando conta para <strong>{selecionado.nome}</strong> no projeto <strong>{selecionado.project_name}</strong>
+              </p>
+              <div>
+                <label style={labelStyle}>Seu email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Crie uma senha</label>
+                <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={6} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Usuário do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} style={inputStyle} placeholder="ex: joaosilva" />
+                <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
+                  O email acima e este usuário são o que o sistema usa para reconhecer seus commits automaticamente.
+                </p>
+              </div>
+              {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+              <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
+              <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
+            </form>
+          )}
+
+          {modo === "novo" && (
+            <form onSubmit={handleNovo} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Seu nome</label>
+                <input value={nome} onChange={(e) => setNome(e.target.value)} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Seu email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Crie uma senha</label>
+                <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={6} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Usuário do GitHub <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} style={inputStyle} placeholder="ex: joaosilva" />
+                <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
+                  O email acima e este usuário são o que o sistema usa para reconhecer seus commits automaticamente, assim que você entrar em um projeto.
+                </p>
+              </div>
+              {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+              <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
+              <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
+            </form>
+          )}
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <span style={{ fontSize: 13, color: "#9696a0" }}>Já tem conta? </span>
+          <a href="/login" style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+            Entrar
+          </a>
+        </div>
+      </div>
+    </main>
   );
 }
+
+const cardStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #e8e8ed",
+  borderRadius: 14,
+  padding: "28px 26px",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 700,
+  marginBottom: 6,
+  color: "#6a6a7a",
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  background: "#ffffff",
+  border: "1px solid #e4e4ea",
+  borderRadius: 8,
+  fontSize: 14,
+  outline: "none",
+  color: "#111116",
+};
+
+const btnPrimary: React.CSSProperties = {
+  background: "#4ade80",
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: 8,
+  padding: "11px 18px",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const btnGhost: React.CSSProperties = {
+  fontSize: 13,
+  background: "none",
+  border: "none",
+  color: "#9696a0",
+  cursor: "pointer",
+  padding: 0,
+};
+
+const pickBtnStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "10px 14px",
+  border: "1px solid #e4e4ea",
+  borderRadius: 8,
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: 13,
+};
+
+const destaqueBtnStyle: React.CSSProperties = {
+  marginTop: 18,
+  width: "100%",
+  textAlign: "center",
+  padding: "11px 14px",
+  borderRadius: 8,
+  border: "1px solid #bbf7d0",
+  background: "#f0fdf4",
+  color: "#16a34a",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};

@@ -8,9 +8,6 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from services.supabase_client import get_client
 
-_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
-_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
-
 
 class GenerationState(TypedDict):
     projeto_id: str
@@ -25,8 +22,6 @@ class GenerationState(TypedDict):
     ingestions: list
     contexto: str
     documento: str
-    input_tokens: int
-    output_tokens: int
     erro_contexto: Optional[str]
 
 
@@ -983,10 +978,6 @@ async def gerar_documento(state: GenerationState) -> dict:
     })
     response = await llm.ainvoke(formatted)
 
-    usage = getattr(response, "usage_metadata", None) or {}
-    in_tok = usage.get("input_tokens", 0) or 0
-    out_tok = usage.get("output_tokens", 0) or 0
-
     # Gemini 3.x pode retornar content como lista de blocos em vez de string
     raw = response.content
     if isinstance(raw, list):
@@ -998,17 +989,11 @@ async def gerar_documento(state: GenerationState) -> dict:
 
     return {
         "documento": documento,
-        "input_tokens": in_tok,
-        "output_tokens": out_tok,
     }
 
 
 async def salvar_documento(state: GenerationState) -> dict:
     client = get_client()
-    in_tok = state.get("input_tokens", 0) or 0
-    out_tok = state.get("output_tokens", 0) or 0
-    cost = in_tok * _COST_PER_INPUT_TOKEN + out_tok * _COST_PER_OUTPUT_TOKEN
-    print(f"[salvar_documento] tokens in={in_tok} out={out_tok} cost=${cost:.6f}")
     response = (
         client.table("generated_docs")
         .insert({
@@ -1016,9 +1001,6 @@ async def salvar_documento(state: GenerationState) -> dict:
             "doc_type": state["tipo_doc"],
             "sprint_number": state.get("sprint_numero"),
             "content": state["documento"],
-            "input_tokens": in_tok,
-            "output_tokens": out_tok,
-            "cost_usd": round(cost, 8),
         })
         .execute()
     )

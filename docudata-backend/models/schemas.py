@@ -35,7 +35,6 @@ class ProjectCreate(BaseModel):
     client: str
     description: Optional[str] = None
     squad: Optional[str] = None
-    budget_usd: Optional[float] = None
     valor_projeto: Optional[float] = None
     gemini_api_key: Optional[str] = None
 
@@ -46,7 +45,6 @@ class ProjectResponse(BaseModel):
     client: str
     description: Optional[str] = None
     squad: Optional[str] = None
-    budget_usd: Optional[float] = None
     valor_projeto: Optional[float] = None
     valor_por_ponto: Optional[float] = None
     has_api_key: bool = False
@@ -64,42 +62,6 @@ class ProjectResponse(BaseModel):
 
 class GerenteEmailUpdate(BaseModel):
     gerente_email: Optional[str] = None
-
-
-class ProjectCostResponse(BaseModel):
-    project_id: str
-    total_usd: float
-    budget_usd: Optional[float] = None
-    input_tokens: int
-    output_tokens: int
-
-
-class UsageBucket(BaseModel):
-    input_tokens: int
-    output_tokens: int
-    cost_usd: float
-    count: int
-
-
-class UsageItem(BaseModel):
-    source: str          # "ingestion" | "generated_doc"
-    id: str
-    label: str
-    created_at: datetime
-    input_tokens: int
-    output_tokens: int
-    cost_usd: float
-
-
-class ProjectUsageResponse(BaseModel):
-    project_id: str
-    month: str          # formato YYYY-MM
-    total_usd: float
-    input_tokens: int
-    output_tokens: int
-    breakdown: dict[str, UsageBucket] = {}
-    items: list[UsageItem] = []
-    truncated: bool = False
 
 
 class IngestResponse(BaseModel):
@@ -132,9 +94,6 @@ class IngestionResponse(BaseModel):
     file_type: Optional[str] = None
     tipo_documentacao: Optional[str] = None
     extracted_content: Optional[dict] = None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost_usd: float = 0.0
     created_at: datetime
 
 
@@ -559,12 +518,14 @@ class SignupClaimRequest(BaseModel):
     operacional_id: str
     email: str
     senha: str = Field(..., min_length=6)
+    github_login: Optional[str] = None
 
 
 class SignupNovoRequest(BaseModel):
     nome: str
     email: str
     senha: str = Field(..., min_length=6)
+    github_login: Optional[str] = None
 
 
 # ── Avaliação do Gerente (Phase 17) ─────────────────────────────────────────

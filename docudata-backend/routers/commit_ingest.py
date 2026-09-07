@@ -20,9 +20,6 @@ from services.sprints import ensure_sprint_row
 
 router = APIRouter(tags=["commit-ingest"])
 
-_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000   # USD — Gemini 3.5 Flash-Lite
-_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000  # USD — Gemini 3.5 Flash-Lite
-
 
 class CommitPayload(BaseModel):
     project_id: str
@@ -155,14 +152,8 @@ async def ingest_commit(payload: CommitPayload):
     try:
         raw_result = await structured_llm.ainvoke(messages)
         parsed: ConteudoEstruturado = raw_result["parsed"]
-        raw_msg = raw_result["raw"]
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gemini extraction failed: {exc}")
-
-    usage = getattr(raw_msg, "usage_metadata", None) or {}
-    in_tok = usage.get("input_tokens", 0) or 0
-    out_tok = usage.get("output_tokens", 0) or 0
-    cost = in_tok * _COST_PER_INPUT_TOKEN + out_tok * _COST_PER_OUTPUT_TOKEN
 
     content = parsed.model_dump()
     content["_meta_autor"] = payload.author
@@ -182,9 +173,6 @@ async def ingest_commit(payload: CommitPayload):
                 "file_type": "commit",
                 "tipo_documentacao": "commit",
                 "extracted_content": content,
-                "input_tokens": in_tok,
-                "output_tokens": out_tok,
-                "cost_usd": round(cost, 8),
             })
             .execute()
         )
@@ -194,12 +182,7 @@ async def ingest_commit(payload: CommitPayload):
         raise HTTPException(status_code=500, detail=f"Supabase insert failed: {exc}")
 
     ingestion_id = response.data[0].get("id")
-    print(
-        f"[ingest_commit] commit={payload.commit_hash[:7]} "
-        f"sprint={payload.sprint_number} "
-        f"tokens in={in_tok} out={out_tok} cost=${cost:.6f} "
-        f"id={ingestion_id}"
-    )
+    print(f"[ingest_commit] commit={payload.commit_hash[:7]} sprint={payload.sprint_number} id={ingestion_id}")
 
     arquetipo = project_resp.data[0].get("arquetipo") or "padrao"
     if arquetipo == "padrao":

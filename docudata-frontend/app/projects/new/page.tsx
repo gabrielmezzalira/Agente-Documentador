@@ -11,7 +11,6 @@ export default function NewProject() {
   const [client, setClient] = useState("");
   const [description, setDescription] = useState("");
   const [squad, setSquad] = useState("");
-  const [budgetStr, setBudgetStr] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,9 +19,8 @@ export default function NewProject() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const budget_usd = budgetStr.trim() ? parseFloat(budgetStr) : null;
     try {
-      const project = await createProject({ name, client, description, squad: squad || undefined, budget_usd, gemini_api_key: apiKey || undefined });
+      const project = await createProject({ name, client, description, squad: squad || undefined, gemini_api_key: apiKey || undefined });
       router.push(`/projects/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar projeto");
@@ -80,15 +78,6 @@ export default function NewProject() {
           <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
             Obtida em <strong style={{ color: "#9696a0" }}>aistudio.google.com</strong> → Get API Key.
           </p>
-        </div>
-
-        <div>
-          <label style={labelStyle}>
-            Budget de IA{" "}
-            <span style={{ color: "#b8b8c0", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>em USD (opcional)</span>
-          </label>
-          <input style={inputStyle} type="number" min="0" step="0.01" value={budgetStr} onChange={(e) => setBudgetStr(e.target.value)} placeholder="Ex: 1.00" />
-          <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0" }}>Limite de gasto com o Gemini. Deixe em branco para sem limite.</p>
         </div>
 
         {error && <p style={{ color: "#dc2626", fontSize: 14 }}>{error}</p>}

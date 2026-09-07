@@ -1,21 +1,14 @@
-import re
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
-
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
-    ProjectCostResponse,
-    ProjectUsageResponse,
-    UsageBucket,
-    UsageItem,
     TechTimelineResponse,
     ContratoUpdate,
     GerenteEmailUpdate,
 )
+from services.auth import get_current_pessoa, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 
@@ -44,8 +37,6 @@ async def create_project(data: ProjectCreate):
     """Create a new project. Returns the inserted row with its generated UUID."""
     client = get_client()
     payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
-    if data.budget_usd is not None:
-        payload["budget_usd"] = data.budget_usd
     if data.valor_projeto is not None:
         payload["valor_projeto"] = data.valor_projeto
         payload["valor_por_ponto"] = round(data.valor_projeto / 100, 2)
@@ -58,11 +49,29 @@ async def create_project(data: ProjectCreate):
 
 
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects():
-    """List all projects ordered by creation date (most recent first)."""
+async def list_projects(pessoa: dict = Depends(get_current_pessoa)):
+    """List projects ordered by creation date (most recent first).
+
+    Operacional só vê os projetos em que está vinculado como operacional — sem
+    isso, a home page expunha a existência (nome, cliente) de todo projeto do
+    CITi a qualquer conta, mesmo projetos em que a pessoa nunca trabalhou."""
     client = get_client()
     response = client.table("projects").select("*").order("created_at", desc=True).execute()
-    projects = [_sanitize(row) for row in response.data]
+    rows = response.data or []
+
+    if pessoa["cargo"] == "operacional":
+        vinculos = (
+            client.table("operacionais")
+            .select("project_id")
+            .eq("email", pessoa["email"])
+            .eq("ativo", True)
+            .execute()
+            .data or []
+        )
+        ids_permitidos = {v["project_id"] for v in vinculos}
+        rows = [r for r in rows if r["id"] in ids_permitidos]
+
+    projects = [_sanitize(row) for row in rows]
 
     if projects:
         ing_resp = (
@@ -82,9 +91,10 @@ async def list_projects():
     return projects
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectResponse, dependencies=[Depends(require_project_access)])
 async def get_project(project_id: str):
-    """Get a single project by UUID. Returns 404 if not found."""
+    """Get a single project by UUID. Returns 404 if not found, 403 se o
+    operacional não estiver vinculado a este projeto."""
     client = get_client()
     response = client.table("projects").select("*").eq("id", project_id).execute()
     if not response.data:
@@ -110,175 +120,6 @@ async def update_api_key(project_id: str, data: ApiKeyUpdate):
     return _sanitize(response.data[0])
 
 
-@router.get("/{project_id}/cost", response_model=ProjectCostResponse)
-async def get_project_cost(project_id: str):
-    """Return aggregated token usage and cost for a project from its ingestions."""
-    client = get_client()
-    project_resp = client.table("projects").select("budget_usd").eq("id", project_id).execute()
-    if not project_resp.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    budget_usd = project_resp.data[0].get("budget_usd")
-
-    ing_resp = (
-        client.table("ingestions")
-        .select("input_tokens, output_tokens, cost_usd")
-        .eq("project_id", project_id)
-        .execute()
-    )
-    gen_resp = (
-        client.table("generated_docs")
-        .select("input_tokens, output_tokens, cost_usd")
-        .eq("project_id", project_id)
-        .execute()
-    )
-    rows = (ing_resp.data or []) + (gen_resp.data or [])
-    total_in = sum(r.get("input_tokens") or 0 for r in rows)
-    total_out = sum(r.get("output_tokens") or 0 for r in rows)
-    total_cost = sum(r.get("cost_usd") or 0.0 for r in rows)
-
-    return ProjectCostResponse(
-        project_id=project_id,
-        total_usd=round(total_cost, 6),
-        budget_usd=budget_usd,
-        input_tokens=total_in,
-        output_tokens=total_out,
-    )
-
-
-_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
-
-
-@router.get("/{project_id}/usage", response_model=ProjectUsageResponse)
-async def get_project_usage(
-    project_id: str,
-    month: Optional[str] = Query(default=None),
-):
-    """Retorna custo e tokens do projeto para um mês específico (padrão: mês atual em America/Sao_Paulo).
-
-    Agrega exclusivamente as colunas cost_usd, input_tokens e output_tokens já salvas
-    em ingestions e generated_docs — não recalcula nenhum valor.
-    """
-    client = get_client()
-
-    # 1. Verificar existência do projeto
-    proj_check = client.table("projects").select("id").eq("id", project_id).execute()
-    if not proj_check.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # 2. Resolver o mês
-    tz_sp = ZoneInfo("America/Sao_Paulo")
-    if month is None:
-        now_sp = datetime.now(tz=tz_sp)
-        month = now_sp.strftime("%Y-%m")
-    else:
-        if not _MONTH_RE.match(month):
-            raise HTTPException(
-                status_code=422,
-                detail="Formato invalido para 'month'. Use YYYY-MM.",
-            )
-
-    # 3. Calcular intervalo UTC do mês
-    year, mon = int(month[:4]), int(month[5:7])
-    start_local = datetime(year, mon, 1, tzinfo=tz_sp)
-    if mon == 12:
-        end_local = datetime(year + 1, 1, 1, tzinfo=tz_sp)
-    else:
-        end_local = datetime(year, mon + 1, 1, tzinfo=tz_sp)
-    start_iso = start_local.astimezone(timezone.utc).isoformat()
-    end_iso = end_local.astimezone(timezone.utc).isoformat()
-
-    # 4. Buscar linhas de ingestions e generated_docs no intervalo
-    ing_resp = (
-        client.table("ingestions")
-        .select("id, created_at, tipo_documentacao, input_tokens, output_tokens, cost_usd")
-        .eq("project_id", project_id)
-        .gte("created_at", start_iso)
-        .lt("created_at", end_iso)
-        .execute()
-    )
-    gen_resp = (
-        client.table("generated_docs")
-        .select("id, created_at, doc_type, input_tokens, output_tokens, cost_usd")
-        .eq("project_id", project_id)
-        .gte("created_at", start_iso)
-        .lt("created_at", end_iso)
-        .execute()
-    )
-
-    ing_rows = ing_resp.data or []
-    gen_rows = gen_resp.data or []
-
-    # 5. Agregar totais — apenas colunas pré-existentes, sem recalculo
-    all_rows = ing_rows + gen_rows
-    total_usd = round(sum(r.get("cost_usd") or 0.0 for r in all_rows), 6)
-    total_in = sum(r.get("input_tokens") or 0 for r in all_rows)
-    total_out = sum(r.get("output_tokens") or 0 for r in all_rows)
-
-    # 6. Construir breakdown por tipo
-    def _label_ing(row: dict) -> str:
-        return f"ingestion:{row.get('tipo_documentacao') or 'upload'}"
-
-    def _label_gen(row: dict) -> str:
-        if (row.get("input_tokens") or 0) == 0 and (row.get("output_tokens") or 0) == 0 and float(row.get("cost_usd") or 0) == 0.0:
-            return "generation:manual"
-        return f"generation:{row.get('doc_type')}"
-
-    breakdown: dict[str, UsageBucket] = {}
-    for row in ing_rows:
-        k = _label_ing(row)
-        b = breakdown.setdefault(k, UsageBucket(input_tokens=0, output_tokens=0, cost_usd=0.0, count=0))
-        b.input_tokens += row.get("input_tokens") or 0
-        b.output_tokens += row.get("output_tokens") or 0
-        b.cost_usd = round(b.cost_usd + float(row.get("cost_usd") or 0), 8)
-        b.count += 1
-    for row in gen_rows:
-        k = _label_gen(row)
-        b = breakdown.setdefault(k, UsageBucket(input_tokens=0, output_tokens=0, cost_usd=0.0, count=0))
-        b.input_tokens += row.get("input_tokens") or 0
-        b.output_tokens += row.get("output_tokens") or 0
-        b.cost_usd = round(b.cost_usd + float(row.get("cost_usd") or 0), 8)
-        b.count += 1
-
-    # 7. Construir lista cronológica de itens (limit 100)
-    raw_items: list[UsageItem] = []
-    for row in ing_rows:
-        if not row.get("id") or not row.get("created_at"):
-            continue
-        raw_items.append(UsageItem(
-            source="ingestion",
-            id=row["id"],
-            label=_label_ing(row),
-            created_at=row["created_at"],
-            input_tokens=row.get("input_tokens") or 0,
-            output_tokens=row.get("output_tokens") or 0,
-            cost_usd=float(row.get("cost_usd") or 0),
-        ))
-    for row in gen_rows:
-        if not row.get("id") or not row.get("created_at"):
-            continue
-        raw_items.append(UsageItem(
-            source="generated_doc",
-            id=row["id"],
-            label=_label_gen(row),
-            created_at=row["created_at"],
-            input_tokens=row.get("input_tokens") or 0,
-            output_tokens=row.get("output_tokens") or 0,
-            cost_usd=float(row.get("cost_usd") or 0),
-        ))
-    raw_items.sort(key=lambda x: str(x.created_at), reverse=True)
-    truncated = len(raw_items) > 100
-    items = raw_items[:100]
-
-    return ProjectUsageResponse(
-        project_id=project_id,
-        month=month,
-        total_usd=total_usd,
-        input_tokens=total_in,
-        output_tokens=total_out,
-        breakdown=breakdown,
-        items=items,
-        truncated=truncated,
-    )
 
 
 @router.patch("/{project_id}/delivered", response_model=ProjectResponse)
