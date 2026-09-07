@@ -172,29 +172,38 @@ Todas as contas abaixo são feitas **por projeto primeiro**. Se a janela cobre m
 de um projeto, o valor final da dimensão é a média simples dos valores de cada
 projeto.
 
-### 5.1 Entrega e Confiabilidade, peso 20%
+### 5.1 Entrega e Confiabilidade
 
 **O que mede:** cumpriu o que se comprometeu, dentro do que pegou.
 
-> **Entrega** = (pontos entregues menos pontos perdidos por atraso) ÷ pontos que a
-> pessoa pegou, em porcentagem, com teto de 100.
+> **Entrega** = (pontos entregues menos pontos descontados por atraso) dividido
+> pelos pontos que a pessoa pegou, em porcentagem, com teto de 100.
 
 - Somam-se todas as sprints da janela dentro do mesmo projeto.
 - **Teto de 100.** Entregar além do que pegou não pontua acima do máximo. Isso
   existe para que puxar task extra no fim da semana não vire alavanca de score.
-- **Pontos perdidos por atraso:** quando uma task fica parada muito além do tempo
-  esperado para o tamanho dela, o sistema marca um alerta de atraso. Os pontos
-  dessa task deixam de contar como entrega. O gerente pode dispensar o alerta na
-  própria task, e aí a penalidade não acontece (seção 8.6).
+  O reconhecimento por trabalho extra vem pelo bônus da seção 5.6.
 - Se a pessoa não pegou nenhum ponto na janela, a dimensão fica **indisponível**,
   e não vira zero.
+
+**O desconto por atraso.** Quando uma task fica parada muito além do tempo
+esperado para o tamanho dela, o sistema marca um alerta (seção 8.6). Se a pessoa
+concluir essa task depois do alerta, os pontos dela são **descontados** da
+entrega: a pessoa entregou, mas fora do prazo, então aquela entrega não conta
+cheia. O gerente pode dispensar o alerta na própria task e a penalidade não
+acontece.
+
+O desconto só existe para task que foi **concluída** depois do alerta. Task que
+travou e nunca foi entregue não sofre desconto nenhum, porque os pontos dela já
+não estavam nos entregues, e descontar de novo puniria as outras entregas da
+pessoa duas vezes pelo mesmo problema.
 
 **Por que é proporção e não soma bruta:** volume absoluto de pontos mede quem
 recebeu as tasks maiores, ou seja, mede a decisão de alocação do gerente e não a
 performance da pessoa. Medir o que ela entregou sobre o que ela pegou faz com que
 quem cumpriu tudo pontue alto mesmo tendo pego menos.
 
-### 5.2 Avaliação do Gerente, peso 35%
+### 5.2 Avaliação do Gerente
 
 **O que mede:** a leitura estruturada do gerente sobre o operacional, incluindo o
 sinal de colaboração.
@@ -203,90 +212,118 @@ sinal de colaboração.
 > da escala 0 a 5 para 0 a 100.
 
 A pergunta de evolução fica **fora** desta média de propósito: ela é a fonte
-exclusiva da dimensão Evolução, e contá-la duas vezes daria peso desproporcional a
-uma única pergunta.
+exclusiva da dimensão Evolução, e contá-la duas vezes daria peso desproporcional
+a uma única pergunta.
 
 Se nenhuma sprint da janela tem avaliação, a dimensão fica indisponível.
 
-**Por que 35% e não mais:** acima disso o ranking vira ranking de opinião de
-gerente vestido de dado. Mesmo com 35%, metade do peso continua em dimensões
-objetivas, que são as difíceis de gamear. E os 35% só são justos se a calibração
-da seção 14 acontecer de fato.
+**Por que é a maior fatia, mas não maior ainda:** acima do que está hoje o
+ranking vira ranking de opinião de gerente vestido de dado. Em projeto com
+código, metade do peso continua em dimensões objetivas, que são as difíceis de
+gamear. E esse peso só é justo se a calibração da seção 14 acontecer de fato.
 
-### 5.3 Qualidade Técnica, peso 20%
+### 5.3 Qualidade Técnica
 
 **O que mede:** o trabalho precisou de pouca correção e seguiu o padrão.
 
-A dimensão combina dois sinais.
+Aqui vale separar dois nomes que confundem. **Nota de commit** é uma das duas
+*fontes*. **Qualidade** é a *dimensão*, que junta as duas fontes num número só:
 
-> **Retrabalho** = 1 menos (tasks reabertas ÷ tasks concluídas), em porcentagem.
-> Sem nenhuma task concluída, o retrabalho é considerado 100.
->
-> **Nota de commit** = média das notas de 0 a 10 que a IA deu aos commits do
-> período, convertida para 0 a 100.
->
-> **Qualidade** = metade da nota de commit mais metade do retrabalho. Sem nota de
-> commit no período, Qualidade é o retrabalho puro.
+| Fonte | O que é | O que ela enxerga |
+|---|---|---|
+| Nota de commit | Uma IA lê a mensagem e o conteúdo de cada commit e dá uma nota de 0 a 10 | Como o trabalho foi feito: clareza, tratamento de erro, documentação, complexidade |
+| Retrabalho | Quantas tasks concluídas voltaram para Em Andamento | Se o trabalho realmente estava pronto |
 
-A divisão meio a meio é configurável pela liderança e começa em 50/50. O valor
-definitivo é decisão do Líder depois do piloto.
+As duas se cobrem. Nota de commit alta com retrabalho alto significa código
+bonito que não funcionava. Retrabalho baixo com nota de commit baixa significa
+que funcionou, mas está mal feito e vai custar caro depois. Nenhuma das duas
+sozinha diz a verdade, por isso a dimensão é a combinação.
+
+> **Retrabalho** = 1 menos (tasks reabertas dividido por tasks concluídas), em
+> porcentagem.
+>
+> **Nota de commit** = média das notas de 0 a 10 do período, convertida para 0 a 100.
+>
+> **Qualidade** = metade da nota de commit mais metade do retrabalho.
+
+**Sobre a divisão meio a meio.** Hoje as duas fontes pesam igual, 50% cada. Esse
+50/50 é um chute inicial, não uma verdade: depois de rodar um ciclo a liderança
+vai saber qual das duas é mais confiável na prática do CITi e pode mudar para
+70/30, por exemplo. Só a liderança muda isso, e a mudança vale a partir da
+leitura seguinte.
+
+Quando falta uma das fontes, a dimensão usa a que sobrou. Em projeto de
+consultoria não existe nota de commit, então Qualidade é o retrabalho puro.
+
+**Quem não concluiu nada fica sem nota de Qualidade.** A dimensão fica
+indisponível, e não vira 100. Dar nota máxima a quem não entregou nada seria
+premiar a ausência de entrega, e a falta de entrega já é penalizada onde deve
+ser, que é em Entrega.
 
 **Reabertura** tem definição estrita: é uma task que estava em Concluída e voltou
 para Em Andamento. Voltar de Concluída para Planejado não conta como reabertura.
 
-Não ter concluído nada resulta em qualidade 100, e isso é uma assimetria
-consciente: quem não entregou já é penalizado em Entrega, não precisa ser
-penalizado duas vezes.
-
-### 5.4 Autonomia, peso 15%
+### 5.4 Autonomia
 
 **O que mede:** quanto a pessoa destrava sozinha antes de escalar.
 
-> **Autonomia** = bloqueios que a própria pessoa resolveu ÷ bloqueios que ela teve,
-> em porcentagem. Sem nenhum bloqueio registrado, a autonomia é 100.
+A dimensão combina duas fontes, pelo mesmo motivo de Qualidade: uma é objetiva
+mas pode não existir, a outra sempre existe mas é subjetiva.
 
-A contagem vem exclusivamente do bloqueio marcado à mão no Kanban, e o numerador
-só cresce quando, ao desmarcar, o gerente informa que quem resolveu foi o
-operacional.
+> **Sinal de bloqueio** = bloqueios que a própria pessoa resolveu dividido pelos
+> bloqueios que ela teve, em porcentagem.
+>
+> **Sinal do gerente** = a pergunta "a pessoa destravou sozinha antes de te
+> escalar?", convertida de 0 a 5 para 0 a 100.
+>
+> **Autonomia** = metade de cada.
+
+Se não houve bloqueio nenhum registrado na janela, Autonomia é só a leitura do
+gerente. Se não houve avaliação, é só o sinal de bloqueio. Se não houver nenhum
+dos dois, a dimensão fica indisponível.
+
+Essa segunda fonte existe por um motivo prático: na maior parte das semanas
+ninguém marca bloqueio nenhum. Antes disso, Autonomia dava 100 fixo nesses casos
+e a dimensão virava peso morto, premiando igualmente quem nunca travou e quem
+travou o tempo todo sem registrar.
 
 Task parada tempo demais **não** entra aqui. Atraso penaliza Entrega, não
 Autonomia, porque são coisas diferentes: uma é sobre demora, a outra é sobre
 depender dos outros.
 
-Zero bloqueio dando autonomia máxima é a escolha correta de incentivo, porque não
-penaliza quem simplesmente não travou. Mas cria um efeito colateral que o gerente
-precisa conhecer: registrar bloqueios reduz o teto de Autonomia de quem registrou,
-a não ser que ele mesmo resolva. Ver seção 12.
-
-### 5.5 Evolução, peso 10%
+### 5.5 Evolução
 
 **O que mede:** quanto a pessoa cresceu em relação a onde estava.
 
-> **Evolução** = a pergunta de evolução do questionário, convertida da escala 0 a 5
-> para 0 a 100.
+> **Evolução** = a pergunta de evolução do questionário, convertida da escala 0 a
+> 5 para 0 a 100.
 
 É a única dimensão que compara a pessoa com ela mesma, e não com um padrão
 absoluto. É o que dá chance real a quem entrou mais júnior.
 
----
+### 5.6 Bônus de task extra
+
+Não é uma dimensão, é um acréscimo direto no score final.
+
+Quando o operacional termina tudo o que tinha e pede mais trabalho (seção 8.8), a
+task concedida é marcada como **extra**. Ela não consome o orçamento de pontos da
+sprint e não entra em Entrega. Se for concluída antes do fechamento:
+
+> **Bônus** = 1 ponto de score por ponto de task extra concluída, somado ao score
+> final, **até o limite de 5 pontos** por janela.
+
+Duas escolhas de desenho por trás disso:
+
+- **Não entra em Entrega** porque a task extra não consumiu orçamento. Colocá-la
+  no denominador puniria justamente quem pediu mais trabalho, e no numerador não
+  faria efeito nenhum por causa do teto de 100.
+- **Tem teto** porque sem ele o ranking viraria "quem pediu mais task", que é
+  exatamente o tipo de métrica de volume que o resto do sistema evita. O gerente
+  também controla a torneira, já que é ele quem decide conceder.
 
 ## 6. Pesos e tipos de projeto
 
-### 6.1 Os cinco pesos
-
-| Dimensão | Peso |
-|---|---|
-| Avaliação do Gerente | **35%** |
-| Entrega e Confiabilidade | **20%** |
-| Qualidade Técnica | **20%** |
-| Autonomia | **15%** |
-| Evolução | **10%** |
-
-Somam 100%. São configuráveis pela liderança, e mudar um peso muda o ranking na
-leitura seguinte, sem precisar reprocessar nada. Isso é de propósito: recalibrar
-depois do piloto tem que ser barato.
-
-### 6.2 Os dois tipos de projeto
+### 6.1 Os dois tipos de projeto
 
 Cada projeto é classificado como:
 
@@ -295,23 +332,38 @@ Cada projeto é classificado como:
 - **Consultoria ou discovery**, projeto sem entrega de código. A avaliação de
   commit fica desligada.
 
-### 6.3 Os pesos são iguais nos dois tipos
+### 6.2 Os pesos
 
-Decisão do Líder, fechada em definitivo: os cinco pesos são idênticos nos dois
-tipos de projeto. Nenhum dado objetivo diferenciava os dois o suficiente para
-justificar pesos distintos, e pesos diferentes tornariam o ranking entre projetos
-incomparável.
+| Dimensão | Projeto padrão | Consultoria ou discovery |
+|---|---|---|
+| Avaliação do Gerente | **35%** | **50%** |
+| Entrega e Confiabilidade | **20%** | **20%** |
+| Qualidade Técnica | **20%** | **10%** |
+| Autonomia | **15%** | **12%** |
+| Evolução | **10%** | **8%** |
 
-O que muda entre os tipos não é o peso, é a **presença de um sinal** dentro de
-Qualidade: em consultoria não existe nota de commit, então Qualidade fica sendo só
-o retrabalho. Mesma régua, uma fonte a menos.
+Cada coluna soma 100%.
 
-### 6.4 Quando a janela mistura projetos
+**Por que consultoria pesa mais no gerente.** Em projeto sem código, metade dos
+sinais objetivos simplesmente não existe: não há commit para avaliar, e Qualidade
+fica reduzida ao retrabalho de Kanban, que num projeto de discovery diz muito
+pouco. Insistir em pesos iguais nos dois tipos seria fingir que existe medição
+objetiva onde ela não existe. O peso maior no gerente reconhece que, nesse tipo
+de projeto, quem tem a leitura real é ele.
 
-Uma janela pode cobrir mais de um projeto. O tipo aplicado é o do projeto com mais
-sprints dentro daquela janela; em empate, vale o projeto da sprint mais recente.
+O preço dessa escolha é que a nota de alguém em consultoria depende mais do
+julgamento de uma pessoa só. É mais um motivo para a calibração da seção 14 ser
+levada a sério, e é o principal ponto a observar no primeiro ciclo.
 
----
+Os pesos são configuráveis pela liderança, e mudar um peso muda o ranking na
+leitura seguinte, sem precisar reprocessar nada. Isso é de propósito: recalibrar
+depois de rodar um ciclo tem que ser barato.
+
+### 6.3 Quando a janela mistura projetos
+
+Uma janela pode cobrir mais de um projeto, inclusive de tipos diferentes. Os
+pesos aplicados são os do projeto com mais sprints dentro daquela janela; em
+empate, vale o projeto da sprint mais recente.
 
 ## 7. O questionário de sete perguntas
 
@@ -330,16 +382,26 @@ escala de **0 a 5**. Todas as sete são obrigatórias, não existe "não sei".
 
 ### 7.1 Para onde vai cada pergunta
 
-As perguntas **1, 2, 3, 4, 5 e 7** formam a dimensão Avaliação do Gerente. Cada
-uma vale um sexto dos 35%, ou seja, cerca de **5,8% do score final**.
+| Pergunta | Alimenta | Peso no score, em projeto padrão |
+|---|---|---|
+| 1, 2, 4, 5, 7 | Avaliação do Gerente | cerca de 5,8% cada |
+| 3 | Avaliação do Gerente **e** metade de Autonomia | cerca de 5,8% mais 7,5% |
+| 6 | Evolução, sozinha | 10% |
 
-A pergunta **6** é a dimensão Evolução inteira, e vale **10% do score final**.
-Ela não entra na média das outras.
+A pergunta 6 não entra na média das outras seis: ela é a dimensão Evolução
+inteira.
 
-Ou seja: a pergunta 5, sobre colaboração, vale por volta de 5,8% do score. É um
-sinal real, mas não é uma dimensão própria. Se o acompanhamento mostrar queda de
-colaboração, o caminho de correção é aumentar o peso da avaliação do gerente ou
-promover a colaboração a dimensão separada.
+A pergunta 3 é a única que alimenta duas coisas, e de propósito. Ela entra na
+média do gerente como qualquer outra, e ao mesmo tempo sustenta metade de
+Autonomia nas semanas em que ninguém registrou bloqueio, que são a maioria.
+
+A pergunta 5, sobre colaboração, vale por volta de 5,8% do score. É um sinal real,
+mas não é uma dimensão própria. Se o acompanhamento mostrar queda de colaboração,
+o caminho de correção é aumentar o peso da avaliação do gerente ou promover a
+colaboração a dimensão separada.
+
+Em projeto de consultoria todos esses pesos sobem, porque a avaliação do gerente
+vale 50% em vez de 35%.
 
 ### 7.2 Como responder bem
 
@@ -348,6 +410,9 @@ promover a colaboração a dimensão separada.
 - **Use a escala inteira.** Um gerente que só dá 4 e 5 destrói a comparação para
   todos os operacionais dele. A calibração da seção 14 existe justamente para isso.
 - **3 é "fez o combinado".** 5 é excepcional, e não "não tenho reclamação".
+- **Cuidado redobrado com a pergunta 3.** Ela é a que mais pesa depois da 6, e na
+  maioria das semanas é a única fonte de Autonomia. Responda pensando em quantas
+  vezes você precisou entrar para destravar a pessoa, não na impressão geral.
 
 ### 7.3 Janela de correção de 48 horas
 
@@ -406,17 +471,25 @@ fechar a conta.
 ### 8.3 Quantos pontos cada task vale
 
 Os pontos da sprint são divididos entre as tasks dela. Uma sprint de 10 pontos
-pode ter cinco tasks de 2, ou duas de 3 mais uma de 4. O que não pode é a soma das
-tasks passar do que a sprint recebeu.
+pode ter cinco tasks de 2, ou duas de 3 mais uma de 4. O que não pode é a soma
+das tasks passar do que a sprint recebeu.
 
 Na prática:
 
 - **Se a sprint tem orçamento definido**, o sistema recusa uma task nova que faria
   a soma estourar, e diz quantos pontos ainda sobram.
+- **Se estourou mas o trabalho existe mesmo**, aparece o botão **"Redistribuir
+  pontos"**. Ele encolhe proporcionalmente as tasks que já estão na sprint para
+  abrir espaço, e mostra o antes e o depois de cada uma. Cada task fica com no
+  mínimo 1 ponto, então sprint muito cheia pode não conseguir abrir o espaço
+  pedido, e aí o sistema diz qual é o máximo liberável.
 - **Se a sprint não tem orçamento definido**, não há validação nenhuma. Você pode
   trabalhar normalmente e planejar depois.
 - **Se você move uma task de uma sprint para outra**, a validação é refeita contra
   a sprint de destino, que é quem vai pagar por aqueles pontos.
+- **Task marcada como extra não entra nessa conta.** Ela é trabalho concedido
+  além do planejado, então por definição não cabe no orçamento e não é validada
+  contra ele (seção 8.8).
 - **Tasks e sprints criadas antes desta regra existir** não são revalidadas. Nada
   quebra retroativamente.
 
@@ -434,73 +507,100 @@ regras controlam o movimento entre elas.
 não existe a quem creditar aquele trabalho quando a semana fechar, então o sistema
 recusa o movimento e pede que você escolha a sprint antes.
 
-**Uma task só vai para Concluída com o checklist completo.** Se você criou um
-checklist na task e sobrou item aberto, o sistema não deixa concluir. Isso evita a
-"concluída" nominal, aquela que volta como reabertura três dias depois e derruba a
-nota de Qualidade da pessoa sem necessidade.
+**Uma task só vai para Concluída com o checklist completo.** Toda task tem uma
+lista de itens que você adiciona ao abri-la, e o card mostra quantos já foram
+marcados, no formato "3/5". Se sobrou item desmarcado, o sistema recusa mover para
+Concluída. Task sem checklist nenhum não trava nada: a regra só vale se você
+criou a lista. É o freio contra a "concluída" nominal, aquela que volta como
+reabertura três dias depois e derruba a nota de Qualidade da pessoa sem
+necessidade.
 
 **Existe um limite de tasks simultâneas em Em Andamento.** Você configura dois
 limites opcionais no projeto: quantas tasks o projeto inteiro pode ter em
 andamento, e quantas cada pessoa pode ter. Ao estourar, o sistema recusa e diz qual
 limite foi atingido. É o freio contra o squad começar dez coisas e terminar duas.
 
-**Todo movimento fica registrado com quem estava na task naquele momento.** Essa é
-a parte invisível e a mais importante: se a Ana pega uma task, conclui, e depois a
-task é passada para o João por algum motivo, os pontos daquela entrega continuam
-sendo da Ana. O sistema guarda quem estava com a task no instante em que ela foi
-concluída, e é isso que ele lê no fechamento.
+**Todo movimento fica registrado com quem estava na task naquele momento.** Se a
+Ana está com uma task e passa para o João antes de terminar, os pontos vão junto:
+quem entrega é quem recebe. O que o registro impede é o caso inverso, de uma task
+que a Ana já concluiu ser repassada depois e o crédito ir para alguém que não fez
+o trabalho.
 
 ### 8.5 Como sinalizar bloqueio de task na tela
 
-Bloqueio é o único dado de Autonomia, então vale detalhar o passo a passo.
+Bloqueio é uma das duas fontes de Autonomia, e é marcado por **quem está travado**,
+ou seja, o próprio operacional. Ele tem acesso ao Kanban do projeto dele e é quem
+sente o problema na hora em que acontece.
 
 **Para marcar um bloqueio:**
 
-1. Vá na aba **Kanban** do projeto e clique na task.
+1. Abra a task no Kanban do projeto.
 2. Marque a caixa **"Bloqueada"**.
-3. Aparecem dois campos: **"Motivo do bloqueio"**, texto livre, e **"Quem
-   bloqueou?"**, onde vai o nome de quem identificou.
+3. Preencha **"Motivo do bloqueio"** e **"Quem bloqueou?"**.
 4. Salve.
 
-A task passa a mostrar uma **borda vermelha** e uma etiqueta vermelha
-**"Bloqueada"** no card, então dá para ver o que está travado só de bater o olho
-no quadro.
+A task passa a mostrar uma **borda vermelha** e uma etiqueta **"Bloqueada"** no
+card, então o gerente vê o que está travado só de bater o olho no quadro. Esse é o
+ganho imediato, independente de pontuação: bloqueio deixa de ser algo que só
+aparece na daily se a pessoa lembrar de falar.
 
-**Para resolver o bloqueio:**
+**O que conta como bloqueio.** Qualquer coisa que impeça o trabalho de continuar e
+que não dependa só de a pessoa sentar e fazer:
+
+- esperando resposta ou material do cliente
+- esperando acesso, credencial ou permissão
+- esperando outra task terminar
+- dúvida técnica que a pessoa não conseguiu resolver sozinha
+- decisão de escopo ou de prioridade que ainda não foi tomada
+
+Não é bloqueio: task difícil, task grande, ou task que a pessoa não começou.
+
+**Para resolver:**
 
 1. Abra a task e **desmarque** a caixa "Bloqueada".
-2. Aparece o campo obrigatório **"Quem resolveu?"**, com duas opções:
-   **Operacional** ou **Gerente**.
+2. Escolha no campo obrigatório **"Quem resolveu?"** entre **Operacional** e
+   **Gerente**.
 3. Salve. Sem escolher uma das duas, o sistema recusa.
 
-Essa escolha é o dado inteiro da dimensão Autonomia:
+Essa escolha é o sinal objetivo de Autonomia: **Operacional** significa que a
+pessoa destravou sozinha e conta a favor dela; **Gerente** significa que alguém
+precisou entrar, e conta como bloqueio ocorrido sem crédito de autonomia.
 
-- **Operacional** significa que a pessoa destravou sozinha. Conta a favor dela.
-- **Gerente** significa que você teve que entrar para destravar. Conta como
-  bloqueio ocorrido, sem crédito de autonomia.
-
-Responda com honestidade. Marcar sempre "Operacional" para não prejudicar ninguém
-transforma a dimensão em ruído e tira do time a única leitura objetiva sobre
-dependência.
+**Se ninguém marcar bloqueio, nada quebra.** Nesse caso Autonomia é calculada só
+pela pergunta 3 do questionário. O registro de bloqueio é o que torna a dimensão
+mais precisa, não o que a torna possível.
 
 ### 8.6 Task parada tempo demais
 
 Todo dia o sistema varre as tasks em Em Andamento. Se uma delas está parada há
-mais dias do que o dobro dos pontos que ela vale, ou seja, uma task de 3 pontos
-parada há 6 dias ou mais, ela ganha uma etiqueta amarela **"⏱ Travada"** no card e
-um aviso dentro da task.
+mais tempo do que o esperado para o tamanho dela, ganha uma etiqueta amarela
+**"Travada"** no card e um aviso dentro da task.
 
-**Isso agora tira ponto.** Os pontos daquela task deixam de contar como entrega no
-fechamento da semana. A lógica é direta: a pessoa até entregou, mas muito depois do
-esperado, então aquela entrega não conta cheia.
+O limite é de **um dia e meio por ponto**:
+
+| Tamanho da task | Vira "travada" depois de |
+|---|---|
+| 1 ponto | 2 dias |
+| 2 pontos | 3 dias |
+| 3 pontos | 5 dias |
+| 4 pontos | 6 dias |
+| 5 pontos | 8 dias |
+| 8 pontos | 12 dias |
+
+O número é proporcional de propósito: uma task de 1 ponto parada há três dias é um
+problema, e uma de 8 pontos no terceiro dia é normal. Com sprint de uma semana,
+tasks acima de 4 pontos só travam depois do fim da sprint, o que é mais um motivo
+para quebrar trabalho grande em tasks menores.
+
+**O efeito na nota.** Se a task for concluída depois do alerta, os pontos dela são
+descontados da Entrega da pessoa. Se ela nunca for concluída, não há desconto
+nenhum, porque os pontos já não estavam contando como entrega.
 
 O aviso dentro da task traz um campo para o **gerente dispensar o alerta**,
-informando o próprio nome. Dispensar tira a etiqueta e **cancela a penalidade**. É
-a válvula de escape para quando o atraso não é responsabilidade do operacional,
-como dependência de cliente, espera por acesso ou mudança de prioridade.
-
-Ou seja: o alerta é automático, mas a penalidade é revisável pelo gerente. Se você
-não dispensar, o sistema entende que o atraso conta.
+informando o próprio nome. Dispensar tira a etiqueta e **cancela o desconto**. É a
+válvula de escape para quando o atraso não é responsabilidade do operacional, como
+dependência de cliente, espera por acesso ou mudança de prioridade. O alerta é
+automático, mas a penalidade é sempre revisável pelo gerente.
 
 Atraso penaliza **Entrega**, e nunca Autonomia. Bloqueio é uma coisa, demora é
 outra.
@@ -534,6 +634,30 @@ porquê, no espírito de um placar.
 Se a avaliação da IA falhar por qualquer motivo, o commit continua sendo registrado
 normalmente. A nota é um extra, não um pré-requisito.
 
+### 8.8 Pedir mais trabalho quando a fila zera
+
+Veio de um feedback real: operacional termina o que tinha e não tem proximidade,
+ou não sabe como pedir mais task, e fica parado. O custo disso é duplo, porque o
+projeto perde capacidade e a pessoa perde Entrega por um motivo que não é dela.
+
+Como funciona:
+
+1. Quando o operacional não tem **nenhuma task em aberto**, aparece no Kanban dele
+   o botão **"Quero mais uma task"**.
+2. Ao clicar, o gerente recebe um **e-mail** e o pedido aparece no topo do Kanban
+   dele.
+3. O gerente pode **criar uma task extra** para a pessoa ou responder **"nada
+   agora"**. Recusar é uma resposta legítima e não penaliza ninguém.
+4. Ao criar a task, o gerente marca a caixa **"Task extra"**. Isso faz duas coisas:
+   a task não consome o orçamento de pontos da sprint, e os pontos dela não entram
+   em Entrega.
+5. Se a pessoa concluir a task extra antes do fechamento, ela ganha o bônus da
+   seção 5.6.
+
+O botão só aparece com a fila zerada, então não dá para pedir task nova enquanto
+há trabalho parado. E um pedido em aberto não vira dez: enquanto o gerente não
+responde, o botão mostra que o pedido está aguardando.
+
 ---
 
 ## 9. O fechamento da sprint
@@ -559,9 +683,11 @@ Para cada operacional com dado na sprint, fica registrado:
 |---|---|
 | Média das seis perguntas do gerente | Questionário |
 | Nota de evolução | Pergunta 6 do questionário |
+| Nota de autonomia percebida | Pergunta 3 do questionário |
 | Pontos que a pessoa pegou | Soma das tasks dela na sprint, concluídas ou não |
 | Pontos que a pessoa entregou | Soma das tasks concluídas por ela |
-| Pontos perdidos por atraso | Tasks que ficaram paradas tempo demais e não foram dispensadas |
+| Pontos descontados por atraso | Tasks concluídas depois do alerta de atraso, sem dispensa do gerente |
+| Pontos de task extra concluída | Tasks marcadas como extra que ficaram prontas na semana |
 | Tasks concluídas e tasks reabertas | Kanban |
 | Bloqueios que teve e quantos resolveu sozinha | Kanban |
 | Nota média dos commits | Avaliação de IA no período |
@@ -597,22 +723,31 @@ Um exemplo. A Ana teve dois bloqueios na semana 1 e um bloqueio na semana 2:
 No primeiro fechamento do projeto ainda não existe marco anterior, então todo o
 histórico entra de uma vez. Isso é esperado.
 
-### 9.5 Confirmar duas vezes não faz nada, e não dá para desfazer
+### 9.5 Confirmar duas vezes não faz nada, e o Líder pode reabrir
 
 Se a sprint já foi fechada, clicar em confirmar de novo **não recalcula e não
 duplica nada**. O sistema devolve o que já estava guardado. Isso protege contra
 clique duplo, aba aberta duas vezes ou colega confirmando junto.
 
-O outro lado dessa proteção é que **não existe botão de refazer o fechamento**. Se
-você fechou a semana com o Kanban desatualizado, a foto errada é a que ficou. As
-opções são:
+**Se o fechamento foi feito com dado errado, o Líder pode reabrir.** No card da
+sprint aparece o botão **"Reabrir fechamento"**, visível só para o Líder. Ele
+apaga a pontuação travada daquela sprint e devolve a sprint ao estado aberto, para
+o gerente corrigir o Kanban e confirmar de novo.
 
-1. **Deixar quieto.** Uma semana torta dilui nas janelas de 2 e 4 sprints.
-2. **Pedir para a liderança apagar o fechamento** direto na base e refazer. Dá
-   trabalho, mexe no marco de tempo da seção 9.4 e pode fazer eventos serem
-   recontados. Só vale a pena para erro grande.
+Três coisas importantes sobre reabrir:
 
-A prevenção é o checklist da seção 14 antes de confirmar.
+- **As respostas do questionário não são apagadas.** O gerente não precisa
+  responder as sete perguntas de todo mundo outra vez, e a janela de 48 horas de
+  edição continua valendo como antes.
+- **O marco de tempo se ajusta sozinho.** Aquele marco que evita contar o mesmo
+  bloqueio duas vezes (seção 9.4) é derivado do fechamento mais recente do
+  projeto, então apagar o fechamento devolve o marco ao estado anterior sem
+  ninguém precisar fazer nada.
+- **É restrito ao Líder** porque mexe em dado que já entrou no ranking. Se você é
+  gerente e precisa corrigir uma semana fechada, peça a ele.
+
+Ainda assim, reabrir é conserto e não rotina. A prevenção é o checklist da seção
+14 antes de confirmar.
 
 ### 9.6 Coisas que acontecem depois do fechamento
 
@@ -684,9 +819,11 @@ nota cheia, trate como indicativa.
 4. **Tira a média entre projetos.** Se a janela cobre mais de um projeto, cada
    dimensão vira a média simples dos valores por projeto. Projeto onde a dimensão
    não existe é ignorado, e não entra como zero.
-5. **Aplica os pesos.** Multiplica cada dimensão pelo peso dela e soma. O
+5. **Aplica os pesos.** Multiplica cada dimensão pelo peso dela e soma. Os
+   pesos dependem do tipo de projeto (seção 6).
+6. **Soma o bônus de task extra**, se houver, respeitando o teto de 5 pontos. O
    resultado é o score final, de 0 a 100.
-6. **Ordena.** As pessoas são listadas da maior nota para a menor, dentro de cada
+7. **Ordena.** As pessoas são listadas da maior nota para a menor, dentro de cada
    janela.
 
 A média entre projetos é simples, e não ponderada por volume: um projeto pequeno
@@ -696,15 +833,16 @@ projeto pequeno machuca tanto quanto num grande.
 
 ### 11.2 Um exemplo do começo ao fim
 
-A Maria, na janela de duas sprints, nos dois casos no mesmo projeto de tipo Padrão.
+A Maria, na janela de duas sprints, nos dois casos no mesmo projeto padrão.
 
 | O que aconteceu | Sprint 12 | Sprint 13 |
 |---|---|---|
 | Pontos que ela pegou | 14 | 10 |
 | Pontos que ela entregou | 12 | 10 |
-| Pontos perdidos por atraso | 0 | 2 |
+| Pontos descontados por atraso | 0 | 2 |
 | Média das seis perguntas do gerente | 4,17 | 4,50 |
-| Nota de evolução | 4 | 5 |
+| Nota de evolução, pergunta 6 | 4 | 5 |
+| Nota de autonomia percebida, pergunta 3 | 4 | 5 |
 | Tasks concluídas | 6 | 4 |
 | Tasks reabertas | 1 | 0 |
 | Bloqueios que teve | 3 | 1 |
@@ -715,14 +853,15 @@ A Maria, na janela de duas sprints, nos dois casos no mesmo projeto de tipo Padr
 
 | Dimensão | Conta | Resultado |
 |---|---|---|
-| Entrega | (12 + 10 menos 2) sobre (14 + 10) | **83,33** |
+| Entrega | (12 mais 10 menos 2) sobre (14 mais 10) | **83,33** |
 | Avaliação do Gerente | média de 4,17 e 4,50, vezes 20 | **86,70** |
 | Qualidade | retrabalho 90,00 e commits 80,00, meio a meio | **85,00** |
-| Autonomia | 3 resolvidos sobre 4 bloqueios | **75,00** |
+| Autonomia | bloqueios 75,00 e pergunta 3 em 90,00, meio a meio | **82,50** |
 | Evolução | média de 4 e 5, vezes 20 | **90,00** |
 
 O retrabalho saiu de 1 task reaberta em 10 concluídas, que dá 90. A nota de
-commits foi a média de 7,5 e 8,5, que dá 8,0, convertida para 80.
+commits foi a média de 7,5 e 8,5, que dá 8,0, convertida para 80. O sinal de
+bloqueio foi 3 resolvidos sozinha em 4 bloqueios, que dá 75.
 
 **O score final:**
 
@@ -731,13 +870,23 @@ commits foi a média de 7,5 e 8,5, que dá 8,0, convertida para 80.
 | Avaliação do Gerente | 86,70 | 35% | 30,35 |
 | Entrega | 83,33 | 20% | 16,67 |
 | Qualidade | 85,00 | 20% | 17,00 |
-| Autonomia | 75,00 | 15% | 11,25 |
+| Autonomia | 82,50 | 15% | 12,38 |
 | Evolução | 90,00 | 10% | 9,00 |
-| | | | **84,26** |
+| | | | **85,39** |
 
-Repare no efeito do atraso: sem os 2 pontos penalizados na sprint 13, a Entrega
-teria sido 91,67 e o score final subiria para 85,93. Uma task travada custou 1,67
-ponto de score.
+Três coisas para reparar neste exemplo:
+
+**O atraso custou caro.** Sem os 2 pontos descontados na sprint 13, a Entrega
+teria sido 91,67 e o score subiria para 87,06. Uma task entregue fora do prazo
+custou 1,67 ponto de score.
+
+**A task extra teria compensado.** Se a Maria tivesse pedido e concluído uma task
+extra de 3 pontos, o bônus levaria o score de 85,39 para **88,39**.
+
+**Em consultoria a mesma pessoa daria 85,62.** Com os pesos de consultoria, a
+leitura do gerente (86,70) puxa mais e a Qualidade pesa menos. A diferença é
+pequena aqui porque as notas dela são parecidas entre si; quanto mais desigual o
+perfil da pessoa, mais os dois tipos de projeto divergem.
 
 ### 11.3 O que acontece quando falta uma dimensão
 
@@ -745,9 +894,10 @@ Se uma dimensão não pode ser calculada, ela **não vira zero**. Ela sai da con
 o resultado é dividido pela soma dos pesos que sobraram.
 
 Voltando à Maria: se ela não tivesse sido avaliada pelo gerente em nenhuma das duas
-sprints, sumiriam a Avaliação do Gerente e a Evolução. Sobrariam Entrega,
-Qualidade e Autonomia, que somam 55% de peso. A conta seria 16,67 mais 17,00 mais
-11,25, dividido por 0,55, dando **81,67**.
+sprints, sumiriam a Avaliação do Gerente e a Evolução, e a Autonomia cairia para
+75,00, porque perderia a fonte da pergunta 3 e sobraria só o sinal de bloqueio.
+Restariam Entrega, Qualidade e Autonomia, que somam 55% de peso. A conta seria
+16,67 mais 17,00 mais 11,25, dividido por 0,55, dando **81,67**.
 
 Isso é matematicamente correto e comportamentalmente perigoso, porque coloca na
 mesma tabela alguém medido por cinco dimensões e alguém medido por três. A defesa
@@ -779,26 +929,28 @@ fórmulas.
 | Tentativa | O que a segura |
 |---|---|
 | Fatiar task para inflar contagem | Entrega é proporção, então o denominador cresce junto. E o número de tasks concluídas sobe sem melhorar o retrabalho |
-| Pegar poucas tasks para garantir 100% de Entrega | Entrega tem teto 100, então não há ganho. E a leitura do gerente, que vale 35%, enxerga volume baixo |
+| Pegar poucas tasks para garantir 100% de Entrega | Entrega tem teto 100, então não há ganho. E a leitura do gerente enxerga volume baixo |
 | Pegar muitas tasks e entregar metade | O que pegou cresce, o que entregou não. Entrega despenca |
-| Segurar task por semanas para entregar "perfeita" | O alerta de atraso tira os pontos dela da Entrega |
+| Segurar task por semanas para entregar "perfeita" | O alerta de atraso desconta os pontos dela da Entrega |
+| Pedir task extra sem parar para acumular bônus | O bônus tem teto de 5 pontos, e quem concede é o gerente |
+| Não concluir nada para escapar da nota de Qualidade | Qualidade fica indisponível, mas Entrega vai a zero, que pesa mais |
 | Commit trivial em volume | A nota é por commit e entra como média, não como soma. Commit trivial puxa a média para baixo |
 | Inflar linha de código com IA | Não existe contagem de linha em lugar nenhum, e a nota de commit avalia complexidade e aderência, não tamanho |
 | Marcar task como concluída sem estar | O checklist bloqueia a conclusão, e a reabertura depois derruba a Qualidade |
-| Nunca registrar bloqueio para manter Autonomia em 100 | Segurada só em parte, ver abaixo |
+| Nunca registrar bloqueio para manter Autonomia alta | A pergunta 3 do gerente sustenta metade da dimensão, e sozinha quando não há bloqueio |
 | Gerente inflar as notas do próprio squad | Só a calibração entre gerentes segura. É defesa social, não técnica |
 
-### 12.3 O buraco conhecido: não registrar bloqueio
+### 12.3 Onde o sistema ainda é frágil
 
-Autonomia é 100 quando não há bloqueio nenhum. Não registrar bloqueio garante nota
-máxima em 15% do score, e nada no sistema impede isso.
+**A calibração é a única defesa contra inflação de nota.** Em projeto padrão o
+gerente responde por 35% do score, e em consultoria por 50%. Nada no sistema
+detecta um gerente que dá 5 para todo mundo. Só outro gerente, olhando os mesmos
+casos, consegue.
 
-As defesas hoje são indiretas. A pergunta 3 do questionário captura a percepção
-real do gerente sobre dependência, e vale por volta de 5,8%. E bloqueio não
-registrado costuma virar task parada, que agora dispara o alerta de atraso e
-penaliza Entrega.
-
-Ainda assim é o vetor de gaming mais aberto do sistema.
+**Bloqueio ainda depende de alguém registrar.** Agora quem marca é o operacional,
+que é quem sente o problema, e a pergunta 3 cobre as semanas sem registro. Mas um
+time que nunca registra bloqueio deixa Autonomia inteiramente na mão da percepção
+do gerente.
 
 ### 12.4 O que nunca entra na conta
 
@@ -891,13 +1043,17 @@ O anúncio é feito pela liderança, fora do sistema.
 
 ### 14.2 Durante a semana
 
-O trabalho é o Kanban normal. Três coisas exigem disciplina:
+O trabalho é o Kanban normal. Quatro coisas exigem atenção:
 
 1. **Pontue as tasks com honestidade.** Os pontos são o denominador de Entrega.
-2. **Registre bloqueio quando houver bloqueio,** e ao resolver informe com
-   honestidade quem resolveu. Esse único campo carrega 15% do score.
+2. **Ao desmarcar um bloqueio, informe com honestidade quem resolveu.** Quem marca
+   o bloqueio é o operacional; a resposta sobre quem destravou é sua.
 3. **Mantenha o responsável da task correto.** Quem está com a task quando ela é
    concluída é quem recebe os pontos.
+4. **Responda os pedidos de task extra.** Quando alguém zera a fila, você recebe
+   um e-mail e o pedido aparece no topo do Kanban. Conceder ou dizer "nada agora"
+   são as duas respostas válidas; deixar sem resposta é a única errada, porque a
+   pessoa fica parada e perde Entrega por um motivo que não é dela.
 
 E fique de olho na etiqueta amarela de atraso. Se o atraso não é culpa do
 operacional, **dispense o alerta na task**, porque senão ele vai descontar pontos
@@ -919,15 +1075,17 @@ No card da sprint, botão **"Avaliação Semanal"**:
 4. Repita até a lista zerar.
 5. Clique em **"Confirmar Avaliação Semanal"**.
 
-**O passo 5 não tem volta.** Antes de clicar, confira quatro coisas:
+**O passo 5 fecha a semana.** Antes de clicar, confira cinco coisas:
 
 - Todas as tasks estão na coluna certa?
 - Os bloqueios resolvidos foram desmarcados com o responsável correto?
 - Os responsáveis das tasks estão como de fato foram?
 - Algum alerta de atraso precisa ser dispensado?
+- As tasks concedidas fora do planejado estão marcadas como extra?
 
 Depois de confirmado, as tasks daquela sprint não podem mais ser excluídas, e
-confirmar de novo não recalcula nada.
+confirmar de novo não recalcula nada. Se você errou, o Líder consegue reabrir o
+fechamento (seção 9.5), mas trate isso como conserto e não como rotina.
 
 ### 14.4 Prazo de correção
 
@@ -937,7 +1095,8 @@ não.
 
 ### 14.5 Calibração entre gerentes
 
-Não é negociável, porque o gerente pesa 35%.
+Não é negociável, porque o gerente pesa 35% em projeto padrão e 50% em
+consultoria.
 
 **Uma vez por ciclo**, os gerentes se reúnem, olham casos reais de operacionais e
 combinam o que é um 3 e o que é um 5. Cada gerente justifica a própria nota para os
@@ -954,7 +1113,8 @@ contra o último item da tabela da seção 12.
 
 - Não vê score final nem ranking, isso é do Líder.
 - Não ajusta pesos.
-- Não reabre fechamento.
+- Não reabre fechamento, isso é do Líder.
+- Não marca bloqueio pelo operacional. Ele registra, você responde quem resolveu.
 - Não comunica posição no ranking a operacional. A comunicação de reconhecimento
   segue a seção 13 e é feita pela liderança.
 
@@ -979,42 +1139,65 @@ os projetos. Ver seção 10.1.
 Vira duas pessoas diferentes no ranking, uma por projeto, cada uma com metade do
 histórico. Não aparece nenhum aviso. É o erro de cadastro mais caro do sistema.
 
-### 15.4 Operacional desativado
+### 15.4 Pessoa que sai do projeto no meio da execução
+
+Este é o caso importante, e ele tem dois caminhos que não se confundem.
+
+**"Remover do projeto"** tira a pessoa do Kanban e das avaliações, mas **preserva
+todo o histórico de pontuação dela**. As sprints que ela já fechou continuam
+contando no acompanhamento, e ela continua no ranking com o que construiu. As
+tasks que ainda estavam com ela ficam sem responsável, para o gerente
+redistribuir. É o caminho certo quando alguém troca de projeto.
+
+**Excluir**, no botão vermelho, apaga a pessoa e **toda a pontuação dela**. É
+irreversível e quase sempre a escolha errada: use só quando o cadastro foi um erro
+desde o começo, como duplicata ou nome de teste.
+
+Se a pessoa vai continuar no CITi em outro projeto, o certo é remover daqui e
+adicionar lá pelo atalho "Já trabalha em outro projeto?", com o **mesmo e-mail**.
+Assim o histórico dos dois projetos continua sendo da mesma pessoa.
+
+### 15.5 Operacional desativado
 
 Sai do ranking imediatamente. O histórico dele continua guardado, mas não é lido.
 
-### 15.5 Sprint sem nenhuma task
+### 15.6 Sprint sem nenhuma task
 
 O fechamento não cria registro para ninguém, e aquela sprint não entra na janela de
 ninguém.
 
-### 15.6 Fechamento feito com dado errado
+### 15.7 Fechamento feito com dado errado
 
-Não há caminho pela tela. Ver seção 9.5.
+O Líder reabre pelo botão no card da sprint. Ver seção 9.5.
 
-### 15.7 Excluir task depois do fechamento
+### 15.8 Excluir task depois do fechamento
 
-Bloqueado. A pontuação da semana já foi travada e aquela task faz parte da conta.
+Bloqueado enquanto a sprint estiver fechada. A pontuação já foi travada e aquela
+task faz parte da conta. Se for mesmo necessário, o Líder reabre o fechamento
+primeiro.
 
-### 15.8 Projeto de consultoria
+### 15.9 Projeto de consultoria
 
-Sem nota de commit, Qualidade vira só o retrabalho. Como retrabalho é 100 quando
-não há tasks concluídas, projeto de consultoria com pouca movimentação de Kanban
-tende a mostrar Qualidade artificialmente alta. Leia com desconto.
-
----
+Sem nota de commit, Qualidade vira só o retrabalho, e o peso dela cai de 20% para
+10% justamente por isso. Projeto de consultoria com pouca movimentação de Kanban
+tende a ter Qualidade indisponível para várias pessoas, e nesse caso o score delas
+é redistribuído entre as outras dimensões (seção 11.3), com a leitura do gerente
+pesando ainda mais do que os 50% nominais.
 
 ## 16. Erros que o sistema devolve e o que fazer
 
 | Mensagem | Quando aparece | O que fazer |
 |---|---|---|
 | "Ainda há avaliações pendentes" | Confirmar a Avaliação Semanal com gente por avaliar | Avaliar os nomes listados e confirmar de novo |
-| "Janela de edição de 48h já encerrada" | Editar avaliação antiga | Não há correção. Registre o desvio para a leitura do Líder |
-| "Orçamento da sprint excedido" | Task com pontos além do que a sprint recebeu | Reduzir os pontos, mover a task para outra sprint, ou aumentar o orçamento da sprint se ainda houver saldo nos 100 |
+| "Janela de edição de 48h já encerrada" | Editar avaliação antiga | Não há correção pela tela. Se for grave, o Líder reabre o fechamento |
+| "Orçamento da sprint excedido" | Task com pontos além do que a sprint recebeu | Usar o botão "Redistribuir pontos", reduzir os pontos, mover a task para outra sprint, ou marcá-la como extra se for trabalho concedido além do planejado |
+| "Não dá para abrir N pontos" | Redistribuir numa sprint onde as tasks já estão no mínimo | A mensagem diz qual é o máximo liberável. Aumentar o orçamento da sprint ou mover alguma task |
 | "Restam só N pontos para distribuir entre as sprints" | Orçamento de sprint estourando os 100 do projeto | Reduzir o orçamento de outra sprint primeiro |
 | "Associe a task a uma sprint antes de movê-la" | Mover para Em Andamento uma task sem sprint | Escolher a sprint e mover de novo |
 | "Itens do checklist ainda não concluídos" | Concluir task com checklist aberto | Marcar os itens ou tirá-los do checklist |
 | "Limite atingido" ao mover para Em Andamento | Estourou o limite de tasks simultâneas | Concluir ou devolver outra task antes |
-| "Informe quem resolveu o bloqueio" | Desmarcar bloqueio sem escolher o responsável | Escolher Operacional ou Gerente, com honestidade, porque isso é a Autonomia |
-| "A pontuação desta sprint já foi travada" | Excluir task de sprint fechada | Não é possível, a task faz parte da conta já travada |
+| "Informe quem resolveu o bloqueio" | Desmarcar bloqueio sem escolher o responsável | Escolher Operacional ou Gerente, com honestidade, porque isso alimenta a Autonomia |
+| "Você ainda tem N tasks em aberto" | Pedir nova task com trabalho pendente | Concluir o que está em aberto primeiro. O botão só existe para quem zerou a fila |
+| "A pontuação desta sprint já foi travada" | Excluir task de sprint fechada | Pedir ao Líder para reabrir o fechamento, ou deixar como está |
+| "Esta sprint não está fechada" | Reabrir uma sprint que nunca foi confirmada | Nada a fazer, ela já está aberta |
 | "Acesso restrito" | Gerente tentando abrir o ranking | Comportamento correto, o score final é do Líder |

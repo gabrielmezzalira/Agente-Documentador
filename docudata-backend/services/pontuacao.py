@@ -45,7 +45,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     tasks = (
         client.table("tasks")
-        .select("id, operacional_id, pontos, coluna_kanban, bloqueado_resolvido_por, bloqueado_resolvido_em")
+        .select("id, operacional_id, pontos, coluna_kanban, extra, bloqueado_resolvido_por, bloqueado_resolvido_em")
         .eq("sprint_id", sprint_id)
         .execute()
         .data or []
@@ -61,10 +61,23 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     tasks_concluidas: dict[str, int] = {}
     bloqueios_totais: dict[str, int] = {}
     bloqueios_proprio: dict[str, int] = {}
+    bonus_extra: dict[str, int] = {}
 
     for task in tasks:
         pontos = task.get("pontos") or 0
-        if task.get("coluna_kanban") == "concluida":
+        concluida = task.get("coluna_kanban") == "concluida"
+
+        # Task extra (pedida pelo operacional depois de fechar tudo que tinha)
+        # não entra em Entrega: ela não consumiu orçamento da sprint e entrar no
+        # denominador puniria quem pediu mais trabalho. Vira bônus, só se
+        # concluída dentro da sprint.
+        if task.get("extra"):
+            if concluida:
+                operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
+                if operacional_id:
+                    bonus_extra[operacional_id] = bonus_extra.get(operacional_id, 0) + pontos
+                    tasks_concluidas[operacional_id] = tasks_concluidas.get(operacional_id, 0) + 1
+        elif concluida:
             operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
             if operacional_id:
                 pontos_concluidos[operacional_id] = pontos_concluidos.get(operacional_id, 0) + pontos
@@ -85,7 +98,10 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks], cutoff)
     qualidade_commit = _calcular_qualidade_commit(client, project_id, cutoff)
-    pontos_penalizados = _somar_travamentos(client, [t["id"] for t in tasks], cutoff)
+    # A penalidade de atraso só faz sentido em task que foi entregue depois do
+    # alerta: se ela nunca foi concluída, os pontos dela já não estão nos
+    # concluídos, e descontar de novo puniria as OUTRAS entregas da pessoa.
+    pontos_penalizados = _somar_travamentos(client, task_ids_concluidas, cutoff)
 
     eventos_tardios = (
         client.table("eventos_pontuacao_tardios")
@@ -118,6 +134,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         | set(reaberturas)
         | set(bloqueios_totais)
         | set(pontos_penalizados)
+        | set(bonus_extra)
         | set(avaliacao_por_operacional)
     )
     if not operacional_ids:
@@ -129,6 +146,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         aval = avaliacao_por_operacional.get(operacional_id)
         gerente_media = None
         gerente_pergunta6 = None
+        gerente_pergunta3 = None
         if aval:
             # A resposta 6 (evolução) fica FORA desta média de propósito: ela é a
             # fonte exclusiva da dimensão Evolução (gerente_pergunta6 abaixo).
@@ -137,6 +155,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
             gerente_media = round(sum(notas) / len(notas), 2)
             gerente_pergunta6 = aval["resposta_6"]
+            gerente_pergunta3 = aval["resposta_3"]
 
         linhas.append({
             "operacional_id": operacional_id,
@@ -145,9 +164,11 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "sprint_fim": agora,
             "gerente_media": gerente_media,
             "gerente_pergunta6": gerente_pergunta6,
+            "gerente_pergunta3": gerente_pergunta3,
             "entrega_pontos_concluidos": pontos_concluidos.get(operacional_id, 0),
             "entrega_pontos_alocados": pontos_alocados.get(operacional_id, 0),
             "entrega_pontos_penalizados": pontos_penalizados.get(operacional_id, 0),
+            "bonus_pontos_extra": bonus_extra.get(operacional_id, 0),
             "qualidade_reaberturas": reaberturas.get(operacional_id, 0),
             "qualidade_tasks_concluidas": tasks_concluidas.get(operacional_id, 0),
             "autonomia_bloqueios_resolvidos_proprio": bloqueios_proprio.get(operacional_id, 0),

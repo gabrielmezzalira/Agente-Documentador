@@ -409,6 +409,7 @@ class TaskCreate(BaseModel):
     coluna_kanban: str = "planejado"
     checklist: Optional[list[dict]] = None  # [{texto, done}]
     ordem: int = 0
+    extra: bool = False  # task concedida além do que a pessoa tinha; não consome orçamento
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -438,6 +439,7 @@ class TaskUpdate(BaseModel):
     bloqueado_manual: Optional[bool] = None
     bloqueado_por: Optional[str] = None
     bloqueado_resolvido_por: Optional[str] = None
+    extra: Optional[bool] = None
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -479,6 +481,7 @@ class TaskResponse(BaseModel):
     travado_override: bool = False
     travado_override_por: Optional[str] = None
     travado_override_em: Optional[datetime] = None
+    extra: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -638,7 +641,8 @@ class PontuacaoOperacionalSprintResponse(BaseModel):
 
 class ConfirmarAvaliacaoResponse(BaseModel):
     sprint_id: str
-    avaliacao_completa_em: datetime
+    # None quando o Líder reabre o fechamento — a sprint volta a ficar em aberto.
+    avaliacao_completa_em: Optional[datetime] = None
     pontuacao_travada_count: int = 0
 
 
@@ -719,3 +723,31 @@ class OperacionalDisponivelResponse(BaseModel):
     papel: Optional[str] = None
     github_login: Optional[str] = None
     projetos: list[str] = []
+
+
+# ── Pedido de task extra ─────────────────────────────────────────────────────
+
+class SolicitacaoTaskCreate(BaseModel):
+    operacional_id: str
+
+
+class SolicitacaoTaskResolve(BaseModel):
+    status: Literal["atendida", "recusada"]
+
+
+class SolicitacaoTaskResponse(BaseModel):
+    id: str
+    project_id: str
+    sprint_id: Optional[str] = None
+    operacional_id: str
+    operacional_nome: Optional[str] = None
+    status: str
+    criado_em: datetime
+    respondido_em: Optional[datetime] = None
+
+
+class RedistribuirPontosRequest(BaseModel):
+    """Encolhe proporcionalmente as tasks já existentes na sprint para caber
+    `pontos_novos`, em vez de simplesmente recusar a task nova."""
+    sprint_id: str
+    pontos_novos: int

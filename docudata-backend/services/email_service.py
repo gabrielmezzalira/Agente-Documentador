@@ -70,3 +70,15 @@ def email_retro_lembrete(projeto_nome: str, sprint_numero: int, dias_sem_retro: 
     <p>Acesse o DocuData e registre a retrospectiva desta sprint para preservar os aprendizados do time.</p>
     """
     return subject, _base_template(f"Sprint {sprint_numero} sem retrospectiva", corpo)
+
+
+def email_solicitacao_task(projeto_nome: str, operacional_nome: str, sprint_numero: int | None) -> tuple[str, str]:
+    """Retorna (subject, html) para o pedido de task extra feito pelo operacional."""
+    subject = f"[DocuData] {operacional_nome} está livre e pediu mais uma task"
+    onde = f" da sprint <strong>{sprint_numero}</strong>" if sprint_numero is not None else ""
+    corpo = f"""
+    <p><strong>{operacional_nome}</strong> concluiu tudo que estava atribuído a ele(a){onde} no projeto <strong>{projeto_nome}</strong> e está pedindo mais trabalho.</p>
+    <p>Abra o Kanban do projeto e, se houver algo disponível, atribua uma task marcada como <strong>extra</strong>. Task extra não consome o orçamento de pontos da sprint.</p>
+    <p>Se não houver nada agora, é só recusar o pedido. Ele não fica pendente pra sempre.</p>
+    """
+    return subject, _base_template("Pedido de nova task", corpo)

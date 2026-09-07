@@ -227,3 +227,68 @@ def test_entrega_sem_penalidade_mantem_o_calculo_antigo():
     linhas = [{"entrega_pontos_concluidos": 12, "entrega_pontos_alocados": 24}]
 
     assert _entrega_por_projeto(linhas) == 50.0
+
+
+# ── Revisão 2 da metodologia (2026-09-07) ────────────────────────────────────
+
+def test_qualidade_sem_entrega_fica_indisponivel_em_vez_de_100():
+    """Dar 100 a quem não concluiu nada premiava a ausência de entrega."""
+    from services.performance import _qualidade_por_projeto
+
+    linhas = [{"qualidade_reaberturas": 0, "qualidade_tasks_concluidas": 0, "qualidade_commit_media": None}]
+
+    assert _qualidade_por_projeto(linhas, 0.5) is None
+
+
+def test_qualidade_sem_entrega_mas_com_commit_usa_o_commit():
+    from services.performance import _qualidade_por_projeto
+
+    linhas = [{"qualidade_reaberturas": 0, "qualidade_tasks_concluidas": 0, "qualidade_commit_media": 8.0}]
+
+    assert _qualidade_por_projeto(linhas, 0.5) == 80.0
+
+
+def test_autonomia_sem_bloqueio_cai_na_pergunta_3():
+    """Antes isso dava 100 fixo e a dimensão virava peso morto."""
+    from services.performance import _autonomia_por_projeto
+
+    linhas = [{
+        "autonomia_bloqueios_resolvidos_proprio": 0,
+        "autonomia_bloqueios_totais": 0,
+        "gerente_pergunta3": 4,
+    }]
+
+    assert _autonomia_por_projeto(linhas, 0.5) == 80.0
+
+
+def test_autonomia_combina_bloqueio_com_pergunta_3():
+    from services.performance import _autonomia_por_projeto
+
+    linhas = [{
+        "autonomia_bloqueios_resolvidos_proprio": 1,
+        "autonomia_bloqueios_totais": 2,   # 50
+        "gerente_pergunta3": 5,            # 100
+    }]
+
+    assert _autonomia_por_projeto(linhas, 0.5) == 75.0
+
+
+def test_autonomia_sem_nenhum_dos_dois_sinais_fica_indisponivel():
+    from services.performance import _autonomia_por_projeto
+
+    linhas = [{
+        "autonomia_bloqueios_resolvidos_proprio": 0,
+        "autonomia_bloqueios_totais": 0,
+        "gerente_pergunta3": None,
+    }]
+
+    assert _autonomia_por_projeto(linhas, 0.5) is None
+
+
+def test_bonus_de_task_extra_respeita_o_teto():
+    from services.performance import _bonus_extra
+
+    assert _bonus_extra([{"bonus_pontos_extra": 3}]) == 3.0
+    assert _bonus_extra([{"bonus_pontos_extra": 4}, {"bonus_pontos_extra": 9}]) == 5.0
+    assert _bonus_extra([{"bonus_pontos_extra": 0}]) == 0.0
+    assert _bonus_extra([{}]) == 0.0

@@ -1324,6 +1324,7 @@ export interface TaskKanbanResponse {
   travado_override: boolean;
   travado_override_por?: string | null;
   travado_override_em?: string | null;
+  extra: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -1366,6 +1367,7 @@ export async function createTaskKanban(data: {
   funcionalidade_id?: string;
   descricao?: string;
   coluna_kanban?: string;
+  extra?: boolean;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
@@ -1397,6 +1399,7 @@ export async function patchTaskKanban(
     bloqueado_manual?: boolean;
     bloqueado_por?: string;
     bloqueado_resolvido_por?: string;
+    extra?: boolean;
   }
 ): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks/${id}`, {
@@ -1638,5 +1641,90 @@ export interface OperacionalDisponivel {
 export async function listOperacionaisDisponiveis(projectId: string): Promise<OperacionalDisponivel[]> {
   const res = await apiFetch(`${API}/operacionais/disponiveis/${projectId}`);
   if (!res.ok) throw new Error("Erro ao buscar operacionais de outros projetos");
+  return res.json();
+}
+
+// Pedido de task extra, reabertura de fechamento, redistribuição de pontos
+
+export interface SolicitacaoTask {
+  id: string;
+  project_id: string;
+  sprint_id: string | null;
+  operacional_id: string;
+  operacional_nome?: string | null;
+  status: "pendente" | "atendida" | "recusada";
+  criado_em: string;
+  respondido_em: string | null;
+}
+
+export async function criarSolicitacaoTask(operacionalId: string): Promise<SolicitacaoTask> {
+  const res = await apiFetch(`${API}/solicitacoes-task`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operacional_id: operacionalId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao pedir nova task");
+  }
+  return res.json();
+}
+
+export async function listSolicitacoesTask(projectId: string): Promise<SolicitacaoTask[]> {
+  const res = await apiFetch(`${API}/solicitacoes-task/projects/${projectId}`);
+  if (!res.ok) throw new Error("Erro ao buscar pedidos de task");
+  return res.json();
+}
+
+export async function resolverSolicitacaoTask(
+  id: string,
+  status: "atendida" | "recusada",
+): Promise<SolicitacaoTask> {
+  const res = await apiFetch(`${API}/solicitacoes-task/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error("Erro ao responder o pedido");
+  return res.json();
+}
+
+export interface AjustePontos {
+  task_id: string;
+  titulo: string;
+  de: number;
+  para: number;
+}
+
+export async function redistribuirPontos(
+  sprintId: string,
+  pontosNovos: number,
+): Promise<{ ajustes: AjustePontos[] }> {
+  const res = await apiFetch(`${API}/tasks/redistribuir-pontos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sprint_id: sprintId, pontos_novos: pontosNovos }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao redistribuir pontos");
+  }
+  return res.json();
+}
+
+export async function reabrirAvaliacaoSemanal(sprintId: string): Promise<void> {
+  const res = await apiFetch(`${API}/avaliacoes/${sprintId}/confirmar`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao reabrir o fechamento");
+  }
+}
+
+export async function removerOperacionalDoProjeto(id: string): Promise<OperacionalResponse> {
+  const res = await apiFetch(`${API}/operacionais/${id}/remover-do-projeto`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao remover do projeto");
+  }
   return res.json();
 }

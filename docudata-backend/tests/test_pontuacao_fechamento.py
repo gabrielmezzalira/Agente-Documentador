@@ -142,9 +142,11 @@ def _mock_client(
         elif name == "task_travamentos":
             def select_side_effect(cols):
                 q = MagicMock()
-                state = {"gt_timestamp": None, "dispensado": None}
+                state = {"gt_timestamp": None, "dispensado": None, "task_ids": None}
 
-                def in_effect(*a, **kw):
+                def in_effect(field, valores):
+                    if field == "task_id":
+                        state["task_ids"] = set(valores)
                     return q
 
                 def eq_effect(field, value):
@@ -159,6 +161,8 @@ def _mock_client(
                 def execute_effect():
                     resp = MagicMock()
                     data = task_travamentos
+                    if state["task_ids"] is not None:
+                        data = [r for r in data if r.get("task_id", "task-1") in state["task_ids"]]
                     if state["dispensado"] is not None:
                         data = [r for r in data if r.get("dispensado", False) == state["dispensado"]]
                     if state["gt_timestamp"] is not None:
@@ -482,3 +486,74 @@ def test_travamento_anterior_ao_cutoff_nao_conta_de_novo():
     linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
 
     assert linha["entrega_pontos_penalizados"] == 5
+
+
+def test_task_extra_vira_bonus_e_fica_fora_de_entrega():
+    """Task extra não consumiu orçamento da sprint, então não pode entrar no
+    denominador de Entrega — entrar puniria quem pediu mais trabalho."""
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[
+            {"id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"},
+            {"id": "task-2", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "concluida", "extra": True},
+        ],
+        task_transicoes=[
+            {"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"},
+            {"task_id": "task-2", "operacional_id": "op-1", "timestamp": "2026-09-03T00:00:00Z"},
+        ],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_concluidos"] == 5
+    assert linha["entrega_pontos_alocados"] == 5
+    assert linha["bonus_pontos_extra"] == 3
+    assert linha["qualidade_tasks_concluidas"] == 2
+
+
+def test_task_extra_nao_concluida_nao_vira_bonus_nem_alocacao():
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[
+            {"id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"},
+            {"id": "task-2", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento", "extra": True},
+        ],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_alocados"] == 5
+    assert linha["bonus_pontos_extra"] == 0
+
+
+def test_travamento_de_task_nao_concluida_nao_penaliza():
+    """A task nunca entregue já não está nos concluídos; descontar de novo
+    puniria as OUTRAS entregas da pessoa."""
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[
+            {"id": "task-1", "operacional_id": "op-1", "pontos": 6, "coluna_kanban": "concluida"},
+            {"id": "task-2", "operacional_id": "op-1", "pontos": 4, "coluna_kanban": "em_andamento"},
+        ],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        task_travamentos=[
+            {"task_id": "task-2", "operacional_id": "op-1", "pontos": 4, "dispensado": False, "timestamp": "2026-09-01T00:00:00Z"},
+        ],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_penalizados"] == 0
+
+
+def test_pergunta_3_fica_guardada_para_autonomia():
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 2, "coluna_kanban": "em_andamento"}],
+        avaliacoes=[_AVALIACAO_OP1],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["gerente_pergunta3"] == _AVALIACAO_OP1["resposta_3"]

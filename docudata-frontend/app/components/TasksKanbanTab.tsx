@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import TutorialBanner from "./TutorialBanner";
+import { useAuth } from "./AuthGuard";
 import {
   listTasksKanban,
   createTaskKanban,
@@ -12,6 +13,11 @@ import {
   listTaskSugestoes,
   resolveTaskSugestao,
   overrideTravamentoTask,
+  redistribuirPontos,
+  criarSolicitacaoTask,
+  listSolicitacoesTask,
+  resolverSolicitacaoTask,
+  type SolicitacaoTask,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
   type TaskSugestaoResponse,
@@ -120,6 +126,9 @@ function TaskModal({
   const [bloqueadoPor, setBloqueadoPor] = useState(task?.bloqueado_por ?? "");
   const [bloqueadoResolvidoPor, setBloqueadoResolvidoPor] = useState("");
   const jaEstavaBloqueadoManual = task?.bloqueado_manual ?? false;
+  const [extra, setExtra] = useState(task?.extra ?? false);
+  const [orcamentoEstourado, setOrcamentoEstourado] = useState(false);
+  const [redistribuindo, setRedistribuindo] = useState(false);
   const [travadoOverridePor, setTravadoOverridePor] = useState("");
   const [overridingTravamento, setOverridingTravamento] = useState(false);
   const [checklist, setChecklist] = useState<{ texto: string; done: boolean }[]>(
@@ -163,6 +172,7 @@ function TaskModal({
           sprint_id: sprintId || undefined,
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
+          extra,
         });
       } else {
         saved = await patchTaskKanban(task!.id, {
@@ -178,14 +188,36 @@ function TaskModal({
           bloqueado_manual: bloqueado,
           bloqueado_por: (bloqueado && !jaEstavaBloqueadoManual) ? (bloqueadoPor.trim() || undefined) : undefined,
           bloqueado_resolvido_por: (!bloqueado && jaEstavaBloqueadoManual) ? bloqueadoResolvidoPor : undefined,
+          extra,
         });
       }
       onSaved(saved);
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro");
+      const msg = e instanceof Error ? e.message : "Erro";
+      setErr(msg);
+      setOrcamentoEstourado(msg.includes("Orçamento da sprint excedido"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRedistribuir() {
+    if (!sprintId) return;
+    setRedistribuindo(true);
+    try {
+      const { ajustes } = await redistribuirPontos(sprintId, pontos);
+      const resumo = ajustes
+        .filter((a) => a.de !== a.para)
+        .map((a) => `${a.titulo}: ${a.de} → ${a.para}`)
+        .join("\n");
+      alert(resumo ? `Pontos redistribuídos:\n\n${resumo}` : "Nada precisou mudar.");
+      setOrcamentoEstourado(false);
+      setErr("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao redistribuir");
+    } finally {
+      setRedistribuindo(false);
     }
   }
 
@@ -273,6 +305,17 @@ function TaskModal({
                 <option key={o.id} value={o.id}>{o.nome}{o.papel ? ` — ${o.papel}` : ""}</option>
               ))}
             </select>
+          </div>
+
+          <div style={{ background: extra ? "#f0fdf4" : "#f8fafc", border: `1px solid ${extra ? "#bbf7d0" : "#e8e8ed"}`, borderRadius: 8, padding: "10px 12px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Task extra</span>
+            </label>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "6px 0 0" }}>
+              Trabalho concedido além do que a pessoa já tinha. Não consome o orçamento
+              de pontos da sprint e, se concluída antes do fechamento, vira bônus.
+            </p>
           </div>
 
           <div>
@@ -459,6 +502,22 @@ function TaskModal({
           )}
 
           {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
+          {orcamentoEstourado && sprintId && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
+              <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px" }}>
+                Dá para encolher as tasks que já estão nesta sprint, proporcionalmente,
+                para abrir os {pontos} pontos que faltam.
+              </p>
+              <button
+                type="button"
+                onClick={handleRedistribuir}
+                disabled={redistribuindo}
+                style={{ background: "#92400e", color: "#fff", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              >
+                {redistribuindo ? "Redistribuindo..." : "Redistribuir pontos"}
+              </button>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 4 }}>
             {mode === "edit" && (
@@ -609,6 +668,10 @@ function TaskCard({
           <span style={{ ...chip, background: "#ede9fe", color: "#7c3aed" }}>{op.nome}</span>
         )}
 
+        {task.extra && (
+          <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>
+        )}
+
         {task.bloqueado && (
           <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>Bloqueada</span>
         )}
@@ -645,6 +708,53 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   // drag
   const [dragId, setDragId] = useState<string | null>(null);
   const [wipError, setWipError] = useState("");
+
+  // pedido de task extra
+  const auth = useAuth();
+  const [solicitacoes, setSolicitacoes] = useState<SolicitacaoTask[]>([]);
+  const [pedindoTask, setPedindoTask] = useState(false);
+  const [avisoPedido, setAvisoPedido] = useState("");
+
+  const ehOperacional = auth?.cargo === "operacional";
+  const meuOperacional = ehOperacional
+    ? operacionais.find((o) => o.ativo && o.email && auth?.email && o.email.toLowerCase() === auth.email.toLowerCase())
+    : undefined;
+  const minhasTasksAbertas = meuOperacional
+    ? tasks.filter((t) => t.operacional_id === meuOperacional.id && t.coluna_kanban !== "concluida").length
+    : 0;
+  const jaPediu = meuOperacional
+    ? solicitacoes.some((s) => s.operacional_id === meuOperacional.id)
+    : false;
+
+  const carregarSolicitacoes = useCallback(() => {
+    listSolicitacoesTask(projectId).then(setSolicitacoes).catch(() => setSolicitacoes([]));
+  }, [projectId]);
+
+  useEffect(() => { carregarSolicitacoes(); }, [carregarSolicitacoes]);
+
+  async function handlePedirTask() {
+    if (!meuOperacional) return;
+    setPedindoTask(true);
+    setAvisoPedido("");
+    try {
+      await criarSolicitacaoTask(meuOperacional.id);
+      setAvisoPedido("Pedido enviado. O gerente foi avisado por e-mail.");
+      carregarSolicitacoes();
+    } catch (e) {
+      setAvisoPedido(e instanceof Error ? e.message : "Erro ao pedir nova task");
+    } finally {
+      setPedindoTask(false);
+    }
+  }
+
+  async function handleResolverPedido(id: string, status: "atendida" | "recusada") {
+    try {
+      await resolverSolicitacaoTask(id, status);
+      setSolicitacoes((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      setWipError("Erro ao responder o pedido.");
+    }
+  }
 
   // modals
   const [createModal, setCreateModal] = useState<{ defaultSprintId?: string } | null>(null);
@@ -822,6 +932,72 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           + Nova task
         </button>
       </div>
+
+      {/* Pedir nova task — só aparece pro operacional que zerou a fila */}
+      {ehOperacional && meuOperacional && minhasTasksAbertas === 0 && (
+        <div style={{
+          background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+          padding: "12px 16px", marginBottom: 14,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: "0 0 4px" }}>
+            Você concluiu tudo que estava com você.
+          </p>
+          <p style={{ fontSize: 12, color: "#3f6f52", margin: "0 0 10px" }}>
+            Peça mais trabalho sem precisar puxar conversa. O gerente recebe um e-mail
+            e, se tiver algo disponível, te passa uma task extra.
+          </p>
+          {jaPediu ? (
+            <p style={{ fontSize: 12, color: "#3f6f52", margin: 0, fontWeight: 600 }}>
+              Pedido enviado, aguardando o gerente.
+            </p>
+          ) : (
+            <button
+              onClick={handlePedirTask}
+              disabled={pedindoTask}
+              style={{ ...btnPrimary, background: "#166534" }}
+            >
+              {pedindoTask ? "Enviando..." : "Quero mais uma task"}
+            </button>
+          )}
+          {avisoPedido && <p style={{ fontSize: 12, color: "#3f6f52", marginTop: 8 }}>{avisoPedido}</p>}
+        </div>
+      )}
+
+      {/* Pedidos pendentes — visão do gerente */}
+      {!ehOperacional && solicitacoes.length > 0 && (
+        <div style={{
+          background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+          padding: "12px 16px", marginBottom: 14,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: "0 0 8px" }}>
+            {solicitacoes.length} pedido{solicitacoes.length > 1 ? "s" : ""} de nova task
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {solicitacoes.map((s) => (
+              <div key={s.id} style={{
+                display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                background: "#fff", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px",
+              }}>
+                <span style={{ fontSize: 13, color: "#374151", flex: 1, minWidth: 0 }}>
+                  <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
+                </span>
+                <button
+                  onClick={() => { handleResolverPedido(s.id, "atendida"); setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id }); }}
+                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534" }}
+                >
+                  Criar task extra
+                </button>
+                <button
+                  onClick={() => handleResolverPedido(s.id, "recusada")}
+                  style={{ ...btnGhost, padding: "4px 12px", fontSize: 12 }}
+                >
+                  Nada agora
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* WIP error banner */}
       {wipError && (

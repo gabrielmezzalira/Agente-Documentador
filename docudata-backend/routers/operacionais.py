@@ -162,8 +162,39 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
     return resp.data[0]
 
 
+@router.post("/{operacional_id}/remover-do-projeto", response_model=OperacionalResponse)
+async def remover_do_projeto(operacional_id: str):
+    """Tira a pessoa do projeto sem apagar nada.
+
+    É o caminho certo quando alguém troca de projeto no meio da execução: a
+    pontuação já travada continua valendo e o histórico dela segue contando no
+    acompanhamento. A pessoa some do Kanban e das avaliações, e as tasks que
+    ainda estavam com ela ficam sem responsável para o gerente redistribuir.
+
+    Para apagar de fato, use DELETE, que é irreversível."""
+    client = get_client()
+    check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Operacional not found")
+
+    (
+        client.table("tasks")
+        .update({"operacional_id": None})
+        .eq("operacional_id", operacional_id)
+        .neq("coluna_kanban", "concluida")
+        .execute()
+    )
+    resp = client.table("operacionais").update({"ativo": False}).eq("id", operacional_id).execute()
+    return resp.data[0]
+
+
 @router.delete("/{operacional_id}", status_code=204)
 async def delete_operacional(operacional_id: str):
+    """Apaga a pessoa e, por cascata do banco, toda a pontuação travada dela.
+
+    Irreversível e quase sempre a escolha errada para quem só saiu do projeto:
+    para esse caso existe POST /operacionais/{id}/remover-do-projeto, que
+    preserva o histórico."""
     client = get_client()
     check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
     if not check.data:

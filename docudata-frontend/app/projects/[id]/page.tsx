@@ -28,6 +28,7 @@ import {
   gerarResumoSemanal,
   listOperacionais,
   listOperacionaisDisponiveis,
+  removerOperacionalDoProjeto,
   createOperacional,
   type OperacionalDisponivel,
   updateOperacional,
@@ -140,8 +141,23 @@ function OperacionaisSection({
     }
   }
 
+  async function handleRemover(op: OperacionalResponse) {
+    if (!confirm(
+      `Remover "${op.nome}" deste projeto?\n\n` +
+      `O histórico de pontuação dele é preservado e continua contando no acompanhamento. ` +
+      `As tasks ainda não concluídas ficam sem responsável para você redistribuir.\n\n` +
+      `Use isso quando a pessoa sai do projeto no meio da execução.`
+    )) return;
+    try {
+      const atualizado = await removerOperacionalDoProjeto(op.id);
+      onUpdated(operacionais.map((o) => (o.id === atualizado.id ? atualizado : o)));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao remover do projeto.");
+    }
+  }
+
   async function handleDelete(op: OperacionalResponse) {
-    if (!confirm(`Excluir "${op.nome}"? As tasks vinculadas ficam sem operacional atribuído, e toda a pontuação/ranking desse operacional será apagada. Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir "${op.nome}" permanentemente? Toda a pontuação e o histórico de ranking dele serão APAGADOS e não há como recuperar.\n\nSe a pessoa só saiu do projeto, use "Remover do projeto" para preservar os pontos.`)) return;
     try {
       await deleteOperacional(op.id);
       onUpdated(operacionais.filter((o) => o.id !== op.id));
@@ -187,8 +203,18 @@ function OperacionaisSection({
           >
             {op.ativo ? "Desativar" : "Ativar"}
           </button>
+          {op.ativo && (
+            <button
+              onClick={() => handleRemover(op)}
+              title="Sai do projeto, mas mantém a pontuação dele no acompanhamento"
+              style={{ background: "none", border: "none", fontSize: 11, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+            >
+              Remover do projeto
+            </button>
+          )}
           <button
             onClick={() => handleDelete(op)}
+            title="Apaga a pessoa e toda a pontuação dela. Irreversível."
             style={{ background: "none", border: "none", fontSize: 11, color: "#dc2626", cursor: "pointer", padding: 0 }}
           >
             ×

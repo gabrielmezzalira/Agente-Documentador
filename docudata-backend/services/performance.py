@@ -9,6 +9,12 @@ uma linha `operacionais` (uma por projeto) — agrupadas aqui por e-mail.
 
 JANELAS = {"sprint": 1, "quinzenal": 2, "mensal": 4}
 
+# Bônus de task extra: cada ponto entregue além do que a pessoa tinha vale 1
+# ponto de score, até o teto. O teto é o que impede o bônus de virar a alavanca
+# principal do ranking.
+BONUS_EXTRA_POR_PONTO = 1.0
+BONUS_EXTRA_TETO = 5.0
+
 
 def listar_pessoas_ativas(client) -> list[dict]:
     """Agrupa operacionais ativos por e-mail — uma pessoa pode ter uma linha
@@ -66,19 +72,36 @@ def _calcular_janela(client, linhas: list[dict], tamanho_esperado: int, pesos_po
         "entrega": _media_cross_projeto(por_projeto, _entrega_por_projeto),
         "gerente": _media_cross_projeto(por_projeto, _gerente_por_projeto),
         "evolucao": _media_cross_projeto(por_projeto, _evolucao_por_projeto),
-        "autonomia": _media_cross_projeto(por_projeto, _autonomia_por_projeto),
+        "autonomia": _media_cross_projeto(
+            por_projeto,
+            lambda ls: _autonomia_por_projeto(ls, float(pesos.get("peso_pergunta3_autonomia") or 0.5)),
+        ),
         "qualidade": _media_cross_projeto(
             por_projeto,
-            lambda ls: _qualidade_por_projeto(ls, float(pesos["peso_commit_qualidade"])),
+            lambda ls: _qualidade_por_projeto(ls, float(pesos.get("peso_commit_qualidade") or 0.5)),
         ),
     }
 
+    base = _score_final(sub_scores, pesos)
+    bonus = _bonus_extra(linhas)
+    score_final = None if base is None else round(min(base + bonus, 100.0), 2)
+
     return {
         **sub_scores,
-        "score_final": _score_final(sub_scores, pesos),
+        "score_final": score_final,
+        "bonus_extra": bonus,
         "janela_parcial": len(linhas) < tamanho_esperado,
         "arquetipo_usado": arquetipo_usado,
     }
+
+
+def _bonus_extra(linhas: list[dict]) -> float:
+    """Task extra é a que o operacional pediu depois de fechar tudo que tinha.
+    Ela não entra em Entrega (não consumiu orçamento da sprint, e entrar no
+    denominador puniria quem pediu mais trabalho): vira um bônus somado ao score
+    final, com teto, para que o ranking não vire "quem pediu mais task"."""
+    pontos = sum(l.get("bonus_pontos_extra") or 0 for l in linhas)
+    return float(min(pontos * BONUS_EXTRA_POR_PONTO, BONUS_EXTRA_TETO))
 
 
 def _media_cross_projeto(por_projeto: dict[str, list[dict]], calc_por_projeto) -> float | None:
@@ -116,23 +139,47 @@ def _evolucao_por_projeto(linhas: list[dict]) -> float | None:
     return round(min(sum(valores) / len(valores) * 20, 100), 2)
 
 
-def _autonomia_por_projeto(linhas: list[dict]) -> float:
+def _autonomia_por_projeto(linhas: list[dict], peso_pergunta3: float) -> float | None:
+    """Combina dois sinais: os bloqueios que a pessoa resolveu sozinha e a leitura
+    do gerente na pergunta 3 ("destravou sozinha antes de te escalar?").
+
+    O sinal de bloqueio só existe quando alguém marca bloqueio, o que na prática
+    é raro. Sem ele, Autonomia era sempre 100 e virava peso morto; por isso a
+    pergunta 3 entra como segunda fonte e sustenta a dimensão sozinha quando não
+    houve bloqueio nenhum (decisão do Líder, 2026-09-07)."""
     resolvidos = sum(l["autonomia_bloqueios_resolvidos_proprio"] for l in linhas)
     totais = sum(l["autonomia_bloqueios_totais"] for l in linhas)
-    if totais <= 0:
-        return 100.0
-    return round(resolvidos / totais * 100, 2)
+    bloqueio_score = round(resolvidos / totais * 100, 2) if totais > 0 else None
+
+    notas3 = [l["gerente_pergunta3"] for l in linhas if l.get("gerente_pergunta3") is not None]
+    pergunta3_score = round(min(sum(notas3) / len(notas3) * 20, 100), 2) if notas3 else None
+
+    if bloqueio_score is None and pergunta3_score is None:
+        return None
+    if bloqueio_score is None:
+        return pergunta3_score
+    if pergunta3_score is None:
+        return bloqueio_score
+    return round(peso_pergunta3 * pergunta3_score + (1 - peso_pergunta3) * bloqueio_score, 2)
 
 
-def _qualidade_por_projeto(linhas: list[dict], peso_commit: float) -> float:
+def _qualidade_por_projeto(linhas: list[dict], peso_commit: float) -> float | None:
+    """Sem nenhuma task concluída e sem nota de commit, a dimensão fica
+    indisponível em vez de 100. Dar 100 a quem não entregou nada era premiar a
+    ausência de entrega (decisão do Líder, 2026-09-07)."""
     reaberturas = sum(l["qualidade_reaberturas"] for l in linhas)
     tasks_concluidas = sum(l["qualidade_tasks_concluidas"] for l in linhas)
-    retrabalho = 100.0 if tasks_concluidas <= 0 else round(max(1 - reaberturas / tasks_concluidas, 0) * 100, 2)
+    retrabalho = None if tasks_concluidas <= 0 else round(max(1 - reaberturas / tasks_concluidas, 0) * 100, 2)
 
     notas_commit = [l["qualidade_commit_media"] for l in linhas if l.get("qualidade_commit_media") is not None]
-    if not notas_commit:
+    commit_score = min(sum(notas_commit) / len(notas_commit) * 10, 100) if notas_commit else None
+
+    if retrabalho is None and commit_score is None:
+        return None
+    if commit_score is None:
         return retrabalho
-    commit_score = min(sum(notas_commit) / len(notas_commit) * 10, 100)
+    if retrabalho is None:
+        return round(commit_score, 2)
     return round(peso_commit * commit_score + (1 - peso_commit) * retrabalho, 2)
 
 

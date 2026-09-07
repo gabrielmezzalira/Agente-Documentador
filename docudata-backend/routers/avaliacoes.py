@@ -9,7 +9,7 @@ from models.schemas import (
     ConfirmarAvaliacaoResponse,
     PendenciaAvaliacaoResponse,
 )
-from services.auth import get_current_pessoa
+from services.auth import get_current_pessoa, require_role
 from services.pontuacao import calcular_e_travar_pontuacao
 from services.supabase_client import get_client
 
@@ -169,4 +169,39 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
         "sprint_id": sprint_id,
         "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"],
         "pontuacao_travada_count": len(pontuacoes),
+    }
+
+
+@router.delete("/{sprint_id}/confirmar", response_model=ConfirmarAvaliacaoResponse, dependencies=[Depends(require_role("lider"))])
+async def reabrir_avaliacao_semanal(sprint_id: str):
+    """Desfaz o fechamento de uma sprint: apaga a pontuação travada e limpa a
+    marca de conclusão, para que o gerente corrija o Kanban e confirme de novo.
+
+    Restrito ao Líder porque mexe em dado que já entrou no ranking. As avaliações
+    do questionário NÃO são apagadas: o gerente não precisa responder tudo de
+    novo, e a janela de 48h de edição continua valendo como antes.
+
+    O marco de tempo que evita dupla contagem (services/pontuacao.py) é derivado
+    do fechamento mais recente do projeto, então apagar estas linhas devolve o
+    marco ao estado anterior automaticamente."""
+    client = get_client()
+
+    sprint = client.table("sprints").select("id, avaliacao_completa_em").eq("id", sprint_id).execute()
+    if not sprint.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    if not sprint.data[0].get("avaliacao_completa_em"):
+        raise HTTPException(status_code=409, detail="Esta sprint não está fechada.")
+
+    apagadas = (
+        client.table("pontuacao_operacional_sprint").delete().eq("sprint_id", sprint_id).execute().data or []
+    )
+    # Eventos que tinham sido redirecionados para cá voltam a ficar pendentes de
+    # um fechamento; sem isso eles seriam contados no próximo fechamento também.
+    client.table("eventos_pontuacao_tardios").delete().eq("sprint_id_alvo", sprint_id).execute()
+
+    resp = client.table("sprints").update({"avaliacao_completa_em": None}).eq("id", sprint_id).execute()
+    return {
+        "sprint_id": sprint_id,
+        "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"],
+        "pontuacao_travada_count": len(apagadas),
     }

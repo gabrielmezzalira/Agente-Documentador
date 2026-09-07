@@ -8,6 +8,7 @@ import type {
   SprintDocType,
   SprintWithStatus,
 } from "../lib/api";
+import { reabrirAvaliacaoSemanal } from "../lib/api";
 import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
 import { useAuth } from "./AuthGuard";
 
@@ -302,6 +303,25 @@ export default function SprintCard({
 }: Props) {
   const cargo = useAuth()?.cargo ?? "lider";
   const [expanded, setExpanded] = useState(false);
+  const [reabrindo, setReabrindo] = useState(false);
+
+  async function handleReabrir() {
+    if (!confirm(
+      `Reabrir o fechamento da Sprint ${sprint.numero}?\n\n` +
+      `A pontuação travada desta sprint é apagada e ela volta a ficar em aberto, ` +
+      `para o gerente corrigir o Kanban e confirmar de novo. ` +
+      `As respostas do questionário NÃO são apagadas.`
+    )) return;
+    setReabrindo(true);
+    try {
+      await reabrirAvaliacaoSemanal(sprint.id);
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao reabrir o fechamento.");
+    } finally {
+      setReabrindo(false);
+    }
+  }
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [expandedSourcesId, setExpandedSourcesId] = useState<string | null>(null);
   const [expandedIngId, setExpandedIngId] = useState<string | null>(null);
@@ -452,6 +472,16 @@ export default function SprintCard({
             onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
           >
             {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
+          </button>
+        )}
+        {cargo === "lider" && sprint.avaliacao_completa_em && (
+          <button
+            style={btnSubtle}
+            disabled={reabrindo}
+            title="Apaga a pontuação travada desta sprint para o gerente corrigir o Kanban e confirmar de novo. As respostas do questionário são mantidas."
+            onClick={handleReabrir}
+          >
+            {reabrindo ? "Reabrindo..." : "Reabrir fechamento"}
           </button>
         )}
         <button

@@ -538,3 +538,58 @@ CREATE INDEX IF NOT EXISTS idx_task_travamentos_operacional ON task_travamentos(
 -- Pontos de entrega descontados por travamento automático no período.
 ALTER TABLE pontuacao_operacional_sprint
     ADD COLUMN IF NOT EXISTS entrega_pontos_penalizados int NOT NULL DEFAULT 0;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Revisão 2 da metodologia de performance (2026-09-07)
+--   1. Task extra sob demanda: o operacional pede mais trabalho, o
+--      gerente concede, e os pontos entram como bônus fora do
+--      orçamento da sprint.
+--   2. Autonomia passa a combinar bloqueio (agora marcado pelo
+--      operacional) com a pergunta 3 do gerente.
+--   3. Consultoria/discovery ganha pesos próprios, com o gerente
+--      valendo 50%.
+-- ═══════════════════════════════════════════════════════════════
+
+-- Pedido de task extra. O operacional só consegue abrir quando não tem mais
+-- nada em aberto; o gerente recebe por e-mail e decide se concede.
+CREATE TABLE IF NOT EXISTS solicitacoes_task (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id      uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    sprint_id       uuid        REFERENCES sprints(id) ON DELETE SET NULL,
+    operacional_id  uuid        NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    status          text        NOT NULL DEFAULT 'pendente'
+                                CHECK (status IN ('pendente', 'atendida', 'recusada')),
+    criado_em       timestamptz NOT NULL DEFAULT now(),
+    respondido_em   timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_task_projeto ON solicitacoes_task(project_id, status);
+
+-- Task extra: concedida depois que a pessoa fechou tudo que tinha. Não consome
+-- o orçamento de pontos da sprint e vira bônus no score, não Entrega.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS extra boolean NOT NULL DEFAULT false;
+
+ALTER TABLE pontuacao_operacional_sprint
+    ADD COLUMN IF NOT EXISTS gerente_pergunta3 int,
+    ADD COLUMN IF NOT EXISTS bonus_pontos_extra int NOT NULL DEFAULT 0;
+
+-- Peso da pergunta 3 dentro de Autonomia. O resto vem dos bloqueios marcados.
+ALTER TABLE pesos_arquetipo
+    ADD COLUMN IF NOT EXISTS peso_pergunta3_autonomia numeric(3,2) NOT NULL DEFAULT 0.50;
+
+-- Consultoria/discovery deixa de ter os mesmos pesos de projeto com código:
+-- sem sinal de commit, a leitura do gerente passa a valer 50%.
+UPDATE pesos_arquetipo SET
+    peso_gerente   = 0.50,
+    peso_entrega   = 0.20,
+    peso_qualidade = 0.10,
+    peso_autonomia = 0.12,
+    peso_evolucao  = 0.08
+WHERE arquetipo = 'consultoria_discovery';
+
+UPDATE pesos_arquetipo SET
+    peso_gerente   = 0.35,
+    peso_entrega   = 0.20,
+    peso_qualidade = 0.20,
+    peso_autonomia = 0.15,
+    peso_evolucao  = 0.10
+WHERE arquetipo = 'padrao';

@@ -2,8 +2,10 @@
 Job diário de travamento automático por tempo (Parte 4 do SDD — ALERT-01).
 
 Regra: uma task parada em em_andamento por dias_desde(entrou_em_andamento_em)
->= pontos_da_task x 2 (limiar proporcional ao ponto) vira um alerta visível
-(travado_automatico=true).
+>= pontos_da_task x 1.5 (limiar proporcional ao ponto) vira um alerta visível
+(travado_automatico=true). O fator era 2 e foi baixado em 2026-09-07: com sprint
+de uma semana, x2 fazia uma task de 4 pontos só travar em 8 dias, ou seja, depois
+da sprint acabar — o alerta praticamente nunca disparava a tempo.
 
 Revisão 2026-09-07 (decisão do Líder): o travamento deixou de ser só alerta. Cada
 marcação grava um evento em task_travamentos, e o fechamento da sprint desconta
@@ -21,6 +23,9 @@ from datetime import datetime, timezone
 from services.supabase_client import get_client
 
 log = logging.getLogger("travamento_checker")
+
+# Dias de tolerância por ponto da task antes do alerta de atraso disparar.
+LIMIAR_DIAS_POR_PONTO = 1.5
 
 
 def check_travamento_automatico() -> None:
@@ -56,7 +61,7 @@ def check_travamento_automatico() -> None:
             entrou_dt = entrou_dt.replace(tzinfo=timezone.utc)
 
         dias_decorridos = (agora - entrou_dt).total_seconds() / 86400
-        limiar_dias = (task.get("pontos") or 0) * 2
+        limiar_dias = (task.get("pontos") or 0) * LIMIAR_DIAS_POR_PONTO
 
         if dias_decorridos >= limiar_dias:
             client.table("tasks").update({"travado_automatico": True}).eq("id", task["id"]).execute()
