@@ -193,3 +193,37 @@ def test_score_final_e_soma_ponderada():
 
     # todas as dimensões = 100 -> score final = 100
     assert ranking["sprint"]["score_final"] == 100.0
+
+
+def test_entrega_desconta_pontos_penalizados_por_travamento():
+    """Travamento automático não vira bloqueio (Autonomia intacta) — ele corta
+    a Entrega, tirando os pontos da task travada dos concluídos."""
+    from services.performance import _entrega_por_projeto
+
+    linhas = [{
+        "entrega_pontos_concluidos": 10,
+        "entrega_pontos_alocados": 20,
+        "entrega_pontos_penalizados": 5,
+    }]
+
+    assert _entrega_por_projeto(linhas) == 25.0
+
+
+def test_entrega_nunca_fica_negativa_com_penalidade_maior_que_o_concluido():
+    from services.performance import _entrega_por_projeto
+
+    linhas = [{
+        "entrega_pontos_concluidos": 3,
+        "entrega_pontos_alocados": 10,
+        "entrega_pontos_penalizados": 9,
+    }]
+
+    assert _entrega_por_projeto(linhas) == 0.0
+
+
+def test_entrega_sem_penalidade_mantem_o_calculo_antigo():
+    from services.performance import _entrega_por_projeto
+
+    linhas = [{"entrega_pontos_concluidos": 12, "entrega_pontos_alocados": 24}]
+
+    assert _entrega_por_projeto(linhas) == 50.0

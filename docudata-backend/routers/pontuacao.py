@@ -1,7 +1,9 @@
-"""Router do Motor de Score (Phase 18): SPI do operacional e baseline de
-evolução. Acesso restrito a cargo=lider (RBAC Phase 16,
-.planning/intel/decisions.md #4) — nenhum payload de score/SPI é exposto a
-Gerente ou Operacional."""
+"""Router do Motor de Score: SPI do operacional, evolução e baseline.
+
+Acesso: o ranking e o score final continuam exclusivos do Líder
+(routers/performance.py). SPI travado e Evolução por operacional foram abertos
+ao Gerente em 2026-09-07 (decisão do Líder) para sustentar a conversa de
+feedback — Operacional segue sem acesso a nenhum payload de score."""
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,10 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from models.schemas import (
     BaselineEvolucaoCreate,
     BaselineEvolucaoResponse,
+    SpiEvolucaoOperacionalResponse,
     SpiOperacionalResponse,
 )
-from services.auth import require_role
-from services.pontuacao import calcular_spi_operacional
+from services.auth import require_not_operacional, require_role
+from services.pontuacao import calcular_spi_operacional, listar_spi_evolucao_do_projeto
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["pontuacao"])
@@ -21,11 +24,26 @@ router = APIRouter(tags=["pontuacao"])
 @router.get(
     "/operacionais/{operacional_id}/spi",
     response_model=SpiOperacionalResponse,
-    dependencies=[Depends(require_role("lider"))],
+    dependencies=[Depends(require_not_operacional)],
 )
 async def get_spi_operacional(operacional_id: str):
     client = get_client()
     return calcular_spi_operacional(client, operacional_id)
+
+
+@router.get(
+    "/projects/{projeto_id}/spi-evolucao",
+    response_model=list[SpiEvolucaoOperacionalResponse],
+    dependencies=[Depends(require_not_operacional)],
+)
+async def get_spi_evolucao_do_projeto(projeto_id: str):
+    """SPI travado e Evolução de cada operacional do projeto — a leitura que o
+    gerente usa na conversa de feedback. Não expõe score final nem ranking."""
+    client = get_client()
+    projeto = client.table("projects").select("id").eq("id", projeto_id).execute()
+    if not projeto.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return listar_spi_evolucao_do_projeto(client, projeto_id)
 
 
 @router.post(

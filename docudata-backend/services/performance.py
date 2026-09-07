@@ -89,11 +89,17 @@ def _media_cross_projeto(por_projeto: dict[str, list[dict]], calc_por_projeto) -
 
 
 def _entrega_por_projeto(linhas: list[dict]) -> float | None:
+    """Entrega desconta os pontos penalizados por travamento automático: uma task
+    que ficou parada muito além do tempo esperado não conta como entrega cheia
+    (decisão do Líder, 2026-09-07). O gerente pode dispensar o travamento no
+    alerta da task, e aí ele não penaliza."""
     concluidos = sum(l["entrega_pontos_concluidos"] for l in linhas)
+    penalizados = sum(l.get("entrega_pontos_penalizados") or 0 for l in linhas)
     alocados = sum(l["entrega_pontos_alocados"] for l in linhas)
     if alocados <= 0:
         return None
-    return round(min(concluidos / alocados * 100, 100), 2)
+    efetivos = max(concluidos - penalizados, 0)
+    return round(min(efetivos / alocados * 100, 100), 2)
 
 
 def _gerente_por_projeto(linhas: list[dict]) -> float | None:

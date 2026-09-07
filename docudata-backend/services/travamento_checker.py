@@ -2,12 +2,17 @@
 Job diário de travamento automático por tempo (Parte 4 do SDD — ALERT-01).
 
 Regra: uma task parada em em_andamento por dias_desde(entrou_em_andamento_em)
->= pontos_da_task x 2 (limiar proporcional ao ponto) vira um ALERTA visível
-(travado_automatico=true) — nunca pontuação.
+>= pontos_da_task x 2 (limiar proporcional ao ponto) vira um alerta visível
+(travado_automatico=true).
 
-IMPORTANTE (NFR do SDD): este job nunca escreve em nenhum campo que alimenta fórmula de score
-— quando a Phase 18 (Motor de Score) existir, nenhuma dimensão deve ler
-travado_automatico. Só bloqueado_manual alimenta Autonomia.
+Revisão 2026-09-07 (decisão do Líder): o travamento deixou de ser só alerta. Cada
+marcação grava um evento em task_travamentos, e o fechamento da sprint desconta
+os pontos daquela task dos pontos concluídos do operacional — penaliza a dimensão
+Entrega. O evento carrega timestamp para o cutoff do fechamento evitar dupla
+contagem, e é marcado como dispensado quando o gerente dá override no alerta.
+
+Autonomia continua alimentada exclusivamente por bloqueado_manual: travamento por
+tempo penaliza Entrega, nunca Autonomia.
 """
 
 import logging
@@ -25,7 +30,7 @@ def check_travamento_automatico() -> None:
 
     resp = (
         client.table("tasks")
-        .select("id, pontos, entrou_em_andamento_em, travado_automatico, travado_override")
+        .select("id, pontos, operacional_id, entrou_em_andamento_em, travado_automatico, travado_override")
         .eq("coluna_kanban", "em_andamento")
         .execute()
     )
@@ -55,6 +60,20 @@ def check_travamento_automatico() -> None:
 
         if dias_decorridos >= limiar_dias:
             client.table("tasks").update({"travado_automatico": True}).eq("id", task["id"]).execute()
+            _registrar_travamento(client, task)
             marcadas += 1
 
     log.info("Travamento automático: %d task(s) marcada(s) de %d verificada(s)", marcadas, len(tasks))
+
+
+def _registrar_travamento(client, task: dict) -> None:
+    """Grava o evento que o fechamento da sprint vai ler para penalizar Entrega.
+    Best-effort: falha aqui não pode impedir a marcação do alerta em si."""
+    try:
+        client.table("task_travamentos").insert({
+            "task_id": task["id"],
+            "operacional_id": task.get("operacional_id"),
+            "pontos": task.get("pontos") or 0,
+        }).execute()
+    except Exception:
+        log.warning("Falha ao registrar evento de travamento da task %s", task["id"])

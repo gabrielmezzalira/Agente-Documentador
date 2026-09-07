@@ -1607,3 +1607,36 @@ export async function getMetodologia(slug: string): Promise<MetodologiaResponse>
   if (!res.ok) throw new Error("Erro ao carregar o documento");
   return res.json();
 }
+
+// SPI travado + Evolução por operacional do projeto (Líder e Gerente)
+
+export interface SpiEvolucaoOperacional {
+  operacional_id: string;
+  nome: string;
+  spi: number | null;
+  evolucao: number | null;
+  sprints_avaliadas: number;
+  pontos_penalizados: number;
+}
+
+export async function getSpiEvolucaoProjeto(projectId: string): Promise<SpiEvolucaoOperacional[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/spi-evolucao`);
+  if (!res.ok) throw new Error("Erro ao buscar SPI e evolução por operacional");
+  return res.json();
+}
+
+// Pessoas já cadastradas em outros projetos, para vincular sem redigitar
+
+export interface OperacionalDisponivel {
+  nome: string;
+  email: string | null;
+  papel: string | null;
+  github_login: string | null;
+  projetos: string[];
+}
+
+export async function listOperacionaisDisponiveis(projectId: string): Promise<OperacionalDisponivel[]> {
+  const res = await apiFetch(`${API}/operacionais/disponiveis/${projectId}`);
+  if (!res.ok) throw new Error("Erro ao buscar operacionais de outros projetos");
+  return res.json();
+}

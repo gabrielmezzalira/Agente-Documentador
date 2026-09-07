@@ -27,7 +27,9 @@ import {
   listFuncionalidades,
   gerarResumoSemanal,
   listOperacionais,
+  listOperacionaisDisponiveis,
   createOperacional,
+  type OperacionalDisponivel,
   updateOperacional,
   deleteOperacional,
   type Project,
@@ -72,10 +74,30 @@ function OperacionaisSection({
 }) {
   const [adding, setAdding] = useState(false);
   const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
   const [papel, setPapel] = useState("");
   const [githubLogin, setGithubLogin] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [disponiveis, setDisponiveis] = useState<OperacionalDisponivel[]>([]);
+
+  // Pessoas já cadastradas em outros projetos. Redigitar cria a mesma pessoa com
+  // e-mail divergente e a parte em duas no ranking, que casa identidade por e-mail.
+  useEffect(() => {
+    if (!adding) return;
+    listOperacionaisDisponiveis(projectId).then(setDisponiveis).catch(() => setDisponiveis([]));
+  }, [adding, projectId]);
+
+  function preencherCom(pessoa: OperacionalDisponivel) {
+    setNome(pessoa.nome);
+    setEmail(pessoa.email ?? "");
+    setPapel(pessoa.papel ?? "");
+    setGithubLogin(pessoa.github_login ?? "");
+  }
+
+  function limparForm() {
+    setNome(""); setEmail(""); setPapel(""); setGithubLogin("");
+  }
 
   const inputSm: React.CSSProperties = {
     padding: "6px 10px",
@@ -95,11 +117,13 @@ function OperacionaisSection({
       const novo = await createOperacional({
         project_id: projectId,
         nome: nome.trim(),
+        email: email.trim() || undefined,
         papel: papel.trim() || undefined,
         github_login: githubLogin.trim() || undefined,
       });
       onUpdated([...operacionais, novo]);
-      setNome(""); setPapel(""); setGithubLogin(""); setAdding(false);
+      limparForm();
+      setAdding(false);
     } catch {
       setErr("Erro ao adicionar.");
     } finally {
@@ -153,6 +177,9 @@ function OperacionaisSection({
           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#111116" }}>
             {op.nome}
             {op.papel && <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 8 }}>{op.papel}</span>}
+            {op.email
+              ? <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 8 }}>{op.email}</span>
+              : <span style={{ fontWeight: 400, color: "#d97706", marginLeft: 8 }} title="Sem e-mail, esta pessoa não é reconhecida entre projetos">sem e-mail</span>}
           </span>
           <button
             onClick={() => handleToggleAtivo(op)}
@@ -170,27 +197,63 @@ function OperacionaisSection({
       ))}
 
       {adding && (
-        <form onSubmit={handleAdd} style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 12, flexWrap: "wrap" }}>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Nome *</label>
-            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João Silva" style={{ ...inputSm, width: 180 }} required />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Papel</label>
-            <input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Front, Back, DS…" style={{ ...inputSm, width: 140 }} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>GitHub username</label>
-            <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} placeholder="ex: joaosilva" style={{ ...inputSm, width: 140 }} />
-          </div>
-          <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            {saving ? "…" : "Salvar"}
-          </button>
-          <button type="button" onClick={() => { setAdding(false); setNome(""); setPapel(""); setGithubLogin(""); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
-            Cancelar
-          </button>
-          {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
-        </form>
+        <div style={{ marginTop: 12 }}>
+          {disponiveis.length > 0 && (
+            <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#0369a1", margin: "0 0 6px" }}>
+                Já trabalha em outro projeto?
+              </p>
+              <p style={{ fontSize: 11, color: "#0c4a6e", margin: "0 0 8px" }}>
+                Selecione a pessoa para reaproveitar o cadastro. Redigitar com e-mail
+                diferente faz ela contar como duas pessoas no acompanhamento.
+              </p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {disponiveis.map((pessoa) => (
+                  <button
+                    key={pessoa.email || pessoa.nome}
+                    type="button"
+                    onClick={() => preencherCom(pessoa)}
+                    style={{ background: "#fff", border: "1px solid #bae6fd", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "#0369a1", fontWeight: 600 }}
+                    title={pessoa.projetos.join(", ")}
+                  >
+                    {pessoa.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleAdd} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Nome *</label>
+              <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João Silva" style={{ ...inputSm, width: 180 }} required />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>E-mail</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="joao@citi.com" style={{ ...inputSm, width: 190 }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Papel</label>
+              <input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Front, Back, DS…" style={{ ...inputSm, width: 140 }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>GitHub username</label>
+              <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} placeholder="ex: joaosilva" style={{ ...inputSm, width: 140 }} />
+            </div>
+            <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {saving ? "…" : "Salvar"}
+            </button>
+            <button type="button" onClick={() => { setAdding(false); limparForm(); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+              Cancelar
+            </button>
+            {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+          </form>
+
+          <p style={{ fontSize: 11, color: "#9696a0", marginTop: 8 }}>
+            E-mail e GitHub username não são obrigatórios, mas sem eles a pessoa não é
+            reconhecida entre projetos e os commits dela não contam na nota de qualidade.
+          </p>
+        </div>
       )}
     </section>
   );

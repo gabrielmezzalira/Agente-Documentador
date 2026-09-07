@@ -23,12 +23,14 @@ import {
   getMetricasCycleTime,
   getMetricasCfd,
   getMetricasPerformanceOperacional,
+  getSpiEvolucaoProjeto,
   getMetricasCycleTimeStats,
   type SpiPoint,
   type ThroughputPoint,
   type CycleTimePoint,
   type CfdPoint,
   type PerformanceOperacionalPoint,
+  type SpiEvolucaoOperacional,
   type CycleTimeStats,
 } from "../lib/api";
 
@@ -69,6 +71,7 @@ const TOOLTIPS: Record<string, string> = {
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
+  spievol: "Só entra o que já foi travado pelo fechamento da Avaliação Semanal — é o mesmo dado que alimenta o acompanhamento de performance. SPI = pontos entregues sobre pontos que a pessoa pegou, já descontando o que foi penalizado por task parada tempo demais. Evolução = leitura do gerente sobre o quanto a pessoa cresceu, na escala 0 a 100.",
   perfop: "SPI estimado por operacional — soma de todos os pontos já atribuídos ao operacional (qualquer coluna) dividida pelos pontos realizados. É um proxy interino, recomputado ao vivo, não um baseline travado por operacional.",
 };
 
@@ -110,6 +113,7 @@ export default function MetricasTab({ projectId }: Props) {
   const [cycleTime, setCycleTime] = useState<CycleTimePoint[]>([]);
   const [cfd, setCfd] = useState<CfdPoint[]>([]);
   const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
+  const [spiEvolucao, setSpiEvolucao] = useState<SpiEvolucaoOperacional[]>([]);
   const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -123,14 +127,16 @@ export default function MetricasTab({ projectId }: Props) {
       getMetricasCfd(projectId),
       getMetricasPerformanceOperacional(projectId),
       getMetricasCycleTimeStats(projectId),
+      getSpiEvolucaoProjeto(projectId).catch(() => [] as SpiEvolucaoOperacional[]),
     ])
-      .then(([s, t, ct, c, po, cts]) => {
+      .then(([s, t, ct, c, po, cts, se]) => {
         setSpi(s);
         setThroughput(t);
         setCycleTime(ct);
         setCfd(c);
         setPerfOp(po);
         setCtStats(cts);
+        setSpiEvolucao(se);
         setErr("");
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar métricas"))
@@ -304,6 +310,65 @@ export default function MetricasTab({ projectId }: Props) {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* SPI travado e Evolução por operacional */}
+      <div style={section}>
+        <p style={title}>Entrega e evolução por pessoa <InfoTooltip id="spievol" /></p>
+        <p style={subtitle}>
+          Dado consolidado nos fechamentos de sprint. Use na conversa de feedback.
+        </p>
+        {spiEvolucao.length === 0 ? (
+          <p style={empty}>Nenhum operacional cadastrado neste projeto.</p>
+        ) : (
+          <div style={{ overflowX: "auto", marginTop: 12 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={thSt}>Pessoa</th>
+                  <th style={thSt}>Entrega</th>
+                  <th style={thSt}>Evolução</th>
+                  <th style={thSt}>Sprints avaliadas</th>
+                  <th style={thSt}>Pontos perdidos por atraso</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spiEvolucao.map((op) => (
+                  <tr key={op.operacional_id}>
+                    <td style={tdSt}>{op.nome}</td>
+                    <td style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#94a3b8" : spiColor(op.spi / 100) }}>
+                      {op.spi === null ? "—" : op.spi}
+                    </td>
+                    <td style={{ ...tdSt, fontWeight: 700, color: op.evolucao === null ? "#94a3b8" : "#0f172a" }}>
+                      {op.evolucao === null ? "—" : op.evolucao}
+                    </td>
+                    <td style={tdSt}>{op.sprints_avaliadas}</td>
+                    <td style={{ ...tdSt, color: op.pontos_penalizados > 0 ? "#dc2626" : "#94a3b8" }}>
+                      {op.pontos_penalizados || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+const thSt: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 12px",
+  borderBottom: "1px solid #e8e8ed",
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#9696a0",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
+};
+
+const tdSt: React.CSSProperties = {
+  padding: "9px 12px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#374151",
+};

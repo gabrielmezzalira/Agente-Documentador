@@ -85,6 +85,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     reaberturas = _contar_reaberturas(client, [t["id"] for t in tasks], cutoff)
     qualidade_commit = _calcular_qualidade_commit(client, project_id, cutoff)
+    pontos_penalizados = _somar_travamentos(client, [t["id"] for t in tasks], cutoff)
 
     eventos_tardios = (
         client.table("eventos_pontuacao_tardios")
@@ -116,6 +117,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         | set(pontos_concluidos)
         | set(reaberturas)
         | set(bloqueios_totais)
+        | set(pontos_penalizados)
         | set(avaliacao_por_operacional)
     )
     if not operacional_ids:
@@ -128,7 +130,11 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         gerente_media = None
         gerente_pergunta6 = None
         if aval:
-            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_6"], aval["resposta_7"]]
+            # A resposta 6 (evolução) fica FORA desta média de propósito: ela é a
+            # fonte exclusiva da dimensão Evolução (gerente_pergunta6 abaixo).
+            # Contá-la aqui também daria peso triplo a uma única pergunta —
+            # revertido por decisão do Líder em 2026-09-07.
+            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
             gerente_media = round(sum(notas) / len(notas), 2)
             gerente_pergunta6 = aval["resposta_6"]
 
@@ -141,6 +147,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "gerente_pergunta6": gerente_pergunta6,
             "entrega_pontos_concluidos": pontos_concluidos.get(operacional_id, 0),
             "entrega_pontos_alocados": pontos_alocados.get(operacional_id, 0),
+            "entrega_pontos_penalizados": pontos_penalizados.get(operacional_id, 0),
             "qualidade_reaberturas": reaberturas.get(operacional_id, 0),
             "qualidade_tasks_concluidas": tasks_concluidas.get(operacional_id, 0),
             "autonomia_bloqueios_resolvidos_proprio": bloqueios_proprio.get(operacional_id, 0),
@@ -195,6 +202,31 @@ def _contar_reaberturas(client, task_ids: list[str], cutoff: str | None = None) 
         if op:
             contagem[op] = contagem.get(op, 0) + 1
     return contagem
+
+
+def _somar_travamentos(client, task_ids: list[str], cutoff: str | None = None) -> dict[str, int]:
+    """Pontos a descontar da Entrega por travamento automático no período.
+
+    Um travamento dispensado pelo gerente (override do alerta) não penaliza. O
+    filtro por cutoff é o mesmo das reaberturas: um travamento já contabilizado
+    num fechamento anterior não conta de novo."""
+    if not task_ids:
+        return {}
+    query = (
+        client.table("task_travamentos")
+        .select("operacional_id, pontos, timestamp")
+        .in_("task_id", task_ids)
+        .eq("dispensado", False)
+    )
+    if cutoff is not None:
+        query = query.gt("timestamp", cutoff)
+    rows = query.execute().data or []
+    total: dict[str, int] = {}
+    for row in rows:
+        op = row.get("operacional_id")
+        if op:
+            total[op] = total.get(op, 0) + (row.get("pontos") or 0)
+    return total
 
 
 def _calcular_qualidade_commit(client, projeto_id: str, cutoff: str | None) -> dict[str, float]:
@@ -263,12 +295,65 @@ def rotear_evento_pos_fechamento(client, task: dict, dimensao: str) -> None:
     }).execute()
 
 
+def listar_spi_evolucao_do_projeto(client, projeto_id: str) -> list[dict]:
+    """SPI travado + Evolução por operacional do projeto, para a leitura do
+    gerente (a tela do Líder é cross-projeto; esta é do projeto dele).
+
+    Diferente do proxy ao vivo da aba Métricas: aqui só entra o que já foi
+    travado pela Avaliação Semanal, que é o mesmo dado que alimenta o ranking."""
+    operacionais = (
+        client.table("operacionais")
+        .select("id, nome")
+        .eq("project_id", projeto_id)
+        .eq("ativo", True)
+        .order("nome", desc=False)
+        .execute()
+        .data or []
+    )
+    if not operacionais:
+        return []
+
+    linhas = (
+        client.table("pontuacao_operacional_sprint")
+        .select("operacional_id, entrega_pontos_concluidos, entrega_pontos_alocados, entrega_pontos_penalizados, gerente_pergunta6")
+        .eq("projeto_id", projeto_id)
+        .execute()
+        .data or []
+    )
+    por_operacional: dict[str, list[dict]] = {}
+    for linha in linhas:
+        por_operacional.setdefault(linha["operacional_id"], []).append(linha)
+
+    resultado = []
+    for op in operacionais:
+        minhas = por_operacional.get(op["id"], [])
+        concluidos = sum(l["entrega_pontos_concluidos"] for l in minhas)
+        penalizados = sum(l.get("entrega_pontos_penalizados") or 0 for l in minhas)
+        alocados = sum(l["entrega_pontos_alocados"] for l in minhas)
+        spi = None
+        if alocados > 0:
+            spi = round(min(max(concluidos - penalizados, 0) / alocados * 100, 100), 2)
+
+        notas6 = [l["gerente_pergunta6"] for l in minhas if l.get("gerente_pergunta6") is not None]
+        evolucao = round(min(sum(notas6) / len(notas6) * 20, 100), 2) if notas6 else None
+
+        resultado.append({
+            "operacional_id": op["id"],
+            "nome": op["nome"],
+            "spi": spi,
+            "evolucao": evolucao,
+            "sprints_avaliadas": len(minhas),
+            "pontos_penalizados": penalizados,
+        })
+    return resultado
+
+
 def calcular_spi_operacional(client, operacional_id: str) -> dict:
     """SPI em duas camadas: soma dentro de cada projeto, depois média simples
     entre projetos se o operacional atuou em mais de um. Teto 100."""
     linhas = (
         client.table("pontuacao_operacional_sprint")
-        .select("projeto_id, entrega_pontos_concluidos, entrega_pontos_alocados")
+        .select("projeto_id, entrega_pontos_concluidos, entrega_pontos_alocados, entrega_pontos_penalizados")
         .eq("operacional_id", operacional_id)
         .execute()
         .data or []
@@ -277,14 +362,15 @@ def calcular_spi_operacional(client, operacional_id: str) -> dict:
     por_projeto_raw: dict[str, dict] = {}
     for linha in linhas:
         acumulado = por_projeto_raw.setdefault(linha["projeto_id"], {"concluidos": 0, "alocados": 0})
-        acumulado["concluidos"] += linha["entrega_pontos_concluidos"]
+        acumulado["concluidos"] += linha["entrega_pontos_concluidos"] - (linha.get("entrega_pontos_penalizados") or 0)
         acumulado["alocados"] += linha["entrega_pontos_alocados"]
 
     por_projeto = []
     for projeto_id, soma in por_projeto_raw.items():
         spi_projeto = None
         if soma["alocados"] > 0:
-            spi_projeto = round(min(soma["concluidos"] / soma["alocados"] * 100, 100), 2)
+            efetivos = max(soma["concluidos"], 0)
+            spi_projeto = round(min(efetivos / soma["alocados"] * 100, 100), 2)
         por_projeto.append({"projeto_id": projeto_id, "spi": spi_projeto})
 
     validos = [p["spi"] for p in por_projeto if p["spi"] is not None]

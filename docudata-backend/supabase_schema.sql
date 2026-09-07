@@ -511,3 +511,30 @@ CREATE INDEX IF NOT EXISTS idx_commit_qualidade_operacional ON commit_qualidade(
 CREATE INDEX IF NOT EXISTS idx_commit_qualidade_projeto ON commit_qualidade(projeto_id);
 
 ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS qualidade_commit_media numeric(4,2);
+
+-- ═══════════════════════════════════════════════════════════════
+-- Revisão da metodologia de performance (2026-09-07)
+--   1. Travamento automático deixa de ser só alerta e passa a
+--      penalizar a dimensão Entrega.
+--   2. Pergunta 6 sai da média do gerente e vira exclusiva de
+--      Evolução (mudança de código, sem mudança de schema).
+-- ═══════════════════════════════════════════════════════════════
+
+-- Cada travamento automático vira um evento com timestamp — mesmo padrão de
+-- task_reaberturas — pra que o cutoff do fechamento evite dupla contagem.
+-- `dispensado` é marcado quando o gerente dá override no alerta: travamento
+-- dispensado não penaliza ninguém.
+CREATE TABLE IF NOT EXISTS task_travamentos (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id         uuid        NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    operacional_id  uuid        REFERENCES operacionais(id) ON DELETE SET NULL,
+    pontos          int         NOT NULL DEFAULT 0,
+    dispensado      boolean     NOT NULL DEFAULT false,
+    timestamp       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_task_travamentos_task ON task_travamentos(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_travamentos_operacional ON task_travamentos(operacional_id);
+
+-- Pontos de entrega descontados por travamento automático no período.
+ALTER TABLE pontuacao_operacional_sprint
+    ADD COLUMN IF NOT EXISTS entrega_pontos_penalizados int NOT NULL DEFAULT 0;

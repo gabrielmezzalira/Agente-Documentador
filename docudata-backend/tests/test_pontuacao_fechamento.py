@@ -18,6 +18,7 @@ def _mock_client(
     tasks=None,
     task_transicoes=None,
     task_reaberturas=None,
+    task_travamentos=None,
     eventos_tardios=None,
     avaliacoes=None,
     commit_qualidade=None,
@@ -28,6 +29,7 @@ def _mock_client(
     tasks = tasks or []
     task_transicoes = task_transicoes or []
     task_reaberturas = task_reaberturas or []
+    task_travamentos = task_travamentos or []
     eventos_tardios = eventos_tardios or []
     avaliacoes = avaliacoes or []
     commit_qualidade = commit_qualidade or []
@@ -137,6 +139,40 @@ def _mock_client(
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
 
+        elif name == "task_travamentos":
+            def select_side_effect(cols):
+                q = MagicMock()
+                state = {"gt_timestamp": None, "dispensado": None}
+
+                def in_effect(*a, **kw):
+                    return q
+
+                def eq_effect(field, value):
+                    if field == "dispensado":
+                        state["dispensado"] = value
+                    return q
+
+                def gt_effect(field, value):
+                    state["gt_timestamp"] = value
+                    return q
+
+                def execute_effect():
+                    resp = MagicMock()
+                    data = task_travamentos
+                    if state["dispensado"] is not None:
+                        data = [r for r in data if r.get("dispensado", False) == state["dispensado"]]
+                    if state["gt_timestamp"] is not None:
+                        data = [r for r in data if r.get("timestamp", "") > state["gt_timestamp"]]
+                    resp.data = data
+                    return resp
+
+                q.in_ = MagicMock(side_effect=in_effect)
+                q.eq = MagicMock(side_effect=eq_effect)
+                q.gt = MagicMock(side_effect=gt_effect)
+                q.execute = MagicMock(side_effect=execute_effect)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
         elif name == "eventos_pontuacao_tardios":
             def select_side_effect(cols):
                 q = MagicMock()
@@ -208,7 +244,8 @@ def test_calcula_entrega_qualidade_autonomia_gerente_para_task_simples(monkeypat
     assert linha["qualidade_reaberturas"] == 1
     assert linha["autonomia_bloqueios_totais"] == 1
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
-    assert linha["gerente_media"] == round((5 + 4 + 3 + 4 + 5 + 2 + 3) / 7, 2)
+    # Média das 6 perguntas: a resposta_6 (evolução) fica fora, é exclusiva de Evolução.
+    assert linha["gerente_media"] == round((5 + 4 + 3 + 4 + 5 + 3) / 6, 2)
     assert linha["gerente_pergunta6"] == 2
     assert linha["arquetipo"] is None
     assert len(insert_capture) == 1
@@ -348,7 +385,7 @@ def test_bloqueio_resolvido_antes_do_cutoff_nao_e_recontado_mas_novo_e_contado(m
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
 
 
-def test_gerente_media_usa_as_sete_respostas(monkeypatch):
+def test_gerente_media_exclui_a_pergunta_de_evolucao(monkeypatch):
     aval = {
         "operacional_id": "op-1",
         "resposta_1": 5, "resposta_2": 5, "resposta_3": 5, "resposta_4": 5,
@@ -363,8 +400,9 @@ def test_gerente_media_usa_as_sete_respostas(monkeypatch):
     resultado = calcular_e_travar_pontuacao(client, "sprint-1")
 
     linha = next(l for l in resultado if l["operacional_id"] == "op-1")
-    # Média das 7 respostas (inclui resposta_6=0), não das 6 que excluíam resposta_6.
-    assert linha["gerente_media"] == round((5 + 5 + 5 + 5 + 5 + 0 + 5) / 7, 2)
+    # resposta_6=0 NÃO derruba a média do gerente: ela vive só na dimensão
+    # Evolução, via gerente_pergunta6 (decisão do Líder, 2026-09-07).
+    assert linha["gerente_media"] == round((5 + 5 + 5 + 5 + 5 + 5) / 6, 2)
     assert linha["gerente_pergunta6"] == 0
 
 
@@ -395,3 +433,52 @@ def test_qualidade_commit_media_null_sem_commit_no_periodo(monkeypatch):
 
     linha = next(l for l in resultado if l["operacional_id"] == "op-1")
     assert linha["qualidade_commit_media"] is None
+
+
+def test_travamento_automatico_penaliza_pontos_de_entrega():
+    """Task que ficou parada além do tempo esperado não conta como entrega cheia:
+    os pontos dela saem dos concluídos (decisão do Líder, 2026-09-07)."""
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 8, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        task_travamentos=[{"operacional_id": "op-1", "pontos": 8, "dispensado": False, "timestamp": "2026-09-01T00:00:00Z"}],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_concluidos"] == 8
+    assert linha["entrega_pontos_alocados"] == 8
+    assert linha["entrega_pontos_penalizados"] == 8
+
+
+def test_travamento_dispensado_pelo_gerente_nao_penaliza():
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 8, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        task_travamentos=[{"operacional_id": "op-1", "pontos": 8, "dispensado": True, "timestamp": "2026-09-01T00:00:00Z"}],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_penalizados"] == 0
+
+
+def test_travamento_anterior_ao_cutoff_nao_conta_de_novo():
+    """Mesma proteção das reaberturas: travamento já contabilizado num
+    fechamento anterior não penaliza a sprint seguinte."""
+    client = _mock_client(
+        sprint=_SPRINT,
+        cutoff_existente=[{"finalizado_em": "2026-09-05T00:00:00Z"}],
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-06T00:00:00Z"}],
+        task_travamentos=[
+            {"operacional_id": "op-1", "pontos": 5, "dispensado": False, "timestamp": "2026-09-01T00:00:00Z"},
+            {"operacional_id": "op-1", "pontos": 5, "dispensado": False, "timestamp": "2026-09-07T00:00:00Z"},
+        ],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_pontos_penalizados"] == 5

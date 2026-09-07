@@ -4,11 +4,10 @@
 Subárea de Dados · CITi · Gestão 26.2
 
 > **Classificação: restrito a Líder e Gerente.**
-> Este documento contém a camada oculta do sistema — pesos, fórmulas, fontes de
+> Este documento contém a camada oculta do sistema: pesos, fórmulas, fontes de
 > dado e mecânica de fechamento. Não é acessível a operacionais dentro do
-> DocuData (`GET /metodologia/performance` roda atrás de `require_not_operacional`)
-> e não deve ser repassado fora da liderança. O que pode ser comunicado ao time
-> está na **seção 13.3**.
+> sistema e não deve ser repassado fora da liderança. O que pode ser comunicado
+> ao time está na seção 13.
 
 ---
 
@@ -17,24 +16,19 @@ Subárea de Dados · CITi · Gestão 26.2
 1. [Objetivo](#1-objetivo)
 2. [Princípio central: direção pública, cálculo oculto](#2-princípio-central-direção-pública-cálculo-oculto)
 3. [Fundamentação](#3-fundamentação)
-4. [Arquitetura do sistema em quatro camadas](#4-arquitetura-do-sistema-em-quatro-camadas)
+4. [Como o sistema funciona, em quatro etapas](#4-como-o-sistema-funciona-em-quatro-etapas)
 5. [As cinco dimensões](#5-as-cinco-dimensões)
-6. [Pesos e arquétipos](#6-pesos-e-arquétipos)
+6. [Pesos e tipos de projeto](#6-pesos-e-tipos-de-projeto)
 7. [O questionário de sete perguntas](#7-o-questionário-de-sete-perguntas)
 8. [Como o dado é produzido no dia a dia](#8-como-o-dado-é-produzido-no-dia-a-dia)
 9. [O fechamento da sprint](#9-o-fechamento-da-sprint)
-10. [Janelas, sequência pessoal e ranking](#10-janelas-sequência-pessoal-e-ranking)
-11. [A fórmula completa, passo a passo](#11-a-fórmula-completa-passo-a-passo)
+10. [Janelas e ranking](#10-janelas-e-ranking)
+11. [A conta final, passo a passo](#11-a-conta-final-passo-a-passo)
 12. [Guard-rails e anti-gaming](#12-guard-rails-e-anti-gaming)
-13. [Acesso, sigilo e auditoria](#13-acesso-sigilo-e-auditoria)
+13. [Acesso, sigilo e o que divulgar](#13-acesso-sigilo-e-o-que-divulgar)
 14. [Manual do gerente](#14-manual-do-gerente)
 15. [Casos de borda e regras finas](#15-casos-de-borda-e-regras-finas)
 16. [Erros que o sistema devolve e o que fazer](#16-erros-que-o-sistema-devolve-e-o-que-fazer)
-17. [Riscos residuais assumidos](#17-riscos-residuais-assumidos)
-18. [Piloto e evolução](#18-piloto-e-evolução)
-19. [Decisões abertas](#19-decisões-abertas)
-20. [Anexo A — referência técnica](#anexo-a--referência-técnica)
-21. [Anexo B — divergências entre a metodologia de referência e o implementado](#anexo-b--divergências-entre-a-metodologia-de-referência-e-o-implementado)
 
 ---
 
@@ -45,43 +39,48 @@ finalidade de **ranking**, para incentivar o trabalho e desenvolver as pessoas.
 Ele opera em duas camadas: uma **camada pública**, que gera o incentivo, e uma
 **camada oculta**, que impede o gaming e mantém a justiça.
 
-Três coisas o sistema **não** é, e é importante que a liderança segure isso:
+Três coisas que o sistema **não** é, e que a liderança precisa segurar:
 
 - **Não é métrica de saúde do squad.** Saúde de projeto é medida em nível de
-  time (SPI da sprint, cycle time, semáforo). Ver seção 17.3.
+  time, com o SPI da sprint, o tempo de ciclo e o semáforo de saúde. Ranking
+  individual e saúde de squad são coisas separadas: fundidas, nenhuma das duas
+  funciona.
 - **Não é instrumento de desligamento.** É instrumento de reconhecimento e
-  desenvolvimento. Nada no sistema foi calibrado para suportar decisão punitiva.
-- **Não é auditoria de código.** Nenhuma contagem de commit, linha ou task
+  desenvolvimento. Nada aqui foi calibrado para suportar decisão punitiva.
+- **Não é auditoria de código.** Nenhuma contagem de commit, de linha ou de task
   entra como moeda. Ver seção 12.
+
+**Ritmo:** a sprint dura **uma semana**. O reconhecimento (top performer ou
+techlead do período) é anunciado **a cada duas semanas**, ou seja, a cada duas
+sprints fechadas.
 
 ---
 
 ## 2. Princípio central: direção pública, cálculo oculto
 
 A **camada pública** é a direção. Os operacionais sabem quais comportamentos
-contam — entregar com qualidade, ajudar o time, ser autônomo, evoluir,
-documentar — e sabem que existe reconhecimento por ciclo para quem mais
-contribui.
+contam, que são entregar com qualidade, ajudar o time, ser autônomo, evoluir e
+documentar. E sabem que existe reconhecimento periódico para quem mais contribui.
 
-A **camada oculta** é o cálculo: pesos, fórmula, normalização, notas cruas dos
-gerentes e scores individuais nunca são divulgados. Só a liderança enxerga.
+A **camada oculta** é o cálculo: pesos, fórmulas, normalização, notas cruas dos
+gerentes e a posição de cada um no ranking nunca são divulgados.
 
 A direção pública gera o incentivo, porque ninguém muda comportamento por uma
 recompensa que não sabe que existe. O cálculo oculto impede o gaming dos pesos.
 Esse é o ponto de equilíbrio entre incentivar e resistir a manipulação, e é o
 único desenho em que "oculto" e "incentiva" coexistem.
 
-**Esse princípio está implementado no código, não só no acordo social:**
+Esse princípio não é só um acordo social, ele é imposto pelo próprio sistema:
 
-| Camada | Quem enxerga | Como é garantido |
-|---|---|---|
-| Ranking, score final, sub-scores | Só Líder | `GET /performance` → `require_role("lider")` |
-| SPI individual, baseline de evolução | Só Líder | `require_role("lider")` em `routers/pontuacao.py` |
-| Notas cruas do questionário, métricas de projeto | Líder e Gerente | `require_not_operacional` em `main.py` |
-| Esta metodologia | Líder e Gerente | `require_not_operacional` em `GET /metodologia/performance` |
-| Kanban, tasks, sprints do próprio projeto | Todos os vinculados | `require_project_access` |
+| O que | Quem enxerga |
+|---|---|
+| Ranking e score final | Só o Líder |
+| Entrega consolidada e evolução de cada operacional | Líder e Gerente |
+| Notas cruas do questionário e métricas do projeto | Líder e Gerente |
+| Esta metodologia | Líder e Gerente |
+| Kanban, tasks e sprints do próprio projeto | Todos os vinculados ao projeto |
 
-Todo acesso a `/performance` grava uma linha em `audit_log` (seção 13.2).
+Toda vez que alguém abre a tela de ranking, o acesso fica registrado.
 
 ---
 
@@ -89,302 +88,284 @@ Todo acesso a `/performance` grava uma linha em `audit_log` (seção 13.2).
 
 O desenho segue o consenso de mercado sobre medição de performance em tecnologia.
 
-**SPACE** (Forsgren et al., ACM Queue, 2021) estabelece que produtividade é
+**SPACE** (Forsgren e outros, ACM Queue, 2021) estabelece que produtividade é
 multidimensional e não é capturada por uma métrica única. Métricas de output de
-código — commits, linhas, PRs — medem volume, não valor, e viraram ativamente
-enganosas quando a IA gera parte relevante do código. Por isso este sistema mede
-em cinco dimensões e nunca usa contagem de código como moeda.
+código, como commits, linhas e PRs, medem volume e não valor, e viraram
+ativamente enganosas quando a IA gera parte relevante do código. Por isso este
+sistema mede em cinco dimensões e nunca usa contagem de código como moeda.
 
 **DX Core 4** (Noda e Tacho, 2024) organiza a medição em dimensões oposicionais,
 onde cada uma segura o exagero da outra. Esse é o princípio anti-gaming central:
 uma métrica de volume só entra quando outra dimensão a pune ao ser gameada.
 
-**Google** amarra peso alto no gerente à calibração — que Laszlo Bock chama de
-"a alma da avaliação" — porque força cada gerente a justificar a nota pros
+**O Google** amarra peso alto no gerente à calibração, que Laszlo Bock chama de
+"a alma da avaliação", porque força cada gerente a justificar a nota para os
 outros e alinha padrões diferentes. Por isso os 35% no gerente aqui são
-inseparáveis da rotina de calibração da seção 14.5.
+inseparáveis da rotina de calibração da seção 14.
 
-**Microsoft**, ao sair do stack ranking, passou a avaliar a pessoa também pela
-contribuição ao sucesso dos outros. Por isso colaboração vive dentro da
-avaliação do gerente (pergunta 5).
+**A Microsoft**, ao sair do stack ranking, passou a avaliar a pessoa também pela
+contribuição ao sucesso dos outros. Por isso colaboração vive dentro da avaliação
+do gerente.
 
-**Adobe** substituiu a avaliação anual por conversa frequente. Por isso o
-feedback aqui é **semanal**, preso ao fechamento da sprint, e não anual.
+**A Adobe** substituiu a avaliação anual por conversa frequente. Por isso o
+feedback aqui é semanal, preso ao fechamento de cada sprint, e não anual.
 
 ---
 
-## 4. Arquitetura do sistema em quatro camadas
+## 4. Como o sistema funciona, em quatro etapas
 
-O sistema não é um contador que roda o tempo todo. Ele é uma sequência de quatro
-camadas, e entender essa separação é o que evita 90% da confusão operacional.
+O sistema não é um contador rodando o tempo todo. Ele é uma sequência de quatro
+etapas, e entender essa separação evita quase toda a confusão operacional.
 
-```
-CAMADA 1 — COLETA (contínua, durante a sprint)
-  Escopo:  100 pontos do projeto → orçamento por sprint
-  Kanban:  tasks com pontos, transições, bloqueios, reaberturas
-  Git:     commits ingeridos → nota de qualidade por IA
-        ↓  nada aqui é "score" ainda. É só dado bruto vivo.
+### Etapa 1. Coleta, durante a semana
 
-CAMADA 2 — FECHAMENTO (uma vez por sprint, disparado pelo gerente)
-  Gerente responde as 7 perguntas de cada operacional
-  Gerente clica "Confirmar Avaliação Semanal"
-        ↓  o sistema fotografa o estado e TRAVA uma linha por operacional
-           em pontuacao_operacional_sprint. Irreversível.
+Enquanto a sprint corre, o sistema observa o trabalho normal de gestão:
 
-CAMADA 3 — AGREGAÇÃO (em tempo de leitura, quando o Líder abre a tela)
-  Sequência pessoal = linhas travadas da pessoa, mais recentes primeiro
-  Janela = 1, 2 ou 4 linhas dessa sequência
-  Por dimensão: calcula por projeto → média entre projetos
-        ↓
+- o escopo do projeto dividido em pontos, e quanto desses pontos cada sprint recebeu
+- as tasks do Kanban, com seus pontos, quem está com elas e por onde elas passaram
+- os bloqueios registrados e quem os resolveu
+- as tasks que ficaram paradas tempo demais
+- os commits enviados, que recebem uma nota de qualidade avaliada por IA
 
-CAMADA 4 — RANKING (em tempo de leitura)
-  Score final = soma ponderada das 5 dimensões, pesos do arquétipo
-  Ordenação decrescente, por janela
-```
+Nada disso é "nota" ainda. É dado bruto vivo, que muda o tempo todo.
 
-Consequências práticas dessa arquitetura:
+### Etapa 2. Fechamento, no fim da sprint
 
-- **O score nunca é "atualizado ao vivo".** Ele só existe depois que o gerente
+O gerente responde as sete perguntas sobre cada operacional e confirma a Avaliação
+Semanal. Nesse instante o sistema tira uma fotografia do estado da sprint e
+**trava** uma linha de dado bruto por operacional. A partir daí aquela sprint não
+muda mais.
+
+### Etapa 3. Agregação, quando alguém abre a tela
+
+O sistema pega as linhas travadas mais recentes da pessoa, monta a janela de
+comparação (1, 2 ou 4 sprints) e calcula as cinco dimensões, cada uma numa escala
+de 0 a 100.
+
+### Etapa 4. Ranking
+
+As cinco dimensões viram um número só, o score final, através dos pesos. As
+pessoas são ordenadas por esse número, dentro de cada janela.
+
+### O que essa separação implica
+
+- **O score nunca é "ao vivo".** Ele só passa a existir depois que o gerente
   confirma a Avaliação Semanal. Sprint aberta não gera pontuação nenhuma.
-- **O fechamento é uma fotografia, não um contador incremental.** O cálculo lê o
-  estado final de tasks, transições, reaberturas e avaliações no momento em que
-  roda. Por isso reatribuição de task no meio da sprint não precisa de tratamento
-  especial — o cálculo simplesmente lê como as coisas ficaram.
-- **A agregação é recalculada a cada leitura.** Mudar um peso em
-  `pesos_arquetipo` muda o ranking imediatamente, sem reprocessar nada — porque
-  o que está travado é o dado bruto, não o score.
-- **Nada é apagado retroativamente.** Uma vez travada, a linha da sprint não é
-  recalculada. Ver seção 15.
+- **O fechamento é uma fotografia, não um contador.** O sistema lê como as coisas
+  ficaram no momento em que roda. Por isso trocar o responsável de uma task no
+  meio da semana não exige nada de ninguém: o cálculo simplesmente lê o resultado.
+- **A conta é refeita a cada leitura.** Mudar um peso muda o ranking na hora, sem
+  reprocessar nada, porque o que ficou travado foi o dado bruto e não a nota.
+- **Nada é reescrito para trás.** Uma sprint fechada não é recalculada.
 
 ---
 
 ## 5. As cinco dimensões
 
 Cada dimensão vira um número de **0 a 100** antes de ser multiplicada pelo peso.
-As fórmulas são determinísticas e absolutas — nenhuma depende de comparação com
-outros operacionais. Isso foi decisão explícita contra normalização por percentil:
-com percentil, o placar de uma pessoa muda porque outra entrou ou saiu do grupo,
-o que destrói a leitura de evolução individual.
+As fórmulas são fixas e absolutas: nenhuma depende de comparar a pessoa com as
+outras. Isso foi decisão explícita contra ranquear por percentil, onde o placar de
+alguém muda porque outra pessoa entrou ou saiu do grupo, o que destrói qualquer
+leitura de evolução individual.
 
-Todas as fórmulas abaixo rodam **por projeto primeiro**; se a janela cobre mais
-de um projeto, o valor final da dimensão é a **média simples** dos valores por
-projeto (seção 10.4).
+Todas as contas abaixo são feitas **por projeto primeiro**. Se a janela cobre mais
+de um projeto, o valor final da dimensão é a média simples dos valores de cada
+projeto.
 
-### 5.1 Entrega e Confiabilidade — peso 20%
+### 5.1 Entrega e Confiabilidade, peso 20%
 
-**O que mede:** cumpriu o que se comprometeu, dentro do que foi alocado.
+**O que mede:** cumpriu o que se comprometeu, dentro do que pegou.
 
-```
-Entrega = min( Σ entrega_pontos_concluidos ÷ Σ entrega_pontos_alocados , 1 ) × 100
-```
+> **Entrega** = (pontos entregues menos pontos perdidos por atraso) ÷ pontos que a
+> pessoa pegou, em porcentagem, com teto de 100.
 
-- Somatórios sobre todas as linhas da janela pertencentes ao mesmo projeto.
-- **Teto de 100** — entregar além do alocado não pontua acima do máximo. Isso
-  existe para que puxar task extra no fim da sprint não vire alavanca de score.
-- Se `alocados = 0`, a dimensão fica **indisponível** para aquele projeto (não
-  vira 0). Ver seção 11.3 sobre o que acontece com dimensão indisponível.
+- Somam-se todas as sprints da janela dentro do mesmo projeto.
+- **Teto de 100.** Entregar além do que pegou não pontua acima do máximo. Isso
+  existe para que puxar task extra no fim da semana não vire alavanca de score.
+- **Pontos perdidos por atraso:** quando uma task fica parada muito além do tempo
+  esperado para o tamanho dela, o sistema marca um alerta de atraso. Os pontos
+  dessa task deixam de contar como entrega. O gerente pode dispensar o alerta na
+  própria task, e aí a penalidade não acontece (seção 8.6).
+- Se a pessoa não pegou nenhum ponto na janela, a dimensão fica **indisponível**,
+  e não vira zero.
 
-**Por que é razão e não soma bruta:** volume absoluto de pontos mede quem recebeu
-as tasks maiores — ou seja, mede a decisão de alocação do gerente, não a
-performance da pessoa. Entrega relativa à capacidade faz com que quem cumpriu
-tudo que pegou pontue alto mesmo tendo pego menos.
+**Por que é proporção e não soma bruta:** volume absoluto de pontos mede quem
+recebeu as tasks maiores, ou seja, mede a decisão de alocação do gerente e não a
+performance da pessoa. Medir o que ela entregou sobre o que ela pegou faz com que
+quem cumpriu tudo pontue alto mesmo tendo pego menos.
 
-### 5.2 Avaliação do Gerente — peso 35%
+### 5.2 Avaliação do Gerente, peso 35%
 
-**O que mede:** a leitura estruturada do gerente sobre o operacional, incluindo
-o sinal de colaboração.
+**O que mede:** a leitura estruturada do gerente sobre o operacional, incluindo o
+sinal de colaboração.
 
-```
-gerente_media (por sprint) = média das 7 respostas (0–5)
-Gerente = min( média(gerente_media das linhas do projeto) × 20 , 100 )
-```
+> **Avaliação do Gerente** = média das seis perguntas do questionário, convertida
+> da escala 0 a 5 para 0 a 100.
 
-- `× 20` converte a escala 0–5 em 0–100.
-- Se nenhuma linha da janela tem avaliação, a dimensão fica **indisponível**.
+A pergunta de evolução fica **fora** desta média de propósito: ela é a fonte
+exclusiva da dimensão Evolução, e contá-la duas vezes daria peso desproporcional a
+uma única pergunta.
+
+Se nenhuma sprint da janela tem avaliação, a dimensão fica indisponível.
 
 **Por que 35% e não mais:** acima disso o ranking vira ranking de opinião de
-gerente vestido de dado. Mesmo com 35%, metade do peso total continua em
-dimensões objetivas — as difíceis de gamear. E os 35% só são justos se a
-calibração da seção 14.5 acontecer.
+gerente vestido de dado. Mesmo com 35%, metade do peso continua em dimensões
+objetivas, que são as difíceis de gamear. E os 35% só são justos se a calibração
+da seção 14 acontecer de fato.
 
-### 5.3 Qualidade Técnica — peso 20%
+### 5.3 Qualidade Técnica, peso 20%
 
 **O que mede:** o trabalho precisou de pouca correção e seguiu o padrão.
 
-A dimensão combina **dois sinais**: retrabalho (dado de sistema) e nota de
-qualidade de commit (avaliada por IA).
+A dimensão combina dois sinais.
 
-```
-retrabalho = max( 1 − Σ qualidade_reaberturas ÷ Σ qualidade_tasks_concluidas , 0 ) × 100
-             (se tasks_concluidas = 0 → retrabalho = 100)
+> **Retrabalho** = 1 menos (tasks reabertas ÷ tasks concluídas), em porcentagem.
+> Sem nenhuma task concluída, o retrabalho é considerado 100.
+>
+> **Nota de commit** = média das notas de 0 a 10 que a IA deu aos commits do
+> período, convertida para 0 a 100.
+>
+> **Qualidade** = metade da nota de commit mais metade do retrabalho. Sem nota de
+> commit no período, Qualidade é o retrabalho puro.
 
-commit_score = min( média(qualidade_commit_media) × 10 , 100 )
+A divisão meio a meio é configurável pela liderança e começa em 50/50. O valor
+definitivo é decisão do Líder depois do piloto.
 
-COM nota de commit no período:
-  Qualidade = peso_commit × commit_score + (1 − peso_commit) × retrabalho
+**Reabertura** tem definição estrita: é uma task que estava em Concluída e voltou
+para Em Andamento. Voltar de Concluída para Planejado não conta como reabertura.
 
-SEM nota de commit no período:
-  Qualidade = retrabalho
-```
+Não ter concluído nada resulta em qualidade 100, e isso é uma assimetria
+consciente: quem não entregou já é penalizado em Entrega, não precisa ser
+penalizado duas vezes.
 
-- `peso_commit` é a coluna `pesos_arquetipo.peso_commit_qualidade`, **default 0.5**.
-  É configurável por arquétipo, hoje só via SQL (não há UI). O valor final é
-  decisão do Líder depois do piloto.
-- A nota de commit só existe para projetos de arquétipo `padrao` (seção 8.5).
-  Em `consultoria_discovery`, Qualidade é sempre retrabalho puro.
-- `tasks_concluidas = 0` resulta em 100, não em indisponível. Isso é uma
-  assimetria consciente: quem não concluiu nada não sofre penalidade de
-  qualidade — a penalidade dele já está em Entrega.
-
-**Reabertura** tem definição estrita: é a transição `concluida → em_andamento`, e
-só ela. Sair de `concluida` para `planejado` não conta como reabertura.
-
-### 5.4 Autonomia — peso 15%
+### 5.4 Autonomia, peso 15%
 
 **O que mede:** quanto a pessoa destrava sozinha antes de escalar.
 
-```
-Autonomia = Σ autonomia_bloqueios_resolvidos_proprio ÷ Σ autonomia_bloqueios_totais × 100
-            (se bloqueios_totais = 0 → Autonomia = 100)
-```
+> **Autonomia** = bloqueios que a própria pessoa resolveu ÷ bloqueios que ela teve,
+> em porcentagem. Sem nenhum bloqueio registrado, a autonomia é 100.
 
-- A contagem vem exclusivamente de **bloqueio manual** registrado no Kanban, e o
-  numerador só cresce quando o bloqueio é resolvido com
-  `bloqueado_resolvido_por = "operacional"`.
-- **Zero bloqueio = autonomia máxima (100).** É a escolha correta em termos de
-  incentivo — não penaliza quem simplesmente não travou — mas cria um efeito
-  colateral que o gerente precisa conhecer: registrar bloqueios *reduz* o teto
-  de Autonomia de quem registrou, a não ser que ele mesmo resolva. Ver seção
-  12.3 e a decisão aberta 19.4.
+A contagem vem exclusivamente do bloqueio marcado à mão no Kanban, e o numerador
+só cresce quando, ao desmarcar, o gerente informa que quem resolveu foi o
+operacional.
 
-**O travamento automático por tempo nunca entra aqui.** É alerta, não pontuação.
-Ver seção 8.6.
+Task parada tempo demais **não** entra aqui. Atraso penaliza Entrega, não
+Autonomia, porque são coisas diferentes: uma é sobre demora, a outra é sobre
+depender dos outros.
 
-### 5.5 Evolução — peso 10%
+Zero bloqueio dando autonomia máxima é a escolha correta de incentivo, porque não
+penaliza quem simplesmente não travou. Mas cria um efeito colateral que o gerente
+precisa conhecer: registrar bloqueios reduz o teto de Autonomia de quem registrou,
+a não ser que ele mesmo resolva. Ver seção 12.
+
+### 5.5 Evolução, peso 10%
 
 **O que mede:** quanto a pessoa cresceu em relação a onde estava.
 
-```
-Evolução = min( média(gerente_pergunta6 das linhas do projeto) × 20 , 100 )
-```
+> **Evolução** = a pergunta de evolução do questionário, convertida da escala 0 a 5
+> para 0 a 100.
 
-É a **pergunta 6 isolada** ("Evoluiu em relação a onde estava no começo do
-ciclo?"). Essa pergunta entra duas vezes por design: uma dentro da média das 7
-(Gerente) e outra sozinha aqui. **Não é bug nem duplicação a remover** — é
-sobreposição proposital, o mesmo padrão da pergunta 3 (autonomia percebida) com
-a dimensão Autonomia medida por dado de sistema.
-
-Efeito prático do peso duplo: a pergunta 6 responde por `0.10` direto mais
-`0.35 ÷ 7 = 0.05` dentro da média — **15% do score final**. É a pergunta mais
-pesada do questionário. O gerente precisa saber disso ao responder.
+É a única dimensão que compara a pessoa com ela mesma, e não com um padrão
+absoluto. É o que dá chance real a quem entrou mais júnior.
 
 ---
 
-## 6. Pesos e arquétipos
+## 6. Pesos e tipos de projeto
 
 ### 6.1 Os cinco pesos
 
-| Dimensão | Coluna | Peso |
-|---|---|---|
-| Avaliação do Gerente | `peso_gerente` | **35%** |
-| Entrega e Confiabilidade | `peso_entrega` | **20%** |
-| Qualidade Técnica | `peso_qualidade` | **20%** |
-| Autonomia | `peso_autonomia` | **15%** |
-| Evolução | `peso_evolucao` | **10%** |
+| Dimensão | Peso |
+|---|---|
+| Avaliação do Gerente | **35%** |
+| Entrega e Confiabilidade | **20%** |
+| Qualidade Técnica | **20%** |
+| Autonomia | **15%** |
+| Evolução | **10%** |
 
-Somam 1.00. Vivem na tabela `pesos_arquetipo`, uma linha por arquétipo. Alterar
-um peso é um `UPDATE` no Supabase e o ranking muda na próxima leitura, sem
-reprocessar nada.
+Somam 100%. São configuráveis pela liderança, e mudar um peso muda o ranking na
+leitura seguinte, sem precisar reprocessar nada. Isso é de propósito: recalibrar
+depois do piloto tem que ser barato.
 
-### 6.2 Os dois arquétipos
+### 6.2 Os dois tipos de projeto
 
-`projects.arquetipo` aceita dois valores:
+Cada projeto é classificado como:
 
-- **`padrao`** — projeto com código. Pipeline de qualidade de commit ativo.
-- **`consultoria_discovery`** — projeto sem entrega de código. Pipeline de
-  qualidade de commit desligado.
+- **Padrão**, projeto com entrega de código. A avaliação de qualidade de commit
+  fica ativa.
+- **Consultoria ou discovery**, projeto sem entrega de código. A avaliação de
+  commit fica desligada.
 
-### 6.3 Os pesos são iguais entre arquétipos — e isso é decisão fechada
+### 6.3 Os pesos são iguais nos dois tipos
 
-Os cinco pesos principais são **idênticos** em `padrao` e `consultoria_discovery`
-(decisão do Líder registrada em `.planning/intel/decisions.md` #3, fechada
-permanentemente). Nenhum dado objetivo diferenciava os arquétipos o suficiente
-para justificar pesos distintos, e pesos diferentes tornariam o ranking
-cross-projeto incomparável.
+Decisão do Líder, fechada em definitivo: os cinco pesos são idênticos nos dois
+tipos de projeto. Nenhum dado objetivo diferenciava os dois o suficiente para
+justificar pesos distintos, e pesos diferentes tornariam o ranking entre projetos
+incomparável.
 
-**O que muda por arquétipo não é o peso, é a *presença do sinal* dentro de
-Qualidade:** em `consultoria_discovery` não há nota de commit, então Qualidade
-cai para retrabalho puro. Mesma régua, uma fonte a menos.
+O que muda entre os tipos não é o peso, é a **presença de um sinal** dentro de
+Qualidade: em consultoria não existe nota de commit, então Qualidade fica sendo só
+o retrabalho. Mesma régua, uma fonte a menos.
 
+### 6.4 Quando a janela mistura projetos
 
-### 6.4 Qual arquétipo a janela usa
-
-Uma janela pode misturar projetos. O arquétipo aplicado é o do **projeto com mais
-linhas na janela**; em empate, vence o projeto cuja linha é mais recente
-(`sprint_fim`). Como hoje os pesos são iguais entre arquétipos, essa escolha só
-afeta `peso_commit_qualidade`.
+Uma janela pode cobrir mais de um projeto. O tipo aplicado é o do projeto com mais
+sprints dentro daquela janela; em empate, vale o projeto da sprint mais recente.
 
 ---
 
 ## 7. O questionário de sete perguntas
 
-O gerente responde **por operacional, por sprint**, numa escala de **0 a 5**.
-Todas as sete são obrigatórias — não há "não sei".
+O gerente responde **por operacional, por sprint**, ou seja, toda semana, numa
+escala de **0 a 5**. Todas as sete são obrigatórias, não existe "não sei".
 
-| # | Pergunta | Âncora 0 | Âncora 5 | Alimenta |
-|---|---|---|---|---|
-| 1 | Entregou o que se comprometeu dentro do combinado nesta sprint? | quase nada do previsto | tudo no prazo | Gerente (1/7) |
-| 2 | A qualidade da entrega precisou de pouca ou nenhuma correção? | refiz quase tudo | entrou limpo | Gerente (1/7) |
-| 3 | A pessoa destravou sozinha antes de te escalar? | dependeu de mim o tempo todo | resolveu sozinha | Gerente (1/7) |
-| 4 | A comunicação da entrega foi clara a ponto de você não precisar perguntar? | tive que decifrar | entendi de primeira | Gerente (1/7) |
-| 5 | Ajudou, desbloqueou ou ensinou outro membro nesta sprint? | não interagiu | foi peça de apoio do squad | Gerente (1/7) |
-| 6 | Evoluiu em relação a onde estava no começo do ciclo? | estagnou | salto claro | Gerente (1/7) **+ Evolução (peso cheio)** |
-| 7 | Trouxe algo além do que foi pedido? | fez o mínimo | antecipou problema ou propôs melhoria | Gerente (1/7) |
+| # | Pergunta | Âncora 0 | Âncora 5 |
+|---|---|---|---|
+| 1 | Entregou o que se comprometeu dentro do combinado nesta sprint? | quase nada do previsto | tudo no prazo |
+| 2 | A qualidade da entrega precisou de pouca ou nenhuma correção? | refiz quase tudo | entrou limpo |
+| 3 | A pessoa destravou sozinha antes de te escalar? | dependeu de mim o tempo todo | resolveu sozinha |
+| 4 | A comunicação da entrega foi clara a ponto de você não precisar perguntar? | tive que decifrar | entendi de primeira |
+| 5 | Ajudou, desbloqueou ou ensinou outro membro nesta sprint? | não interagiu | foi peça de apoio do squad |
+| 6 | Evoluiu em relação a onde estava no começo do ciclo? | estagnou | salto claro |
+| 7 | Trouxe algo além do que foi pedido? | fez o mínimo | antecipou problema ou propôs melhoria |
 
-### 7.1 Peso real de cada pergunta no score final
+### 7.1 Para onde vai cada pergunta
 
-| Pergunta | Peso no score final |
-|---|---|
-| 6 (evolução) | **15,0%** |
-| 1, 2, 3, 4, 5, 7 (cada uma) | **5,0%** |
+As perguntas **1, 2, 3, 4, 5 e 7** formam a dimensão Avaliação do Gerente. Cada
+uma vale um sexto dos 35%, ou seja, cerca de **5,8% do score final**.
 
-Ou seja: a pergunta 5 (colaboração) vale 5% do score final. É um sinal real, mas
-não é uma dimensão própria — ela vive diluída dentro da avaliação do gerente.
-Se o piloto mostrar queda de colaboração, o caminho de correção é subir o peso
-de `peso_gerente` ou promover a pergunta 5 a dimensão própria (seção 18).
+A pergunta **6** é a dimensão Evolução inteira, e vale **10% do score final**.
+Ela não entra na média das outras.
+
+Ou seja: a pergunta 5, sobre colaboração, vale por volta de 5,8% do score. É um
+sinal real, mas não é uma dimensão própria. Se o acompanhamento mostrar queda de
+colaboração, o caminho de correção é aumentar o peso da avaliação do gerente ou
+promover a colaboração a dimensão separada.
 
 ### 7.2 Como responder bem
 
-- **Ancore na sprint, não na pessoa.** A pergunta é sobre o que aconteceu nestas
-  duas semanas, não sobre quem a pessoa é.
+- **Ancore na sprint, não na pessoa.** A pergunta é sobre o que aconteceu nesta
+  semana, não sobre quem a pessoa é.
 - **Use a escala inteira.** Um gerente que só dá 4 e 5 destrói a comparação para
-  todos os operacionais dele. A calibração (14.5) existe justamente para isso.
-- **3 é "fez o combinado".** 5 é excepcional, não é "não tenho reclamação".
-- **Pergunta 6 pesa o triplo.** Não responda no automático.
-- **Não tente compensar o cálculo.** Se você acha que a pessoa merece mais porque
-  as tasks dela eram difíceis, não infle a nota — registre isso na conversa de
-  feedback. Inflar nota é exatamente o que a calibração vai pegar.
+  todos os operacionais dele. A calibração da seção 14 existe justamente para isso.
+- **3 é "fez o combinado".** 5 é excepcional, e não "não tenho reclamação".
 
-### 7.3 Janela de edição de 48 horas
+### 7.3 Janela de correção de 48 horas
 
-Uma avaliação salva pode ser **editada por 48 horas** a partir da criação
-(`avaliacoes_gerente.editavel_ate`). Depois disso, tentar alterar retorna
-`409 — Janela de edição de 48h já encerrada para esta avaliação`.
+Uma avaliação salva pode ser editada por **48 horas** a partir do momento em que
+foi criada. Depois disso o sistema recusa a alteração.
 
-Isso protege a integridade do dado sem impedir correção de erro honesto. Note que
-a janela conta da **criação**, não da última edição.
+Isso protege a integridade do dado sem impedir correção de erro honesto. Repare
+que o prazo conta da criação, e não da última edição.
 
-### 7.4 Reaproveitamento cross-projeto
+### 7.4 Reaproveitar avaliação de outro projeto
 
-Se o mesmo operacional (casado por **e-mail**) já foi avaliado recentemente em
-outro projeto, o modal oferece "usar essas respostas" e preenche as 7 notas a
-partir da última avaliação encontrada. A origem fica registrada em
-`avaliacoes_gerente.reaproveitada_de`.
+Se a mesma pessoa já foi avaliada recentemente em outro projeto, o sistema oferece
+"usar essas respostas" e preenche as sete notas a partir da última avaliação
+encontrada.
 
-**Use com cuidado.** É um atalho para quem gerencia a mesma pessoa em dois
-projetos e teve a mesma leitura. Não é um botão de "repetir a nota anterior" — a
-avaliação reaproveitada entra no cálculo com peso idêntico a uma avaliação
-pensada.
+Use com cuidado. É um atalho para quem acompanha a mesma pessoa em dois projetos e
+teve a mesma leitura. Não é um botão de repetir nota, porque a avaliação
+reaproveitada entra na conta com o mesmo peso de uma avaliação pensada.
 
 ---
 
@@ -397,115 +378,161 @@ gestão de sprint. O ponto é que **o sistema só enxerga o que passou pelo Kanb
 
 Todo projeto vale **100 pontos, fixo**. Não é um número que o gerente escolhe.
 
-- Se o gerente informar `valor_projeto` (R$), o sistema calcula
-  `valor_por_ponto = valor_projeto ÷ 100` e passa a derivar faturamento previsto
-  por sprint automaticamente.
-- **Trava:** `valor_projeto` só pode ser alterado enquanto **nenhuma sprint tiver
-  orçamento de pontos definido**. Depois do primeiro orçamento, o valor congela —
-  mudar depois desalinharia silenciosamente todo o faturamento já calculado.
+Se o gerente informar o valor do projeto em reais, cada ponto passa a valer um
+centésimo desse valor, e o faturamento previsto de cada sprint sai daí
+automaticamente. O valor do projeto só pode ser mudado enquanto nenhuma sprint
+tiver recebido orçamento de pontos: depois disso ele congela, porque mudá-lo
+desalinharia em silêncio todo o faturamento já calculado.
 
-### 8.2 Orçamento de pontos por sprint
+### 8.2 Quanto cada sprint recebe dos 100 pontos
 
-No planejamento (aba **Escopo**), o gerente distribui os 100 pontos entre as
-sprints (`sprints.pontos_orcamento`).
+No planejamento, na aba Escopo, o gerente distribui os 100 pontos entre as sprints.
+Se o projeto tem 10 sprints previstas e todas são parecidas, cada uma recebe por
+volta de 10 pontos. Se uma sprint concentra a parte pesada, ela recebe mais.
 
-Regras:
+Três regras governam essa distribuição:
 
-- A soma dos orçamentos de todas as sprints **não pode passar de 100**.
-- Um orçamento **não pode encolher abaixo do que as tasks daquela sprint já
-  somam** — não dá para prometer menos do que já foi gasto.
-- Sprint sem orçamento definido (`NULL`) não entra na soma e **não trava nada**.
-  Planejamento incompleto não impede trabalhar.
-- Marcar o projeto como entregue com soma diferente de 100 gera um aviso
-  **não-bloqueante** ("62/100 pontos alocados — marcar como entregue mesmo
-  assim?"). Forçar 100 exato incentivaria inflar pontos só para fechar a conta.
+- A soma de todas as sprints **não pode passar de 100**, porque 100 é o projeto
+  inteiro.
+- Uma sprint **não pode receber menos pontos do que as tasks dela já somam**. Não
+  dá para prometer menos do que já foi gasto.
+- Sprint sem orçamento definido não entra na soma e não trava nada. Planejamento
+  incompleto não impede trabalhar.
 
-### 8.3 Tasks e pontos
+Ao marcar o projeto como entregue, se a soma não for exatamente 100 o sistema
+avisa, mas não bloqueia. Exigir 100 exato só incentivaria inflar pontos para
+fechar a conta.
 
-Cada task carrega uma fatia dos pontos da sprint. `pontos > 0`, sempre.
+### 8.3 Quantos pontos cada task vale
 
-- Se a sprint de destino **tem** orçamento: a soma dos pontos das tasks daquela
-  sprint não pode ultrapassá-lo.
-- Se **não tem** orçamento: sem validação, comportamento livre.
-- Mover uma task entre sprints revalida contra o orçamento da sprint de
-  **destino**.
-- Dados anteriores à reforma de pontuação nunca são revalidados retroativamente.
+Os pontos da sprint são divididos entre as tasks dela. Uma sprint de 10 pontos
+pode ter cinco tasks de 2, ou duas de 3 mais uma de 4. O que não pode é a soma das
+tasks passar do que a sprint recebeu.
 
-**Por que isso importa para o score:** `pontos` é o denominador de Entrega. Task
-sem pontos realistas produz Entrega sem significado. Fatiar task para inflar
-contagem não ajuda — o denominador cresce junto (seção 12).
+Na prática:
 
-### 8.4 Transições, DoR, DoD e WIP
+- **Se a sprint tem orçamento definido**, o sistema recusa uma task nova que faria
+  a soma estourar, e diz quantos pontos ainda sobram.
+- **Se a sprint não tem orçamento definido**, não há validação nenhuma. Você pode
+  trabalhar normalmente e planejar depois.
+- **Se você move uma task de uma sprint para outra**, a validação é refeita contra
+  a sprint de destino, que é quem vai pagar por aqueles pontos.
+- **Tasks e sprints criadas antes desta regra existir** não são revalidadas. Nada
+  quebra retroativamente.
 
-O Kanban tem três colunas: `planejado → em_andamento → concluida`.
+**Por que isso importa para o acompanhamento:** os pontos da task são o
+denominador de Entrega. Se uma task de 2 pontos é cadastrada como 8, a Entrega
+daquela pessoa naquela semana perde o sentido. Pontuar task com honestidade é a
+única disciplina que Entrega exige do gerente.
 
-| Gate | Regra | Efeito |
-|---|---|---|
-| **DoR** | Task sem sprint não pode entrar em `em_andamento` | Garante que todo trabalho em curso tem sprint — sem isso não há a quem atribuir a pontuação |
-| **DoD** | Checklist com item pendente bloqueia `concluida` | Evita "concluída" nominal que vira reabertura depois |
-| **WIP por coluna** | Limite configurável de tasks simultâneas em `em_andamento` no projeto | Segura multitarefa de squad |
-| **WIP por pessoa** | Limite configurável por operacional | Segura multitarefa individual |
+### 8.4 O caminho de uma task no Kanban
 
-Toda mudança de `coluna_kanban`, `operacional_id` e `sprint_id` grava uma linha
-em `task_transicoes`, **com snapshot de quem estava com a task naquele momento**.
-Esse snapshot é o que permite saber quem de fato completou uma task que foi
-reatribuída depois.
+O Kanban tem três colunas: **Planejado**, **Em Andamento** e **Concluída**. Quatro
+regras controlam o movimento entre elas.
 
-### 8.5 Bloqueio manual — a fonte de Autonomia
+**Uma task só entra em Em Andamento se estiver ligada a uma sprint.** Sem sprint,
+não existe a quem creditar aquele trabalho quando a semana fechar, então o sistema
+recusa o movimento e pede que você escolha a sprint antes.
 
-Quando uma task trava por dependência externa, dúvida ou impedimento, o gerente
-(ou o operacional) marca **bloqueio manual** na task.
+**Uma task só vai para Concluída com o checklist completo.** Se você criou um
+checklist na task e sobrou item aberto, o sistema não deixa concluir. Isso evita a
+"concluída" nominal, aquela que volta como reabertura três dias depois e derruba a
+nota de Qualidade da pessoa sem necessidade.
 
-Ao desmarcar, o sistema **exige** informar quem resolveu:
+**Existe um limite de tasks simultâneas em Em Andamento.** Você configura dois
+limites opcionais no projeto: quantas tasks o projeto inteiro pode ter em
+andamento, e quantas cada pessoa pode ter. Ao estourar, o sistema recusa e diz qual
+limite foi atingido. É o freio contra o squad começar dez coisas e terminar duas.
 
-- `operacional` → conta no numerador **e** no denominador de Autonomia
-- `gerente` → conta **só** no denominador
+**Todo movimento fica registrado com quem estava na task naquele momento.** Essa é
+a parte invisível e a mais importante: se a Ana pega uma task, conclui, e depois a
+task é passada para o João por algum motivo, os pontos daquela entrega continuam
+sendo da Ana. O sistema guarda quem estava com a task no instante em que ela foi
+concluída, e é isso que ele lê no fechamento.
 
-Sem essa informação, a operação é recusada com `422`. É o único campo do sistema
-que o gerente é obrigado a preencher fora do questionário, e é ele que carrega
-15% do score.
+### 8.5 Como sinalizar bloqueio de task na tela
 
-### 8.6 Travamento automático por tempo — alerta, nunca pontuação
+Bloqueio é o único dado de Autonomia, então vale detalhar o passo a passo.
 
-Um job diário marca `travado_automatico = true` em qualquer task parada em
-`em_andamento` por mais dias do que `pontos × 2`.
+**Para marcar um bloqueio:**
 
-**Esse sinal jamais entra em nenhuma fórmula de score.** É um alerta visível de
-gestão, para o gerente ir olhar. O gerente pode dar override
-(`travado_override`), e o relógio reseta a cada entrada ou saída de
-`em_andamento`. Não confundir com bloqueio manual — só o bloqueio manual alimenta
-Autonomia.
+1. Vá na aba **Kanban** do projeto e clique na task.
+2. Marque a caixa **"Bloqueada"**.
+3. Aparecem dois campos: **"Motivo do bloqueio"**, texto livre, e **"Quem
+   bloqueou?"**, onde vai o nome de quem identificou.
+4. Salve.
 
-### 8.7 Qualidade de commit por IA
+A task passa a mostrar uma **borda vermelha** e uma etiqueta vermelha
+**"Bloqueada"** no card, então dá para ver o que está travado só de bater o olho
+no quadro.
 
-Quando um commit é ingerido (`POST /ingest/commit`, via a GitHub Action instalada
-no repositório do cliente), e **somente se o projeto for de arquétipo `padrao`**,
-o sistema faz uma segunda chamada ao Gemini pedindo uma nota **0–10** e uma frase
-curta de evidência, avaliando:
+**Para resolver o bloqueio:**
 
-- complexidade da tarefa resolvida no contexto do commit
-- qualidade da documentação e das mensagens de commit
-- aderência a boas práticas (nomes claros, tratamento de erro, testes quando cabível)
+1. Abra a task e **desmarque** a caixa "Bloqueada".
+2. Aparece o campo obrigatório **"Quem resolveu?"**, com duas opções:
+   **Operacional** ou **Gerente**.
+3. Salve. Sem escolher uma das duas, o sistema recusa.
 
-O prompt é explícito em **nunca listar pendências para corrigir** — devolve só a
-nota e o porquê, no espírito de um placar.
+Essa escolha é o dado inteiro da dimensão Autonomia:
 
-**Como o commit encontra a pessoa** (ordem de prioridade):
+- **Operacional** significa que a pessoa destravou sozinha. Conta a favor dela.
+- **Gerente** significa que você teve que entrar para destravar. Conta como
+  bloqueio ocorrido, sem crédito de autonomia.
 
-1. `operacionais.github_login` igual ao autor do commit no GitHub
-2. `operacionais.email` igual ao e-mail do autor
-3. Sem match → a nota é gravada com `operacional_id = null` e **não entra no
-   score de ninguém**
+Responda com honestidade. Marcar sempre "Operacional" para não prejudicar ninguém
+transforma a dimensão em ruído e tira do time a única leitura objetiva sobre
+dependência.
 
-> **Ação obrigatória do gerente:** preencher o **GitHub username** no cadastro de
-> cada operacional. Sem isso, os commits da pessoa não pontuam em Qualidade e ela
-> cai para retrabalho puro — silenciosamente, sem erro em lugar nenhum.
+### 8.6 Task parada tempo demais
 
-A chamada é *best-effort*: se a avaliação de qualidade falhar, a ingestão de
-conhecimento do commit continua funcionando normalmente.
+Todo dia o sistema varre as tasks em Em Andamento. Se uma delas está parada há
+mais dias do que o dobro dos pontos que ela vale, ou seja, uma task de 3 pontos
+parada há 6 dias ou mais, ela ganha uma etiqueta amarela **"⏱ Travada"** no card e
+um aviso dentro da task.
 
-O commit pode ainda referenciar uma task com a tag `[task:<uuid>]` na mensagem —
-isso serve só para rastreabilidade; nenhuma agregação de score depende disso.
+**Isso agora tira ponto.** Os pontos daquela task deixam de contar como entrega no
+fechamento da semana. A lógica é direta: a pessoa até entregou, mas muito depois do
+esperado, então aquela entrega não conta cheia.
+
+O aviso dentro da task traz um campo para o **gerente dispensar o alerta**,
+informando o próprio nome. Dispensar tira a etiqueta e **cancela a penalidade**. É
+a válvula de escape para quando o atraso não é responsabilidade do operacional,
+como dependência de cliente, espera por acesso ou mudança de prioridade.
+
+Ou seja: o alerta é automático, mas a penalidade é revisável pelo gerente. Se você
+não dispensar, o sistema entende que o atraso conta.
+
+Atraso penaliza **Entrega**, e nunca Autonomia. Bloqueio é uma coisa, demora é
+outra.
+
+### 8.7 A nota de qualidade dos commits
+
+Quando um commit chega ao sistema, vindo da integração instalada no repositório do
+projeto, e **somente em projetos do tipo Padrão**, uma IA lê a mensagem e o
+conteúdo da mudança e devolve uma nota de **0 a 10** com uma frase curta
+justificando. Ela olha três coisas:
+
+- a complexidade do que foi resolvido naquele commit
+- a qualidade da documentação e da mensagem de commit
+- a aderência a boas práticas, como nomes claros, tratamento de erro e testes
+  quando cabe
+
+A IA é instruída a nunca listar pendências a corrigir. Ela devolve só a nota e o
+porquê, no espírito de um placar.
+
+**Como o commit encontra a pessoa,** nesta ordem:
+
+1. pelo **usuário do GitHub** cadastrado no operacional
+2. se não achar, pelo **e-mail** cadastrado no operacional
+3. se não achar nenhum dos dois, a nota é gravada sem dono e **não conta para
+   ninguém**
+
+> **Ação obrigatória do gerente:** preencher o usuário do GitHub de cada
+> operacional. Sem isso os commits da pessoa não pontuam em Qualidade e ela fica
+> avaliada só pelo retrabalho, em silêncio, sem nenhum erro aparecer na tela.
+
+Se a avaliação da IA falhar por qualquer motivo, o commit continua sendo registrado
+normalmente. A nota é um extra, não um pré-requisito.
 
 ---
 
@@ -514,657 +541,480 @@ isso serve só para rastreabilidade; nenhuma agregação de score depende disso.
 É o momento em que o dado bruto vira pontuação travada. É o único momento em que
 isso acontece.
 
-### 9.1 Pré-condição: zero pendências
+### 9.1 Pré-condição: nenhuma avaliação pendente
 
-`POST /avaliacoes/{sprint_id}/confirmar` só roda se **todo operacional com pelo
-menos uma task na sprint** já tiver avaliação registrada. Caso contrário, o
-sistema recusa com `409` listando os nomes que faltam.
+A confirmação da Avaliação Semanal só roda se **todo operacional com pelo menos
+uma task na sprint** já tiver sido avaliado. Se faltar alguém, o sistema recusa e
+lista os nomes.
 
-Isso é deliberado: um fechamento parcial produziria linhas sem
-`gerente_media`, e as pessoas não avaliadas teriam seu score renormalizado só
-sobre as dimensões objetivas (seção 11.3) — comparação injusta e invisível.
+Isso é deliberado. Um fechamento parcial produziria pessoas sem nota do gerente,
+que seriam ranqueadas só pelas dimensões objetivas, numa comparação injusta e
+invisível (ver seção 11.3).
 
-### 9.2 O que o fechamento calcula e grava
+### 9.2 O que fica guardado
 
-Para cada operacional com dado na sprint, grava **uma linha** em
-`pontuacao_operacional_sprint`:
+Para cada operacional com dado na sprint, fica registrado:
 
-| Campo | Como é preenchido |
+| O que | De onde vem |
 |---|---|
-| `gerente_media` | Média das **7** respostas |
-| `gerente_pergunta6` | Resposta 6 isolada |
-| `entrega_pontos_concluidos` | Σ pontos das tasks `concluida` atribuídas a quem completou |
-| `entrega_pontos_alocados` | Σ pontos de todas as tasks da pessoa (concluídas + não concluídas) |
-| `qualidade_reaberturas` | Reaberturas no período |
-| `qualidade_tasks_concluidas` | Nº de tasks concluídas pela pessoa |
-| `autonomia_bloqueios_totais` | Bloqueios resolvidos no período |
-| `autonomia_bloqueios_resolvidos_proprio` | Subconjunto resolvido pelo próprio operacional |
-| `qualidade_commit_media` | Média das notas de commit do período (ou `null`) |
-| `finalizado_em` / `sprint_fim` | Timestamp do fechamento |
+| Média das seis perguntas do gerente | Questionário |
+| Nota de evolução | Pergunta 6 do questionário |
+| Pontos que a pessoa pegou | Soma das tasks dela na sprint, concluídas ou não |
+| Pontos que a pessoa entregou | Soma das tasks concluídas por ela |
+| Pontos perdidos por atraso | Tasks que ficaram paradas tempo demais e não foram dispensadas |
+| Tasks concluídas e tasks reabertas | Kanban |
+| Bloqueios que teve e quantos resolveu sozinha | Kanban |
+| Nota média dos commits | Avaliação de IA no período |
 
-Entram na lista de operacionais todos que tiverem **qualquer** um destes:
-pontos alocados, pontos concluídos, reaberturas, bloqueios, ou avaliação.
+Entra na lista quem tiver qualquer um desses dados, mesmo que não tenha concluído
+nada.
 
-### 9.3 Quem recebe os pontos de uma task concluída
+### 9.3 Quem recebe os pontos de uma task
 
-Os pontos vão para **quem estava com a task no momento da transição para
-`concluida`**, lida do snapshot em `task_transicoes` (a transição mais recente,
-se houve reabertura e reconclusão). Se não houver snapshot, cai para o
-`operacional_id` atual da task.
+Os pontos de uma task concluída vão para **quem estava com ela no momento em que
+foi concluída**, e não para quem está com ela agora. Tasks não concluídas contam
+como "pegou" para o responsável atual.
 
-Tasks **não** concluídas contam como alocadas para o responsável atual.
+É por isso que trocar responsável no meio da semana não exige nada de você.
 
-### 9.4 O cutoff — por que nada é contado duas vezes
+### 9.4 Por que nada é contado duas vezes
 
-Reabertura, bloqueio e nota de commit são eventos com timestamp, não campos por
-sprint. Para não contá-los de novo a cada fechamento, o cálculo usa um **cutoff**:
-o `finalizado_em` mais recente entre os fechamentos anteriores **daquele
-projeto**. Só eventos posteriores ao cutoff entram.
+Reabertura, bloqueio, atraso e nota de commit são eventos com data e hora, e não
+campos fixos da sprint. Se o sistema simplesmente lesse "todos os eventos do
+projeto" a cada fechamento, um bloqueio da semana passada seria contado de novo
+nesta semana, e de novo na próxima.
 
-No primeiro fechamento do projeto não há cutoff, e todo o histórico entra.
+Para evitar isso, cada fechamento anota a data e hora em que rodou. O fechamento
+seguinte só considera eventos que aconteceram **depois** do fechamento anterior
+daquele projeto.
 
-### 9.5 Idempotência
+Um exemplo. A Ana teve dois bloqueios na semana 1 e um bloqueio na semana 2:
 
-Se `pontuacao_operacional_sprint` já tiver qualquer linha para a sprint, o
-fechamento **retorna as linhas existentes sem recalcular**. Clicar duas vezes não
-duplica nem sobrescreve.
+- O fechamento da semana 1 roda na sexta e conta os dois bloqueios.
+- O fechamento da semana 2 roda na sexta seguinte e olha só o que aconteceu depois
+  da sexta anterior. Ele conta um bloqueio, não três.
 
-O corolário incômodo: **não existe "refazer o fechamento"**. Se o fechamento
-rodou com dado errado, a correção não é pela UI. Ver seção 15.6.
+No primeiro fechamento do projeto ainda não existe marco anterior, então todo o
+histórico entra de uma vez. Isso é esperado.
 
-### 9.6 Eventos tardios
+### 9.5 Confirmar duas vezes não faz nada, e não dá para desfazer
 
-Se uma reabertura ou resolução de bloqueio acontece numa task cuja sprint **já
-fechou**, o evento não é descartado nem reescreve a linha travada. Ele é
-redirecionado para a **sprint ativa do projeto** através de um ledger separado
-(`eventos_pontuacao_tardios`) e entra no fechamento seguinte.
+Se a sprint já foi fechada, clicar em confirmar de novo **não recalcula e não
+duplica nada**. O sistema devolve o que já estava guardado. Isso protege contra
+clique duplo, aba aberta duas vezes ou colega confirmando junto.
 
-Se a sprint ativa também já estiver travada, o evento fica só no histórico e não
-afeta pontuação nenhuma.
+O outro lado dessa proteção é que **não existe botão de refazer o fechamento**. Se
+você fechou a semana com o Kanban desatualizado, a foto errada é a que ficou. As
+opções são:
 
----
+1. **Deixar quieto.** Uma semana torta dilui nas janelas de 2 e 4 sprints.
+2. **Pedir para a liderança apagar o fechamento** direto na base e refazer. Dá
+   trabalho, mexe no marco de tempo da seção 9.4 e pode fazer eventos serem
+   recontados. Só vale a pena para erro grande.
 
-## 10. Janelas, sequência pessoal e ranking
+A prevenção é o checklist da seção 14 antes de confirmar.
 
-### 10.1 Quem é uma "pessoa"
+### 9.6 Coisas que acontecem depois do fechamento
 
-`operacionais` é uma entidade **por projeto** — a mesma pessoa em dois projetos
-tem duas linhas. O ranking agrupa essas linhas pelo **e-mail**.
-
-- Só operacionais com `ativo = true` entram no ranking.
-- **Operacional sem e-mail cadastrado vira uma pessoa separada por projeto** —
-  não há como casar identidade cross-projeto sem identificador comum. Isso
-  fragmenta o histórico da pessoa e é um erro de cadastro silencioso.
-
-> **Ação obrigatória do gerente:** cadastrar e-mail em todo operacional, e o
-> **mesmo** e-mail em todos os projetos da pessoa.
-
-### 10.2 Sequência pessoal
-
-As linhas travadas da pessoa, **filtradas por `entrega_pontos_alocados > 0`** e
-ordenadas por `sprint_fim` decrescente. Sprints em que a pessoa não teve nenhum
-ponto alocado simplesmente não existem na sequência.
-
-### 10.3 As três janelas
-
-| Janela | Tamanho | Rótulo na tela |
-|---|---|---|
-| `sprint` | 1 linha | Última sprint |
-| `quinzenal` | 2 linhas | Últimas 2 sprints |
-| `mensal` | 4 linhas | Últimas 4 sprints |
-
-**As janelas são por contagem de sprints, nunca por calendário.** Uma pessoa que
-ficou dois meses fora tem a mesma janela "mensal" de quatro sprints — só que
-mais antigas. Isso é intencional: compara volume de trabalho equivalente, não
-período de tempo equivalente.
-
-Se a pessoa tem menos linhas do que o tamanho da janela, o score é calculado com
-o que existe e a linha é marcada **`janela_parcial`** — aparece na tela como
-"Janela parcial — dado insuficiente ainda". Um score parcial não é comparável a
-um score cheio; trate como indicativo.
-
-### 10.4 Agregação em duas camadas
-
-Dentro de uma janela que cobre mais de um projeto:
-
-1. **Camada 1 — por projeto.** Agrupa as linhas por `projeto_id` e aplica a
-   fórmula da dimensão sobre os somatórios daquele projeto.
-2. **Camada 2 — entre projetos.** Média **simples** dos valores por projeto,
-   ignorando projetos onde a dimensão ficou indisponível.
-
-Média simples, não ponderada por volume: um projeto pequeno pesa igual a um
-grande. Isso protege quem foi alocado parcialmente em algo pequeno de ter esse
-projeto diluído a zero — mas também significa que uma sprint ruim num projeto
-pequeno machuca tanto quanto num grande.
+Se uma task de uma sprint já fechada é reaberta, ou um bloqueio dela é resolvido
+depois, o evento não é perdido nem reescreve a semana fechada. Ele é redirecionado
+para a **sprint aberta do projeto** e entra no fechamento seguinte. Se não houver
+sprint aberta, o evento fica só no histórico e não afeta pontuação nenhuma.
 
 ---
 
-## 11. A fórmula completa, passo a passo
+## 10. Janelas e ranking
 
-### 11.1 O algoritmo
+### 10.1 Uma pessoa é uma pessoa, mesmo em vários projetos
 
-```
-Para cada pessoa ativa (agrupada por e-mail):
-  sequencia ← linhas travadas com alocados > 0, ordenadas por sprint_fim DESC
+Cada projeto tem sua própria lista de operacionais. Quem trabalha em dois projetos
+aparece nas duas listas.
 
-  Para cada janela em {sprint:1, quinzenal:2, mensal:4}:
-    linhas ← as N primeiras da sequencia
-    Se não há linhas → pessoa não aparece nesta janela
+**No ranking essas aparições viram uma pessoa só.** O sistema junta tudo pelo
+**e-mail** cadastrado, calcula cada dimensão dentro de cada projeto e depois tira
+a **média simples** entre os projetos. Quem está em dois projetos é avaliado pela
+média dos dois, não pela soma nem pelo melhor deles.
 
-    arquetipo ← arquétipo do projeto com mais linhas (empate: mais recente)
-    pesos     ← pesos_arquetipo[arquetipo]
+A consequência prática é dura mas necessária: **se o e-mail estiver diferente ou
+em branco nos dois cadastros, o sistema não tem como saber que é a mesma pessoa**,
+e ela aparece duas vezes no ranking, com metade do histórico cada. Por isso, ao
+adicionar um operacional que já existe em outro projeto, use o atalho **"Já
+trabalha em outro projeto?"** no formulário: ele preenche nome, e-mail, papel e
+usuário do GitHub a partir do cadastro que já existe, e evita o erro de digitação
+que parte a pessoa em duas.
 
-    Para cada dimensão D em {entrega, gerente, qualidade, autonomia, evolucao}:
-      valores ← [ fórmula_D(linhas do projeto P) para cada projeto P ]
-      valores ← valores sem os indisponíveis
-      subscore[D] ← média simples de valores   (ou indisponível, se lista vazia)
+Operacional desativado sai do ranking na hora.
 
-    disponiveis     ← dimensões com subscore não-indisponível
-    peso_disponivel ← Σ peso[D] para D em disponiveis
-    score_final     ← Σ ( peso[D] × subscore[D] ) ÷ peso_disponivel
+### 10.2 As três janelas
 
-Ordena por score_final decrescente, por janela.
-```
+Como a sprint dura uma semana, as janelas são:
 
-Todo resultado intermediário é arredondado para **2 casas decimais**.
-
-### 11.2 Exemplo numérico completo
-
-Maria, janela **quinzenal** (2 sprints), ambas no mesmo projeto de arquétipo
-`padrao`, `peso_commit_qualidade = 0.5`.
-
-| Dado | Sprint 12 | Sprint 13 |
+| Janela | Cobre | Equivale a |
 |---|---|---|
-| `entrega_pontos_alocados` | 14 | 10 |
-| `entrega_pontos_concluidos` | 12 | 10 |
-| `gerente_media` | 4.14 | 4.43 |
-| `gerente_pergunta6` | 4 | 5 |
-| `qualidade_reaberturas` | 1 | 0 |
-| `qualidade_tasks_concluidas` | 6 | 4 |
-| `autonomia_bloqueios_totais` | 3 | 1 |
-| `autonomia_bloqueios_resolvidos_proprio` | 2 | 1 |
-| `qualidade_commit_media` | 7.5 | 8.5 |
+| Última sprint | 1 sprint | 1 semana |
+| Últimas 2 sprints | 2 sprints | 2 semanas |
+| Últimas 4 sprints | 4 sprints | 4 semanas |
 
-**Sub-scores:**
+A janela de 2 sprints é a que casa com o ritmo de reconhecimento, que é quinzenal.
 
-```
-Entrega    = (12 + 10) ÷ (14 + 10) × 100 = 22/24 × 100          = 91.67
-Gerente    = média(4.14, 4.43) × 20 = 4.285 × 20                = 85.70
-Evolução   = média(4, 5) × 20 = 4.5 × 20                        = 90.00
-Autonomia  = (2 + 1) ÷ (3 + 1) × 100 = 3/4 × 100                = 75.00
+**As janelas contam sprints, não dias de calendário.** Quem ficou duas semanas
+fora tem a mesma janela de 4 sprints que todo mundo, só que composta por sprints
+mais antigas. É intencional: compara volume de trabalho equivalente, e não período
+de tempo equivalente.
 
-retrabalho = (1 − (1 + 0) ÷ (6 + 4)) × 100 = 0.9 × 100          = 90.00
-commit     = média(7.5, 8.5) × 10 = 8.0 × 10                    = 80.00
-Qualidade  = 0.5 × 80.00 + 0.5 × 90.00                          = 85.00
-```
+Sprints em que a pessoa não pegou nenhum ponto não existem para o ranking, elas
+são puladas.
 
-**Score final:**
+Se a pessoa tem menos sprints do que a janela pede, a nota é calculada com o que
+existe e a tela mostra **"janela parcial"**. Nota parcial não é comparável com
+nota cheia, trate como indicativa.
 
-```
-0.35 × 85.70  = 29.995
-0.20 × 91.67  = 18.334
-0.20 × 85.00  = 17.000
-0.15 × 75.00  = 11.250
-0.10 × 90.00  =  9.000
-                ───────
-                85.579  ÷ 1.00  →  85.58
-```
+---
 
-### 11.3 Renormalização quando falta dimensão
+## 11. A conta final, passo a passo
 
-Se uma dimensão fica indisponível, ela **não vira zero** — ela sai da conta, e o
-score é dividido pela soma dos pesos que restaram.
+### 11.1 O caminho
 
-Mesma Maria, mas **sem avaliação do gerente** em nenhuma das duas sprints
-(Gerente e Evolução indisponíveis):
+1. **Junta a pessoa.** Todas as aparições dela, em todos os projetos, viram uma
+   pessoa só, casadas pelo e-mail.
+2. **Monta a janela.** Pega as sprints fechadas mais recentes em que ela pegou
+   pontos: 1, 2 ou 4, conforme a janela escolhida na tela.
+3. **Calcula cada dimensão dentro de cada projeto.** As cinco fórmulas da seção 5,
+   aplicadas só às sprints daquela janela, projeto por projeto.
+4. **Tira a média entre projetos.** Se a janela cobre mais de um projeto, cada
+   dimensão vira a média simples dos valores por projeto. Projeto onde a dimensão
+   não existe é ignorado, e não entra como zero.
+5. **Aplica os pesos.** Multiplica cada dimensão pelo peso dela e soma. O
+   resultado é o score final, de 0 a 100.
+6. **Ordena.** As pessoas são listadas da maior nota para a menor, dentro de cada
+   janela.
 
-```
-peso disponível = 0.20 + 0.20 + 0.15 = 0.55
-soma ponderada  = 18.334 + 17.000 + 11.250 = 46.584
-score final     = 46.584 ÷ 0.55 = 84.70
-```
+A média entre projetos é simples, e não ponderada por volume: um projeto pequeno
+pesa igual a um grande. Isso protege quem foi alocado parcialmente em algo pequeno
+de ver aquele projeto diluído a zero, mas também significa que uma semana ruim num
+projeto pequeno machuca tanto quanto num grande.
 
-Isso é matematicamente correto e comportamentalmente perigoso: uma pessoa sem
-avaliação de gerente é rankeada só pelas dimensões objetivas, na mesma tabela de
-quem tem as cinco. **A defesa contra isso é o gate da seção 9.1**, que impede o
-fechamento com avaliação faltando. Enquanto esse gate for respeitado, o caso
-acima não acontece na prática — mas linhas antigas ou dado importado podem
-produzi-lo. Se você vir alguém com `Gerente = —` na tela, o score dele não é
-comparável.
+### 11.2 Um exemplo do começo ao fim
 
-Se **todas** as dimensões estiverem indisponíveis, a pessoa não aparece no
-ranking daquela janela.
+A Maria, na janela de duas sprints, nos dois casos no mesmo projeto de tipo Padrão.
+
+| O que aconteceu | Sprint 12 | Sprint 13 |
+|---|---|---|
+| Pontos que ela pegou | 14 | 10 |
+| Pontos que ela entregou | 12 | 10 |
+| Pontos perdidos por atraso | 0 | 2 |
+| Média das seis perguntas do gerente | 4,17 | 4,50 |
+| Nota de evolução | 4 | 5 |
+| Tasks concluídas | 6 | 4 |
+| Tasks reabertas | 1 | 0 |
+| Bloqueios que teve | 3 | 1 |
+| Bloqueios que resolveu sozinha | 2 | 1 |
+| Nota média dos commits | 7,5 | 8,5 |
+
+**As cinco dimensões:**
+
+| Dimensão | Conta | Resultado |
+|---|---|---|
+| Entrega | (12 + 10 menos 2) sobre (14 + 10) | **83,33** |
+| Avaliação do Gerente | média de 4,17 e 4,50, vezes 20 | **86,70** |
+| Qualidade | retrabalho 90,00 e commits 80,00, meio a meio | **85,00** |
+| Autonomia | 3 resolvidos sobre 4 bloqueios | **75,00** |
+| Evolução | média de 4 e 5, vezes 20 | **90,00** |
+
+O retrabalho saiu de 1 task reaberta em 10 concluídas, que dá 90. A nota de
+commits foi a média de 7,5 e 8,5, que dá 8,0, convertida para 80.
+
+**O score final:**
+
+| Dimensão | Nota | Peso | Contribuição |
+|---|---|---|---|
+| Avaliação do Gerente | 86,70 | 35% | 30,35 |
+| Entrega | 83,33 | 20% | 16,67 |
+| Qualidade | 85,00 | 20% | 17,00 |
+| Autonomia | 75,00 | 15% | 11,25 |
+| Evolução | 90,00 | 10% | 9,00 |
+| | | | **84,26** |
+
+Repare no efeito do atraso: sem os 2 pontos penalizados na sprint 13, a Entrega
+teria sido 91,67 e o score final subiria para 85,93. Uma task travada custou 1,67
+ponto de score.
+
+### 11.3 O que acontece quando falta uma dimensão
+
+Se uma dimensão não pode ser calculada, ela **não vira zero**. Ela sai da conta, e
+o resultado é dividido pela soma dos pesos que sobraram.
+
+Voltando à Maria: se ela não tivesse sido avaliada pelo gerente em nenhuma das duas
+sprints, sumiriam a Avaliação do Gerente e a Evolução. Sobrariam Entrega,
+Qualidade e Autonomia, que somam 55% de peso. A conta seria 16,67 mais 17,00 mais
+11,25, dividido por 0,55, dando **81,67**.
+
+Isso é matematicamente correto e comportamentalmente perigoso, porque coloca na
+mesma tabela alguém medido por cinco dimensões e alguém medido por três. A defesa
+contra isso é a trava da seção 9.1, que impede fechar a semana com avaliação
+faltando. Enquanto essa trava for respeitada, o caso não acontece.
+
+Se você vir alguém com um traço no lugar da nota do gerente, o score daquela pessoa
+não é comparável com o dos outros.
+
+Quem não tem nenhuma dimensão calculável simplesmente não aparece no ranking.
 
 ---
 
 ## 12. Guard-rails e anti-gaming
 
-O princípio: **uma métrica de volume só é admitida quando outra dimensão a pune
-ao ser gameada.**
+O princípio: **uma métrica de volume só é admitida quando outra dimensão a pune ao
+ser gameada.**
 
 ### 12.1 A regra dura
 
-> Contagem de task, de commit e de linha é **guard-rail, nunca moeda.**
+> Contagem de task, de commit e de linha é guard-rail, nunca moeda.
 
-Sob IA, commit e linha são quase de graça. Servem para cruzar com qualidade,
-jamais para pontuar sozinhos. Nenhuma dessas contagens aparece em nenhuma das
-cinco fórmulas.
+Sob IA, commit e linha são quase de graça. Servem para cruzar com qualidade, jamais
+para pontuar sozinhos. Nenhuma dessas contagens aparece em nenhuma das cinco
+fórmulas.
 
 ### 12.2 Como cada tentativa de gaming se anula
 
 | Tentativa | O que a segura |
 |---|---|
-| Fatiar task para inflar contagem | Entrega é razão concluído/alocado — o denominador cresce junto. E `qualidade_tasks_concluidas` cresce sem melhorar retrabalho |
-| Pegar poucas tasks para garantir 100% de Entrega | Entrega tem teto 100, então não há upside; e a leitura do gerente (35%) enxerga volume baixo |
-| Pegar muitas tasks e entregar pela metade | Alocado cresce, concluído não — Entrega despenca |
-| Commit trivial em volume | A nota é 0–10 por commit e entra como **média**, não soma. Commit trivial puxa a média para baixo |
-| Inflar linha de código com IA | Não existe contagem de linha em lugar nenhum. E a nota de commit avalia complexidade e aderência, não tamanho |
-| Marcar task como concluída sem estar | DoD bloqueia com checklist pendente; e a reabertura posterior pune Qualidade |
-| Nunca registrar bloqueio para manter Autonomia em 100 | Segurada só parcialmente — ver 12.3 |
-| Gerente inflar as notas do próprio squad | Calibração entre gerentes (14.5). É a única defesa, e é social, não técnica |
+| Fatiar task para inflar contagem | Entrega é proporção, então o denominador cresce junto. E o número de tasks concluídas sobe sem melhorar o retrabalho |
+| Pegar poucas tasks para garantir 100% de Entrega | Entrega tem teto 100, então não há ganho. E a leitura do gerente, que vale 35%, enxerga volume baixo |
+| Pegar muitas tasks e entregar metade | O que pegou cresce, o que entregou não. Entrega despenca |
+| Segurar task por semanas para entregar "perfeita" | O alerta de atraso tira os pontos dela da Entrega |
+| Commit trivial em volume | A nota é por commit e entra como média, não como soma. Commit trivial puxa a média para baixo |
+| Inflar linha de código com IA | Não existe contagem de linha em lugar nenhum, e a nota de commit avalia complexidade e aderência, não tamanho |
+| Marcar task como concluída sem estar | O checklist bloqueia a conclusão, e a reabertura depois derruba a Qualidade |
+| Nunca registrar bloqueio para manter Autonomia em 100 | Segurada só em parte, ver abaixo |
+| Gerente inflar as notas do próprio squad | Só a calibração entre gerentes segura. É defesa social, não técnica |
 
-### 12.3 O buraco conhecido: sub-registro de bloqueio
+### 12.3 O buraco conhecido: não registrar bloqueio
 
-Autonomia é 100 quando `bloqueios_totais = 0`. Não registrar bloqueio nenhum
-garante nota máxima em 15% do score.
+Autonomia é 100 quando não há bloqueio nenhum. Não registrar bloqueio garante nota
+máxima em 15% do score, e nada no sistema impede isso.
 
-Nada no código impede isso. As defesas hoje são indiretas:
+As defesas hoje são indiretas. A pergunta 3 do questionário captura a percepção
+real do gerente sobre dependência, e vale por volta de 5,8%. E bloqueio não
+registrado costuma virar task parada, que agora dispara o alerta de atraso e
+penaliza Entrega.
 
-- A pergunta 3 do gerente ("destravou sozinha antes de te escalar?") captura a
-  percepção real, e vale 5% — o gerente que vê a pessoa travada sem registro
-  responde baixo.
-- Bloqueio não registrado costuma virar task parada, que o travamento automático
-  por tempo sinaliza como alerta (8.6).
+Ainda assim é o vetor de gaming mais aberto do sistema.
 
-Ainda assim, é o vetor de gaming mais aberto do sistema, e é onde a decisão 19.4
-mira.
+### 12.4 O que nunca entra na conta
 
-### 12.4 O que nunca entra no score
-
-- `travado_automatico` — alerta de gestão, por design fora de toda fórmula
-- número de commits, linhas, PRs, arquivos
-- número de tasks (só pontos, e só como razão)
-- cycle time e SPI de cronograma da sprint — são métricas de **saúde do squad**
-- horas, presença, tempo de resposta
+- número de commits, de linhas, de PRs ou de arquivos
+- número de tasks, porque só os pontos contam, e só como proporção
+- tempo de ciclo e SPI da sprint, que são métricas de saúde do squad
+- horas trabalhadas, presença ou tempo de resposta
 
 ---
 
-## 13. Acesso, sigilo e auditoria
+## 13. Acesso, sigilo e o que divulgar
 
 ### 13.1 Quem vê o quê
 
 | Recurso | Líder | Gerente | Operacional |
 |---|---|---|---|
-| Ranking e score final (`/performance`) | ✅ | ❌ | ❌ |
-| SPI individual, baseline de evolução | ✅ | ❌ | ❌ |
-| Esta metodologia (`/metodologia`) | ✅ | ✅ | ❌ |
+| Ranking e score final | ✅ | ❌ | ❌ |
+| Entrega consolidada e evolução por pessoa | ✅ | ✅ | ❌ |
 | Preencher e ler o questionário | ✅ | ✅ | ❌ |
 | Métricas e painel do projeto | ✅ | ✅ | ❌ |
-| Kanban, tasks, sprints | ✅ | ✅ | ✅ (só projetos vinculados) |
+| Esta metodologia | ✅ | ✅ | ❌ |
+| Kanban, tasks e sprints | ✅ | ✅ | ✅ só nos projetos em que está |
 
-O gerente **não** enxerga score nem ranking. Ele produz o insumo (as 7 notas) e
-consome as métricas do projeto — mas o resultado do cálculo é do Líder.
+O gerente **não** enxerga o score final nem a posição de ninguém no ranking. Ele
+produz o insumo, que são as sete notas, e enxerga a entrega consolidada e a
+evolução de cada pessoa do projeto dele, que é o que sustenta a conversa de
+feedback. O resultado do cálculo é do Líder.
 
-Qualquer conta com `cargo = gerente` acessa dados de gestão de **qualquer**
-projeto, não só dos que gerencia. A única restrição por projeto é a do
-operacional. Isso foi decisão explícita para não precisar manter um vínculo
-squad↔gerente.
+**Onde o gerente vê isso:** aba **Métricas** do projeto, no bloco "Entrega e
+evolução por pessoa". Ele mostra, para cada operacional, a entrega consolidada dos
+fechamentos, a nota de evolução, quantas sprints já foram avaliadas e quantos
+pontos a pessoa perdeu por atraso. É o mesmo dado que alimenta o ranking, sem
+mostrar o ranking.
+
+Qualquer conta de gerente acessa os dados de gestão de qualquer projeto, e não só
+dos que ela gerencia. A única restrição por projeto é a do operacional, que só
+alcança os projetos em que está vinculado.
 
 ### 13.2 Auditoria
 
-Todo acesso a `GET /performance` grava uma linha em `audit_log` com pessoa, rota
-e timestamp. É exigência vinculante do desenho de RBAC: toda leitura de score,
-peso ou avaliação de gerente deixa rastro.
+Toda vez que alguém abre a tela de ranking, fica registrado quem abriu e quando.
+Leitura de score deixa rastro.
 
 ### 13.3 O que divulgar e o que não divulgar
 
 **Pode e deve ser dito ao time:**
 
-- Que a contribuição é acompanhada em entrega, qualidade, autonomia, ajuda ao
-  time e evolução.
-- Que existe reconhecimento por ciclo para quem mais contribui no conjunto.
-- Que **ajudar os outros conta a favor**, não contra.
-- Que nenhuma métrica isolada define o rank.
+- Que a contribuição é acompanhada em entrega, qualidade, autonomia, ajuda ao time
+  e evolução.
+- Que existe reconhecimento periódico para quem mais contribui no conjunto.
+- Que **ajudar os outros conta a favor**, e não contra.
+- Que nenhuma métrica isolada define a posição de ninguém.
 - Que o objetivo é reconhecer e desenvolver.
 
 **Nunca deve ser dito:**
 
-- Os pesos e a fórmula.
-- Os scores individuais e o ranking completo.
+- Os pesos e as fórmulas.
+- A nota de ninguém, nem a posição no ranking.
 - As notas cruas do questionário.
 - Qual coisa contável pesa mais.
-- Que os critérios nunca mudam — os pesos serão calibrados após o piloto.
+- Que os critérios nunca mudam, porque os pesos serão recalibrados com dado real.
 
-**Na divulgação:** anuncie apenas o **top performer por ciclo**; o resto do
-ranking fica na liderança. Escolha um vencedor cuja contribuição inclua
-visivelmente ter ajudado o time — o vencedor visível vira o modelo do que é
-premiado. Se quem ganha é quem puxou os outros, o time lê que ajudar ganha.
+**Na divulgação:** anuncie apenas o **destaque do período**, a cada duas semanas. O
+restante da lista fica com a liderança. Escolha alguém cuja contribuição inclua
+visivelmente ter ajudado o time, porque quem é premiado em público vira o modelo do
+que é premiado. Se quem ganha é quem puxou os outros, o time lê que ajudar ganha.
 
-> O botão de "anúncio do top performer" foi descopado do sistema. O anúncio é
-> feito manualmente pela liderança, fora do DocuData.
+O anúncio é feito pela liderança, fora do sistema.
 
 ---
 
 ## 14. Manual do gerente
 
-### 14.1 Setup, uma vez por projeto
+### 14.1 Antes da primeira sprint
 
-Antes da primeira sprint:
+1. **Preencha o contrato do projeto:** tipo de projeto (Padrão ou Consultoria),
+   datas e, se houver, o valor em reais. Lembre que o valor congela assim que a
+   primeira sprint receber orçamento de pontos.
+2. **Cadastre os operacionais com e-mail e usuário do GitHub.** Os dois são
+   obrigatórios na prática, mesmo que o formulário aceite em branco. Sem e-mail a
+   pessoa não é reconhecida entre projetos. Sem usuário do GitHub os commits dela
+   não pontuam.
+   Se a pessoa já está em outro projeto, use o atalho **"Já trabalha em outro
+   projeto?"** e selecione o nome dela: o cadastro vem preenchido e o e-mail sai
+   igual, que é o que mantém ela como uma pessoa só.
+3. **Distribua os 100 pontos entre as sprints,** na aba Escopo. Pode ser aos
+   poucos, sprint sem orçamento não trava nada.
+4. **Configure os limites de tasks simultâneas** se o squad tende a começar muita
+   coisa ao mesmo tempo.
 
-1. **Cadastre o contrato** (aba Painel → Contrato): arquétipo (`padrao` ou
-   `consultoria_discovery`), datas, tolerância e, se houver, `valor_projeto` em
-   R$. Lembre que o valor congela assim que a primeira sprint receber orçamento.
-2. **Cadastre os operacionais** com **e-mail** e **GitHub username**. Os dois são
-   obrigatórios na prática, mesmo que o formulário aceite vazio:
-   - sem e-mail → a pessoa não é reconhecida entre projetos (10.1)
-   - sem GitHub username → os commits dela não pontuam em Qualidade (8.7)
-   - use o **mesmo e-mail** em todos os projetos da pessoa
-3. **Distribua os 100 pontos** entre as sprints na aba Escopo. Pode ser
-   incremental — sprint sem orçamento não trava nada.
-4. **Configure os limites de WIP** se o squad tende a multitarefar.
+### 14.2 Durante a semana
 
-### 14.2 Durante a sprint
+O trabalho é o Kanban normal. Três coisas exigem disciplina:
 
-O trabalho é o Kanban normal. As três coisas que exigem disciplina:
+1. **Pontue as tasks com honestidade.** Os pontos são o denominador de Entrega.
+2. **Registre bloqueio quando houver bloqueio,** e ao resolver informe com
+   honestidade quem resolveu. Esse único campo carrega 15% do score.
+3. **Mantenha o responsável da task correto.** Quem está com a task quando ela é
+   concluída é quem recebe os pontos.
 
-1. **Pontos de task realistas.** Eles são o denominador de Entrega. Task de 8
-   pontos que era de 2 distorce o score de todo mundo naquela sprint.
-2. **Registrar bloqueio quando houver bloqueio.** E, ao resolver, informar
-   honestamente **quem resolveu**. Esse único campo carrega 15% do score.
-3. **Manter a atribuição da task correta.** Quem está com a task quando ela é
-   concluída é quem recebe os pontos. Reatribuiu? Reatribua no sistema também.
+E fique de olho na etiqueta amarela de atraso. Se o atraso não é culpa do
+operacional, **dispense o alerta na task**, porque senão ele vai descontar pontos
+de Entrega no fechamento.
 
-Não precisa fazer nada "de performance" durante a sprint. Se o Kanban reflete a
-realidade, o dado está sendo coletado.
+Fora isso, não existe nada "de performance" para fazer durante a semana. Se o
+Kanban reflete a realidade, o dado está sendo coletado.
 
-### 14.3 O fechamento — a rotina de fim de sprint
+### 14.3 O fechamento, na sexta
 
 No card da sprint, botão **"Avaliação Semanal"**:
 
-1. O modal lista todos os operacionais **pendentes** — todo mundo com pelo menos
-   uma task na sprint.
-2. Clique num nome → responda as **7 perguntas** (0 a 5). Todas obrigatórias.
-   - Se a pessoa já foi avaliada recentemente em outro projeto, aparece a opção
-     de reaproveitar aquelas respostas. Use só se a leitura for de fato a mesma.
-3. **Salvar avaliação.** A pessoa some da lista de pendentes.
-4. Repita até a lista zerar. Aparece "✓ Todas as avaliações desta sprint estão
-   completas."
+1. O sistema lista todos os operacionais **pendentes**, que são todos os que
+   tiveram pelo menos uma task na sprint.
+2. Clique num nome e responda as **sete perguntas**, de 0 a 5. Todas obrigatórias.
+   Se a pessoa foi avaliada recentemente em outro projeto, aparece a opção de
+   reaproveitar aquelas respostas. Use só se a leitura for de fato a mesma.
+3. **Salve.** A pessoa sai da lista de pendentes.
+4. Repita até a lista zerar.
 5. Clique em **"Confirmar Avaliação Semanal"**.
 
-**O passo 5 é irreversível.** Ele fotografa o estado da sprint e trava a
-pontuação. Depois dele:
+**O passo 5 não tem volta.** Antes de clicar, confira quatro coisas:
 
-- Tasks daquela sprint **não podem mais ser excluídas**.
-- Rodar de novo não recalcula nada.
-- Correções de dado bruto não têm caminho pela UI (15.6).
+- Todas as tasks estão na coluna certa?
+- Os bloqueios resolvidos foram desmarcados com o responsável correto?
+- Os responsáveis das tasks estão como de fato foram?
+- Algum alerta de atraso precisa ser dispensado?
 
-Antes de clicar, confira: todas as tasks estão na coluna certa? Os bloqueios
-resolvidos foram desmarcados com o responsável correto? As atribuições estão como
-de fato foram?
-
-Depois de confirmado, o botão vira **"✓ Avaliação Semanal"**.
+Depois de confirmado, as tasks daquela sprint não podem mais ser excluídas, e
+confirmar de novo não recalcula nada.
 
 ### 14.4 Prazo de correção
 
-Você tem **48 horas a partir da criação** de cada avaliação para corrigir as
-notas. Depois disso o sistema recusa a edição. Se você percebeu um erro de
-leitura no dia seguinte, ainda dá tempo — na semana seguinte, não.
+Você tem **48 horas a partir da criação** de cada avaliação para corrigir as notas.
+Percebeu um erro de leitura no dia seguinte, ainda dá tempo. Na semana seguinte,
+não.
 
-### 14.5 Calibração entre gerentes — não negociável
+### 14.5 Calibração entre gerentes
 
-Porque o gerente pesa 35%.
+Não é negociável, porque o gerente pesa 35%.
 
-**Antes de cada ciclo**, os gerentes se reúnem, olham casos reais de operacionais
-e combinam o que é um 3 e o que é um 5. Cada gerente justifica a nota para os
-outros. Repete uma vez por ciclo.
+**Uma vez por ciclo**, os gerentes se reúnem, olham casos reais de operacionais e
+combinam o que é um 3 e o que é um 5. Cada gerente justifica a própria nota para os
+outros.
 
-Sem calibração, peso alto no gerente faz o ranking medir **de qual gerente a
-pessoa é**, não como ela performou. A calibração tira a pressão para inflar nota,
-alinha padrões diferentes e reduz viés. É a peça que torna os 35% justos em vez
-de ruído.
+Sem calibração, peso alto no gerente faz o ranking medir **de qual gerente a pessoa
+é**, e não como ela performou. A calibração tira a pressão de inflar nota, alinha
+padrões diferentes e reduz viés. É a peça que torna os 35% justos em vez de ruído.
 
-O sistema **não** força nem monitora a calibração. É rotina humana, e é a única
-defesa contra o vetor de gaming da linha final da tabela 12.2.
+O sistema não força nem acompanha a calibração. É rotina humana, e é a única defesa
+contra o último item da tabela da seção 12.
 
 ### 14.6 O que o gerente não faz
 
-- Não vê score, sub-score nem ranking — isso é do Líder.
-- Não ajusta pesos — isso é `UPDATE` no banco, decisão do Líder.
+- Não vê score final nem ranking, isso é do Líder.
+- Não ajusta pesos.
 - Não reabre fechamento.
-- Não comunica posição de ranking a operacional. A comunicação de reconhecimento
-  segue a seção 13.3 e é feita pela liderança.
+- Não comunica posição no ranking a operacional. A comunicação de reconhecimento
+  segue a seção 13 e é feita pela liderança.
 
 ---
 
 ## 15. Casos de borda e regras finas
 
-### 15.1 Reatribuição de task no meio da sprint
+### 15.1 Trocar o responsável de uma task no meio da semana
 
-Não exige nada do gerente além de reatribuir no sistema. O fechamento lê o estado
-final e o histórico de transições: os pontos de uma task concluída vão para quem
-estava com ela **no momento da conclusão**; tasks não concluídas contam como
-alocadas para o responsável **atual**.
+Não exige nada além de trocar no sistema. Os pontos de uma task concluída ficam com
+quem estava com ela na conclusão. Tasks não concluídas contam como "pegou" para o
+responsável atual.
 
 ### 15.2 Pessoa em dois ou mais projetos
 
-Cada projeto gera sua própria linha travada por sprint. A janela junta as linhas
-mais recentes independentemente do projeto, e a agregação faz média simples entre
-projetos (10.4). O arquétipo aplicado é o do projeto dominante na janela (6.4).
+Cada projeto gera seu próprio registro por sprint. A janela junta as sprints mais
+recentes independentemente do projeto, e cada dimensão vira a média simples entre
+os projetos. Ver seção 10.1.
 
-### 15.3 Pessoa sem e-mail cadastrado
+### 15.3 Pessoa cadastrada sem e-mail
 
-Vira uma "pessoa" separada por linha de `operacionais` — o histórico não se junta
-entre projetos. É um erro de cadastro que não gera nenhum aviso.
+Vira duas pessoas diferentes no ranking, uma por projeto, cada uma com metade do
+histórico. Não aparece nenhum aviso. É o erro de cadastro mais caro do sistema.
 
 ### 15.4 Operacional desativado
 
-`ativo = false` remove a pessoa do ranking imediatamente. As linhas travadas dela
-continuam no banco, mas não são lidas.
+Sai do ranking imediatamente. O histórico dele continua guardado, mas não é lido.
 
 ### 15.5 Sprint sem nenhuma task
 
-Se não há tasks na sprint, o fechamento não cria linha nenhuma — mas ainda marca
-`avaliacao_completa_em` na sprint. Ninguém entra na sequência pessoal por aquela
-sprint.
+O fechamento não cria registro para ninguém, e aquela sprint não entra na janela de
+ninguém.
 
 ### 15.6 Fechamento feito com dado errado
 
-**Não há caminho pela UI.** A pontuação é idempotente por sprint: rodar de novo
-retorna as linhas existentes. As opções, todas manuais e todas do Líder:
+Não há caminho pela tela. Ver seção 9.5.
 
-1. Aceitar e deixar a distorção diluir nas janelas seguintes (2 e 4 sprints).
-2. Deletar as linhas de `pontuacao_operacional_sprint` daquela sprint direto no
-   Supabase, corrigir o dado bruto e reconfirmar. Cuidado: isso desloca o
-   **cutoff** (9.4) e pode fazer eventos serem recontados.
+### 15.7 Excluir task depois do fechamento
 
-A prevenção é o checklist de 14.3.
-
-### 15.7 Exclusão de task após o fechamento
-
-Bloqueada com `409`. A pontuação da sprint já foi travada e a task faz parte da
-base de cálculo.
+Bloqueado. A pontuação da semana já foi travada e aquela task faz parte da conta.
 
 ### 15.8 Projeto de consultoria
 
-Sem nota de commit, Qualidade = retrabalho puro. Como retrabalho é 100 quando não
-há tasks concluídas, projetos de consultoria com pouca movimentação de Kanban
-tendem a ter Qualidade artificialmente alta. Leia esses scores com desconto.
-
-### 15.9 Pesos que não somam 1.00
-
-O código **não valida** isso. Se alguém editar `pesos_arquetipo` e a soma der
-diferente de 1.00, a renormalização por peso disponível (11.3) faz o score sair
-numa escala diferente de 0–100 — silenciosamente. Ao mexer nos pesos, confira a
-soma.
+Sem nota de commit, Qualidade vira só o retrabalho. Como retrabalho é 100 quando
+não há tasks concluídas, projeto de consultoria com pouca movimentação de Kanban
+tende a mostrar Qualidade artificialmente alta. Leia com desconto.
 
 ---
 
 ## 16. Erros que o sistema devolve e o que fazer
 
-| Erro | Quando aparece | O que fazer |
+| Mensagem | Quando aparece | O que fazer |
 |---|---|---|
-| `409 Ainda há avaliações pendentes: <nomes>` | Confirmar Avaliação Semanal com gente sem avaliar | Avaliar os nomes listados e confirmar de novo |
-| `409 Janela de edição de 48h já encerrada` | Editar avaliação antiga | Não há correção. Registre o desvio para a leitura do Líder |
-| `409 Orçamento da sprint excedido: restam N pontos` | Task com pontos além do orçamento | Reduzir os pontos, mover a task para outra sprint, ou aumentar o orçamento da sprint (se houver saldo nos 100) |
-| `409 restam só N pontos pra distribuir entre as sprints` | Orçamento de sprint estourando os 100 do projeto | Reduzir o orçamento de outra sprint primeiro |
-| `409 DoR: associe a task a uma sprint...` | Mover task sem sprint para Em Andamento | Atribuir a sprint antes de mover |
-| `409 DoD: N item(ns) do checklist...` | Concluir task com checklist pendente | Marcar os itens ou removê-los do checklist |
-| `409 Limite WIP ... atingido` | Mover para Em Andamento acima do limite | Concluir ou devolver outra task antes |
-| `422 Informe quem resolveu o bloqueio...` | Desmarcar bloqueio sem informar responsável | Escolher `operacional` ou `gerente` — e escolher com honestidade, isso é Autonomia |
-| `409 A pontuação desta sprint já foi travada` | Excluir task de sprint fechada | Não é possível. A task faz parte da base travada |
-| `403 Acesso restrito a lider` | Gerente tentando abrir `/performance` | Comportamento correto. Score é do Líder |
-| `500 pesos_arquetipo não configurado` | Tabela de pesos vazia | Rodar o `INSERT` de `pesos_arquetipo` no Supabase |
-
----
-
-## 17. Riscos residuais assumidos
-
-### 17.1 Ranking individual diverge do consenso da literatura
-
-Os autores de SPACE e DORA alertam explicitamente contra usar métrica individual
-para rankear pessoa. A escolha aqui de fazer ranking individual **diverge disso,
-é consciente, e fica registrada**. O ranking carrega risco de competição interna,
-de evasão em time forte, e de energia gasta adivinhando o critério.
-
-As mitigações embutidas cobrem os três riscos: calibração entre gerentes (régua
-compartilhada, padrão Google), dimensões objetivas oposicionais (guard-rails do
-DX Core 4), peso alto em colaboração dentro da avaliação do gerente (mecanismo
-anti-toxicidade da Microsoft) e divulgação só do top performer (versão suave do
-reconhecimento).
-
-### 17.2 O peso do gerente depende inteiramente de rotina humana
-
-35% do score sai de uma leitura subjetiva cuja única defesa contra inflação é uma
-reunião. Se a calibração não acontecer, o sistema mede gerente, não operacional —
-e nada no código vai avisar.
-
-### 17.3 Separação entre saúde do squad e reconhecimento da pessoa
-
-A metodologia de nível de time — DORA, DX Core 4, SPACE mais retrospectiva — mede
-a **saúde do projeto**. Este sistema mede a **pessoa**, só para reconhecer e
-desenvolver. As duas ficam separadas.
-
-O erro a evitar é deixar o ranking individual virar a métrica de saúde do squad.
-Saúde do projeto é do time. Reconhecimento é da pessoa. Separadas, as duas
-funcionam. Fundidas, nenhuma funciona.
-
-### 17.4 Sub-registro de bloqueio
-
-Ver 12.3. É o vetor de gaming mais aberto hoje.
-
----
-
-## 18. Piloto e evolução
-
-Rode o sistema em **um squad e um arquétipo por um ciclo**, com os pesos desta
-metodologia. Observe:
-
-- O que as pessoas otimizam.
-- Se alguém deixa de ajudar.
-- Se a distribuição de notas do questionário está espremida no topo (sinal de
-  calibração falha).
-- Se `qualidade_commit_media` está sendo populada — ou se está tudo `null` por
-  falta de `github_login`.
-- Quantas pessoas aparecem com `janela_parcial`.
-
-Se o comportamento sair como projetado, replique. Se aparecer competição tóxica ou
-queda de colaboração, suba o peso da colaboração dentro da avaliação do gerente.
-Calibre os pesos após o piloto, com dado real em mãos.
-
-Os pesos são um `UPDATE` em `pesos_arquetipo` e valem na leitura seguinte, sem
-reprocessamento — o que torna a recalibração barata de propósito.
-
----
-
-## 19. Decisões abertas
-
-1. **Linha de par no fechamento de sprint.** Se entra um passo onde cada
-   operacional aponta quem o ajudou, cobrindo o ponto cego do gerente sobre a
-   ajuda entre pares no privado. Hoje colaboração depende só da percepção do
-   gerente (pergunta 5, 5% do score).
-2. **Janela de divulgação do top performer:** mensal ou por ciclo fechado.
-3. **Peso de Evolução no primeiro ciclo.** Se a dimensão entra com peso maior no
-   primeiro ciclo, quando não há histórico, ou com peso pleno só do segundo em
-   diante, quando existe baseline de verdade. Relacionado: `baseline_evolucao`
-   existe na base mas **não é lida por nenhuma fórmula** — Evolução hoje é
-   exclusivamente a pergunta 6.
-4. **Fechar o buraco de sub-registro de bloqueio** (12.3). Opções em aberto:
-   penalizar task com travamento automático não justificado, ou trazer o sinal da
-   pergunta 3 para dentro de Autonomia como blend.
-5. **Valor final de `peso_commit_qualidade`** (hoje 0.5), a decidir com dado do
-   piloto.
-
----
-
-## Anexo A — referência técnica
-
-### A.1 Tabelas
-
-| Tabela | Papel |
-|---|---|
-| `operacionais` | Pessoa **por projeto**. `email` casa identidade cross-projeto; `github_login` casa commits; `ativo` filtra o ranking |
-| `tasks` | Unidade de trabalho pontuada. `pontos`, `coluna_kanban`, `bloqueado_manual`, `bloqueado_resolvido_por`, `contador_reaberturas`, `travado_automatico` |
-| `task_transicoes` | Histórico de mudanças, **com snapshot de `operacional_id`** — resolve "quem completou" |
-| `task_reaberturas` | Uma linha por `concluida → em_andamento` |
-| `sprints` | `pontos_orcamento` (fatia dos 100), `avaliacao_completa_em` (marca de fechamento) |
-| `projects` | `arquetipo`, `valor_projeto`, `valor_por_ponto`, `wip_config` |
-| `avaliacoes_gerente` | 7 respostas 0–5, `UNIQUE (operacional_id, sprint_id)`, `editavel_ate`, `reaproveitada_de` |
-| `commit_qualidade` | Nota 0–10 por commit + evidência, ligada a operacional e projeto |
-| `pontuacao_operacional_sprint` | **A linha travada.** Uma por (operacional, sprint). Fonte única do ranking |
-| `eventos_pontuacao_tardios` | Ledger de eventos ocorridos após o fechamento da sprint de origem |
-| `pesos_arquetipo` | Os 5 pesos + `peso_commit_qualidade`, por arquétipo |
-| `baseline_evolucao` | Snapshot de SPI no início do ciclo. **Não lido por nenhuma fórmula hoje** |
-| `audit_log` | Rastro de acesso a score |
-
-### A.2 Endpoints
-
-| Rota | Gate | Papel |
-|---|---|---|
-| `GET /performance` | `lider` + auditoria | Ranking das 3 janelas com sub-scores |
-| `GET /operacionais/{id}/spi` | `lider` | SPI individual em duas camadas |
-| `POST /baseline-evolucao` | `lider` | Snapshot de baseline por ciclo |
-| `GET /metodologia/performance` | não-operacional | Este documento |
-| `GET /avaliacoes/{sprint_id}/pendencias` | não-operacional | Quem falta avaliar |
-| `POST /avaliacoes` | não-operacional | Cria/edita avaliação (48h) |
-| `POST /avaliacoes/{sprint_id}/confirmar` | não-operacional | **Fecha e trava a pontuação** |
-| `PATCH /sprints/{id}/orcamento` | não-operacional | Define fatia dos 100 pontos |
-| `POST /ingest/commit` | público (Action) | Ingestão + nota de qualidade (só `padrao`) |
-
-### A.3 Arquivos de código
-
-| Arquivo | Responsabilidade |
-|---|---|
-| `services/pontuacao.py` | Fechamento, cutoff, eventos tardios, SPI |
-| `services/performance.py` | Janelas, agregação em duas camadas, score final |
-| `routers/avaliacoes.py` | Questionário, pendências, confirmação |
-| `routers/performance.py` | Ranking, RBAC, auditoria |
-| `routers/tasks.py` | DoR, DoD, WIP, bloqueio, reabertura, orçamento de task |
-| `routers/commit_ingest.py` | Pipeline de qualidade de commit |
-| `services/travamento_checker.py` | Alerta por tempo — nunca pontuação |
-| `docudata-frontend/app/components/AvaliacaoSemanalModal.tsx` | UI do questionário |
-| `docudata-frontend/app/performance/page.tsx` | Tela do ranking (Líder) |
-
----
-
-## Anexo B — divergências entre a metodologia de referência e o implementado
-
-Registrado para que ninguém tome o texto de referência como especificação do
-sistema.
-
-| Ponto | Metodologia de referência | Implementado hoje |
-|---|---|---|
-| Pesos por arquétipo | Consultoria: Entrega 30%, Qualidade 20% | **Pesos idênticos** nos dois arquétipos. Muda só a presença do sinal de commit dentro de Qualidade (decisão fechada, `.planning/intel/decisions.md` #3) |
-| SPI de cronograma, previsibilidade, aderência a escopo | Fontes de Entrega | Entrega usa **só** pontos concluídos ÷ alocados |
-| Cycle time | Fonte de dimensão objetiva | Existe como métrica de projeto, **fora do score** |
-| Colaboração | "Peso de verdade no cálculo" | Pergunta 5, diluída na média das 7 → **5% do score final** |
-| Autonomia | Proporção de task sem retrabalho + nível de intervenção do gerente | **Só** bloqueios manuais resolvidos pelo próprio operacional |
-| Evolução | Contra a baseline do início do ciclo | **Só** a pergunta 6 do gerente. `baseline_evolucao` existe mas não é lida |
-| Nota de review por rubrica | Fonte de Qualidade | Substituída pela **nota de commit avaliada por IA** (0–10) |
-| Anúncio do top performer | Parte do sistema | **Descopado** — anúncio é manual, fora do DocuData |
-| Score com dimensão faltando | Não previsto | **Renormaliza** pelo peso disponível (11.3) |
-| Calibração entre gerentes | Rotina obrigatória | Não instrumentada — **rotina humana**, sem suporte no sistema |
-
----
-
-*Documento mantido em `docudata-backend/docs/metodologia-performance.md`.
-Alterações de regra devem alterar o código e este documento no mesmo commit.*
+| "Ainda há avaliações pendentes" | Confirmar a Avaliação Semanal com gente por avaliar | Avaliar os nomes listados e confirmar de novo |
+| "Janela de edição de 48h já encerrada" | Editar avaliação antiga | Não há correção. Registre o desvio para a leitura do Líder |
+| "Orçamento da sprint excedido" | Task com pontos além do que a sprint recebeu | Reduzir os pontos, mover a task para outra sprint, ou aumentar o orçamento da sprint se ainda houver saldo nos 100 |
+| "Restam só N pontos para distribuir entre as sprints" | Orçamento de sprint estourando os 100 do projeto | Reduzir o orçamento de outra sprint primeiro |
+| "Associe a task a uma sprint antes de movê-la" | Mover para Em Andamento uma task sem sprint | Escolher a sprint e mover de novo |
+| "Itens do checklist ainda não concluídos" | Concluir task com checklist aberto | Marcar os itens ou tirá-los do checklist |
+| "Limite atingido" ao mover para Em Andamento | Estourou o limite de tasks simultâneas | Concluir ou devolver outra task antes |
+| "Informe quem resolveu o bloqueio" | Desmarcar bloqueio sem escolher o responsável | Escolher Operacional ou Gerente, com honestidade, porque isso é a Autonomia |
+| "A pontuação desta sprint já foi travada" | Excluir task de sprint fechada | Não é possível, a task faz parte da conta já travada |
+| "Acesso restrito" | Gerente tentando abrir o ranking | Comportamento correto, o score final é do Líder |

@@ -113,13 +113,15 @@ def test_sem_nenhuma_linha_spi_e_none(monkeypatch):
     assert resp.json()["por_projeto"] == []
 
 
-def test_gerente_recebe_403(monkeypatch):
+def test_gerente_recebe_200(monkeypatch):
+    """SPI travado foi aberto ao gerente em 2026-09-07 para sustentar a conversa
+    de feedback. Score final e ranking seguem exclusivos do Líder."""
     client = _mock_client([])
     tc = _client_as(monkeypatch, client, "gerente")
 
     resp = tc.get("/operacionais/op-1/spi")
 
-    assert resp.status_code == 403
+    assert resp.status_code == 200
 
 
 def test_operacional_recebe_403(monkeypatch):

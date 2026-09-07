@@ -489,6 +489,11 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
     o histórico de que o sistema sinalizou — travado_automatico NÃO é tocado
     aqui, só travado_override/_por/_em. O badge some porque a condição de
     exibição no frontend é travado_automatico && !travado_override.
+
+    Desde a revisão de 2026-09-07 o override também dispensa a penalidade de
+    Entrega: os eventos de travamento ainda não contabilizados desta task são
+    marcados como dispensados e o fechamento da sprint passa a ignorá-los. É a
+    válvula de escape para travamento que não é culpa do operacional.
     """
     client = get_client()
 
@@ -510,6 +515,18 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
         "travado_override_em": agora.isoformat(),
     }
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    try:
+        (
+            client.table("task_travamentos")
+            .update({"dispensado": True})
+            .eq("task_id", task_id)
+            .eq("dispensado", False)
+            .execute()
+        )
+    except Exception:
+        pass  # best-effort — o override do alerta não pode falhar por causa disso
+
     return result.data[0]
 
 

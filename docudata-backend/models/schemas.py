@@ -701,3 +701,21 @@ class PerformanceResponse(BaseModel):
 class MetodologiaResponse(BaseModel):
     titulo: str
     conteudo: str
+
+
+class SpiEvolucaoOperacionalResponse(BaseModel):
+    operacional_id: str
+    nome: str
+    spi: Optional[float] = None
+    evolucao: Optional[float] = None
+    sprints_avaliadas: int
+    pontos_penalizados: int
+
+
+class OperacionalDisponivelResponse(BaseModel):
+    """Pessoa já cadastrada em outro projeto, oferecida para vínculo sem redigitar."""
+    nome: str
+    email: Optional[str] = None
+    papel: Optional[str] = None
+    github_login: Optional[str] = None
+    projetos: list[str] = []
