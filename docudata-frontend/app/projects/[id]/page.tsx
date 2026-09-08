@@ -302,6 +302,7 @@ export default function ProjectDashboard() {
   const [ingestions, setIngestions] = useState<Ingestion[]>([]);
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
+  const [planejadasAbertas, setPlanejadasAbertas] = useState(false);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
   const [operacionais, setOperacionais] = useState<OperacionalResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -766,9 +767,23 @@ export default function ProjectDashboard() {
 
           {sprints.some((s) => !s.iniciada) && (
             <section style={{ ...sectionStyle, marginBottom: 16 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#9696a0", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 10px" }}>
-                Planejadas, ainda não iniciadas
-              </p>
+              <button
+                onClick={() => setPlanejadasAbertas((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, width: "100%",
+                  background: "none", border: "none", cursor: "pointer", padding: 0,
+                  marginBottom: planejadasAbertas ? 10 : 0,
+                }}
+              >
+                <span style={{ fontSize: 11, color: "#9696a0", transform: planejadasAbertas ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#9696a0", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Planejadas, ainda não iniciadas
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#4338ca", background: "#eef2ff", borderRadius: 999, padding: "1px 8px" }}>
+                  {sprints.filter((s) => !s.iniciada).length}
+                </span>
+              </button>
+              {planejadasAbertas && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {sprints.filter((s) => !s.iniciada).map((s) => (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f0f0f4" }}>
@@ -790,6 +805,7 @@ export default function ProjectDashboard() {
                   </div>
                 ))}
               </div>
+              )}
             </section>
           )}
 
