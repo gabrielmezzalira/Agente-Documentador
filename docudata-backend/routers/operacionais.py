@@ -148,6 +148,29 @@ async def listar_operacionais_disponiveis(project_id: str):
         if nome_projeto and nome_projeto not in entrada["projetos"]:
             entrada["projetos"].append(nome_projeto)
 
+    # Gente que só passou pelo cadastro (cargo=operacional em `pessoa`) e nunca
+    # foi vinculada a projeto nenhum ainda não tem linha em `operacionais` —
+    # sem isso, ela nunca aparecia aqui, mesmo já tendo conta no sistema.
+    pessoas_op = (
+        client.table("pessoa")
+        .select("nome, email, github_login, github_email")
+        .eq("cargo", "operacional")
+        .execute()
+        .data or []
+    )
+    for p in pessoas_op:
+        chave = (p.get("email") or "").strip().lower() or p["nome"].strip().lower()
+        if not chave or chave in chaves_do_projeto or chave in por_chave:
+            continue
+        por_chave[chave] = {
+            "nome": p["nome"],
+            "email": p.get("email"),
+            "papel": None,
+            "github_login": p.get("github_login"),
+            "github_email": p.get("github_email"),
+            "projetos": [],
+        }
+
     return sorted(por_chave.values(), key=lambda e: e["nome"].lower())
 
 
