@@ -1,7 +1,19 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function apiFetch(input: string, init?: RequestInit): Promise<Response> {
-  return globalThis.fetch(input, { ...init, credentials: "include" });
+  return globalThis.fetch(input, { ...init, credentials: "include" }).then((res) => {
+    // Sessão expira em 8h. Sem isso, a aba continua parecendo logada (o badge
+    // de usuário vem do estado carregado na abertura da página) e toda ação
+    // falha com "Erro ao salvar" genérico, sem explicar o motivo — confunde
+    // gerente achando que é bug do formulário, não sessão vencida.
+    if (res.status === 401 && typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path !== "/login" && path !== "/cadastro") {
+        window.location.href = "/login";
+      }
+    }
+    return res;
+  });
 }
 
 export type Cargo = "owner" | "lider" | "gerente" | "operacional";

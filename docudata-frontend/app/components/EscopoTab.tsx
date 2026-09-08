@@ -49,9 +49,10 @@ interface Props {
   onImported: (novas: FuncionalidadeResponse[]) => void;
   sprints: SprintWithStatus[];
   onSprintUpdated: (updated: SprintWithStatus) => void;
+  onSprintCreated: (created: SprintWithStatus) => void;
 }
 
-export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated }: Props) {
+export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated, onSprintCreated }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
@@ -269,7 +270,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
         )}
       </div>
 
-      <SprintOrcamentoPlanner sprints={sprints} onSprintUpdated={onSprintUpdated} />
+      <SprintOrcamentoPlanner projectId={projectId} sprints={sprints} onSprintUpdated={onSprintUpdated} onSprintCreated={onSprintCreated} />
 
       {/* Filtro por sprint */}
       {sprintsDisponiveis.length > 0 && (

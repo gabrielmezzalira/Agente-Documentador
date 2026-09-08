@@ -1086,6 +1086,9 @@ export default function ProjectDashboard() {
           onSprintUpdated={(updated) =>
             setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
           }
+          onSprintCreated={(created) =>
+            setSprints((prev) => [...prev, created].sort((a, b) => a.numero - b.numero))
+          }
         />
       )}
 

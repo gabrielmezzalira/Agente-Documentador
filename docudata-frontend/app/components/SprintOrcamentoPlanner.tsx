@@ -1,17 +1,46 @@
 "use client";
 
 import { useState } from "react";
-import { SprintWithStatus, updateSprintOrcamento } from "../lib/api";
+import { SprintWithStatus, createSprint, updateSprintOrcamento } from "../lib/api";
 
 interface Props {
+  projectId: string;
   sprints: SprintWithStatus[];
   onSprintUpdated: (updated: SprintWithStatus) => void;
+  onSprintCreated: (created: SprintWithStatus) => void;
 }
 
-export default function SprintOrcamentoPlanner({ sprints, onSprintUpdated }: Props) {
+export default function SprintOrcamentoPlanner({ projectId, sprints, onSprintUpdated, onSprintCreated }: Props) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [errBySprint, setErrBySprint] = useState<Record<string, string>>({});
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState("");
+
+  async function handleCriarSprint() {
+    setCreating(true);
+    setCreateErr("");
+    try {
+      const nova = await createSprint(projectId);
+      onSprintCreated({
+        ...nova,
+        tem_planning: false,
+        tem_review: false,
+        dailys_count: 0,
+        ingestions_count: 0,
+        docs_gerados_count: 0,
+        pendencias: [],
+        pontos_orcamento: null,
+        pontos_usados: 0,
+        faturamento_previsto: null,
+        avaliacao_completa_em: null,
+      });
+    } catch (err) {
+      setCreateErr(err instanceof Error ? err.message : "Erro ao criar sprint.");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const totalAlocado = sprints.reduce((acc, s) => acc + (s.pontos_orcamento ?? 0), 0);
 
@@ -41,9 +70,22 @@ export default function SprintOrcamentoPlanner({ sprints, onSprintUpdated }: Pro
     return (
       <div style={{ background: "#fff", border: "1px solid #e8e8ed", borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: "0 0 8px" }}>Orçamento de pontos por sprint</h3>
-        <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>
-          Nenhuma sprint criada ainda. Crie sprints na aba Sprints antes de distribuir os pontos.
+        <p style={{ fontSize: 13, color: "#9696a0", margin: "0 0 14px" }}>
+          Planeje aqui o projeto inteiro: crie as sprints que você já sabe que vai ter e
+          distribua os 100 pontos entre elas, sem precisar esperar a semana chegar.
         </p>
+        <button
+          onClick={handleCriarSprint}
+          disabled={creating}
+          style={{
+            background: "#0f172a", color: "#fff", border: "none", borderRadius: 8,
+            padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+            opacity: creating ? 0.6 : 1,
+          }}
+        >
+          {creating ? "Criando…" : "+ Nova sprint"}
+        </button>
+        {createErr && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 8 }}>{createErr}</p>}
       </div>
     );
   }
@@ -83,6 +125,20 @@ export default function SprintOrcamentoPlanner({ sprints, onSprintUpdated }: Pro
             {errBySprint[s.id] && <span style={{ fontSize: 12, color: "#dc2626" }}>{errBySprint[s.id]}</span>}
           </div>
         ))}
+      </div>
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #f0f0f4" }}>
+        <button
+          onClick={handleCriarSprint}
+          disabled={creating}
+          style={{
+            background: "none", border: "1px solid #e4e4ea", borderRadius: 8,
+            padding: "6px 14px", fontSize: 12, fontWeight: 700, color: "#374151", cursor: "pointer",
+            opacity: creating ? 0.6 : 1,
+          }}
+        >
+          {creating ? "Criando…" : "+ Nova sprint"}
+        </button>
+        {createErr && <span style={{ fontSize: 12, color: "#dc2626", marginLeft: 10 }}>{createErr}</span>}
       </div>
     </div>
   );
