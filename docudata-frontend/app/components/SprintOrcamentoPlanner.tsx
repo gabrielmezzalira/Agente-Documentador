@@ -21,7 +21,7 @@ export default function SprintOrcamentoPlanner({ projectId, sprints, onSprintUpd
     setCreating(true);
     setCreateErr("");
     try {
-      const nova = await createSprint(projectId);
+      const nova = await createSprint(projectId, undefined, false);
       onSprintCreated({
         ...nova,
         tem_planning: false,

@@ -623,3 +623,16 @@ ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_login text;
 -- conta do GitHub — nem sempre igual ao email de login do CITi.
 ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS github_email text;
 ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_email text;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Sprint planejada vs. sprint iniciada (2026-09-08)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Sprint criada na aba Planejamento (pra reservar orçamento de pontos com
+-- antecedência) não deve aparecer na aba Sprints, com Planning/Daily/Review/
+-- Avaliação Semanal, até a semana realmente começar. Mesma linha o tempo
+-- todo — tasks e pontuação continuam usando o mesmo sprint_id sem migração
+-- nenhuma — só um campo que esconde da aba de execução até ser iniciada.
+-- Default true: sprints já existentes (todas criadas pela aba Sprints até
+-- aqui) continuam aparecendo normalmente.
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT true;

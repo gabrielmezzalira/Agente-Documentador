@@ -42,7 +42,7 @@ async def create_sprint(project_id: str, data: SprintCreate):
     try:
         response = (
             client.table("sprints")
-            .insert({"project_id": project_id, "numero": numero})
+            .insert({"project_id": project_id, "numero": numero, "iniciada": data.iniciada})
             .execute()
         )
     except Exception as exc:
@@ -242,6 +242,27 @@ async def delete_sprint(sprint_id: str):
     client.table("planning_rascunhos").delete().eq("project_id", project_id).eq("sprint_numero", numero).execute()
 
     client.table("sprints").delete().eq("id", sprint_id).execute()
+
+
+@router.patch("/sprints/{sprint_id}/iniciar", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
+async def iniciar_sprint(sprint_id: str):
+    """Tira a sprint do modo planejamento e a faz aparecer na aba Sprints, com
+    Planning/Daily/Review/Kanban/Avaliação Semanal. Sem volta pela API: uma vez
+    iniciada, a sprint é execução real, não mais um slot de orçamento."""
+    client = get_client()
+    check = client.table("sprints").select("id").eq("id", sprint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+
+    response = (
+        client.table("sprints")
+        .update({"iniciada": True, "updated_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", sprint_id)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Falha ao iniciar sprint")
+    return response.data[0]
 
 
 @router.patch("/sprints/{sprint_id}/health", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])

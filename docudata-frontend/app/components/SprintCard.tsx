@@ -458,7 +458,7 @@ export default function SprintCard({
             ? `${sprint.pontos_usados}/${sprint.pontos_orcamento} pts em tasks${
                 sprint.faturamento_previsto != null ? ` · R$ ${sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos` : ""
               }`
-            : "Orçamento de pontos não definido (defina na aba Escopo)"}
+            : "Orçamento de pontos não definido (defina na aba Planejamento)"}
         </span>
         <span style={muted}>
           · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs

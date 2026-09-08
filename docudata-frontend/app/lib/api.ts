@@ -192,6 +192,7 @@ export interface Sprint {
   id: string;
   project_id: string;
   numero: number;
+  iniciada: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -463,15 +464,24 @@ export async function deleteSprint(sprintId: string): Promise<void> {
   }
 }
 
-export async function createSprint(projectId: string, numero?: number): Promise<Sprint> {
+export async function createSprint(projectId: string, numero?: number, iniciada = true): Promise<Sprint> {
   const res = await apiFetch(`${API}/projects/${projectId}/sprints`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ numero: numero ?? null }),
+    body: JSON.stringify({ numero: numero ?? null, iniciada }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao criar sprint");
+  }
+  return res.json();
+}
+
+export async function iniciarSprint(sprintId: string): Promise<Sprint> {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/iniciar`, { method: "PATCH" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao iniciar sprint");
   }
   return res.json();
 }

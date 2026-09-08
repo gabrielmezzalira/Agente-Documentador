@@ -786,7 +786,7 @@ export default function PlanningModal({
           <>
             {semFuncionalidades && (
               <div style={{ ...banner("yellow"), marginBottom: 16 }}>
-                <strong>Projeto sem funcionalidades cadastradas.</strong> Vá à aba <strong>Escopo</strong> para
+                <strong>Projeto sem funcionalidades cadastradas.</strong> Vá à aba <strong>Planejamento</strong> para
                 importar do contrato ou adicionar manualmente.
                 As tasks ficarão sem funcionalidade associada.
               </div>

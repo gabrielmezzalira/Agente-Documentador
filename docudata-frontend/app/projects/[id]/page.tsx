@@ -12,6 +12,7 @@ import {
   listDocs,
   listSprints,
   createSprint,
+  iniciarSprint,
   deleteSprint,
   generateDoc,
   ingestFile,
@@ -695,7 +696,7 @@ export default function ProjectDashboard() {
       <Tabs
         tabs={[
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
-          { id: "escopo", label: "Escopo", badge: funcionalidades.length || undefined },
+          { id: "escopo", label: "Planejamento", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
           { id: "tasks", label: "Tasks" },
           { id: "metricas", label: "Métricas" },
@@ -716,7 +717,7 @@ export default function ProjectDashboard() {
             { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
             { title: "Review", body: "Ao final da sprint, registre o review preenchendo os campos do formulário (Percepção do cliente, Sinal de satisfação, Pedidos fora do escopo, etc.). O documento gerado captura automaticamente o estado do kanban da sprint no momento da geração — cada task com seu status atual (planejada, em andamento, concluída, bloqueada) é injetada no contexto da IA sem você precisar listar manualmente. Além disso, o DocuData detecta tasks mencionadas no texto e cria sugestões de mover para 'Concluída' na aba Tasks." },
             { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa todas as ingestões da sprint (planning, dailys, review) para gerar: O que foi feito, O que funcionou, O que não funcionou, Aprendizados." },
-            { title: "Orçamento de pontos da sprint", body: "Todo projeto vale 100 pontos, fixo. Na aba Escopo você distribui esses 100 entre as sprints, e o card da sprint mostra quanto ela recebeu e quanto já foi gasto em tasks. É esse número que faz a aba Métricas calcular o SPI e o faturamento previsto." },
+            { title: "Orçamento de pontos da sprint", body: "Todo projeto vale 100 pontos, fixo. Na aba Planejamento você distribui esses 100 entre as sprints, e o card da sprint mostra quanto ela recebeu e quanto já foi gasto em tasks. É esse número que faz a aba Métricas calcular o SPI e o faturamento previsto." },
             { title: "Avaliação Semanal", body: "No fim da sprint, o botão 'Avaliação Semanal' abre as sete perguntas sobre cada operacional que teve task na sprint. Só dá para confirmar quando não sobrar ninguém pendente. Confirmar fecha a semana e trava a pontuação: as tasks daquela sprint não podem mais ser excluídas. Antes de confirmar, confira se as tasks estão na coluna certa, se os bloqueios foram resolvidos com o responsável correto, e se as tasks concedidas fora do planejado estão marcadas como extra." },
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
             { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
@@ -755,14 +756,44 @@ export default function ProjectDashboard() {
             <button onClick={handleCreateSprint} style={btnPrimary}>+ Nova sprint</button>
           </div>
 
-          {sprints.length === 0 ? (
+          {sprints.some((s) => !s.iniciada) && (
+            <section style={{ ...sectionStyle, marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#9696a0", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 10px" }}>
+                Planejadas, ainda não iniciadas
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {sprints.filter((s) => !s.iniciada).map((s) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f0f0f4" }}>
+                    <span style={{ fontSize: 13, color: "#374151" }}>
+                      Sprint {s.numero}
+                      {s.pontos_orcamento != null && (
+                        <span style={{ color: "#9696a0", marginLeft: 8 }}>{s.pontos_orcamento} pts orçados</span>
+                      )}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        const atualizado = await iniciarSprint(s.id);
+                        setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
+                      }}
+                      style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Iniciar sprint
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {sprints.filter((s) => s.iniciada).length === 0 ? (
             <section style={sectionStyle}>
               <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
-                Nenhuma sprint criada. Clique em <strong>+ Nova sprint</strong> pra começar.
+                Nenhuma sprint iniciada. Clique em <strong>+ Nova sprint</strong> pra começar, ou
+                inicie uma das sprints planejadas acima.
               </p>
             </section>
           ) : (
-            sprints.map((s) => (
+            sprints.filter((s) => s.iniciada).map((s) => (
               <SprintCard
                 key={s.id}
                 sprint={s}

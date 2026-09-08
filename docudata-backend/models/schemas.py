@@ -99,6 +99,7 @@ class IngestionResponse(BaseModel):
 
 class SprintCreate(BaseModel):
     numero: Optional[int] = None  # se None, auto = max(numero)+1
+    iniciada: bool = True  # False = criada só pra planejar orçamento, some da aba Sprints
 
 
 class SprintHealthUpdate(BaseModel):
@@ -114,6 +115,7 @@ class SprintResponse(BaseModel):
     plano_correcao: Optional[str] = None
     pontos_orcamento: Optional[int] = None
     avaliacao_completa_em: Optional[datetime] = None
+    iniciada: bool = True
     created_at: datetime
     updated_at: datetime
 

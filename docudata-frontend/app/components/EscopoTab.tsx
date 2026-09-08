@@ -232,12 +232,12 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
   return (
     <div>
       {/* Header */}
-      <TutorialBanner heading="Escopo e Funcionalidades" steps={escopoSteps} />
+      <TutorialBanner heading="Planejamento e Funcionalidades" steps={escopoSteps} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, marginTop: 4 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>
-            Escopo
+            Planejamento
             <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600, marginLeft: 10 }}>
               {funcionalidades.length} {funcionalidades.length === 1 ? "funcionalidade" : "funcionalidades"}
             </span>
