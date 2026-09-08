@@ -429,10 +429,18 @@ export default function ProjectDashboard() {
 
   async function handleCreateSprint() {
     try {
-      await createSprint(id);
+      // Prioriza destravar a sprint planejada mais antiga (criada em
+      // Planejamento) em vez de sempre criar uma nova — só cria do zero
+      // quando não sobra nenhuma planejada esperando.
+      const planejadas = sprints.filter((s) => !s.iniciada).sort((a, b) => a.numero - b.numero);
+      if (planejadas.length > 0) {
+        await iniciarSprint(planejadas[0].id);
+      } else {
+        await createSprint(id);
+      }
       refreshSprints();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao criar sprint");
+      alert(err instanceof Error ? err.message : "Erro ao iniciar sprint");
     }
   }
 
@@ -753,7 +761,7 @@ export default function ProjectDashboard() {
                 Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips coloridos pra registrar, ou use os botões pra gerar docs derivadas.
               </p>
             </div>
-            <button onClick={handleCreateSprint} style={btnPrimary}>+ Nova sprint</button>
+            <button onClick={handleCreateSprint} style={btnPrimary}>Iniciar próxima sprint</button>
           </div>
 
           {sprints.some((s) => !s.iniciada) && (
@@ -788,7 +796,7 @@ export default function ProjectDashboard() {
           {sprints.filter((s) => s.iniciada).length === 0 ? (
             <section style={sectionStyle}>
               <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
-                Nenhuma sprint iniciada. Clique em <strong>+ Nova sprint</strong> pra começar, ou
+                Nenhuma sprint iniciada. Clique em <strong>Iniciar próxima sprint</strong> pra começar, ou
                 inicie uma das sprints planejadas acima.
               </p>
             </section>
