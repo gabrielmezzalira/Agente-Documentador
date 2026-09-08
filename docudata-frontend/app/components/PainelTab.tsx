@@ -134,8 +134,8 @@ function BlocoACard({
       });
       onSaved?.(updated);
       setEditing(false);
-    } catch {
-      setErr("Erro ao salvar.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {
       setSaving(false);
     }

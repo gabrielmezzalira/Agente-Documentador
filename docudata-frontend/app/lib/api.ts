@@ -297,7 +297,10 @@ export async function updateContrato(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Erro ao atualizar dados de contrato");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao atualizar dados de contrato");
+  }
   return res.json();
 }
 
