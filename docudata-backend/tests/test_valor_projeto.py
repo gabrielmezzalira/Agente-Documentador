@@ -94,7 +94,7 @@ def test_update_contrato_com_valor_projeto_quando_nenhuma_sprint_tem_orcamento(m
 
 
 def test_update_contrato_bloqueia_valor_projeto_se_ja_ha_sprint_com_orcamento(monkeypatch):
-    mock_sb, calls = _make_mock_client(sprints_com_orcamento=[{"id": "sprint-1"}])
+    mock_sb, calls = _make_mock_client(sprints_com_orcamento=[{"id": "sprint-1", "pontos_orcamento": 20}])
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/projects/proj-1/contrato", json={"valor_projeto": 10000})
@@ -104,7 +104,7 @@ def test_update_contrato_bloqueia_valor_projeto_se_ja_ha_sprint_com_orcamento(mo
 
 
 def test_update_contrato_outros_campos_funcionam_mesmo_com_valor_travado(monkeypatch):
-    mock_sb, calls = _make_mock_client(sprints_com_orcamento=[{"id": "sprint-1"}])
+    mock_sb, calls = _make_mock_client(sprints_com_orcamento=[{"id": "sprint-1", "pontos_orcamento": 20}])
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/projects/proj-1/contrato", json={"arquetipo": "consultoria_discovery"})

@@ -194,31 +194,49 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
         raise HTTPException(status_code=404, detail="Project not found")
 
     campos = data.model_dump()
-    valor_projeto = campos.pop("valor_projeto", None)
+    valor_projeto_novo = campos.pop("valor_projeto", None)
     payload = {k: v for k, v in campos.items() if v is not None}
 
-    if valor_projeto is not None:
-        sprints_com_orcamento = (
-            client.table("sprints")
-            .select("id")
-            .eq("project_id", project_id)
-            .not_.is_("pontos_orcamento", "null")
-            .execute()
-        ).data or []
-        if sprints_com_orcamento:
-            raise HTTPException(
-                status_code=409,
-                detail="Não é possível alterar o valor do projeto: já existe orçamento de pontos definido em pelo menos uma sprint.",
-            )
-        payload["valor_projeto"] = valor_projeto
-        payload["valor_por_ponto"] = round(valor_projeto / 100, 2)
+    try:
+        if valor_projeto_novo is not None:
+            valor_projeto_ja_salvo = (
+                client.table("projects").select("valor_projeto").eq("id", project_id).execute()
+            ).data[0].get("valor_projeto")
+            # Reenviar o mesmo valor que já estava salvo (form completo, sem
+            # mudança de fato nesse campo) não deve travar mesmo com sprint já
+            # orçada — a trava é só contra MUDAR o valor depois do orçamento
+            # existir, não contra resalvar o formulário inteiro sem tocar nele.
+            if valor_projeto_novo != valor_projeto_ja_salvo:
+                sprints_do_projeto = (
+                    client.table("sprints")
+                    .select("id, pontos_orcamento")
+                    .eq("project_id", project_id)
+                    .execute()
+                ).data or []
+                tem_orcamento = any(s.get("pontos_orcamento") is not None for s in sprints_do_projeto)
+                if tem_orcamento:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Não é possível alterar o valor do projeto: já existe orçamento de pontos definido em pelo menos uma sprint.",
+                    )
+                payload["valor_projeto"] = valor_projeto_novo
+                payload["valor_por_ponto"] = round(valor_projeto_novo / 100, 2)
 
-    if not payload:
-        raise HTTPException(status_code=422, detail="Nenhum campo fornecido")
-    for k, v in list(payload.items()):
-        if hasattr(v, "isoformat"):
-            payload[k] = v.isoformat()
-    response = client.table("projects").update(payload).eq("id", project_id).execute()
+        if not payload:
+            raise HTTPException(status_code=422, detail="Nenhum campo fornecido")
+        for k, v in list(payload.items()):
+            if hasattr(v, "isoformat"):
+                payload[k] = v.isoformat()
+        response = client.table("projects").update(payload).eq("id", project_id).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Sem isso, qualquer erro daqui vira "Internal Server Error" puro, sem
+        # cabeçalho de CORS (o middleware nunca chega a rodar numa exceção não
+        # tratada) — o navegador mostra como bloqueio de CORS, escondendo o
+        # erro real. Levantar como HTTPException garante resposta formada.
+        raise HTTPException(status_code=500, detail=f"Falha ao salvar contrato: {exc}")
+
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update contract fields")
     return _sanitize(response.data[0])

@@ -5,8 +5,9 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas
 from services.notification_checker import check_and_send_notifications
@@ -38,6 +39,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def _erro_nao_tratado(request: Request, exc: Exception):
+    """Sem isso, qualquer exceção não tratada em qualquer rota escapa da
+    ExceptionMiddleware do FastAPI e o CORSMiddleware nunca chega a rodar —
+    o navegador reporta "bloqueado por CORS" mesmo o servidor estando
+    corretamente configurado, escondendo o erro real de quem está debugando
+    pelo DevTools. Este handler roda por dentro do stack de middleware, então
+    a resposta ainda passa pelo CORSMiddleware normalmente."""
+    logging.getLogger("uvicorn.error").exception("Erro não tratado em %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": f"Erro interno: {exc}"})
+
 
 app.include_router(auth.router)
 app.include_router(projects.router, dependencies=[Depends(get_current_pessoa)])
