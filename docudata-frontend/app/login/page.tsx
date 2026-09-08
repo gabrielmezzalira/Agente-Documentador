@@ -34,7 +34,7 @@ export default function LoginPage() {
             citi · subárea de dados
           </span>
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 10 }}>
-            Agente Documentador
+            DocuData
           </h1>
         </div>
 

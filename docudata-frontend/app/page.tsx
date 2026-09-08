@@ -130,7 +130,7 @@ export default function Home() {
           </div>
         </div>
         <h1 style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em", color: "#111116", lineHeight: 1.05 }}>
-          Agente Documentador
+          DocuData
         </h1>
         <p style={{ color: "#9696a0", marginTop: 10, fontSize: 15 }}>
           Documentação automática de projetos de dados

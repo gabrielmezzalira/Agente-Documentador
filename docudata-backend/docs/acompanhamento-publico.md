@@ -2,6 +2,10 @@
 
 Subárea de Dados · CITi
 
+> **Este documento é para você, se você é operacional.** Se você é gerente ou
+> líder, as regras completas (pesos, fórmulas, manual de fechamento) estão em
+> "Sistema de Acompanhamento de Performance", não precisa ler este aqui.
+
 ---
 
 ## Por que isto existe
@@ -12,6 +16,8 @@ duas semanas reconhece publicamente quem mais contribuiu no conjunto.
 O objetivo é reconhecer e desenvolver. Não é ferramenta de cobrança, não é base
 para desligamento, e não é um placar que você precisa vigiar. Este documento
 existe para que você saiba o que conta, sem precisar adivinhar.
+
+Cada sprint dura uma semana, e o reconhecimento acontece a cada duas sprints.
 
 ---
 
@@ -67,10 +73,20 @@ Nada além de manter o Kanban fiel à realidade:
   dentro da task. Esperar cliente, esperar acesso, depender de outra task ou de
   uma decisão são bloqueios legítimos. Fica visível para o gerente no quadro, e
   destravar rápido conta a seu favor.
-- **Use o checklist** da task para marcar o que já está pronto.
+- **Use o checklist** da task para marcar o que já está pronto. Uma task só
+  pode ir para Concluída com todos os itens marcados, e é o jeito do sistema
+  garantir que "pronto" quer dizer pronto, e não volta como retrabalho depois.
+- **Não deixe uma task esquecida em Em Andamento.** Se ela fica parada tempo
+  demais para o tamanho dela, o sistema marca um alerta visível pro gerente.
+  Terminar depois desse alerta pesa contra a entrega, então se travar é
+  melhor marcar bloqueio (que não penaliza) do que deixar a task parada sem
+  dizer nada.
 - **Quando terminar tudo**, use o botão "Quero mais uma task" que aparece no seu
   Kanban. Ele avisa o gerente por e-mail. Você não precisa puxar conversa nem
   esperar alguém lembrar de você, e task extra concluída conta a favor.
+
+Se uma task muda de responsável no meio do caminho, quem a conclui é quem
+recebe o crédito por ela, não importa quem começou.
 
 Se o Kanban reflete o que está acontecendo, você não precisa fazer mais nada.
 

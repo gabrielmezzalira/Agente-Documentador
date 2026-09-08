@@ -304,7 +304,7 @@ Siga EXATAMENTE esta estrutura em markdown:
 
 ---
 
-*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
+*Documento gerado automaticamente pelo DocuData — CITi · Centro de Informática, UFPE*
 
 ---
 Contexto de todas as ingestões do projeto:
@@ -678,7 +678,7 @@ As credenciais de acesso aos sistemas e bancos de dados estão armazenadas como 
 
 ---
 
-*Documento gerado automaticamente pelo Agente Documentador — CITi · Centro de Informática, UFPE*
+*Documento gerado automaticamente pelo DocuData — CITi · Centro de Informática, UFPE*
 
 ---
 Contexto de todas as ingestões do projeto:

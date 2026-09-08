@@ -3,7 +3,7 @@ import "./globals.css";
 import AuthGuard from "./components/AuthGuard";
 
 export const metadata: Metadata = {
-  title: "Agente Documentador",
+  title: "DocuData",
   description: "Documentação automática de projetos de dados",
 };
 

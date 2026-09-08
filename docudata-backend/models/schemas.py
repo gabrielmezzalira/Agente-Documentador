@@ -521,16 +521,16 @@ class SignupClaimRequest(BaseModel):
     operacional_id: str
     email: str
     senha: str = Field(..., min_length=6)
-    github_login: Optional[str] = None
-    github_email: Optional[str] = None
+    github_login: str = Field(..., min_length=1)
+    github_email: str = Field(..., min_length=1)
 
 
 class SignupNovoRequest(BaseModel):
     nome: str
     email: str
     senha: str = Field(..., min_length=6)
-    github_login: Optional[str] = None
-    github_email: Optional[str] = None
+    github_login: str = Field(..., min_length=1)
+    github_email: str = Field(..., min_length=1)
 
 
 # ── Avaliação do Gerente (Phase 17) ─────────────────────────────────────────

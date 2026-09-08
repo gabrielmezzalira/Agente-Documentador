@@ -28,7 +28,7 @@ _DOCUMENTOS: dict[str, dict] = {
     },
     "acompanhamento": {
         "titulo": "Como sua contribuição é acompanhada",
-        "resumo": "O que conta, o que não conta e como funciona o reconhecimento.",
+        "resumo": "Para operacionais: o que conta, o que não conta e como funciona o reconhecimento.",
         "arquivo": "acompanhamento-publico.md",
         "restrito": False,
     },

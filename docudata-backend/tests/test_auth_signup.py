@@ -85,6 +85,7 @@ def test_claim_com_email_batendo_cria_pessoa_e_loga(monkeypatch):
 
     resp = tc.post("/auth/signup/claim", json={
         "operacional_id": "op-1", "email": "ana@citi.com", "senha": "senha123",
+        "github_login": "ana-op", "github_email": "ana@users.noreply.github.com",
     })
 
     assert resp.status_code == 201
@@ -100,6 +101,7 @@ def test_claim_email_nao_bate_403(monkeypatch):
 
     resp = tc.post("/auth/signup/claim", json={
         "operacional_id": "op-1", "email": "outra@citi.com", "senha": "senha123",
+        "github_login": "ana-op", "github_email": "ana@users.noreply.github.com",
     })
 
     assert resp.status_code == 403
@@ -113,6 +115,7 @@ def test_claim_email_duplicado_409(monkeypatch):
 
     resp = tc.post("/auth/signup/claim", json={
         "operacional_id": "op-1", "email": "ana@citi.com", "senha": "senha123",
+        "github_login": "ana-op", "github_email": "ana@users.noreply.github.com",
     })
 
     assert resp.status_code == 409
@@ -125,6 +128,7 @@ def test_signup_novo_cria_pessoa_sem_operacionais(monkeypatch):
 
     resp = tc.post("/auth/signup/novo", json={
         "nome": "Bruno Novo", "email": "bruno@citi.com", "senha": "senha123",
+        "github_login": "bruno-novo", "github_email": "bruno@users.noreply.github.com",
     })
 
     assert resp.status_code == 201
@@ -140,6 +144,7 @@ def test_signup_novo_email_duplicado_409(monkeypatch):
 
     resp = tc.post("/auth/signup/novo", json={
         "nome": "Bruno Novo", "email": "bruno@citi.com", "senha": "senha123",
+        "github_login": "bruno-novo", "github_email": "bruno@users.noreply.github.com",
     })
 
     assert resp.status_code == 409
