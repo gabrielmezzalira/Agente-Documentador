@@ -1,8 +1,10 @@
-## Nenhum feature-flow ativo
+## Feature Flow em Progresso
 
-> Último ciclo concluído: Reforma do Modelo de Pontuação (100 pontos fixos por projeto, orçamento por sprint, faturamento derivado), 2026-09-06T00:00:00Z.
-> Ver `.planning/feature-flow-state.md` para o histórico completo.
+> **Sessão anterior encerrada com feature-flow ativo.**
+> Use `/feature-flow` para retomar de onde parou.
 
-Sem etapa pendente. Lembrete pós-deploy: aplicar manualmente em produção as duas migrações novas (`sprints.pontos_orcamento`, `projects.valor_projeto`) — `supabase_schema.sql` não roda sozinho.
+- **Feature:** Reforma do modelo de pontuação — 100 pontos fixos por projeto, orçamento por sprint (Escopo), distribuídos em tasks (Kanban)
+- **Etapa atual:** Verificação final / finishing-a-development-branch
+- **Última sessão:** 2026-09-09T10:37:02Z
 
-Próximo trabalho é uma nova invocação de `/feature-flow-lean`.
+Para retomar: `/feature-flow` — a skill vai detectar o estado automaticamente.

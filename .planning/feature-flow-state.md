@@ -7,7 +7,7 @@ etapa: 12
 etapa_nome: "Verificação final / finishing-a-development-branch"
 gates_reusados: ["knowledge-graph (docudata-backend e docudata-frontend reextraídos nesta etapa — backend 926 nodes/2272 edges, frontend 579 nodes/1093 edges, reextração estrutural sem LLM)"]
 started_at: "2026-09-06T00:00:00Z"
-last_saved: "2026-09-06T18:43:32Z"
+last_saved: "2026-09-09T10:37:02Z"
 status: "em_progresso"
 
 ## Concluído

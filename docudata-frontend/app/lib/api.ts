@@ -969,6 +969,14 @@ export async function updateFuncionalidade(
   return res.json();
 }
 
+export async function deleteFuncionalidade(id: string): Promise<void> {
+  const res = await apiFetch(`${API}/funcionalidades/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao excluir funcionalidade");
+  }
+}
+
 export async function createFuncionalidade(data: {
   project_id: string;
   id_funcional: string;

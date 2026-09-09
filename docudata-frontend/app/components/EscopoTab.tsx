@@ -12,6 +12,7 @@ import {
   confirmarImportacao,
   createFuncionalidade,
   updateFuncionalidade,
+  deleteFuncionalidade,
 } from "../lib/api";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
@@ -66,6 +67,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
   const [editForm, setEditForm] = useState<{ id_funcional: string; titulo: string; descricao: string; criterios_aceite: string[]; prioridade: string; responsavel: string; status: string; sprint_alvo: string }>({ id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "", status: "nao_iniciada", sprint_alvo: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [erroEdit, setErroEdit] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [funcList, setFuncList] = useState<FuncionalidadeResponse[]>(funcionalidades);
   useEffect(() => { setFuncList(funcionalidades); }, [funcionalidades]);
 
@@ -98,6 +100,19 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
       setErroEdit((e as Error).message);
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function handleDelete(f: FuncionalidadeResponse) {
+    if (!confirm(`Excluir a funcionalidade "${f.titulo}"? Esta ação é irreversível.`)) return;
+    setDeletingId(f.id);
+    try {
+      await deleteFuncionalidade(f.id);
+      setFuncList(prev => prev.filter(x => x.id !== f.id));
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -674,6 +689,11 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
                   <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLOR[f.status] ?? "#94a3b8", background: `${STATUS_COLOR[f.status] ?? "#94a3b8"}15`, padding: "1px 7px", borderRadius: 4 }}>
                     {STATUS_LABEL[f.status] ?? f.status}
                   </span>
+                  {f.sprint_alvo && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b", background: "#64748b15", padding: "1px 7px", borderRadius: 4 }}>
+                      Sprint {f.sprint_alvo}
+                    </span>
+                  )}
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{f.titulo}</span>
                   {editingId !== f.id && (
                     <>
@@ -682,6 +702,13 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
                         style={{ fontSize: 12, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
                       >
                         Editar
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(f); }}
+                        disabled={deletingId === f.id}
+                        style={{ fontSize: 12, color: deletingId === f.id ? "#94a3b8" : "#dc2626", background: "none", border: "none", cursor: deletingId === f.id ? "not-allowed" : "pointer", padding: "2px 6px", borderRadius: 4 }}
+                      >
+                        {deletingId === f.id ? "Excluindo..." : "Excluir"}
                       </button>
                       <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === f.id ? "▲" : "▼"}</span>
                     </>
