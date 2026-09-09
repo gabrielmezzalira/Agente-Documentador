@@ -75,7 +75,10 @@ def test_create_project_com_valor_projeto_calcula_valor_por_ponto(monkeypatch):
     mock_sb, calls = _make_mock_client()
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.post("/projects", json={"name": "Proj X", "client": "Cliente Y", "valor_projeto": 35000})
+    resp = tc.post(
+        "/projects",
+        json={"name": "Proj X", "client": "Cliente Y", "subarea": "dados", "valor_projeto": 35000},
+    )
 
     assert resp.status_code == 201
     assert calls["insert"][0]["valor_projeto"] == 35000

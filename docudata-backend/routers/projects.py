@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Literal
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
@@ -16,32 +15,26 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _sanitize(row: dict) -> dict:
-    """Strip sensitive keys from row; inject has_api_key and has_github_config bools.
-
-    - gemini_api_key → nunca enviado; has_api_key: bool calculado a partir dele
-    - github_token   → nunca enviado (T-11-02); has_github_config: bool calculado
-    - github_repo    → nunca enviado como campo sensível; apenas afeta has_github_config
-    """
-    has_key = bool(row.get("gemini_api_key"))
+    """Remove segredos legados e mantém apenas o status da integração de aceite."""
     has_github_config = bool(row.get("github_token")) and bool(row.get("github_repo"))
     filtered = {k: v for k, v in row.items() if k not in ("gemini_api_key", "github_token")}
-    return filtered | {"has_api_key": has_key, "has_github_config": has_github_config}
-
-
-class ApiKeyUpdate(BaseModel):
-    gemini_api_key: Optional[str] = None
+    return filtered | {"has_github_config": has_github_config}
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(data: ProjectCreate):
     """Create a new project. Returns the inserted row with its generated UUID."""
     client = get_client()
-    payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
+    payload = {
+        "name": data.name,
+        "client": data.client,
+        "subarea": data.subarea,
+        "description": data.description,
+        "squad": data.squad,
+    }
     if data.valor_projeto is not None:
         payload["valor_projeto"] = data.valor_projeto
         payload["valor_por_ponto"] = round(data.valor_projeto / 100, 2)
-    if data.gemini_api_key:
-        payload["gemini_api_key"] = data.gemini_api_key
     response = client.table("projects").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
@@ -49,14 +42,23 @@ async def create_project(data: ProjectCreate):
 
 
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects(pessoa: dict = Depends(get_current_pessoa)):
+async def list_projects(
+    subarea: Literal["dados", "dev"] = Query(...),
+    pessoa: dict = Depends(get_current_pessoa),
+):
     """List projects ordered by creation date (most recent first).
 
     Operacional só vê os projetos em que está vinculado como operacional — sem
     isso, a home page expunha a existência (nome, cliente) de todo projeto do
     CITi a qualquer conta, mesmo projetos em que a pessoa nunca trabalhou."""
     client = get_client()
-    response = client.table("projects").select("*").order("created_at", desc=True).execute()
+    response = (
+        client.table("projects")
+        .select("*")
+        .eq("subarea", subarea)
+        .order("created_at", desc=True)
+        .execute()
+    )
     rows = response.data or []
 
     if pessoa["cargo"] == "operacional":
@@ -100,26 +102,6 @@ async def get_project(project_id: str):
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
     return _sanitize(response.data[0])
-
-
-@router.patch("/{project_id}/api-key", response_model=ProjectResponse)
-async def update_api_key(project_id: str, data: ApiKeyUpdate):
-    """Set or clear the Gemini API key for an existing project."""
-    client = get_client()
-    check = client.table("projects").select("id").eq("id", project_id).execute()
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    response = (
-        client.table("projects")
-        .update({"gemini_api_key": data.gemini_api_key or None})
-        .eq("id", project_id)
-        .execute()
-    )
-    if not response.data:
-        raise HTTPException(status_code=500, detail="Failed to update API key")
-    return _sanitize(response.data[0])
-
-
 
 
 @router.patch("/{project_id}/delivered", response_model=ProjectResponse)

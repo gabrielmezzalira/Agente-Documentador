@@ -14,9 +14,10 @@ from models.schemas import ExecucaoAceitePayload, ExecucaoAceiteResponse
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["aceite-ingest"])
+service_router = APIRouter(tags=["aceite-ingest"])
 
 
-@router.post("/ingest/aceite", status_code=200)
+@service_router.post("/ingest/aceite", status_code=200)
 async def ingest_aceite(payload: ExecucaoAceitePayload):
     """Recebe resultado dos gates do CI e atualiza execucoes_aceite.
 

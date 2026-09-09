@@ -1,4 +1,3 @@
-import os
 import json
 from typing import TypedDict, Optional
 
@@ -10,7 +9,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 class ImportState(TypedDict):
     texto_contrato: str
     projeto_id: str
-    gemini_api_key: str
+    api_key: str
     proposta: Optional[list]
     valido: bool
     tentativas: int
@@ -40,7 +39,7 @@ async def gerar_proposta(state: ImportState) -> dict:
         llm = ChatGoogleGenerativeAI(
             model="gemini-3.5-flash-lite",
             max_tokens=4096,
-            google_api_key=state["gemini_api_key"],
+            google_api_key=state["api_key"],
         )
         messages = [
             SystemMessage(_IMPORT_SYSTEM_PROMPT),

@@ -1,5 +1,5 @@
 """
-Rode este script UMA VEZ para gerar o GOOGLE_REFRESH_TOKEN.
+Rode este script para gerar o refresh token de Dados ou Dev.
 
 Pré-requisitos:
   pip install google-auth-oauthlib
@@ -8,12 +8,16 @@ Como usar:
   1. No Google Cloud Console → APIs & Services → Credentials
      → Create Credentials → OAuth 2.0 Client ID → Desktop app
   2. Cole o Client ID e Client Secret abaixo (ou passe como args)
-  3. python3 get_google_token.py
+  3. Dados: python3 get_google_token.py
+     Dev:   python3 get_google_token.py --dev
   4. Autorize no browser que vai abrir
-  5. Copie os 3 valores impressos no terminal para o .env
+  5. Copie os valores impressos no terminal para o .env
 """
 
 import sys
+
+IS_DEV = "--dev" in sys.argv
+TOKEN_ENV_NAME = "GOOGLE_REFRESH_TOKEN_DEV" if IS_DEV else "GOOGLE_REFRESH_TOKEN"
 
 CLIENT_ID = input("Cole o GOOGLE_CLIENT_ID: ").strip()
 CLIENT_SECRET = input("Cole o GOOGLE_CLIENT_SECRET: ").strip()
@@ -47,4 +51,4 @@ creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
 print("\n✅ Copie estes valores para o .env:\n")
 print(f"GOOGLE_CLIENT_ID={CLIENT_ID}")
 print(f"GOOGLE_CLIENT_SECRET={CLIENT_SECRET}")
-print(f"GOOGLE_REFRESH_TOKEN={creds.refresh_token}")
+print(f"{TOKEN_ENV_NAME}={creds.refresh_token}")

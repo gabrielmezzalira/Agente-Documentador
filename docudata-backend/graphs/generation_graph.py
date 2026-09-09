@@ -17,7 +17,7 @@ class GenerationState(TypedDict):
     sprint_numero: Optional[int]
     ingestion_id: Optional[str]
     observacoes: Optional[str]
-    gemini_api_key: str
+    api_key: str
     data_atual: str
     ingestions: list
     contexto: str
@@ -917,6 +917,8 @@ def compilar_contexto(state: GenerationState) -> dict:
         decisoes = ", ".join(content.get("decisoes") or [])
         problemas = ", ".join(content.get("problemas") or [])
         proximos = ", ".join(content.get("proximos_passos") or [])
+        tecnologias = ", ".join(content.get("tecnologias") or [])
+        tecnologias_removidas = ", ".join(content.get("tecnologias_removidas") or [])
 
         header = f"--- Sprint {sprint} | {nome}"
         if tipo_doc:
@@ -930,8 +932,25 @@ def compilar_contexto(state: GenerationState) -> dict:
             f"Decisoes: {decisoes}\n"
             f"Problemas: {problemas}\n"
             f"Contexto do cliente: {content.get('contexto_cliente', '')}\n"
+            f"Tecnologias: {tecnologias}\n"
+            f"Tecnologias removidas: {tecnologias_removidas}\n"
             f"Proximos passos: {proximos}"
         )
+
+        if tipo_doc == "commit":
+            repositorio = ing.get("source_repository_full_name") or content.get("_meta_repository")
+            branch = ing.get("source_branch") or content.get("_meta_branch")
+            sha = ing.get("source_commit_sha") or content.get("_meta_commit_sha")
+            url = ing.get("source_url") or content.get("_meta_commit_url")
+            origem = repositorio or "Origem não registrada (legado)"
+            bloco += (
+                f"\nOrigem: {origem}"
+                f"\nBranch: {branch or 'não registrada'}"
+                f"\nCommit: {sha or nome}{f' — {url}' if url else ''}"
+                f"\nAutor e data: {content.get('_meta_autor', 'não registrado')} — "
+                f"{content.get('_meta_data_commit', 'não registrada')}"
+                f"\nMensagem do commit: {content.get('_meta_commit_msg', '')}"
+            )
 
         # Serializa sub-dicts campos_* para que o LLM os veja durante a geração
         for campo_key in ("campos_review", "campos_retrospectiva", "campos_planning", "campos_daily"):
@@ -948,7 +967,7 @@ def compilar_contexto(state: GenerationState) -> dict:
         partes.append(changes)
 
     # Adiciona bloco de kanban de tasks para docs sprint-scoped
-    if state["tipo_doc"] in _SPRINT_SCOPED_TYPES and state.get("sprint_numero"):
+    if state.get("tipo_doc") in _SPRINT_SCOPED_TYPES and state.get("sprint_numero"):
         bloco = _bloco_kanban_tasks(state["projeto_id"], state["sprint_numero"])
         if bloco:
             partes.append(bloco)
@@ -962,7 +981,7 @@ async def gerar_documento(state: GenerationState) -> dict:
         "{contexto}", _NO_HALLUCINATE + "\n\n{contexto}"
     )
     prompt = ChatPromptTemplate.from_template(template)
-    llm = _make_llm(state["gemini_api_key"])
+    llm = _make_llm(state["api_key"])
 
     contexto = state["contexto"]
     obs = (state.get("observacoes") or "").strip()

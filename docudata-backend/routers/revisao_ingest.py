@@ -3,7 +3,7 @@
 POST /ingest/revisao  — recebe diff acumulado das últimas 24h de um repo
                         e extrai achados estruturados via Gemini.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from typing import Optional
 
@@ -11,7 +11,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from models.schemas import RevisaoEstruturada, Achado
+from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(tags=["revisao-ingest"])
 
@@ -49,19 +51,15 @@ class RevisaoPayload(BaseModel):
 
 
 @router.post("/ingest/revisao", status_code=201)
-async def ingest_revisao(payload: RevisaoPayload):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def ingest_revisao(request: Request, response: Response, payload: RevisaoPayload):
     """Recebe diff agregado das últimas 24h e registra revisão diária no DocuData."""
     client = get_client()
 
-    project_resp = client.table("projects").select("gemini_api_key").eq("id", payload.project_id).execute()
+    project_resp = client.table("projects").select("id").eq("id", payload.project_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    api_key = project_resp.data[0].get("gemini_api_key") or ""
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto nao tem uma chave de API do Gemini configurada. Configure-a no dashboard antes de enviar revisões.",
-        )
+    api_key = get_gemini_api_key()
 
     commits_str = "\n".join(f"- {msg}" for msg in payload.lista_commits) if payload.lista_commits else "(nenhum)"
     user_content = (

@@ -1,13 +1,15 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from models.schemas import BoletimCreate, BoletimPatch, BoletimResponse, ResumoSemanalRequest
 from routers.painel import calcular_bloco_a, calcular_bloco_b
+from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(prefix="/boletins", tags=["boletins"])
 
@@ -116,19 +118,20 @@ def _registrar_transicao_status_cliente(
 
 
 @router.post("", status_code=201, response_model=BoletimResponse)
-async def criar_boletim(body: BoletimCreate):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def criar_boletim(request: Request, response: Response, body: BoletimCreate):
     """Gera um boletim de aceite via Gemini e persiste em boletins_aceite.
 
     Segurança (T-12-01): verifica que todos os funcionalidade_ids pertencem
     ao project_id informado antes de chamar o Gemini.
-    Segurança (T-12-02): gemini_api_key nunca incluída no response.
+    Segurança (T-12-02): a chave Gemini global nunca é incluída no response.
     """
     client = get_client()
 
     # Buscar projeto (404 se não existe)
     proj_resp = (
         client.table("projects")
-        .select("id, name, client, gemini_api_key")
+        .select("id, name, client")
         .eq("id", body.project_id)
         .execute()
     )
@@ -136,13 +139,7 @@ async def criar_boletim(body: BoletimCreate):
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
     projeto = proj_resp.data[0]
 
-    # Verificar gemini_api_key (422 se ausente/vazia)
-    api_key = (projeto.get("gemini_api_key") or "").strip()
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada.",
-        )
+    api_key = get_gemini_api_key()
 
     # Verificar ownership das funcionalidades (T-12-01 — anti-spoofing)
     if not body.funcionalidade_ids:

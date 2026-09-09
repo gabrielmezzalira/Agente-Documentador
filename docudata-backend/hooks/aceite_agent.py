@@ -11,6 +11,7 @@ Instalação no repositório do projeto:
 
 Secrets necessários no repositório do projeto (GitHub Secrets):
   DOCUDATA_API_URL  — ex: https://docudata-backend.railway.app
+  DOCUDATA_APP_SECRET — segredo compartilhado das automações
 
 As variáveis FUNCIONALIDADE_ID, PROJECT_ID e TESTES_E2E são injetadas
 automaticamente pelo workflow aceite.yml via github.event.client_payload.
@@ -27,6 +28,7 @@ import urllib.request
 import urllib.error
 
 API_URL           = os.environ.get("DOCUDATA_API_URL", "").rstrip("/")
+APP_SECRET        = os.environ.get("DOCUDATA_APP_SECRET", "")
 FUNCIONALIDADE_ID = os.environ.get("FUNCIONALIDADE_ID", "")
 PROJECT_ID        = os.environ.get("PROJECT_ID", "")
 TESTES_E2E_JSON   = os.environ.get("TESTES_E2E", "[]")
@@ -120,7 +122,7 @@ body = json.dumps(payload).encode()
 req = urllib.request.Request(
     f"{API_URL}/ingest/aceite",
     data=body,
-    headers={"Content-Type": "application/json"},
+    headers={"Content-Type": "application/json", "X-Docudata-Key": APP_SECRET},
     method="POST",
 )
 try:

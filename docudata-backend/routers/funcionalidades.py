@@ -6,8 +6,10 @@ import urllib.request
 from datetime import datetime, timezone, date
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
+
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 from models.schemas import (
     FuncionalidadeCreate,
@@ -19,6 +21,7 @@ from models.schemas import (
     FuncionalidadeProposta,
 )
 from services.supabase_client import get_client
+from services.gemini_key import get_gemini_api_key
 
 
 def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
@@ -125,9 +128,9 @@ class ImportarRequest(BaseModel):
 
 
 @router.post("/importar", response_model=ImportPropostaResponse)
-async def importar_funcionalidades(data: ImportarRequest):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def importar_funcionalidades(request: Request, response: Response, data: ImportarRequest):
     """Propõe funcionalidades a partir do texto do contrato via IA. Não salva nada."""
-    import os
     from graphs.import_graph import import_graph
 
     texto = data.texto_contrato[:50000]
@@ -135,19 +138,15 @@ async def importar_funcionalidades(data: ImportarRequest):
         raise HTTPException(status_code=422, detail="Texto do contrato muito curto para análise")
 
     client = get_client()
-    proj = client.table("projects").select("gemini_api_key").eq("id", data.project_id).execute()
+    proj = client.table("projects").select("id").eq("id", data.project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    api_key = (proj.data[0].get("gemini_api_key") or "").strip()
-    if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Nenhuma API key Gemini configurada para este projeto")
+    api_key = get_gemini_api_key()
 
     state = await import_graph.ainvoke({
         "texto_contrato": texto,
         "projeto_id": data.project_id,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "proposta": None,
         "valido": False,
         "tentativas": 0,
@@ -174,24 +173,24 @@ async def importar_funcionalidades(data: ImportarRequest):
 
 
 @router.post("/importar/arquivo", response_model=ImportPropostaResponse)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def importar_funcionalidades_arquivo(
+    request: Request,
+    response: Response,
     project_id: str = Form(...),
     arquivo: UploadFile = File(...),
 ):
     """Propõe funcionalidades extraindo texto de PDF, DOCX ou TXT. Não salva nada."""
-    import os
     from graphs.import_graph import import_graph
     from services.file_parser import parse_pdf, parse_docx, parse_txt
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage, SystemMessage
 
     client = get_client()
-    proj = client.table("projects").select("gemini_api_key").eq("id", project_id).execute()
+    proj = client.table("projects").select("id").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    api_key = (proj.data[0].get("gemini_api_key") or "").strip() or os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Nenhuma API key Gemini configurada para este projeto")
+    api_key = get_gemini_api_key()
 
     content_type = arquivo.content_type or ""
     file_bytes = await arquivo.read()
@@ -257,7 +256,7 @@ async def importar_funcionalidades_arquivo(
     state = await import_graph.ainvoke({
         "texto_contrato": texto[:50000],
         "projeto_id": project_id,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "proposta": None,
         "valido": False,
         "tentativas": 0,

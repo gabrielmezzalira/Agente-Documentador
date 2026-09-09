@@ -19,11 +19,20 @@ import pytest
 from typing import get_type_hints
 
 
-def test_conteudo_estruturado_has_exactly_6_fields():
-    """ConteudoEstruturado must have exactly these 6 fields."""
+def test_conteudo_estruturado_has_expected_fields():
+    """ConteudoEstruturado deve manter os campos base e de tecnologias atuais."""
     from models.schemas import ConteudoEstruturado
     fields = set(ConteudoEstruturado.model_fields.keys())
-    expected = {"resumo", "tarefas", "decisoes", "problemas", "contexto_cliente", "proximos_passos"}
+    expected = {
+        "resumo",
+        "tarefas",
+        "decisoes",
+        "problemas",
+        "contexto_cliente",
+        "proximos_passos",
+        "tecnologias",
+        "tecnologias_removidas",
+    }
     assert fields == expected, f"Fields mismatch: got {fields}, expected {expected}"
 
 
@@ -44,7 +53,7 @@ def test_conteudo_estruturado_field_types():
 
 
 def test_conteudo_estruturado_instantiation():
-    """ConteudoEstruturado must be instantiable with 6 fields."""
+    """ConteudoEstruturado deve aceitar todos os campos obrigatórios atuais."""
     from models.schemas import ConteudoEstruturado
     obj = ConteudoEstruturado(
         resumo="Resumo teste",
@@ -53,36 +62,42 @@ def test_conteudo_estruturado_instantiation():
         problemas=["problema 1"],
         contexto_cliente="Cliente X",
         proximos_passos=["passo 1"],
+        tecnologias=["Python"],
     )
     assert obj.resumo == "Resumo teste"
     assert obj.tarefas == ["tarefa 1", "tarefa 2"]
     assert obj.model_dump()["decisoes"] == ["decisao 1"]
 
 
-def test_project_create_requires_name_and_client():
-    """ProjectCreate must require name and client; missing either raises ValidationError."""
+def test_project_create_requires_name_client_and_subarea():
+    """ProjectCreate exige nome, cliente e subárea."""
     from models.schemas import ProjectCreate
     import pydantic
     # Valid creation
-    proj = ProjectCreate(name="Proj X", client="Client A")
+    proj = ProjectCreate(name="Proj X", client="Client A", subarea="dados")
     assert proj.name == "Proj X"
     assert proj.client == "Client A"
+    assert proj.subarea == "dados"
     assert proj.description is None
 
     # Missing name
     with pytest.raises(pydantic.ValidationError):
-        ProjectCreate(client="Client A")
+        ProjectCreate(client="Client A", subarea="dados")
 
     # Missing client
     with pytest.raises(pydantic.ValidationError):
-        ProjectCreate(name="Proj X")
+        ProjectCreate(name="Proj X", subarea="dados")
+
+    # Missing subarea
+    with pytest.raises(pydantic.ValidationError):
+        ProjectCreate(name="Proj X", client="Client A")
 
 
 def test_project_create_description_optional():
     """ProjectCreate description is optional."""
     from models.schemas import ProjectCreate
-    proj_with_desc = ProjectCreate(name="P", client="C", description="desc")
-    proj_without = ProjectCreate(name="P", client="C")
+    proj_with_desc = ProjectCreate(name="P", client="C", subarea="dev", description="desc")
+    proj_without = ProjectCreate(name="P", client="C", subarea="dev")
     assert proj_with_desc.description == "desc"
     assert proj_without.description is None
 
@@ -91,8 +106,21 @@ def test_project_response_has_required_fields():
     """ProjectResponse must have id, name, client, description, created_at."""
     from models.schemas import ProjectResponse
     fields = set(ProjectResponse.model_fields.keys())
-    expected = {"id", "name", "client", "description", "created_at"}
-    assert fields == expected
+    expected = {
+        "id",
+        "name",
+        "client",
+        "subarea",
+        "description",
+        "squad",
+        "is_delivered",
+        "created_at",
+        "last_ingestion_at",
+    }
+    # O contrato cresceu nas fases posteriores; estes são os campos-base estáveis.
+    assert expected <= fields
+    assert "gemini_api_key" not in fields
+    assert "has_api_key" not in fields
 
 
 def test_project_response_id_is_str():
@@ -150,11 +178,11 @@ def test_projects_router_has_prefix():
     assert router.prefix == "/projects", f"Router prefix should be /projects, got {router.prefix}"
 
 
-def test_projects_router_has_3_routes():
-    """projects router must have exactly 3 route objects."""
+def test_projects_router_has_current_routes():
+    """Projects router deve expor todas as rotas atuais do domínio."""
     from routers.projects import router
     routes = router.routes
-    assert len(routes) == 3, f"Expected 3 routes, got {len(routes)}: {[r.path for r in routes]}"
+    assert len(routes) == 8, f"Expected 8 routes, got {len(routes)}: {[r.path for r in routes]}"
 
 
 def test_projects_router_get_by_id_raises_404():
