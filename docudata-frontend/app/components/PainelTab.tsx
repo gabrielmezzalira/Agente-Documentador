@@ -8,6 +8,7 @@ import {
   getSprintFuncionalidades,
   createSprintFuncionalidades,
   updateSprintFuncionalidade,
+  updateFuncionalidade,
   updateContrato,
   listTasksKanban,
   type BlocoD,
@@ -612,14 +613,25 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
   const sfByFuncId = new Map(sprintFuncs.map((sf) => [sf.funcionalidade_id, sf]));
   const funcsNotInSprint = funcionalidades.filter((f) => !sfByFuncId.has(f.id));
 
-  async function handleDrop(targetStatus: "em_andamento" | "concluida") {
-    if (!dragFuncId || !selectedSprintObj) { setDragFuncId(null); return; }
+  async function handleDrop(targetStatus: "nao_iniciada" | "em_andamento" | "concluida") {
+    if (!dragFuncId) { setDragFuncId(null); return; }
     const sf = sfByFuncId.get(dragFuncId);
-    if (!sf || sf.status === targetStatus) { setDragFuncId(null); return; }
     setKanbanSaving(true);
     try {
-      await updateSprintFuncionalidade(sf.id, { status: targetStatus });
-      setSprintFuncs(await getSprintFuncionalidades(selectedSprintObj.id));
+      if (sf) {
+        // Fluxo novo: existe registro em sprint_funcionalidades — status só aceita em_andamento/concluida
+        if (targetStatus !== "nao_iniciada" && sf.status !== targetStatus && selectedSprintObj) {
+          await updateSprintFuncionalidade(sf.id, { status: targetStatus });
+          setSprintFuncs(await getSprintFuncionalidades(selectedSprintObj.id));
+        }
+      } else {
+        // Fluxo antigo (fallback): status mora direto em funcionalidades.status
+        const f = funcionalidades.find((fn) => fn.id === dragFuncId);
+        if (f && f.status !== targetStatus) {
+          await updateFuncionalidade(f.id, { status: targetStatus });
+          setFuncionalidades(await listFuncionalidades(projectId));
+        }
+      }
     } finally {
       setKanbanSaving(false);
       setDragFuncId(null);
@@ -774,8 +786,12 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
           <p style={{ color: "#9696a0", fontSize: 13 }}>Nenhuma sprint cadastrada.</p>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
-            {/* Planejado */}
-            <div>
+            {/* Planejado — drop target */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop("nao_iniciada")}
+              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={colHeaderStyle("#374151")}>Planejado</span>
                 <span style={{ ...chipBaseStyle, background: "#f1f5f9", color: "#64748b", fontSize: 11 }}>
@@ -788,7 +804,15 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
                 </div>
               ) : (
                 planejado.map((f) => (
-                  <KanbanCard key={f.id} f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
+                  <div
+                    key={f.id}
+                    draggable
+                    onDragStart={() => setDragFuncId(f.id)}
+                    onDragEnd={() => setDragFuncId(null)}
+                    style={{ cursor: "grab" }}
+                  >
+                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
+                  </div>
                 ))
               )}
             </div>
