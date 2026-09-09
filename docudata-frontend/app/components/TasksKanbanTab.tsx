@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
 import { useAuth } from "./AuthGuard";
 import {
@@ -540,6 +541,106 @@ function TaskModal({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Modal de visualização — usado por operacionais: só leitura, exceto o
+// checklist (cada marcação salva na hora, sem botão de Salvar separado).
+
+function TaskViewModal({
+  task, sprints, funcionalidades, onClose, onSaved,
+}: {
+  task: TaskKanbanResponse;
+  sprints: SprintWithStatus[];
+  funcionalidades: FuncionalidadeResponse[];
+  onClose: () => void;
+  onSaved: (t: TaskKanbanResponse) => void;
+}) {
+  const [checklist, setChecklist] = useState(task.checklist);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const sprint = sprints.find((s) => s.id === task.sprint_id);
+  const funcionalidade = funcionalidades.find((f) => f.id === task.funcionalidade_id);
+  const done = checklist.filter((i) => i.done).length;
+
+  async function toggleItem(i: number) {
+    const anterior = checklist;
+    const atualizado = checklist.map((item, j) => (j === i ? { ...item, done: !item.done } : item));
+    setChecklist(atualizado);
+    setSaving(true);
+    setErr("");
+    try {
+      const saved = await patchTaskKanban(task.id, { checklist: atualizado });
+      onSaved(saved);
+    } catch (e) {
+      setChecklist(anterior);
+      setErr(e instanceof Error ? e.message : "Erro ao salvar checklist");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+    }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+      }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+          <span style={{ ...chip, background: "#f1f5f9", color: "#475569" }}>{task.pontos}pt</span>
+          {sprint && <span style={{ ...chip, background: "#ede9fe", color: "#7c3aed" }}>Sprint {sprint.numero}</span>}
+          {task.extra && <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>}
+          {task.bloqueado && (
+            <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>
+              Bloqueada{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
+            </span>
+          )}
+        </div>
+
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>{task.titulo}</h3>
+        {funcionalidade && (
+          <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>
+            {funcionalidade.id_funcional} — {funcionalidade.titulo}
+          </p>
+        )}
+
+        {task.descricao && (
+          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 20 }}>
+            <ReactMarkdown>{task.descricao}</ReactMarkdown>
+          </div>
+        )}
+
+        <div>
+          <label style={labelSt}>Checklist{checklist.length > 0 ? ` (${done}/${checklist.length})` : ""}</label>
+          {checklist.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Sem itens de checklist nesta task.</p>
+          ) : (
+            checklist.map((item, i) => (
+              <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={item.done} disabled={saving} onChange={() => toggleItem(i)} />
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
+                  {item.texto}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+
+        {err && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 10 }}>{err}</p>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button type="button" onClick={onClose} style={btnPrimary}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function labelForColuna(c: string): string {
   return COLUNAS.find((col) => col.id === c)?.label ?? c;
 }
@@ -929,12 +1030,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           ))}
         </select>
 
-        <button
-          onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-          style={{ ...btnPrimary, marginLeft: "auto" }}
-        >
-          + Nova task
-        </button>
+        {!ehOperacional && (
+          <button
+            onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
+            style={{ ...btnPrimary, marginLeft: "auto" }}
+          >
+            + Nova task
+          </button>
+        )}
       </div>
 
       {/* Pedir nova task — só aparece pro operacional que zerou a fila */}
@@ -1087,16 +1190,18 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                   <span style={{ ...chip, background: col.bg, color: col.color, fontSize: 11 }}>
                     {colTasks.length}
                   </span>
-                  <button
-                    onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-                    title="Nova task nesta coluna"
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "#b8b8c0", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
-                    }}
-                  >
-                    +
-                  </button>
+                  {!ehOperacional && (
+                    <button
+                      onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
+                      title="Nova task nesta coluna"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "#b8b8c0", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
 
                 {/* Cards */}
@@ -1137,17 +1242,27 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       )}
 
       {editModal !== null && (
-        <TaskModal
-          mode="edit"
-          task={editModal}
-          projectId={projectId}
-          sprints={sprints}
-          operacionais={operacionais}
-          funcionalidades={funcionalidades}
-          onClose={() => setEditModal(null)}
-          onSaved={(t) => { upsertTask(t); setEditModal(null); }}
-          onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
-        />
+        ehOperacional ? (
+          <TaskViewModal
+            task={editModal}
+            sprints={sprints}
+            funcionalidades={funcionalidades}
+            onClose={() => setEditModal(null)}
+            onSaved={(t) => { upsertTask(t); setEditModal(t); }}
+          />
+        ) : (
+          <TaskModal
+            mode="edit"
+            task={editModal}
+            projectId={projectId}
+            sprints={sprints}
+            operacionais={operacionais}
+            funcionalidades={funcionalidades}
+            onClose={() => setEditModal(null)}
+            onSaved={(t) => { upsertTask(t); setEditModal(null); }}
+            onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
+          />
+        )
       )}
 
       {pendingMove !== null && (

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
     OperacionalCreate,
@@ -6,12 +6,13 @@ from models.schemas import (
     OperacionalUpdate,
     OperacionalResponse,
 )
+from services.auth import require_not_operacional
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/operacionais", tags=["operacionais"])
 
 
-@router.post("", response_model=OperacionalResponse, status_code=201)
+@router.post("", response_model=OperacionalResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
 async def create_operacional(data: OperacionalCreate):
     client = get_client()
     check = client.table("projects").select("id").eq("id", data.project_id).execute()
@@ -174,7 +175,7 @@ async def listar_operacionais_disponiveis(project_id: str):
     return sorted(por_chave.values(), key=lambda e: e["nome"].lower())
 
 
-@router.patch("/{operacional_id}", response_model=OperacionalResponse)
+@router.patch("/{operacional_id}", response_model=OperacionalResponse, dependencies=[Depends(require_not_operacional)])
 async def update_operacional(operacional_id: str, data: OperacionalUpdate):
     client = get_client()
     check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
@@ -201,7 +202,7 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
     return resp.data[0]
 
 
-@router.post("/{operacional_id}/remover-do-projeto", response_model=OperacionalResponse)
+@router.post("/{operacional_id}/remover-do-projeto", response_model=OperacionalResponse, dependencies=[Depends(require_not_operacional)])
 async def remover_do_projeto(operacional_id: str):
     """Tira a pessoa do projeto sem apagar nada.
 
@@ -227,7 +228,7 @@ async def remover_do_projeto(operacional_id: str):
     return resp.data[0]
 
 
-@router.delete("/{operacional_id}", status_code=204)
+@router.delete("/{operacional_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_operacional(operacional_id: str):
     """Apaga a pessoa e, por cascata do banco, toda a pontuação travada dela.
 

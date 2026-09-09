@@ -13,7 +13,7 @@ from models.schemas import (
     TaskSugestaoResponse,
     TaskSugestaoResolve,
 )
-from services.auth import require_project_access
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.email_service import email_task_atribuida, send_email
 from services.supabase_client import get_client
 from services.wip_check import check_wip
@@ -24,6 +24,14 @@ from services.pontuacao import rotear_evento_pos_fechamento
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 _CAMPOS_TRANSICAO = {"coluna_kanban", "operacional_id", "sprint_id", "bloqueado"}
+
+# Operacional só executa: move a task no kanban e marca checklist. Pontos,
+# sprint, responsável, título/descrição e bloqueio são decisão de gerente/líder.
+_CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
+    "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
+    "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
+    "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
+}
 
 
 def _registrar_task_transicao(
@@ -121,7 +129,7 @@ def _pontos_usados_na_sprint(client, sprint_id: str, ignorar_task_id: str | None
     return sum(t["pontos"] for t in rows if not t.get("extra"))
 
 
-@router.post("/redistribuir-pontos")
+@router.post("/redistribuir-pontos", dependencies=[Depends(require_not_operacional)])
 async def redistribuir_pontos(data: RedistribuirPontosRequest):
     """Encolhe proporcionalmente os pontos das tasks já existentes na sprint para
     abrir espaço para `pontos_novos`, em vez de simplesmente recusar a task nova.
@@ -199,7 +207,7 @@ async def redistribuir_pontos(data: RedistribuirPontosRequest):
     }
 
 
-@router.post("", response_model=TaskResponse, status_code=201)
+@router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
 async def create_task(data: TaskCreate):
     client = get_client()
 
@@ -339,7 +347,7 @@ async def list_task_sugestoes(project_id: str = Query(...)):
 
 
 @router.patch("/sugestoes/{sugestao_id}", response_model=TaskSugestaoResponse)
-async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
+async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
     resp = (
         client.table("task_sugestoes")
@@ -357,7 +365,7 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
         # (DoR/DoD/WIP + gravação em task_transicoes). Se patch_task levantar HTTPException
         # (ex.: DoD com checklist incompleto), a exceção propaga e a sugestão continua não
         # resolvida — o update de "aceita" abaixo nunca acontece.
-        await patch_task(task_id, TaskUpdate(coluna_kanban="concluida", autor="sugestao_ia"))
+        await patch_task(task_id, TaskUpdate(coluna_kanban="concluida", autor="sugestao_ia"), pessoa=pessoa)
 
     updated = (
         client.table("task_sugestoes")
@@ -404,7 +412,16 @@ async def list_task_transicoes(task_id: str):
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
-async def patch_task(task_id: str, data: TaskUpdate):
+async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_current_pessoa)):
+    if pessoa["cargo"] == "operacional":
+        pedidos = set(data.model_dump(exclude_unset=True))
+        negados = pedidos & _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL
+        if negados:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Operacional não pode alterar: {', '.join(sorted(negados))}",
+            )
+
     client = get_client()
 
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
@@ -596,11 +613,17 @@ async def patch_task(task_id: str, data: TaskUpdate):
 
 
 @router.post("/{task_id}/mover", response_model=TaskResponse)
-async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = None, motivo: Optional[str] = None):
+async def mover_task(
+    task_id: str,
+    coluna_destino: str,
+    autor: Optional[str] = None,
+    motivo: Optional[str] = None,
+    pessoa: dict = Depends(get_current_pessoa),
+):
     """Endpoint semântico para drag-and-drop entre colunas."""
     if coluna_destino not in {"planejado", "em_andamento", "concluida"}:
         raise HTTPException(status_code=422, detail="coluna_destino inválida")
-    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo))
+    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo), pessoa=pessoa)
 
 
 @router.post("/{task_id}/travado/override", response_model=TaskResponse)
@@ -660,7 +683,7 @@ async def reordenar_tasks(itens: list[TaskReordenarItem]):
     return {"updated": len(itens)}
 
 
-@router.delete("/{task_id}", status_code=204)
+@router.delete("/{task_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_task(task_id: str):
     client = get_client()
     check = client.table("tasks").select("id, sprint_id").eq("id", task_id).execute()
