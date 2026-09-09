@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from core.rate_limit import limiter
 from core.security import require_app_key
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, settings
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, settings, github_integration
 from services.gemini_key import (
     GeminiApiKeyInvalid,
     GeminiApiKeyNotConfigured,
@@ -99,6 +99,11 @@ app.include_router(export.router, dependencies=protected)
 app.include_router(commit_ingest.router, dependencies=protected)
 app.include_router(enrich.router, dependencies=protected)
 app.include_router(settings.router, dependencies=protected)
+app.include_router(github_integration.router, dependencies=protected)
+
+# O GitHub não conhece o segredo compartilhado da aplicação; estes dois callbacks
+# usam state assinado ou HMAC do corpo bruto como autenticação própria.
+app.include_router(github_integration.public_router)
 
 
 @app.get("/health")

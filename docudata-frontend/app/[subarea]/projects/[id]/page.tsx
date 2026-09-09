@@ -24,6 +24,12 @@ import {
   moveIngestion,
   moveDoc,
   toggleDelivered,
+  getGitHubCapabilities,
+  startGitHubConnection,
+  listAvailableGitHubRepositories,
+  connectProjectRepositories,
+  listProjectRepositories,
+  disconnectProjectRepository,
   type Project,
   type Ingestion,
   type GeneratedDoc,
@@ -31,6 +37,8 @@ import {
   type ProjectUsage,
   type SprintWithStatus,
   type SprintDocType,
+  type GitHubRepositoryCandidate,
+  type ProjectRepository,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
 import SprintCard from "../../../components/SprintCard";
@@ -134,6 +142,15 @@ export default function ProjectDashboard() {
   const [exportingDocId, setExportingDocId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<Record<string, string>>({});
 
+  // ---------- repositórios GitHub (piloto Dev) ----------
+  const [githubVisible, setGithubVisible] = useState(false);
+  const [githubRepositories, setGithubRepositories] = useState<ProjectRepository[]>([]);
+  const [githubCandidates, setGithubCandidates] = useState<GitHubRepositoryCandidate[]>([]);
+  const [githubSelected, setGithubSelected] = useState<number[]>([]);
+  const [githubConnectionToken, setGithubConnectionToken] = useState("");
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState("");
+
   // ---------- bootstrap ----------
   useEffect(() => {
     Promise.all([
@@ -152,6 +169,47 @@ export default function ProjectDashboard() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    // Projetos de Dados não consultam nem capabilities durante o piloto.
+    if (project?.subarea !== "dev") return;
+    let active = true;
+    getGitHubCapabilities()
+      .then(async (capabilities) => {
+        if (!active || !capabilities.enabled || !capabilities.configured || !capabilities.subareas.includes("dev")) return;
+        setGithubVisible(true);
+        const params = new URLSearchParams(window.location.search);
+        const erroCallback = params.get("github_error");
+        const token = params.get("github_connection");
+        if (params.get("tab") === "config") setActiveTab("config");
+        if (erroCallback === "cancelled") {
+          setActiveTab("config");
+          setGithubError("A conexão com o GitHub foi cancelada.");
+        }
+        const vinculados = await listProjectRepositories(id);
+        if (active) setGithubRepositories(vinculados);
+        if (token && active) {
+          setActiveTab("config");
+          setGithubConnectionToken(token);
+          window.history.replaceState({}, "", window.location.pathname + "?tab=config");
+          setGithubLoading(true);
+          try {
+            const candidatos = await listAvailableGitHubRepositories(token);
+            if (!active) return;
+            setGithubCandidates(candidatos);
+            setGithubSelected(candidatos.map((repo) => repo.github_repository_id));
+            if (candidatos.length === 0) setGithubError("Selecione pelo menos um repositório no GitHub.");
+          } catch (err) {
+            if (active) setGithubError(err instanceof Error ? err.message : "A conexão com o GitHub expirou.");
+          } finally {
+            if (active) setGithubLoading(false);
+          }
+        }
+      })
+      // Compatibilidade frontend novo + backend antigo/desligado: oculta somente esta seção.
+      .catch(() => {});
+    return () => { active = false; };
+  }, [id, project?.subarea]);
 
   // Carrega uso mensal ao entrar na aba Custos ou trocar de mês
   useEffect(() => {
@@ -235,6 +293,52 @@ export default function ProjectDashboard() {
       setProject(updated);
     } catch {
       alert("Erro ao atualizar status do projeto.");
+    }
+  }
+
+  async function handleStartGitHubConnection() {
+    setGithubLoading(true);
+    setGithubError("");
+    try {
+      const session = await startGitHubConnection(id);
+      window.location.assign(session.install_url);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível iniciar a conexão com o GitHub.");
+      setGithubLoading(false);
+    }
+  }
+
+  async function handleConnectRepositories() {
+    if (githubSelected.length === 0) {
+      setGithubError("Selecione pelo menos um repositório no GitHub.");
+      return;
+    }
+    setGithubLoading(true);
+    setGithubError("");
+    try {
+      await connectProjectRepositories(id, githubConnectionToken, githubSelected);
+      setGithubRepositories(await listProjectRepositories(id));
+      setGithubCandidates([]);
+      setGithubConnectionToken("");
+      window.history.replaceState({}, "", window.location.pathname + "?tab=config");
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível conectar os repositórios.");
+    } finally {
+      setGithubLoading(false);
+    }
+  }
+
+  async function handleDisconnectRepository(repository: ProjectRepository) {
+    if (!confirm(`Desconectar ${repository.full_name}? O histórico de commits já ingerido será preservado.`)) return;
+    setGithubLoading(true);
+    setGithubError("");
+    try {
+      await disconnectProjectRepository(id, repository.id);
+      setGithubRepositories(await listProjectRepositories(id));
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível desconectar o repositório.");
+    } finally {
+      setGithubLoading(false);
     }
   }
 
@@ -427,6 +531,19 @@ export default function ProjectDashboard() {
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
       />
+
+      {githubVisible && githubRepositories.every((repo) => !repo.active) && activeTab !== "config" && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16,
+          padding: "13px 16px", margin: "-8px 0 18px", border: "1px solid #bfdbfe",
+          borderRadius: 12, background: "#eff6ff", color: "#1e3a8a", fontSize: 13,
+        }}>
+          <span>Conecte os repositórios deste projeto para incorporar commits automaticamente.</span>
+          <button style={{ ...btnSecondary, background: "#fff", color: "#1d4ed8", borderColor: "#bfdbfe" }} onClick={() => setActiveTab("config")}>
+            Conectar repositórios
+          </button>
+        </div>
+      )}
 
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
@@ -798,6 +915,84 @@ export default function ProjectDashboard() {
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
         <>
+          {githubVisible && (
+            <section style={{ ...sectionStyle, borderColor: "#c7d2fe" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ ...sectionTitle, color: "#4338ca", marginBottom: 6 }}>Repositórios GitHub</h2>
+                  <p style={{ fontSize: 13, color: "#64748b", margin: 0, lineHeight: 1.5 }}>
+                    Todos os repositórios conectados alimentam automaticamente o contexto deste projeto.
+                  </p>
+                </div>
+                <button onClick={handleStartGitHubConnection} disabled={githubLoading} style={{ ...btnPrimary, opacity: githubLoading ? 0.6 : 1 }}>
+                  {githubRepositories.length > 0 ? "Conectar outro" : "Conectar GitHub"}
+                </button>
+              </div>
+
+              {githubError && (
+                <p role="alert" style={{ padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13 }}>
+                  {githubError}
+                </p>
+              )}
+
+              {githubCandidates.length > 0 && (
+                <div style={{ padding: 16, borderRadius: 10, border: "1px solid #c7d2fe", background: "#f5f3ff", marginBottom: 16 }}>
+                  <strong style={{ display: "block", color: "#312e81", fontSize: 14, marginBottom: 4 }}>Selecione os repositórios</strong>
+                  <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 12px" }}>Todos os selecionados serão associados ao projeto {project.name}.</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {githubCandidates.map((repo) => (
+                      <label key={repo.github_repository_id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={githubSelected.includes(repo.github_repository_id)}
+                          onChange={(event) => setGithubSelected((current) => event.target.checked
+                            ? [...current, repo.github_repository_id]
+                            : current.filter((idRepo) => idRepo !== repo.github_repository_id))}
+                        />
+                        <span style={{ fontWeight: 650, color: "#1e293b", fontSize: 13 }}>{repo.full_name}</span>
+                        {repo.private && <span style={{ ...badgeChip, background: "#f1f5f9", color: "#64748b" }}>Privado</span>}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+                    <button style={btnSecondary} onClick={() => { setGithubCandidates([]); setGithubConnectionToken(""); }}>Cancelar</button>
+                    <button style={{ ...btnPrimary, opacity: githubLoading ? 0.6 : 1 }} disabled={githubLoading} onClick={handleConnectRepositories}>
+                      Conectar selecionados
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {githubRepositories.length === 0 ? (
+                <div style={{ padding: "18px 0 4px", textAlign: "center" }}>
+                  <strong style={{ display: "block", color: "#334155", fontSize: 14 }}>Nenhum repositório conectado</strong>
+                  <span style={{ color: "#94a3b8", fontSize: 12 }}>A conexão é recomendada, mas não bloqueia o uso do projeto.</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {githubRepositories.map((repo) => (
+                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 9 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ color: "#3730a3", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>{repo.full_name}</a>
+                        <span style={{ marginLeft: 9, color: "#94a3b8", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ ...badgeChip, background: repo.active ? "#dcfce7" : "#fef2f2", color: repo.active ? "#15803d" : "#b91c1c" }}>
+                          {repo.active ? "✓ Ativo" : repo.permission_status === "disconnected" ? "Desconectado" : "Permissão revogada"}
+                        </span>
+                        {repo.active ? (
+                          <button style={{ ...btnDanger, padding: "5px 9px", fontSize: 11 }} onClick={() => handleDisconnectRepository(repo)}>Desconectar</button>
+                        ) : (
+                          <button style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11 }} onClick={handleStartGitHubConnection}>Reconectar</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           {cost !== null && (
             <section style={sectionStyle}>
               <h2 style={sectionTitle}>Custo de IA</h2>

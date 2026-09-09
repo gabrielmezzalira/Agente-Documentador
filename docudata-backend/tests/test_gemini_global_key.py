@@ -247,12 +247,19 @@ def test_ausencia_da_chave_global_retorna_422_amigavel(monkeypatch):
 
 def test_fluxos_gemini_usam_resolucao_global_sem_coluna_legada():
     backend = Path(__file__).resolve().parents[1]
-    router_files = ["ingest.py", "generate.py", "enrich.py", "commit_ingest.py", "sprint_docs.py"]
+    router_files = ["ingest.py", "generate.py", "enrich.py", "sprint_docs.py"]
     for filename in router_files:
         source = (backend / "routers" / filename).read_text()
         assert "get_gemini_api_key" in source
         assert 'project.get("gemini_api_key")' not in source
         assert 'select("gemini_api_key' not in source
+
+    # Os caminhos GitHub App e legado compartilham a mesma resolução global.
+    commit_router = (backend / "routers" / "commit_ingest.py").read_text()
+    commit_service = (backend / "services" / "commit_extraction.py").read_text()
+    assert "extrair_e_salvar_commit" in commit_router
+    assert "get_gemini_api_key" in commit_service
+    assert 'select("gemini_api_key' not in commit_service
 
 
 def test_projeto_nao_tem_campos_gemini_e_endpoint_antigo_nao_existe(monkeypatch):

@@ -294,6 +294,18 @@ export default function SprintCard({
   const [moveIngSprint, setMoveIngSprint] = useState<string>("");
   const [movingDocId, setMovingDocId] = useState<string | null>(null);
   const [moveDocSprint, setMoveDocSprint] = useState<string>("");
+  const [commitRepositoryFilter, setCommitRepositoryFilter] = useState("todos");
+
+  const commits = ingestions.filter((item) => item.tipo_documentacao === "commit");
+  const commitRepositories = Array.from(new Set(
+    commits.map((item) => item.source_repository_full_name ?? item.extracted_content?._meta_repository)
+      .filter((nome): nome is string => Boolean(nome))
+  )).sort();
+  const filteredCommits = commitRepositoryFilter === "todos"
+    ? commits
+    : commits.filter((item) =>
+        (item.source_repository_full_name ?? item.extracted_content?._meta_repository) === commitRepositoryFilter
+      );
 
   function confirmGenerate() {
     if (pendingGen) {
@@ -598,34 +610,56 @@ export default function SprintCard({
 
           {/* COMMITS — log compacto do GitHub Actions */}
           {(() => {
-            const commits = ingestions.filter((i) => i.tipo_documentacao === "commit");
             if (commits.length === 0) return null;
             return (
               <>
-                <p style={{ ...subTitleStyle, marginTop: 18 }}>
-                  Commits ({commits.length})
-                  <span style={{ ...muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
-                    — via GitHub Actions
-                  </span>
-                </p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 18, marginBottom: 10 }}>
+                  <p style={{ ...subTitleStyle, margin: 0 }}>
+                    Commits ({filteredCommits.length})
+                    <span style={{ ...muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+                      — GitHub App e legado
+                    </span>
+                  </p>
+                  {commitRepositories.length > 1 && (
+                    <select
+                      aria-label="Filtrar commits por repositório"
+                      value={commitRepositoryFilter}
+                      onChange={(event) => setCommitRepositoryFilter(event.target.value)}
+                      style={{ border: "1px solid #dbe1ea", borderRadius: 7, padding: "5px 8px", color: "#475569", background: "#fff", fontSize: 11 }}
+                    >
+                      <option value="todos">Todos os repositórios</option>
+                      {commitRepositories.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+                    </select>
+                  )}
+                </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 18 }}>
-                  {commits.map((ing) => {
-                    const hash = (ing.file_name ?? "").replace("commit:", "");
+                  {filteredCommits.map((ing) => {
                     const meta = ing.extracted_content ?? {};
+                    const sha = ing.source_commit_sha ?? meta._meta_commit_sha ?? (ing.file_name ?? "").replace("commit:", "");
+                    const hash = sha.slice(0, 7);
                     const autor = meta._meta_autor ?? "—";
-                    const branch = meta._meta_branch;
+                    const branch = ing.source_branch ?? meta._meta_branch;
+                    const repository = ing.source_repository_full_name ?? meta._meta_repository ?? "Origem não registrada (legado)";
+                    const commitUrl = ing.source_url ?? meta._meta_commit_url;
                     const msg = meta._meta_commit_msg?.split("\n")[0] ?? meta.resumo ?? "";
                     const when = new Date(ing.created_at).toLocaleString("pt-BR", {
                       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                     });
                     return (
                       <div key={ing.id} style={{
-                        padding: "7px 10px", background: "#f8fafc",
+                        padding: "10px 12px", background: "#f8fafc",
                         border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12,
                       }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
+                          <span style={{ color: repository.includes("legado") ? "#94a3b8" : "#334155", fontWeight: 700 }}>{repository}</span>
+                          <span style={{ color: "#16a34a", fontSize: 11, fontWeight: 700 }}>✓ Processado</span>
+                        </div>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                          <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>✓</span>
-                          <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
+                          {commitUrl ? (
+                            <a href={commitUrl} target="_blank" rel="noreferrer" style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0, textDecoration: "none", fontFamily: "monospace" }}>{hash}</a>
+                          ) : (
+                            <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
+                          )}
                           {branch && (
                             <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
                               {branch}
@@ -649,6 +683,9 @@ export default function SprintCard({
                             ✕
                           </button>
                         </div>
+                        {meta.resumo && (
+                          <p style={{ color: "#64748b", fontSize: 11, lineHeight: 1.5, margin: "6px 0 0 0" }}>{meta.resumo}</p>
+                        )}
                         {movingIngId === ing.id && (
                           <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
                             <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>

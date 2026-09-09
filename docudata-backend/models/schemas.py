@@ -117,7 +117,54 @@ class IngestionResponse(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    source_repository_id: Optional[str] = None
+    source_repository_full_name: Optional[str] = None
+    source_commit_sha: Optional[str] = None
+    source_branch: Optional[str] = None
+    source_url: Optional[str] = None
+    source_diff_stat: Optional[str] = None
     created_at: datetime
+
+
+class GitHubCapabilities(BaseModel):
+    enabled: bool
+    configured: bool
+    subareas: list[str]
+    app_slug: Optional[str] = None
+
+
+class GitHubConnectionSession(BaseModel):
+    install_url: str
+
+
+class GitHubRepositoryCandidate(BaseModel):
+    github_repository_id: int
+    full_name: str
+    html_url: str
+    default_branch: Optional[str] = None
+    private: bool = False
+
+
+class GitHubRepositoriesAvailable(BaseModel):
+    repositories: list[GitHubRepositoryCandidate]
+
+
+class ProjectRepositoryCreate(BaseModel):
+    connection_token: str = Field(min_length=1)
+    repository_ids: list[int] = Field(min_length=1)
+
+
+class ProjectRepositoryResponse(BaseModel):
+    id: str
+    project_id: str
+    github_repository_id: int
+    full_name: str
+    html_url: str
+    default_branch: Optional[str] = None
+    active: bool
+    permission_status: Literal["active", "revoked", "disconnected"]
+    connected_at: datetime
+    updated_at: datetime
 
 
 class SprintCreate(BaseModel):

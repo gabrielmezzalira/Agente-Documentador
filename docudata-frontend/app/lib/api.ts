@@ -111,11 +111,53 @@ export interface Ingestion {
     _meta_data_commit?: string;
     _meta_commit_msg?: string;
     _meta_branch?: string;
+    _meta_repository?: string;
+    _meta_commit_sha?: string;
+    _meta_commit_url?: string;
+    _meta_autor_login?: string;
+    _meta_committer?: string;
+    _meta_committer_login?: string;
+    _meta_pusher?: string;
+    _meta_sender?: string;
   };
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  source_repository_id?: string | null;
+  source_repository_full_name?: string | null;
+  source_commit_sha?: string | null;
+  source_branch?: string | null;
+  source_url?: string | null;
+  source_diff_stat?: string | null;
   created_at: string;
+}
+
+export interface GitHubCapabilities {
+  enabled: boolean;
+  configured: boolean;
+  subareas: Subarea[];
+  app_slug: string | null;
+}
+
+export interface GitHubRepositoryCandidate {
+  github_repository_id: number;
+  full_name: string;
+  html_url: string;
+  default_branch: string | null;
+  private: boolean;
+}
+
+export interface ProjectRepository {
+  id: string;
+  project_id: string;
+  github_repository_id: number;
+  full_name: string;
+  html_url: string;
+  default_branch: string | null;
+  active: boolean;
+  permission_status: "active" | "revoked" | "disconnected";
+  connected_at: string;
+  updated_at: string;
 }
 
 export interface GeneratedDoc {
@@ -210,6 +252,59 @@ export async function createProject(data: {
   });
   if (!res.ok) throw new Error("Erro ao criar projeto");
   return res.json();
+}
+
+async function githubError(res: Response, fallback: string): Promise<Error> {
+  const body = await res.json().catch(() => ({}));
+  return new Error(typeof body.detail === "string" ? body.detail : fallback);
+}
+
+export async function getGitHubCapabilities(): Promise<GitHubCapabilities> {
+  const res = await apiFetch("/integrations/github/capabilities");
+  if (!res.ok) throw await githubError(res, "Integração com GitHub indisponível.");
+  return res.json();
+}
+
+export async function startGitHubConnection(projectId: string): Promise<{ install_url: string }> {
+  const res = await apiFetch(`/projects/${projectId}/repositories/github/session`, { method: "POST" });
+  if (!res.ok) throw await githubError(res, "Não foi possível iniciar a conexão com o GitHub.");
+  return res.json();
+}
+
+export async function listAvailableGitHubRepositories(
+  connectionToken: string
+): Promise<GitHubRepositoryCandidate[]> {
+  const res = await apiFetch(
+    `/integrations/github/repositories?connection_token=${encodeURIComponent(connectionToken)}`
+  );
+  if (!res.ok) throw await githubError(res, "Não foi possível consultar o GitHub agora. Tente novamente.");
+  const data: { repositories: GitHubRepositoryCandidate[] } = await res.json();
+  return data.repositories;
+}
+
+export async function connectProjectRepositories(
+  projectId: string,
+  connectionToken: string,
+  repositoryIds: number[]
+): Promise<ProjectRepository[]> {
+  const res = await apiFetch(`/projects/${projectId}/repositories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ connection_token: connectionToken, repository_ids: repositoryIds }),
+  });
+  if (!res.ok) throw await githubError(res, "Não foi possível conectar os repositórios.");
+  return res.json();
+}
+
+export async function listProjectRepositories(projectId: string): Promise<ProjectRepository[]> {
+  const res = await apiFetch(`/projects/${projectId}/repositories`);
+  if (!res.ok) throw await githubError(res, "Não foi possível listar os repositórios.");
+  return res.json();
+}
+
+export async function disconnectProjectRepository(projectId: string, repositoryId: string): Promise<void> {
+  const res = await apiFetch(`/projects/${projectId}/repositories/${repositoryId}`, { method: "DELETE" });
+  if (!res.ok) throw await githubError(res, "Não foi possível desconectar o repositório.");
 }
 
 export async function getGeminiApiKeyStatus(): Promise<GeminiApiKeyStatus> {

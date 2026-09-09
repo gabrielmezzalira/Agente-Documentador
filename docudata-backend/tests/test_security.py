@@ -87,13 +87,21 @@ def test_todas_as_rotas_de_negocio_exigem_app_key():
         route for route in app.routes if hasattr(route, "include_context")
     ]
 
-    assert len(routers_incluidos) == 11
-    for router_incluido in routers_incluidos:
+    assert len(routers_incluidos) == 13
+    for router_incluido in routers_incluidos[:-1]:
         dependencies = [
             dependency.dependency
             for dependency in router_incluido.include_context.dependencies
         ]
         assert require_app_key in dependencies
+
+    # Callback e webhook usam autenticação própria: state assinado e HMAC bruto.
+    publico_github = routers_incluidos[-1]
+    assert not publico_github.include_context.dependencies
+    assert {route.path for route in publico_github.original_router.routes} == {
+        "/integrations/github/callback",
+        "/webhooks/github",
+    }
 
 
 def test_cors_aceita_apenas_origem_configurada_sem_credentials(client):

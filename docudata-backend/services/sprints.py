@@ -23,3 +23,26 @@ def ensure_sprint_row(client, project_id: str, numero: int) -> None:
     except Exception:
         # Race condition (UNIQUE violation) ou outro erro — outra request criou primeiro
         pass
+
+
+def get_current_sprint_number(client, project_id: str) -> int:
+    """Resolve a sprint vigente sem depender de uma chamada HTTP interna."""
+    sprints_resp = (
+        client.table("sprints").select("numero").eq("project_id", project_id).execute()
+    )
+    numeros = {row["numero"] for row in (sprints_resp.data or [])}
+    if not numeros:
+        return 1
+
+    plannings = (
+        client.table("ingestions")
+        .select("sprint_number, created_at")
+        .eq("project_id", project_id)
+        .eq("tipo_documentacao", "planning")
+        .order("created_at", desc=True)
+        .execute()
+    )
+    for row in plannings.data or []:
+        if row["sprint_number"] in numeros:
+            return row["sprint_number"]
+    return max(numeros)
