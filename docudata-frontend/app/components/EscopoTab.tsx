@@ -51,9 +51,10 @@ interface Props {
   sprints: SprintWithStatus[];
   onSprintUpdated: (updated: SprintWithStatus) => void;
   onSprintCreated: (created: SprintWithStatus) => void;
+  onDeleted?: (id: string) => void;
 }
 
-export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated, onSprintCreated }: Props) {
+export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated, onSprintCreated, onDeleted }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
@@ -109,6 +110,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
     try {
       await deleteFuncionalidade(f.id);
       setFuncList(prev => prev.filter(x => x.id !== f.id));
+      onDeleted?.(f.id);
     } catch (e: unknown) {
       alert((e as Error).message);
     } finally {
@@ -597,19 +599,6 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
               />
             </div>
           ))}
-
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Prioridade</label>
-            <select
-              value={form.prioridade}
-              onChange={(e) => setForm(f => ({ ...f, prioridade: e.target.value }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "#0f172a", background: "#fff" }}
-            >
-              {[["must", "Must"], ["should", "Should"], ["could", "Could"], ["wont", "Won't"]].map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
-          </div>
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Critérios de aceite *</label>
