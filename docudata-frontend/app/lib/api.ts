@@ -1498,6 +1498,7 @@ export async function createTaskKanban(data: {
   descricao?: string;
   coluna_kanban?: string;
   extra?: boolean;
+  checklist?: { texto: string; done: boolean }[];
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",

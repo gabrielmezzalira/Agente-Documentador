@@ -173,6 +173,7 @@ function TaskModal({
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
           extra,
+          checklist,
         });
       } else {
         saved = await patchTaskKanban(task!.id, {
