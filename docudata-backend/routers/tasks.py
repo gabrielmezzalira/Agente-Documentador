@@ -14,6 +14,7 @@ from models.schemas import (
     TaskSugestaoResolve,
 )
 from services.auth import require_project_access
+from services.email_service import email_task_atribuida, send_email
 from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
@@ -62,6 +63,34 @@ def _registrar_task_transicao(
         "operacional_id": task_atual.get("operacional_id"),
     }).execute()
     return resp.data[0]["id"] if resp.data else None
+
+
+def _avisar_operacional_atribuicao(client, task: dict) -> None:
+    """Best-effort: notifica por e-mail o operacional designado para a task.
+    A atribuição vale mesmo que o e-mail falhe — o nome já aparece no card do Kanban."""
+    try:
+        operacional_id = task.get("operacional_id")
+        if not operacional_id:
+            return
+        op = client.table("operacionais").select("nome, email").eq("id", operacional_id).execute().data
+        if not op or not op[0].get("email"):
+            return
+        operacional_nome = op[0]["nome"]
+        operacional_email = op[0]["email"]
+
+        proj = client.table("projects").select("name").eq("id", task["project_id"]).execute().data
+        projeto_nome = proj[0]["name"] if proj else "projeto"
+
+        sprint_numero = None
+        sprint_id = task.get("sprint_id")
+        if sprint_id:
+            sp = client.table("sprints").select("numero").eq("id", sprint_id).execute().data
+            sprint_numero = sp[0]["numero"] if sp else None
+
+        subject, html = email_task_atribuida(projeto_nome, operacional_nome, task["titulo"], sprint_numero)
+        send_email(operacional_email, subject, html)
+    except Exception as exc:
+        print(f"[tasks] Aviso: falha ao notificar operacional sobre atribuição ({exc}) — task salva mesmo assim")
 
 
 def _registrar_reabertura(
@@ -243,6 +272,10 @@ async def create_task(data: TaskCreate):
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
+
+    if payload.get("operacional_id"):
+        _avisar_operacional_atribuicao(client, resp.data[0])
+
     return resp.data[0]
 
 
@@ -464,10 +497,13 @@ async def patch_task(task_id: str, data: TaskUpdate):
     houve_bloqueio_resolvido = False
     houve_entrada_em_andamento = False
     houve_saida_de_em_andamento = False
+    houve_atribuicao_operacional = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
         if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
             continue
+        if campo == "operacional_id":
+            houve_atribuicao_operacional = True
         transicao_id = _registrar_task_transicao(client, task_id, task, campo, novo_valor, data.autor, data.motivo, agora)
         # TRANS-03: reabertura é estritamente a saída concluida -> em_andamento.
         # Nenhuma outra saída de concluida (ex.: concluida -> planejado) conta.
@@ -531,6 +567,9 @@ async def patch_task(task_id: str, data: TaskUpdate):
             houve_bloqueio_resolvido = True
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if houve_atribuicao_operacional:
+        _avisar_operacional_atribuicao(client, result.data[0])
 
     try:
         if houve_reabertura:

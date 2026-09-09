@@ -72,6 +72,17 @@ def email_retro_lembrete(projeto_nome: str, sprint_numero: int, dias_sem_retro: 
     return subject, _base_template(f"Sprint {sprint_numero} sem retrospectiva", corpo)
 
 
+def email_task_atribuida(projeto_nome: str, operacional_nome: str, task_titulo: str, sprint_numero: int | None) -> tuple[str, str]:
+    """Retorna (subject, html) para o aviso de atribuição de uma task a um operacional."""
+    subject = f"[DocuData] Nova task atribuída: {task_titulo}"
+    onde = f" (Sprint {sprint_numero})" if sprint_numero is not None else ""
+    corpo = f"""
+    <p>Olá, <strong>{operacional_nome}</strong>. Você foi designado(a) para a task <strong>{task_titulo}</strong>{onde} no projeto <strong>{projeto_nome}</strong>.</p>
+    <p>Acesse o DocuData para ver os detalhes e o checklist da task.</p>
+    """
+    return subject, _base_template("Nova task atribuída a você", corpo)
+
+
 def email_solicitacao_task(projeto_nome: str, operacional_nome: str, sprint_numero: int | None) -> tuple[str, str]:
     """Retorna (subject, html) para o pedido de task extra feito pelo operacional."""
     subject = f"[DocuData] {operacional_nome} está livre e pediu mais uma task"
