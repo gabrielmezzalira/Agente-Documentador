@@ -436,7 +436,7 @@ function TaskModal({
               {task?.travado_automatico && !task?.travado_override && (
                 <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
                   <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
-                    ⏱ Task parada em Em Andamento além do limiar esperado para {task.pontos} ponto(s)
+                    ⏱ Task parada além do limiar esperado para {task.pontos} ponto(s)
                     (~{Math.round(task.pontos * 1.5)} dias).
                   </p>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -816,6 +816,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoTask[]>([]);
   const [pedindoTask, setPedindoTask] = useState(false);
   const [avisoPedido, setAvisoPedido] = useState("");
+  const [sugestaoTask, setSugestaoTask] = useState("");
 
   const ehOperacional = auth?.cargo === "operacional";
   const meuOperacional = ehOperacional
@@ -839,8 +840,9 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     setPedindoTask(true);
     setAvisoPedido("");
     try {
-      await criarSolicitacaoTask(meuOperacional.id);
+      await criarSolicitacaoTask(meuOperacional.id, sugestaoTask);
       setAvisoPedido("Pedido enviado. O gerente foi avisado por e-mail.");
+      setSugestaoTask("");
       carregarSolicitacoes();
     } catch (e) {
       setAvisoPedido(e instanceof Error ? e.message : "Erro ao pedir nova task");
@@ -985,7 +987,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
     { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo, e o projeto também. Se o limite for atingido, o sistema bloqueia novos movimentos. Configure em Configurações." },
     { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia." },
-    { title: "Task travada por tempo", body: "Se uma task fica parada em 'Em andamento' por mais de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. O gerente pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
+    { title: "Task travada por tempo", body: "O relógio conta desde que a task está ativa — Planejado ou Em andamento, tanto faz — e a sprint dela já começou. Se passar de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. Mover a task pra uma sprint futura pausa o relógio; o gerente também pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
     { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não consome o orçamento de pontos da sprint e, se for concluída antes do fechamento, rende um bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
     { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint — cada task com coluna, pontos e se está bloqueada entra automaticamente no contexto. O que você vê aqui é exatamente o que a IA usa para escrever os documentos." },
     { title: "Sugestões automáticas do Review", body: "Quando um review é registrado na aba Sprints, o DocuData analisa o texto e detecta quais tasks foram mencionadas como concluídas. Sugestões aparecem no banner amarelo acima do kanban — você aceita ou ignora cada uma." },
@@ -1058,13 +1060,22 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               Pedido enviado, aguardando o gerente.
             </p>
           ) : (
-            <button
-              onClick={handlePedirTask}
-              disabled={pedindoTask}
-              style={{ ...btnPrimary, background: "#166534" }}
-            >
-              {pedindoTask ? "Enviando..." : "Quero mais uma task"}
-            </button>
+            <>
+              <textarea
+                value={sugestaoTask}
+                onChange={(e) => setSugestaoTask(e.target.value)}
+                placeholder="Alguma sugestão do que seria útil fazer? (opcional — vai junto no e-mail pro gerente)"
+                rows={2}
+                style={{ ...inputSt, resize: "vertical", marginBottom: 8 }}
+              />
+              <button
+                onClick={handlePedirTask}
+                disabled={pedindoTask}
+                style={{ ...btnPrimary, background: "#166534" }}
+              >
+                {pedindoTask ? "Enviando..." : "Quero mais uma task"}
+              </button>
+            </>
           )}
           {avisoPedido && <p style={{ fontSize: 12, color: "#3f6f52", marginTop: 8 }}>{avisoPedido}</p>}
         </div>
@@ -1085,9 +1096,16 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
                 background: "#fff", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px",
               }}>
-                <span style={{ fontSize: 13, color: "#374151", flex: 1, minWidth: 0 }}>
-                  <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, color: "#374151" }}>
+                    <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
+                  </span>
+                  {s.sugestao && (
+                    <p style={{ fontSize: 12, color: "#3f6f52", background: "#f0fdf4", borderRadius: 6, padding: "6px 10px", margin: "6px 0 0" }}>
+                      <strong>Sugestão:</strong> {s.sugestao}
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={() => { handleResolverPedido(s.id, "atendida"); setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id }); }}
                   style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534" }}

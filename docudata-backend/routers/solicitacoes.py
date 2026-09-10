@@ -72,15 +72,20 @@ async def criar_solicitacao(data: SolicitacaoTaskCreate, pessoa: dict = Depends(
         "sprint_id": sprint_id,
         "operacional_id": data.operacional_id,
     }
+    if data.sugestao is not None:
+        payload["sugestao"] = data.sugestao.strip() or None
+
     resp = client.table("solicitacoes_task").insert(payload).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Falha ao registrar o pedido")
 
-    _avisar_gerente(client, project_id, operacional["nome"], sprint_id)
+    _avisar_gerente(client, project_id, operacional["nome"], sprint_id, payload.get("sugestao"))
     return resp.data[0]
 
 
-def _avisar_gerente(client, project_id: str, operacional_nome: str, sprint_id: str | None) -> None:
+def _avisar_gerente(
+    client, project_id: str, operacional_nome: str, sprint_id: str | None, sugestao: str | None = None
+) -> None:
     """Best-effort: o pedido vale mesmo que o e-mail falhe, porque ele também
     aparece no Kanban do gerente."""
     try:
@@ -98,7 +103,7 @@ def _avisar_gerente(client, project_id: str, operacional_nome: str, sprint_id: s
         if not gerentes:
             return
 
-        subject, html = email_solicitacao_task(projeto_nome, operacional_nome, sprint_numero)
+        subject, html = email_solicitacao_task(projeto_nome, operacional_nome, sprint_numero, sugestao)
         for g in gerentes:
             send_email(g["email"], subject, html)
     except Exception as exc:

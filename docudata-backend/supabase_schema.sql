@@ -636,3 +636,12 @@ ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_email text;
 -- Default true: sprints já existentes (todas criadas pela aba Sprints até
 -- aqui) continuam aparecendo normalmente.
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT true;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Sugestão de task no pedido de task extra (2026-09-09)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Texto livre opcional que o operacional escreve ao pedir mais trabalho,
+-- descrevendo o que ele acha que seria útil fazer. Vai junto no email pro
+-- gerente — é só um contexto a mais, não substitui o gerente decidir.
+ALTER TABLE solicitacoes_task ADD COLUMN IF NOT EXISTS sugestao text;

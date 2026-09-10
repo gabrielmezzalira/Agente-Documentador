@@ -83,13 +83,30 @@ def email_task_atribuida(projeto_nome: str, operacional_nome: str, task_titulo: 
     return subject, _base_template("Nova task atribuída a você", corpo)
 
 
-def email_solicitacao_task(projeto_nome: str, operacional_nome: str, sprint_numero: int | None) -> tuple[str, str]:
+def email_solicitacao_task(
+    projeto_nome: str, operacional_nome: str, sprint_numero: int | None, sugestao: str | None = None
+) -> tuple[str, str]:
     """Retorna (subject, html) para o pedido de task extra feito pelo operacional."""
     subject = f"[DocuData] {operacional_nome} está livre e pediu mais uma task"
     onde = f" da sprint <strong>{sprint_numero}</strong>" if sprint_numero is not None else ""
+    sugestao_html = f"""
+    <p style="background:#f8fafc;border-radius:8px;padding:10px 14px;"><strong>Sugestão de {operacional_nome}:</strong><br>{sugestao}</p>
+    """ if sugestao else ""
     corpo = f"""
     <p><strong>{operacional_nome}</strong> concluiu tudo que estava atribuído a ele(a){onde} no projeto <strong>{projeto_nome}</strong> e está pedindo mais trabalho.</p>
+    {sugestao_html}
     <p>Abra o Kanban do projeto e, se houver algo disponível, atribua uma task marcada como <strong>extra</strong>. Task extra não consome o orçamento de pontos da sprint.</p>
     <p>Se não houver nada agora, é só recusar o pedido. Ele não fica pendente pra sempre.</p>
     """
     return subject, _base_template("Pedido de nova task", corpo)
+
+
+def email_task_concluida(projeto_nome: str, operacional_nome: str, task_titulo: str, sprint_numero: int | None) -> tuple[str, str]:
+    """Retorna (subject, html) para o aviso de conclusão de task por um operacional."""
+    subject = f"[DocuData] Task concluída: {task_titulo}"
+    onde = f" (Sprint {sprint_numero})" if sprint_numero is not None else ""
+    corpo = f"""
+    <p><strong>{operacional_nome}</strong> marcou a task <strong>{task_titulo}</strong>{onde} como concluída no projeto <strong>{projeto_nome}</strong>.</p>
+    <p>Acesse o DocuData para conferir o resultado.</p>
+    """
+    return subject, _base_template("Task concluída", corpo)

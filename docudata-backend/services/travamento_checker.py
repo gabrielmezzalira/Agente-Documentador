@@ -1,11 +1,18 @@
 """
 Job diário de travamento automático por tempo (Parte 4 do SDD — ALERT-01).
 
-Regra: uma task parada em em_andamento por dias_desde(entrou_em_andamento_em)
->= pontos_da_task x 1.5 (limiar proporcional ao ponto) vira um alerta visível
-(travado_automatico=true). O fator era 2 e foi baixado em 2026-09-07: com sprint
-de uma semana, x2 fazia uma task de 4 pontos só travar em 8 dias, ou seja, depois
-da sprint acabar — o alerta praticamente nunca disparava a tempo.
+Regra: uma task ativa (planejado ou em_andamento — ALERT-04, 2026-09-10: o
+relógio deixou de exigir em_andamento porque um operacional pode estar
+trabalhando na task sem nunca arrastar o card) parada por
+dias_desde(entrou_em_andamento_em) >= pontos_da_task x 1.5 (limiar proporcional
+ao ponto) vira um alerta visível (travado_automatico=true). O fator era 2 e foi
+baixado em 2026-09-07: com sprint de uma semana, x2 fazia uma task de 4 pontos
+só travar em 8 dias, ou seja, depois da sprint acabar — o alerta praticamente
+nunca disparava a tempo.
+
+`entrou_em_andamento_em` só é ancorado quando a sprint da task já começou
+(sprints.iniciada) — ver services/sprints.py::iniciar_sprint_e_ancorar_tasks —
+então uma task planejada para uma sprint futura não conta tempo antes da hora.
 
 Revisão 2026-09-07 (decisão do Líder): o travamento deixou de ser só alerta. Cada
 marcação grava um evento em task_travamentos, e o fechamento da sprint desconta
@@ -36,7 +43,7 @@ def check_travamento_automatico() -> None:
     resp = (
         client.table("tasks")
         .select("id, pontos, operacional_id, entrou_em_andamento_em, travado_automatico, travado_override")
-        .eq("coluna_kanban", "em_andamento")
+        .in_("coluna_kanban", ["planejado", "em_andamento"])
         .execute()
     )
     tasks = resp.data or []

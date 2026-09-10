@@ -705,6 +705,7 @@ class OperacionalDisponivelResponse(BaseModel):
 
 class SolicitacaoTaskCreate(BaseModel):
     operacional_id: str
+    sugestao: Optional[str] = None
 
 
 class SolicitacaoTaskResolve(BaseModel):
@@ -717,6 +718,7 @@ class SolicitacaoTaskResponse(BaseModel):
     sprint_id: Optional[str] = None
     operacional_id: str
     operacional_nome: Optional[str] = None
+    sugestao: Optional[str] = None
     status: str
     criado_em: datetime
     respondido_em: Optional[datetime] = None

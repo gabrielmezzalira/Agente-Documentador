@@ -1,28 +1,44 @@
 """
 Testes para o relógio entrou_em_andamento_em — set/reset ponta a ponta em
-patch_task/create_task (ALERT-01, ALERT-02).
+patch_task/create_task (ALERT-01, ALERT-02, ALERT-04).
 
-Casos cobertos (per PLAN.md <behavior>):
-  1. PATCH planejado -> em_andamento: updates incluem entrou_em_andamento_em
-     (não nulo), travado_automatico=False, travado_override=False,
-     travado_override_por=None, travado_override_em=None.
-  2. PATCH concluida -> em_andamento (reabertura): mesmo resultado do caso 1.
-  3. PATCH em_andamento -> concluida (saindo): updates incluem
-     entrou_em_andamento_em=None + os mesmos 4 resets.
-  4. PATCH em_andamento -> planejado (saindo, caminho diferente): mesmo reset.
-  5. PATCH sem mudar coluna_kanban: nenhum dos 5 campos aparece em updates.
-  6. PATCH planejado -> concluida direto (nunca passou por em_andamento):
-     nenhum dos 5 campos aparece em updates.
-  7. POST /tasks criando já em em_andamento: payload de insert inclui
-     entrou_em_andamento_em setado.
-  8. POST /tasks criando em planejado (default): payload de insert NÃO inclui
-     entrou_em_andamento_em.
+ALERT-04 (2026-09-10): o relógio deixou de exigir coluna_kanban=="em_andamento".
+Agora ele conta desde que a task esteja ativa (planejado OU em_andamento, nunca
+concluida) E a sprint dela já tenha começado (sprints.iniciada) — um operacional
+pode estar trabalhando na task sem nunca arrastar o card pra Em Andamento, e uma
+task de sprint futura não deve contar tempo antes da hora.
+
+Casos cobertos:
+  1. POST /tasks com sprint_id de sprint já iniciada: ancora relógio, mesmo
+     criada em planejado (default).
+  2. POST /tasks com sprint_id de sprint AINDA NÃO iniciada: não ancora.
+  3. POST /tasks sem sprint_id: não ancora (não há como saber se "começou").
+  4. POST /tasks direto em concluida: não ancora, mesmo com sprint iniciada.
+  5. PATCH planejado -> em_andamento, já ancorada antes: NÃO reseta o timestamp
+     (o relógio já estava contando desde planejado — mover pra em_andamento é
+     só uma mudança de coluna, não reinicia a contagem).
+  6. PATCH planejado -> em_andamento, nunca ancorada (edge case): ancora agora.
+  7. PATCH concluida -> em_andamento (reabertura), sprint iniciada: ancora.
+  8. PATCH em_andamento -> concluida: reseta (relógio para quando termina).
+  9. PATCH pra uma sprint que ainda não começou: reseta (task deixou de estar
+     "em jogo" — evita alerta em massa se um gerente mover uma task ativa pra
+     uma sprint futura por engano).
+  10. PATCH que atribui sprint_id de sprint já iniciada a uma task que nunca
+      tinha sprint (e portanto nunca tinha relógio): ancora agora.
+  11. PATCH sem tocar coluna_kanban nem sprint_id: nenhum campo de travamento
+      é escrito.
+  12. PATCH planejado -> concluida direto (nunca passou por em_andamento):
+      nenhum campo de travamento é escrito (já não tinha relógio, e concluida
+      não teria um pra parar).
 """
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 
-def _make_mock_client(task_data):
+def _make_mock_client(task_data, sprints_iniciada=None):
+    """sprints_iniciada: dict {sprint_id: bool}. Default: {"sprint-1": True}."""
+    sprints_iniciada = sprints_iniciada if sprints_iniciada is not None else {"sprint-1": True}
+
     client = MagicMock()
 
     task_select_resp = MagicMock()
@@ -115,6 +131,43 @@ def _make_mock_client(task_data):
 
             tbl.select = MagicMock(side_effect=select_side_effect)
 
+        elif table_name == "sprints":
+            def select_side_effect(cols):
+                query = MagicMock()
+                state = {}
+
+                def eq_side_effect(field, value):
+                    if field in ("id", "project_id"):
+                        state[field] = value
+                    return query
+
+                query.eq = MagicMock(side_effect=eq_side_effect)
+
+                def execute_side_effect():
+                    resp = MagicMock()
+                    sid = state.get("id")
+                    if sid is not None and sid in sprints_iniciada:
+                        resp.data = [{"id": sid, "iniciada": sprints_iniciada[sid], "pontos_orcamento": None, "numero": 1}]
+                    else:
+                        resp.data = []
+                    return resp
+
+                query.execute = MagicMock(side_effect=execute_side_effect)
+                return query
+
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
+        elif table_name == "operacionais":
+            def select_side_effect(cols):
+                query = MagicMock()
+                query.eq = MagicMock(return_value=query)
+                empty = MagicMock()
+                empty.data = []
+                query.execute = MagicMock(return_value=empty)
+                return query
+
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
         else:
             def select_side_effect(cols):
                 query = MagicMock()
@@ -188,9 +241,82 @@ def _assert_reseta_relogio(updates):
     assert updates["travado_override_em"] is None
 
 
-def test_planejado_para_em_andamento_seta_relogio(monkeypatch):
-    task = dict(_BASE_TASK, coluna_kanban="planejado")
+# ── criação ───────────────────────────────────────────────────────────────
+
+def test_criar_task_planejado_com_sprint_iniciada_ancora_relogio(monkeypatch):
+    task = dict(_BASE_TASK)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks", json={
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-1",
+    })
+
+    assert resp.status_code == 201
+    payload = calls["tasks_insert"][-1]
+    assert payload.get("coluna_kanban", "planejado") == "planejado"
+    assert payload.get("entrou_em_andamento_em") is not None
+
+
+def test_criar_task_com_sprint_nao_iniciada_nao_ancora_relogio(monkeypatch):
+    task = dict(_BASE_TASK, sprint_id="sprint-2")
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-2": False})
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks", json={
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-2",
+    })
+
+    assert resp.status_code == 201
+    payload = calls["tasks_insert"][-1]
+    assert "entrou_em_andamento_em" not in payload
+
+
+def test_criar_task_sem_sprint_nao_ancora_relogio(monkeypatch):
+    task = dict(_BASE_TASK, sprint_id=None)
     mock_sb, calls = _make_mock_client(task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Task nova", "pontos": 3})
+
+    assert resp.status_code == 201
+    payload = calls["tasks_insert"][-1]
+    assert "entrou_em_andamento_em" not in payload
+
+
+def test_criar_task_direto_em_concluida_nao_ancora_relogio(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="concluida")
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks", json={
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3,
+        "sprint_id": "sprint-1", "coluna_kanban": "concluida",
+    })
+
+    assert resp.status_code == 201
+    payload = calls["tasks_insert"][-1]
+    assert "entrou_em_andamento_em" not in payload
+
+
+# ── patch: mudança de coluna ──────────────────────────────────────────────
+
+def test_planejado_para_em_andamento_ja_ancorada_nao_reseta_timestamp(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="planejado", entrou_em_andamento_em="2026-01-01T00:00:00+00:00")
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "em_andamento"})
+
+    assert resp.status_code == 200
+    updates = calls["tasks_update"][-1]
+    assert "entrou_em_andamento_em" not in updates
+    assert "travado_automatico" not in updates
+
+
+def test_planejado_para_em_andamento_sem_ancora_previa_ancora_agora(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="planejado", entrou_em_andamento_em=None)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "em_andamento"})
@@ -199,9 +325,10 @@ def test_planejado_para_em_andamento_seta_relogio(monkeypatch):
     _assert_seta_relogio(calls["tasks_update"][-1])
 
 
-def test_reabertura_concluida_para_em_andamento_tambem_seta_relogio(monkeypatch):
-    task = dict(_BASE_TASK, coluna_kanban="concluida", travado_automatico=True, travado_override=True)
-    mock_sb, calls = _make_mock_client(task)
+def test_reabertura_concluida_para_em_andamento_com_sprint_iniciada_ancora_relogio(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="concluida", entrou_em_andamento_em=None,
+                travado_automatico=True, travado_override=True)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "em_andamento"})
@@ -212,7 +339,7 @@ def test_reabertura_concluida_para_em_andamento_tambem_seta_relogio(monkeypatch)
 
 def test_em_andamento_para_concluida_reseta_relogio(monkeypatch):
     task = dict(_BASE_TASK, coluna_kanban="em_andamento", entrou_em_andamento_em="2026-01-01T00:00:00+00:00")
-    mock_sb, calls = _make_mock_client(task)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "concluida"})
@@ -221,20 +348,25 @@ def test_em_andamento_para_concluida_reseta_relogio(monkeypatch):
     _assert_reseta_relogio(calls["tasks_update"][-1])
 
 
-def test_em_andamento_para_planejado_reseta_relogio(monkeypatch):
-    task = dict(_BASE_TASK, coluna_kanban="em_andamento", entrou_em_andamento_em="2026-01-01T00:00:00+00:00")
-    mock_sb, calls = _make_mock_client(task)
+def test_planejado_para_concluida_direto_nao_escreve_campos_de_travamento(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="planejado", entrou_em_andamento_em=None)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "planejado"})
+    resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "concluida"})
 
     assert resp.status_code == 200
-    _assert_reseta_relogio(calls["tasks_update"][-1])
+    updates = calls["tasks_update"][-1]
+    for campo in (
+        "entrou_em_andamento_em", "travado_automatico",
+        "travado_override", "travado_override_por", "travado_override_em",
+    ):
+        assert campo not in updates
 
 
-def test_patch_sem_mudar_coluna_nao_escreve_campos_de_travamento(monkeypatch):
-    task = dict(_BASE_TASK, coluna_kanban="em_andamento")
-    mock_sb, calls = _make_mock_client(task)
+def test_patch_sem_mudar_coluna_nem_sprint_nao_escreve_campos_de_travamento(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="em_andamento", entrou_em_andamento_em="2026-01-01T00:00:00+00:00")
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.patch("/tasks/task-1", json={"titulo": "Novo título"})
@@ -248,50 +380,26 @@ def test_patch_sem_mudar_coluna_nao_escreve_campos_de_travamento(monkeypatch):
         assert campo not in updates
 
 
-def test_planejado_para_concluida_direto_nao_escreve_campos_de_travamento(monkeypatch):
-    task = dict(_BASE_TASK, coluna_kanban="planejado")
-    mock_sb, calls = _make_mock_client(task)
+# ── patch: mudança de sprint (ALERT-04) ────────────────────────────────────
+
+def test_mover_para_sprint_nao_iniciada_reseta_relogio(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="em_andamento", sprint_id="sprint-1",
+                entrou_em_andamento_em="2026-01-01T00:00:00+00:00")
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True, "sprint-2": False})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.patch("/tasks/task-1", json={"coluna_kanban": "concluida"})
+    resp = tc.patch("/tasks/task-1", json={"sprint_id": "sprint-2"})
 
     assert resp.status_code == 200
-    updates = calls["tasks_update"][-1]
-    for campo in (
-        "entrou_em_andamento_em", "travado_automatico",
-        "travado_override", "travado_override_por", "travado_override_em",
-    ):
-        assert campo not in updates
+    _assert_reseta_relogio(calls["tasks_update"][-1])
 
 
-def test_post_task_criada_em_em_andamento_ancora_relogio(monkeypatch):
-    task = dict(_BASE_TASK)
-    mock_sb, calls = _make_mock_client(task)
+def test_mover_para_sprint_iniciada_ancora_relogio_quando_nao_tinha(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="planejado", sprint_id=None, entrou_em_andamento_em=None)
+    mock_sb, calls = _make_mock_client(task, sprints_iniciada={"sprint-1": True})
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.post("/tasks", json={
-        "project_id": "proj-1",
-        "titulo": "Task nova",
-        "pontos": 3,
-        "coluna_kanban": "em_andamento",
-    })
+    resp = tc.patch("/tasks/task-1", json={"sprint_id": "sprint-1"})
 
-    assert resp.status_code == 201
-    payload = calls["tasks_insert"][-1]
-    assert payload.get("entrou_em_andamento_em") is not None
-
-
-def test_post_task_criada_em_planejado_nao_ancora_relogio(monkeypatch):
-    task = dict(_BASE_TASK)
-    mock_sb, calls = _make_mock_client(task)
-    tc = _patch_and_client(monkeypatch, mock_sb)
-
-    resp = tc.post("/tasks", json={
-        "project_id": "proj-1",
-        "titulo": "Task nova",
-        "pontos": 3,
-    })
-
-    assert resp.status_code == 201
-    payload = calls["tasks_insert"][-1]
-    assert "entrou_em_andamento_em" not in payload
+    assert resp.status_code == 200
+    _assert_seta_relogio(calls["tasks_update"][-1])
