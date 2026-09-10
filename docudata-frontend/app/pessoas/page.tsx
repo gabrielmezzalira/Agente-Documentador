@@ -80,7 +80,8 @@ export default function PessoasPage() {
   if (auth && !podeVer) {
     return (
       <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <p style={{ color: "#dc2626" }}>Acesso restrito a Líder e Owner.</p>
+        <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
+        <p style={{ color: "#dc2626", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
       </main>
     );
   }
