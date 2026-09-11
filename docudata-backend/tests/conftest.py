@@ -21,3 +21,18 @@ def autenticar():
         return client
 
     return _autenticar
+
+
+@pytest.fixture(autouse=True)
+def limpar_rate_limiter():
+    """Zera a memória do limiter entre testes.
+
+    O limite de login/cadastro é por IP e o TestClient sempre usa o mesmo, então
+    sem isso um teste consumia a cota do seguinte. Não desliga o limiter: cada
+    teste continua exercitando o caminho real de produção.
+    """
+    from core.rate_limit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()

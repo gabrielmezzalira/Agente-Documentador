@@ -9,6 +9,7 @@ from models.schemas import BoletimCreate, BoletimPatch, BoletimResponse, ResumoS
 from routers.painel import calcular_bloco_a, calcular_bloco_b
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(prefix="/boletins", tags=["boletins"])
@@ -207,7 +208,7 @@ async def criar_boletim(request: Request, response: Response, body: BoletimCreat
         )
         markdown: str = result.content  # type: ignore[assignment]
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini failed: {exc}")
+        raise falha_externa("gemini.boletim", exc, "Não foi possível gerar o boletim com a IA")
 
     # Inserir em boletins_aceite
     agora = datetime.now(timezone.utc).isoformat()

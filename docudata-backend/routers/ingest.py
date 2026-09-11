@@ -71,6 +71,7 @@ async def ingest(
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": "upload_livre",
         "force": force,
@@ -95,9 +96,11 @@ async def ingest(
         )
 
     if not result.get("valido"):
+        # 413/422 vêm das guardas de imagem/PDF; o resto continua 502 (falha
+        # da IA). Toda mensagem de `erro` já sai sanitizada do grafo.
         raise HTTPException(
-            status_code=502,
-            detail=result.get("erro") or "Extraction failed",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo do arquivo",
         )
 
     if result.get("tipo_detectado") == "review":

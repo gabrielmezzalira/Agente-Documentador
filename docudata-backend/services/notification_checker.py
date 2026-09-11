@@ -19,6 +19,7 @@ from services.email_service import (
     email_retro_lembrete,
     send_email,
 )
+from core.observability import registrar_falha_interna
 from services.supabase_client import get_client
 
 log = logging.getLogger("notification_checker")
@@ -60,8 +61,10 @@ def check_and_send_notifications() -> None:
     log.info("Iniciando verificação de notificações de sprint")
     try:
         _run_check()
-    except Exception:
-        log.exception("Erro inesperado no notification_checker")
+    except Exception as exc:
+        # O scheduler executa fora de uma request, mas ainda evita
+        # `logger.exception`: SDKs externos podem incluir credenciais na mensagem.
+        registrar_falha_interna("notification_checker", exc)
 
 
 def _run_check() -> None:
@@ -153,9 +156,9 @@ def _run_check() -> None:
                     send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "planning")
                     sent_count += 1
-                    log.info(f"Email planning enviado: projeto={nome} sprint={sn} para={email}")
-                except Exception:
-                    log.exception(f"Falha ao enviar email planning: projeto={pid} sprint={sn}")
+                    log.info("Email planning enviado: projeto_id=%s sprint=%s", pid, sn)
+                except Exception as exc:
+                    registrar_falha_interna("notification_checker.email_planning", exc)
 
         # Review
         if dias >= REVIEW_THRESHOLD_DAYS and not tipos_sprint.get("review"):
@@ -165,9 +168,9 @@ def _run_check() -> None:
                     send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "review")
                     sent_count += 1
-                    log.info(f"Email review enviado: projeto={nome} sprint={sn} para={email}")
-                except Exception:
-                    log.exception(f"Falha ao enviar email review: projeto={pid} sprint={sn}")
+                    log.info("Email review enviado: projeto_id=%s sprint=%s", pid, sn)
+                except Exception as exc:
+                    registrar_falha_interna("notification_checker.email_review", exc)
 
         # Retro
         if dias >= RETRO_THRESHOLD_DAYS and not tipos_sprint.get("retro"):
@@ -177,8 +180,8 @@ def _run_check() -> None:
                     send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "retro")
                     sent_count += 1
-                    log.info(f"Email retro enviado: projeto={nome} sprint={sn} para={email}")
-                except Exception:
-                    log.exception(f"Falha ao enviar email retro: projeto={pid} sprint={sn}")
+                    log.info("Email retro enviado: projeto_id=%s sprint=%s", pid, sn)
+                except Exception as exc:
+                    registrar_falha_interna("notification_checker.email_retro", exc)
 
     log.info(f"Verificação concluída. Emails enviados: {sent_count}")

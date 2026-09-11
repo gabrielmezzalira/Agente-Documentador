@@ -14,6 +14,11 @@
 | `JWT_SECRET` | Assinatura das sessões de usuário. |
 | `RESEND_API_KEY` / `RESEND_FROM` | Envio dos lembretes por email. |
 | `MAX_UPLOAD_MB` / `RATE_LIMIT_PER_MINUTE` | Limites de upload e chamadas pagas. |
+| `AUTH_LOGIN_RATE_LIMIT_PER_MINUTE` | Tentativas de login por IP por minuto. Inteiro positivo; padrão `5`. |
+| `AUTH_SIGNUP_RATE_LIMIT_PER_HOUR` | Cadastros/claims por IP por hora. Inteiro positivo; padrão `3`. |
+| `MAX_IMAGE_PIXELS` | Teto de pixels (largura × altura) antes de converter imagem. Padrão `40000000`. |
+| `PDF_POPPLER_TIMEOUT_SECONDS` | Tempo máximo do Poppler ao rasterizar a 1ª página de PDF escaneado. Padrão `30`. |
+| `API_DOCS_ENABLED` | `true` local, `false` em produção. Com `false`, `/docs`, `/redoc` e `/openapi.json` devolvem 404; `/health` continua público. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Cliente OAuth do Google. |
 | `GOOGLE_REFRESH_TOKEN` / `GOOGLE_REFRESH_TOKEN_DEV` | Identidade Drive de Dados e Dev. |
 | `GDOCS_TEMPLATE_ID*` | Templates de Dados e overrides opcionais com sufixo `_DEV`. |
@@ -58,3 +63,47 @@ os consumidores atuais serem levantados e o piloto ser aprovado.
 
 O GitHub permite selecionar um ou mais repositórios durante a instalação. A aplicação
 lista somente os repositórios autorizados e nunca envia o installation token ao navegador.
+
+## Hardening operacional (Spec 09)
+
+### Correlação de erros
+
+Toda resposta traz `X-Request-ID` (o backend reaproveita o header recebido quando
+ele é curto e alfanumérico, senão gera um). Erro não tratado devolve apenas
+`{"detail": "...", "request_id": "..."}` — o diagnóstico sanitizado fica no log do Railway,
+na linha `erro_nao_tratado request_id=... method=... path=... status=500 exc=... stack=...`.
+O stack registra somente arquivo, linha e função: a mensagem da exceção é omitida
+porque SDKs podem incluir credenciais e payloads nela. Para
+investigar um erro relatado por um gerente, peça o `request_id` e busque por ele.
+
+O backend não registra corpo de request, cookies, header de autorização, chave
+Gemini, chave de aplicação, private key do GitHub App, token de instalação,
+conteúdo extraído, diff nem documento gerado.
+
+### Desligar a documentação da API em produção
+
+Antes ou junto do deploy, defina `API_DOCS_ENABLED=false` no Railway. Confirme
+depois que `/docs` responde 404 e que `/health` continua respondendo
+`{"status":"ok"}`.
+
+### Confiança no `X-Forwarded-For`
+
+Os limites por IP usam o primeiro item de `X-Forwarded-For`. Isso só é confiável
+enquanto o Railway sobrescrever/controlar esse header e o backend não estiver
+acessível por um caminho que contorne o proxy — exposto direto, qualquer cliente
+forja o valor e escapa do limite. Uma lista de proxies confiáveis e o
+armazenamento distribuído do limiter ficam para a Spec 10.
+
+### Migration v6 (índices)
+
+Os índices de leitura da Spec 09 estão comentados no fim de
+`docudata-backend/supabase_schema.sql`. Não são requisito funcional e **não são
+aplicados por deploy**: aplique manualmente, um por vez, em janela adequada, e
+prefira `CREATE INDEX CONCURRENTLY` quando a tabela já for grande.
+
+### Auditoria automática
+
+O workflow `.github/workflows/ci.yml` roda `pytest`, `npm run build`,
+`npm audit --omit=dev --audit-level=high`, `pip-audit`, `git diff --check` e uma
+varredura de segredos. Nenhum passo usa credencial real — os testes já rodam com
+Gemini, GitHub, Drive, Resend e Supabase mockados.

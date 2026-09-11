@@ -35,10 +35,13 @@ from services.github_app import (
     validar_assinatura_webhook,
     validar_token_assinado,
 )
+from core.observability import falha_externa
 from services.supabase_client import get_client
 
 
 router = APIRouter(tags=["github-integration"])
+
+_ERRO_GITHUB = "Não foi possível consultar o GitHub. Tente novamente em instantes."
 public_router = APIRouter(tags=["github-webhook"])
 
 
@@ -51,7 +54,9 @@ def _iso(valor: datetime) -> str:
 
 
 def _erro_indisponivel(exc: Exception) -> HTTPException:
-    return HTTPException(status_code=503, detail=str(exc))
+    """Mensagem fixa: GitHubConfigurationError cita variável de ambiente e
+    GitHubApiError pode carregar detalhe da resposta da API."""
+    return falha_externa("github.api", exc, _ERRO_GITHUB, status_code=503)
 
 
 def _obter_projeto(client: Any, project_id: str) -> dict[str, Any]:

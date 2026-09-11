@@ -3,6 +3,7 @@ e retorna campos estruturados prontos para o gerente revisar antes de gerar o do
 
 Não salva nada no banco — é uma etapa de pré-visualização/validação.
 """
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
@@ -12,9 +13,14 @@ from pydantic import BaseModel, Field
 
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
+_LOG = logging.getLogger("docudata.enrich")
+
 router = APIRouter(prefix="/enrich", tags=["enrich"])
+
+_ERRO_ANALISE = "Não foi possível analisar o conteúdo com a IA. Tente novamente em instantes."
 
 
 # ── Schemas de retorno por tipo de doc ────────────────────────────────────────
@@ -334,7 +340,7 @@ async def enrich(
         parsed = raw_result.get("parsed")
         if parsed is None:
             pe = raw_result.get("parsing_error")
-            print(f"[enrich] Structured output parsing failed for doc_type={doc_type}: {pe}")
+            _LOG.warning("estruturacao_falhou doc_type=%s", doc_type)
             raise HTTPException(
                 status_code=502,
                 detail="Falha ao estruturar resposta da IA. Tente reformular o texto ou use um arquivo diferente.",
@@ -343,7 +349,7 @@ async def enrich(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+        raise falha_externa("gemini.enrich", exc, _ERRO_ANALISE)
 
 
 @router.post("/planning-correlacoes")
@@ -395,7 +401,7 @@ async def enrich_planning_com_correlacoes(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+        raise falha_externa("gemini.enrich_planning", exc, _ERRO_ANALISE)
 
     tasks = [item.item for item in enriquecimento.itens_backlog if item.item]
 

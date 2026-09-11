@@ -7,11 +7,24 @@ from models.schemas import (
     ContratoUpdate,
     GerenteEmailUpdate,
 )
+from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# Projeção explícita das leituras que devolvem ProjectResponse. Cobre todos os
+# campos do response model mais `github_token`/`github_repo`, usados só para
+# derivar `has_github_config`. Deixa de fora `gemini_api_key`: era um segredo
+# legado por projeto que vinha do banco a cada listagem só para ser descartado
+# depois por _sanitize.
+_CAMPOS_PROJETO = (
+    "id, name, client, subarea, description, squad, valor_projeto, valor_por_ponto, "
+    "is_delivered, created_at, data_inicio, data_fim_contratada, "
+    "tolerancia_desvio_pontos, periodo_garantia_dias, gerente_email, arquetipo, "
+    "github_token, github_repo"
+)
 
 
 def _sanitize(row: dict) -> dict:
@@ -54,7 +67,7 @@ async def list_projects(
     client = get_client()
     response = (
         client.table("projects")
-        .select("*")
+        .select(_CAMPOS_PROJETO)
         .eq("subarea", subarea)
         .order("created_at", desc=True)
         .execute()
@@ -76,9 +89,15 @@ async def list_projects(
     projects = [_sanitize(row) for row in rows]
 
     if projects:
+        # Só os IDs que já vão ser devolvidos. Antes a consulta varria a tabela
+        # inteira de ingestões — todo projeto do CITi, das duas subáreas,
+        # inclusive os que o operacional não pode ver — para preencher uma
+        # data de cada projeto da página.
+        ids_da_pagina = [p["id"] for p in projects]
         ing_resp = (
             client.table("ingestions")
             .select("project_id, created_at")
+            .in_("project_id", ids_da_pagina)
             .order("created_at", desc=True)
             .execute()
         )
@@ -98,7 +117,7 @@ async def get_project(project_id: str):
     """Get a single project by UUID. Returns 404 if not found, 403 se o
     operacional não estiver vinculado a este projeto."""
     client = get_client()
-    response = client.table("projects").select("*").eq("id", project_id).execute()
+    response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
     return _sanitize(response.data[0])
@@ -217,7 +236,9 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
         # cabeçalho de CORS (o middleware nunca chega a rodar numa exceção não
         # tratada) — o navegador mostra como bloqueio de CORS, escondendo o
         # erro real. Levantar como HTTPException garante resposta formada.
-        raise HTTPException(status_code=500, detail=f"Falha ao salvar contrato: {exc}")
+        raise falha_externa(
+            "supabase.projects.contrato", exc, "Não foi possível salvar o contrato", status_code=500
+        )
 
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update contract fields")

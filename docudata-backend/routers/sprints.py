@@ -10,6 +10,7 @@ from models.schemas import (
     SprintStatusResponse,
     SprintOrcamentoUpdate,
 )
+from core.observability import falha_externa
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.spi_health import auto_update_sprint_health
@@ -53,7 +54,9 @@ async def create_sprint(project_id: str, data: SprintCreate):
                 status_code=409,
                 detail=f"Sprint {numero} já existe neste projeto",
             )
-        raise HTTPException(status_code=500, detail=f"Failed to create sprint: {exc}")
+        raise falha_externa(
+            "supabase.sprints.insert", exc, "Não foi possível criar a sprint", status_code=500
+        )
 
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create sprint")
@@ -195,9 +198,13 @@ async def update_orcamento(sprint_id: str, data: SprintOrcamentoUpdate):
     ).data or []
     total_outras = sum(s["pontos_orcamento"] or 0 for s in outras_sprints)
     if total_outras + data.pontos_orcamento > 100:
+        mensagem = (
+            f"Orçamento do projeto excedido: restam {100 - total_outras} pontos "
+            "pra distribuir entre as sprints."
+        )
         raise HTTPException(
             status_code=409,
-            detail=f"Orçamento do projeto excedido: restam {100 - total_outras} pontos pra distribuir entre as sprints.",
+            detail=mensagem,
         )
 
     resp = client.table("sprints").update({"pontos_orcamento": data.pontos_orcamento}).eq("id", sprint_id).execute()

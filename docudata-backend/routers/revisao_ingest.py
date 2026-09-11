@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from models.schemas import RevisaoEstruturada, Achado
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(tags=["revisao-ingest"])
@@ -83,7 +84,7 @@ async def ingest_revisao(request: Request, response: Response, payload: RevisaoP
         ])
         parsed: RevisaoEstruturada = raw_result["parsed"]
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini revision failed: {exc}")
+        raise falha_externa("gemini.revisao", exc, "Não foi possível revisar os commits com a IA")
 
     achados_sorted = sorted(parsed.achados, key=lambda a: _PRIORIDADE.get(a.severidade, 4))
     achados_capped = achados_sorted[:20]
@@ -105,7 +106,9 @@ async def ingest_revisao(request: Request, response: Response, payload: RevisaoP
         if not response.data:
             raise RuntimeError("Insert returned no data")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Supabase insert failed: {exc}")
+        raise falha_externa(
+            "supabase.revisoes_diarias.insert", exc, "Não foi possível salvar a revisão", status_code=500
+        )
 
     revisao_id = response.data[0].get("id")
     return {

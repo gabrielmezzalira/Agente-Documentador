@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +14,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from models.schemas import AvaliacaoQualidadeCommit, ConteudoEstruturado
 from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row, get_current_sprint_number
+
+_LOG = logging.getLogger("docudata.commit_extraction")
 
 
 _COST_PER_INPUT_TOKEN = 0.30 / 1_000_000
@@ -214,7 +217,7 @@ async def extrair_e_salvar_commit(client: Any, dados: DadosCommit) -> dict[str, 
             }).execute()
         except Exception as exc:
             # A qualidade é complementar; o contexto do commit já persistido não deve ser perdido.
-            print(f"[commit_extraction] Avaliação de qualidade ignorada: {type(exc).__name__}")
+            _LOG.warning("qualidade_commit_ignorada exc=%s", type(exc).__name__)
 
     return {
         "status": "ok",

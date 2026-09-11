@@ -175,10 +175,14 @@ def test_get_client_ip_usa_primeiro_forwarded_for_e_fallback():
     assert get_client_ip(direto) == "198.51.100.6"
 
 
-def test_todos_os_endpoints_gemini_e_somente_eles_tem_rate_limit():
+def test_apenas_endpoints_de_ia_e_autenticacao_tem_rate_limit():
     from core.rate_limit import limiter
 
     assert set(limiter._route_limits) == {
+        # Autenticação: protege contra força bruta e criação de contas em massa.
+        "routers.auth.login",
+        "routers.auth.signup_claim",
+        "routers.auth.signup_novo",
         "routers.ingest.ingest",
         "routers.generate.generate",
         "routers.enrich.enrich",

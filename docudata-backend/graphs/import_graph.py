@@ -1,9 +1,12 @@
 import json
+import logging
 from typing import TypedDict, Optional
 
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
+
+_LOG = logging.getLogger("docudata.importacao")
 
 
 class ImportState(TypedDict):
@@ -61,7 +64,12 @@ async def gerar_proposta(state: ImportState) -> dict:
             }
         return {"proposta": funcionalidades, "valido": True}
     except Exception as exc:
-        return {"valido": False, "tentativas": tentativas + 1, "erro": str(exc)}
+        _LOG.warning("proposta_falhou tentativa=%s exc=%s", tentativas + 1, type(exc).__name__)
+        return {
+            "valido": False,
+            "tentativas": tentativas + 1,
+            "erro": "Não foi possível interpretar a resposta da IA",
+        }
 
 
 def _roteador(state: ImportState) -> str:

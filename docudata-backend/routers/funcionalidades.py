@@ -1,3 +1,4 @@
+import logging
 import json
 import os
 import subprocess
@@ -22,6 +23,8 @@ from models.schemas import (
 )
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
+
+_LOG = logging.getLogger("docudata.funcionalidades")
 
 
 def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
@@ -71,7 +74,7 @@ def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
                 "concluido_em": agora,
             }).execute()
         except Exception as exc:
-            print(f"[aceite] Falha ao inserir execucao sem_cobertura: {exc}")
+            _LOG.warning("execucao_sem_cobertura_falhou exc=%s", type(exc).__name__)
         return
 
     # Configurado: inserir registro pendente e disparar via GitHub API
@@ -84,7 +87,7 @@ def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
             "disparado_em": agora,
         }).execute()
     except Exception as exc:
-        print(f"[aceite] Falha ao inserir execucao pendente: {exc}")
+        _LOG.warning("execucao_pendente_falhou exc=%s", type(exc).__name__)
 
     # Montar client_payload (max 10 top-level keys, max 64KB — per RESEARCH pitfall 6)
     client_payload = {
@@ -113,10 +116,10 @@ def dispatch_aceite_background(funcionalidade_id: str, project_id: str) -> None:
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
-            print(f"[aceite] Dispatch OK — status {r.status}, funcionalidade_id={funcionalidade_id}")
+            _LOG.info("dispatch_aceite_ok status=%s funcionalidade_id=%s", r.status, funcionalidade_id)
     except Exception as exc:
         # Best-effort: não propagar falha
-        print(f"[aceite] Falha no dispatch para GitHub: {exc}")
+        _LOG.warning("dispatch_aceite_falhou exc=%s", type(exc).__name__)
 
 
 router = APIRouter(prefix="/funcionalidades", tags=["funcionalidades"])
@@ -156,7 +159,7 @@ async def importar_funcionalidades(request: Request, response: Response, data: I
     if not state.get("valido") or not state.get("proposta"):
         raise HTTPException(
             status_code=502,
-            detail=f"Não foi possível extrair funcionalidades do contrato: {state.get('erro', 'resposta inválida')}",
+            detail="Não foi possível extrair funcionalidades do contrato",
         )
 
     propostas = []
@@ -266,7 +269,7 @@ async def importar_funcionalidades_arquivo(
     if not state.get("valido") or not state.get("proposta"):
         raise HTTPException(
             status_code=502,
-            detail=f"Não foi possível extrair funcionalidades: {state.get('erro', 'resposta inválida')}",
+            detail="Não foi possível extrair funcionalidades do arquivo",
         )
 
     propostas = []

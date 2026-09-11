@@ -6,6 +6,7 @@ from models.schemas import (
     OperacionalUpdate,
     OperacionalResponse,
 )
+from core.observability import falha_externa
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/operacionais", tags=["operacionais"])
@@ -67,7 +68,9 @@ async def create_operacional(data: OperacionalCreate):
                 status_code=409,
                 detail=f"Já existe um operacional com o nome '{data.nome}' neste projeto",
             )
-        raise HTTPException(status_code=500, detail=f"Failed to create operacional: {exc}")
+        raise falha_externa(
+            "supabase.operacionais.insert", exc, "Não foi possível criar o operacional", status_code=500
+        )
 
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create operacional")
@@ -196,7 +199,9 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
         msg = str(exc).lower()
         if "unique" in msg or "23505" in msg:
             raise HTTPException(status_code=409, detail="Nome já em uso neste projeto")
-        raise HTTPException(status_code=500, detail=f"Failed to update: {exc}")
+        raise falha_externa(
+            "supabase.operacionais.update", exc, "Não foi possível atualizar o operacional", status_code=500
+        )
 
     return resp.data[0]
 

@@ -712,3 +712,62 @@ ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT t
 -- );
 -- CREATE INDEX IF NOT EXISTS github_connection_sessions_project_id_idx
 --     ON github_connection_sessions (project_id);
+
+-- ---------------------------------------------------------------------------
+-- Migration v6: índices aditivos de leitura (Spec 09)
+-- ---------------------------------------------------------------------------
+-- Nenhum destes índices é requisito funcional: o código roda igual sem eles.
+-- São só custo de leitura. Por isso NÃO são aplicados por deploy nem por
+-- agente — aplicar manualmente, um por vez, em janela compatível com o volume
+-- real da tabela, e usar CREATE INDEX CONCURRENTLY (fora de transação) quando
+-- a tabela já for grande o bastante para o lock incomodar.
+--
+-- Cada índice abaixo está amarrado à query que o justifica hoje:
+--
+-- projects (subarea, created_at DESC)
+--   GET /projects?subarea=... — .eq("subarea").order("created_at", desc=True)
+--   em routers/projects.py::list_projects. É a consulta da home das duas
+--   subáreas e hoje não tem índice nenhum.
+-- CREATE INDEX IF NOT EXISTS idx_projects_subarea_created
+--     ON projects (subarea, created_at DESC);
+--
+-- ingestions (project_id, created_at DESC)
+--   GET /ingestions/{projeto_id} e o cálculo de last_ingestion_at da listagem
+--   de projetos (agora restrito por .in_("project_id", ids da página)).
+-- CREATE INDEX IF NOT EXISTS idx_ingestions_project_created
+--     ON ingestions (project_id, created_at DESC);
+--
+-- ingestions (project_id, sprint_number, created_at DESC)
+--   GET /ingestions/{projeto_id}/{sprint}, o delete em cascata de sprint
+--   (routers/sprints.py) e a busca de contexto do grafo de geração.
+--   O índice anterior é prefixo deste, mas só este serve o filtro por sprint.
+-- CREATE INDEX IF NOT EXISTS idx_ingestions_project_sprint_created
+--     ON ingestions (project_id, sprint_number, created_at DESC);
+--
+-- generated_docs (project_id, sprint_number, created_at DESC)
+--   GET /docs/{projeto_id} (listagem ordenada por data) e as consultas por
+--   sprint em routers/generate.py e routers/sprints.py.
+-- CREATE INDEX IF NOT EXISTS idx_generated_docs_project_sprint_created
+--     ON generated_docs (project_id, sprint_number, created_at DESC);
+--
+-- funcionalidades (project_id)
+--   GET /funcionalidades/{project_id}, carregado em toda abertura de projeto
+--   e no modal de status pós-review.
+-- CREATE INDEX IF NOT EXISTS idx_funcionalidades_project
+--     ON funcionalidades (project_id);
+--
+-- operacionais (email, ativo)
+--   Filtro de vínculo do operacional em list_projects e em
+--   services/auth.py::require_project_access — roda em toda navegação de quem
+--   tem cargo operacional. Já existe idx_operacionais_project_nome, mas ele é
+--   (project_id, nome) e não atende este filtro.
+-- CREATE INDEX IF NOT EXISTS idx_operacionais_email_ativo
+--     ON operacionais (email, ativo);
+--
+-- pontuacao_operacional_sprint (operacional_id, sprint_fim DESC)
+--   services/performance.py::_sequencia_pessoal —
+--   .in_("operacional_id", ...).order("sprint_fim", desc=True), base do
+--   ranking de pessoas. Torna idx_pontuacao_operacional_sprint_operacional
+--   redundante, mas remover índice não faz parte desta spec.
+-- CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_fim
+--     ON pontuacao_operacional_sprint (operacional_id, sprint_fim DESC);

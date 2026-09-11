@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -51,21 +52,61 @@ import {
 import Tabs from "../../../components/Tabs";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
-import SprintDocModal from "../../../components/SprintDocModal";
-import TechnologiesTab from "../../../components/TechnologiesTab";
-import PainelTab from "../../../components/PainelTab";
-import PlanningModal from "../../../components/PlanningModal";
-import FuncionalidadesStatusModal from "../../../components/FuncionalidadesStatusModal";
-import EscopoTab from "../../../components/EscopoTab";
-import TasksKanbanTab from "../../../components/TasksKanbanTab";
-import MetricasTab from "../../../components/MetricasTab";
 import DocTypeCard from "../../../components/DocTypeCard";
 import TutorialBanner from "../../../components/TutorialBanner";
-import ManualDocModal from "../../../components/ManualDocModal";
-import UploadLivreModal from "../../../components/UploadLivreModal";
-import RetroModal from "../../../components/RetroModal";
-import AvaliacaoSemanalModal from "../../../components/AvaliacaoSemanalModal";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
+
+// A aba Sprints é a que abre por padrão, então Tabs/SprintCard/DocTypeCard
+// continuam no bundle inicial. O resto — abas que exigem um clique e modais
+// que exigem uma ação — vira chunk sob demanda: antes, o gráfico da aba
+// Métricas (recharts) e os seis modais pesavam no First Load de quem só
+// queria olhar a lista de sprints.
+const placeholderCarregando = (
+  <div style={{ padding: "24px 2px", fontSize: 13, color: "#8a8a95" }}>Carregando…</div>
+);
+const abaCarregando = () => placeholderCarregando;
+// Modal não mostra placeholder: aparece direto quando o chunk chega, em vez
+// de piscar uma caixa vazia sobre a tela.
+const semPlaceholder = () => null;
+
+const TechnologiesTab = dynamic(() => import("../../../components/TechnologiesTab"), {
+  loading: abaCarregando,
+});
+const PainelTab = dynamic(() => import("../../../components/PainelTab"), {
+  loading: abaCarregando,
+});
+const EscopoTab = dynamic(() => import("../../../components/EscopoTab"), {
+  loading: abaCarregando,
+});
+const TasksKanbanTab = dynamic(() => import("../../../components/TasksKanbanTab"), {
+  loading: abaCarregando,
+});
+const MetricasTab = dynamic(() => import("../../../components/MetricasTab"), {
+  loading: abaCarregando,
+});
+const SprintDocModal = dynamic(() => import("../../../components/SprintDocModal"), {
+  loading: semPlaceholder,
+});
+const PlanningModal = dynamic(() => import("../../../components/PlanningModal"), {
+  loading: semPlaceholder,
+});
+const FuncionalidadesStatusModal = dynamic(
+  () => import("../../../components/FuncionalidadesStatusModal"),
+  { loading: semPlaceholder },
+);
+const ManualDocModal = dynamic(() => import("../../../components/ManualDocModal"), {
+  loading: semPlaceholder,
+});
+const UploadLivreModal = dynamic(() => import("../../../components/UploadLivreModal"), {
+  loading: semPlaceholder,
+});
+const RetroModal = dynamic(() => import("../../../components/RetroModal"), {
+  loading: semPlaceholder,
+});
+const AvaliacaoSemanalModal = dynamic(
+  () => import("../../../components/AvaliacaoSemanalModal"),
+  { loading: semPlaceholder },
+);
 
 type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
 
@@ -1273,20 +1314,22 @@ export default function ProjectDashboard() {
       )}
 
       {/* MODAL Planning/Daily/Review */}
-      <SprintDocModal
-        open={modal !== null}
-        onClose={() => setModal(null)}
-        tipo={modal?.tipo ?? "daily"}
-        projetoId={id}
-        sprintNumero={modal?.sprintNumero ?? 1}
-        initialCarryOver={carryOverPrefill}
-        onSubmitted={async () => {
-          await refreshAll();
-          if (modal?.tipo === "review" && modal.sprintId) {
-            setStatusModal({ sprintId: modal.sprintId, sprintNumero: modal.sprintNumero });
-          }
-        }}
-      />
+      {modal !== null && (
+        <SprintDocModal
+          open={modal !== null}
+          onClose={() => setModal(null)}
+          tipo={modal?.tipo ?? "daily"}
+          projetoId={id}
+          sprintNumero={modal?.sprintNumero ?? 1}
+          initialCarryOver={carryOverPrefill}
+          onSubmitted={async () => {
+            await refreshAll();
+            if (modal?.tipo === "review" && modal.sprintId) {
+              setStatusModal({ sprintId: modal.sprintId, sprintNumero: modal.sprintNumero });
+            }
+          }}
+        />
+      )}
 
       {/* MODAL Planning — novo fluxo com correlação de funcionalidades */}
       {planningModal && (
@@ -1321,47 +1364,55 @@ export default function ProjectDashboard() {
       )}
 
       {/* MODAL Doc Manual */}
-      <ManualDocModal
-        open={manualModal !== null}
-        onClose={() => setManualModal(null)}
-        projetoId={id}
-        defaultSprintNumero={manualModal?.sprintNumero ?? null}
-        onCreated={async () => {
-          await refreshAll();
-        }}
-      />
+      {manualModal !== null && (
+        <ManualDocModal
+          open={manualModal !== null}
+          onClose={() => setManualModal(null)}
+          projetoId={id}
+          defaultSprintNumero={manualModal?.sprintNumero ?? null}
+          onCreated={async () => {
+            await refreshAll();
+          }}
+        />
+      )}
 
       {/* MODAL Status Funcionalidades — abre após review */}
-      <FuncionalidadesStatusModal
-        open={statusModal !== null}
-        onClose={() => setStatusModal(null)}
-        sprintId={statusModal?.sprintId ?? ""}
-        sprintNumero={statusModal?.sprintNumero ?? 1}
-        onUpdated={() => { setStatusModal(null); listFuncionalidades(id).then(setFuncionalidades).catch(() => {}); }}
-      />
+      {statusModal !== null && (
+        <FuncionalidadesStatusModal
+          open={statusModal !== null}
+          onClose={() => setStatusModal(null)}
+          sprintId={statusModal?.sprintId ?? ""}
+          sprintNumero={statusModal?.sprintNumero ?? 1}
+          onUpdated={() => { setStatusModal(null); listFuncionalidades(id).then(setFuncionalidades).catch(() => {}); }}
+        />
+      )}
 
       {/* MODAL Upload Livre */}
-      <UploadLivreModal
-        open={uploadModal !== null}
-        onClose={() => setUploadModal(null)}
-        projetoId={id}
-        sprintNumero={uploadModal?.sprintNumero ?? 1}
-        onCompleted={async () => {
-          await refreshAll();
-        }}
-      />
+      {uploadModal !== null && (
+        <UploadLivreModal
+          open={uploadModal !== null}
+          onClose={() => setUploadModal(null)}
+          projetoId={id}
+          sprintNumero={uploadModal?.sprintNumero ?? 1}
+          onCompleted={async () => {
+            await refreshAll();
+          }}
+        />
+      )}
 
       {/* MODAL Retrospectiva */}
-      <RetroModal
-        open={retroModal !== null}
-        onClose={() => setRetroModal(null)}
-        projetoId={id}
-        sprintNumero={retroModal?.sprintNumero ?? 1}
-        onSubmitted={(doc) => {
-          setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
-          setRetroModal(null);
-        }}
-      />
+      {retroModal !== null && (
+        <RetroModal
+          open={retroModal !== null}
+          onClose={() => setRetroModal(null)}
+          projetoId={id}
+          sprintNumero={retroModal?.sprintNumero ?? 1}
+          onSubmitted={(doc) => {
+            setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
+            setRetroModal(null);
+          }}
+        />
+      )}
     </main>
   );
 }

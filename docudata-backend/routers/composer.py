@@ -8,6 +8,7 @@ from pydantic import BaseModel, field_validator
 
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa, registrar_falha_interna
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(prefix="/composer", tags=["composer"])
@@ -106,7 +107,6 @@ def calcular_throughput_ref(
 
 @router.get("/rascunho/{project_id}/{sprint_numero}", response_model=RascunhoResponse)
 async def get_rascunho(project_id: str, sprint_numero: int):
-    import traceback
     step = "init"
     try:
         client = get_client()
@@ -186,10 +186,8 @@ async def get_rascunho(project_id: str, sprint_numero: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Composer failed at step={step}: {type(e).__name__}: {str(e)[:500]}\n{traceback.format_exc()[:800]}",
-        )
+        registrar_falha_interna(f"composer.rascunho.{step}", e)
+        raise HTTPException(status_code=500, detail="Não foi possível montar o rascunho")
 
 
 @router.patch("/rascunho/{project_id}/{sprint_numero}")
@@ -497,7 +495,7 @@ async def gerar_planning(request: Request, response: Response, body: GerarBody):
         else:
             markdown = str(raw)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini failed: {exc}")
+        raise falha_externa("gemini.composer", exc, "Não foi possível gerar o conteúdo com a IA")
 
     # NÃO persistir — retornar apenas o markdown (D-06)
     return {"markdown": markdown}

@@ -12,6 +12,15 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from core.observability import (
+    MENSAGEM_ERRO_INTERNO,
+    REQUEST_ID_HEADER,
+    encerrar_contexto_requisicao,
+    iniciar_contexto_requisicao,
+    normalizar_request_id,
+    registrar_excecao,
+    registrar_resposta,
+)
 from core.rate_limit import limiter
 from core.security import require_app_key
 from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration
@@ -38,7 +47,22 @@ async def lifespan(app: FastAPI):
     _scheduler.shutdown()
 
 
-app = FastAPI(title="DocuData API", version="1.0.0", lifespan=lifespan)
+def _flag_habilitada(nome: str, padrao: str) -> bool:
+    return os.environ.get(nome, padrao).strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Local fica ligada para o time explorar a API; produção deve subir com
+# API_DOCS_ENABLED=false para não publicar o mapa completo de rotas e schemas.
+API_DOCS_ENABLED = _flag_habilitada("API_DOCS_ENABLED", "true")
+
+app = FastAPI(
+    title="DocuData API",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs" if API_DOCS_ENABLED else None,
+    redoc_url="/redoc" if API_DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -90,6 +114,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[REQUEST_ID_HEADER],
 )
 
 
@@ -110,16 +135,38 @@ async def reject_oversized_request(request: Request, call_next):
     # Streams sem Content-Length seguem sem bloqueio; leitura em chunks fica fora desta implementação.
     return await call_next(request)
 
+
+@app.middleware("http")
+async def correlacionar_requisicao(request: Request, call_next):
+    """Atribui (ou reaproveita) o `X-Request-ID` e devolve no response."""
+    request_id = normalizar_request_id(request.headers.get(REQUEST_ID_HEADER))
+    request.scope.setdefault("state", {})["request_id"] = request_id
+    token = iniciar_contexto_requisicao(request_id, request.method, request.url.path)
+    try:
+        response = await call_next(request)
+        response.headers[REQUEST_ID_HEADER] = request_id
+        registrar_resposta(request_id, request.method, request.url.path, response.status_code)
+        return response
+    finally:
+        encerrar_contexto_requisicao(token)
+
+
 @app.exception_handler(Exception)
 async def _erro_nao_tratado(request: Request, exc: Exception):
     """Sem isso, qualquer exceção não tratada em qualquer rota escapa da
-    ExceptionMiddleware do FastAPI e o CORSMiddleware nunca chega a rodar —
-    o navegador reporta "bloqueado por CORS" mesmo o servidor estando
-    corretamente configurado, escondendo o erro real de quem está debugando
-    pelo DevTools. Este handler roda por dentro do stack de middleware, então
-    a resposta ainda passa pelo CORSMiddleware normalmente."""
-    logging.getLogger("uvicorn.error").exception("Erro não tratado em %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": f"Erro interno: {exc}"})
+    ExceptionMiddleware do FastAPI e o navegador reporta "bloqueado por CORS"
+    mesmo o servidor estando configurado corretamente, escondendo o erro real
+    de quem está debugando pelo DevTools.
+
+    O corpo devolve apenas mensagem genérica + `request_id`: interpolar a
+    exceção aqui já vazou nome de tabela, URL interna e trecho de payload para
+    o navegador. O detalhe real fica no log, correlacionado pelo mesmo id."""
+    request_id = registrar_excecao(request, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": MENSAGEM_ERRO_INTERNO, "request_id": request_id},
+        headers={REQUEST_ID_HEADER: request_id},
+    )
 
 
 app_key = [Depends(require_app_key)]

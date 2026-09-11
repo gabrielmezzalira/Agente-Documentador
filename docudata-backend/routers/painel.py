@@ -4,6 +4,7 @@ from statistics import mean, quantiles
 from fastapi import APIRouter, HTTPException
 
 from services.supabase_client import get_client
+from core.observability import registrar_falha_interna
 
 router = APIRouter(prefix="/projects", tags=["painel"])
 
@@ -325,7 +326,6 @@ def calcular_bloco_d(funcs: list[dict], transicoes: list[dict]) -> dict:
 
 @router.get("/{project_id}/painel")
 async def get_painel(project_id: str):
-    import traceback
     step = "init"
     try:
         client = get_client()
@@ -399,7 +399,7 @@ async def get_painel(project_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Painel failed at step={step}: {type(e).__name__}: {str(e)[:500]}\n{traceback.format_exc()[:800]}",
-        )
+        # O traceback com step/nome de tabela ia inteiro para o navegador;
+        # agora fica só no log, correlacionado pelo request id da resposta.
+        registrar_falha_interna(f"painel.{step}", e)
+        raise HTTPException(status_code=500, detail="Não foi possível montar o painel")

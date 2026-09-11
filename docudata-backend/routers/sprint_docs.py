@@ -10,6 +10,7 @@ LLM quando só vêm os campos estruturados (já estão estruturados — chamar G
 seria desperdício e fonte de alucinação). Se houver PDF anexo, ele passa pelo
 `extraction_graph` separadamente e os campos extraídos são mesclados.
 """
+import logging
 import json
 from datetime import datetime
 from typing import Optional
@@ -23,6 +24,8 @@ from models.schemas import SprintDocResponse
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row
+
+_LOG = logging.getLogger("docudata.sprint_docs")
 
 router = APIRouter(prefix="/sprint-docs", tags=["sprint-docs"])
 
@@ -69,6 +72,7 @@ async def _extract_anexo_to_content(
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": tipo_esperado,
         "force": force,
@@ -92,8 +96,8 @@ async def _extract_anexo_to_content(
         )
     if not result.get("valido"):
         raise HTTPException(
-            status_code=502,
-            detail=f"Extração do PDF anexo falhou: {result.get('erro') or 'erro desconhecido'}",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo do anexo",
         )
 
     # Remove o registro intermediário criado pelo graph — vamos inserir um único
@@ -260,7 +264,7 @@ async def submit_planning(
         risco_items = json.loads(riscos_items) if isinstance(riscos_items, str) else []
         co_items = json.loads(carry_over_items) if isinstance(carry_over_items, str) else []
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"Payload inválido: {exc}")
+        raise HTTPException(status_code=422, detail="Payload inválido")
 
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
@@ -444,6 +448,7 @@ async def submit_ata_with_upload(
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": "ata_reuniao",
         "force": force,
@@ -467,8 +472,8 @@ async def submit_ata_with_upload(
         )
     if not result.get("valido"):
         raise HTTPException(
-            status_code=502,
-            detail=f"Extração da transcrição falhou: {result.get('erro') or 'erro desconhecido'}",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo da transcrição",
         )
 
     ingestion_id = result.get("ingestion_id")
@@ -570,7 +575,7 @@ async def submit_review(
         except HTTPException as exc:
             if exc.status_code == 422:
                 raise
-            print(f"[submit_review] Anexo extraction failed (non-fatal): {exc.detail}")
+            _LOG.warning("anexo_review_ignorado status=%s", exc.status_code)
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,
@@ -677,7 +682,7 @@ async def submit_retrospectiva(
         except HTTPException as exc:
             if exc.status_code == 422:
                 raise
-            print(f"[submit_retrospectiva] Anexo extraction failed (non-fatal): {exc.detail}")
+            _LOG.warning("anexo_retrospectiva_ignorado status=%s", exc.status_code)
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,
