@@ -329,7 +329,8 @@ Ao finalizar:
   funcionando em produção;
 - não faça commit/push salvo pedido explícito do usuário;
 - quando o usuário pedir commit de implementação, não inclua `AGENTS.md` ou
-  `specs/` sem autorização expressa para versionar esses documentos.
+  `docs/superpowers/specs/` sem autorização expressa para versionar esses
+  documentos.
 
 ## 8. Como rodar localmente
 
@@ -406,8 +407,10 @@ fluxo atual.
 
 ## 10. Specs
 
-As specs vivem em `specs/NN-slug.md`. Cada uma deve declarar contexto específico,
-escopo, não escopo, riscos, ações humanas, testes e critérios de aceite.
+As specs vivem em `docs/superpowers/specs/`. As specs numeradas deste fluxo usam o
+padrão `NN-slug.md`; documentos históricos de design podem manter o padrão datado
+já existente no diretório. Cada spec deve declarar contexto específico, escopo, não
+escopo, riscos, ações humanas, testes e critérios de aceite.
 
 - Implemente uma spec por vez.
 - Leia a spec inteira antes de escrever código.
