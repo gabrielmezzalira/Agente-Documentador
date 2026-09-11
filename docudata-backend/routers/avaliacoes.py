@@ -11,6 +11,7 @@ from models.schemas import (
 )
 from services.auth import get_current_pessoa, require_role
 from services.pontuacao import calcular_e_travar_pontuacao
+from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/avaliacoes", tags=["avaliacoes"])
@@ -165,6 +166,27 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
     resp = client.table("sprints").update({"avaliacao_completa_em": agora_iso}).eq("id", sprint_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
+
+    # ALERT-04: confirmar a avaliação da última sprint ativa também conta como
+    # "início" da próxima, pra destravar o relógio de travamento automático das
+    # tasks que já estavam planejadas nela — sem depender do gerente lembrar de
+    # clicar em "Iniciar próxima sprint" também. Best-effort: a avaliação já foi
+    # travada acima e não pode falhar por causa disso.
+    try:
+        sprint_atual = resp.data[0]
+        proxima = (
+            client.table("sprints")
+            .select("id, iniciada")
+            .eq("project_id", sprint_atual["project_id"])
+            .eq("numero", sprint_atual["numero"] + 1)
+            .execute()
+            .data
+        )
+        if proxima and not proxima[0]["iniciada"]:
+            iniciar_sprint_e_ancorar_tasks(client, proxima[0]["id"])
+    except Exception:
+        pass  # best-effort
+
     return {
         "sprint_id": sprint_id,
         "avaliacao_completa_em": resp.data[0]["avaliacao_completa_em"],

@@ -14,6 +14,7 @@ from core.observability import falha_externa
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.spi_health import auto_update_sprint_health
+from services.sprints import iniciar_sprint_e_ancorar_tasks
 
 router = APIRouter(tags=["sprints"])
 
@@ -261,12 +262,9 @@ async def iniciar_sprint(sprint_id: str):
     if not check.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
-    response = (
-        client.table("sprints")
-        .update({"iniciada": True, "updated_at": datetime.now(timezone.utc).isoformat()})
-        .eq("id", sprint_id)
-        .execute()
-    )
+    iniciar_sprint_e_ancorar_tasks(client, sprint_id)
+
+    response = client.table("sprints").select("*").eq("id", sprint_id).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Falha ao iniciar sprint")
     return response.data[0]

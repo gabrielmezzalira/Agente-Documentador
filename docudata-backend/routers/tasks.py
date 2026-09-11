@@ -14,8 +14,8 @@ from models.schemas import (
     TaskSugestaoResponse,
     TaskSugestaoResolve,
 )
-from services.auth import require_project_access
-from services.email_service import email_task_atribuida, send_email
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
+from services.email_service import email_task_atribuida, email_task_concluida, send_email
 from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
@@ -27,6 +27,14 @@ _LOG = logging.getLogger("docudata.tasks")
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 _CAMPOS_TRANSICAO = {"coluna_kanban", "operacional_id", "sprint_id", "bloqueado"}
+
+# Operacional só executa: move a task no kanban e marca checklist. Pontos,
+# sprint, responsável, título/descrição e bloqueio são decisão de gerente/líder.
+_CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
+    "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
+    "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
+    "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
+}
 
 
 def _registrar_task_transicao(
@@ -96,6 +104,39 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
 
 
+def _avisar_gerente_task_concluida(client, task: dict) -> None:
+    """Best-effort: avisa gerente/líder quando um operacional marca uma task
+    como concluída. A conclusão vale mesmo que o e-mail falhe."""
+    try:
+        proj = client.table("projects").select("name").eq("id", task["project_id"]).execute().data
+        projeto_nome = proj[0]["name"] if proj else "projeto"
+
+        operacional_nome = "Alguém"
+        op_id = task.get("operacional_id")
+        if op_id:
+            op = client.table("operacionais").select("nome").eq("id", op_id).execute().data
+            if op:
+                operacional_nome = op[0]["nome"]
+
+        sprint_numero = None
+        sprint_id = task.get("sprint_id")
+        if sprint_id:
+            sp = client.table("sprints").select("numero").eq("id", sprint_id).execute().data
+            sprint_numero = sp[0]["numero"] if sp else None
+
+        gerentes = (
+            client.table("pessoa").select("email").in_("cargo", ["gerente", "lider"]).execute().data or []
+        )
+        if not gerentes:
+            return
+
+        subject, html = email_task_concluida(projeto_nome, operacional_nome, task["titulo"], sprint_numero)
+        for g in gerentes:
+            send_email(g["email"], subject, html)
+    except Exception as exc:
+        print(f"[tasks] Aviso: falha ao notificar gerente sobre conclusão ({exc}) — task salva mesmo assim")
+
+
 def _registrar_reabertura(
     client,
     task_id: str,
@@ -124,7 +165,7 @@ def _pontos_usados_na_sprint(client, sprint_id: str, ignorar_task_id: str | None
     return sum(t["pontos"] for t in rows if not t.get("extra"))
 
 
-@router.post("/redistribuir-pontos")
+@router.post("/redistribuir-pontos", dependencies=[Depends(require_not_operacional)])
 async def redistribuir_pontos(data: RedistribuirPontosRequest):
     """Encolhe proporcionalmente os pontos das tasks já existentes na sprint para
     abrir espaço para `pontos_novos`, em vez de simplesmente recusar a task nova.
@@ -202,7 +243,7 @@ async def redistribuir_pontos(data: RedistribuirPontosRequest):
     }
 
 
-@router.post("", response_model=TaskResponse, status_code=201)
+@router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
 async def create_task(data: TaskCreate):
     client = get_client()
 
@@ -235,7 +276,7 @@ async def create_task(data: TaskCreate):
     if data.sprint_id:
         sp_check = (
             client.table("sprints")
-            .select("id, pontos_orcamento")
+            .select("id, pontos_orcamento, iniciada")
             .eq("id", data.sprint_id)
             .eq("project_id", data.project_id)
             .execute()
@@ -268,10 +309,15 @@ async def create_task(data: TaskCreate):
         if val is not None:
             payload[field] = val
 
-    # ALERT-01: task já criada direto em em_andamento também ancora o relógio de
-    # travamento automático — sem isso o job diário nunca teria referência para ela.
-    if payload.get("coluna_kanban") == "em_andamento":
-        payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+    # ALERT-01/ALERT-04: o relógio de travamento automático conta desde que a
+    # task esteja ativa (planejado ou em_andamento) E a sprint dela já tenha
+    # começado (sprints.iniciada) — task de sprint futura não deve contar tempo
+    # parado antes da hora (evita alerta em massa quando a sprint finalmente
+    # inicia; nesse momento iniciar_sprint_e_ancorar_tasks ancora essas tasks).
+    if payload.get("coluna_kanban") != "concluida" and data.sprint_id:
+        sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
+        if sprint_iniciada:
+            payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
 
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
@@ -343,7 +389,7 @@ async def list_task_sugestoes(project_id: str = Query(...)):
 
 
 @router.patch("/sugestoes/{sugestao_id}", response_model=TaskSugestaoResponse)
-async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
+async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
     resp = (
         client.table("task_sugestoes")
@@ -361,7 +407,7 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve):
         # (DoR/DoD/WIP + gravação em task_transicoes). Se patch_task levantar HTTPException
         # (ex.: DoD com checklist incompleto), a exceção propaga e a sugestão continua não
         # resolvida — o update de "aceita" abaixo nunca acontece.
-        await patch_task(task_id, TaskUpdate(coluna_kanban="concluida", autor="sugestao_ia"))
+        await patch_task(task_id, TaskUpdate(coluna_kanban="concluida", autor="sugestao_ia"), pessoa=pessoa)
 
     updated = (
         client.table("task_sugestoes")
@@ -408,7 +454,16 @@ async def list_task_transicoes(task_id: str):
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
-async def patch_task(task_id: str, data: TaskUpdate):
+async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_current_pessoa)):
+    if pessoa["cargo"] == "operacional":
+        pedidos = set(data.model_dump(exclude_unset=True))
+        negados = pedidos & _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL
+        if negados:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Operacional não pode alterar: {', '.join(sorted(negados))}",
+            )
+
     client = get_client()
 
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
@@ -500,8 +555,6 @@ async def patch_task(task_id: str, data: TaskUpdate):
     # Registra transições para campos monitorados
     houve_reabertura = False
     houve_bloqueio_resolvido = False
-    houve_entrada_em_andamento = False
-    houve_saida_de_em_andamento = False
     houve_atribuicao_operacional = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
@@ -515,34 +568,41 @@ async def patch_task(task_id: str, data: TaskUpdate):
         if campo == "coluna_kanban" and task.get("coluna_kanban") == "concluida" and novo_valor == "em_andamento":
             _registrar_reabertura(client, task_id, transicao_id, task.get("operacional_id"), data.motivo, agora)
             houve_reabertura = True
-        # ALERT-01/ALERT-02: relógio de travamento automático — entrou_em_andamento_em
-        # ancora em toda entrada confirmada em em_andamento (de qualquer coluna,
-        # inclusive reabertura); reseta ao sair de em_andamento para qualquer coluna.
-        if campo == "coluna_kanban":
-            if novo_valor == "em_andamento":
-                houve_entrada_em_andamento = True
-            elif task.get("coluna_kanban") == "em_andamento":
-                houve_saida_de_em_andamento = True
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
         _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
 
     updates: dict = {"updated_at": agora.isoformat()}
-    # ALERT-01/ALERT-02: set/reset do relógio + reset dos campos de travado_* —
-    # mutuamente exclusivo (uma única transição de coluna só pode ser entrada OU
-    # saída de em_andamento, nunca as duas).
-    if houve_entrada_em_andamento:
-        updates["entrou_em_andamento_em"] = agora.isoformat()
-        updates["travado_automatico"] = False
-        updates["travado_override"] = False
-        updates["travado_override_por"] = None
-        updates["travado_override_em"] = None
-    elif houve_saida_de_em_andamento:
-        updates["entrou_em_andamento_em"] = None
-        updates["travado_automatico"] = False
-        updates["travado_override"] = False
-        updates["travado_override_por"] = None
-        updates["travado_override_em"] = None
+    # ALERT-01/ALERT-04: o relógio de travamento automático conta desde que a
+    # task esteja ativa (planejado OU em_andamento) E a sprint dela já tenha
+    # começado — não só a partir de em_andamento, porque um operacional pode
+    # estar trabalhando numa task sem nunca arrastar o card. Reavalia sempre
+    # que coluna ou sprint mudam: cobre reabertura (concluida -> qualquer
+    # coluna ativa), troca de sprint (pode ganhar ou perder a âncora conforme a
+    # sprint nova já tenha começado) e entrada em concluída (relógio para).
+    if coluna_nova is not None or data.sprint_id is not None:
+        coluna_efetiva = coluna_nova if coluna_nova is not None else coluna_atual
+        sprint_efetivo_id = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
+        anchor_atual = task.get("entrou_em_andamento_em")
+
+        if coluna_efetiva == "concluida" or not sprint_efetivo_id:
+            sprint_iniciada = False
+        else:
+            sp_iniciada_resp = client.table("sprints").select("iniciada").eq("id", sprint_efetivo_id).execute()
+            sprint_iniciada = bool(sp_iniciada_resp.data and sp_iniciada_resp.data[0].get("iniciada"))
+
+        if sprint_iniciada and anchor_atual is None:
+            updates["entrou_em_andamento_em"] = agora.isoformat()
+            updates["travado_automatico"] = False
+            updates["travado_override"] = False
+            updates["travado_override_por"] = None
+            updates["travado_override_em"] = None
+        elif not sprint_iniciada and anchor_atual is not None:
+            updates["entrou_em_andamento_em"] = None
+            updates["travado_automatico"] = False
+            updates["travado_override"] = False
+            updates["travado_override_por"] = None
+            updates["travado_override_em"] = None
     for field in (
         "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
         "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
@@ -596,16 +656,24 @@ async def patch_task(task_id: str, data: TaskUpdate):
                     auto_update_sprint_health(client, sprint_id_atual)
                 except Exception:
                     pass  # best-effort
+            if pessoa["cargo"] == "operacional":
+                _avisar_gerente_task_concluida(client, result.data[0])
 
     return result.data[0]
 
 
 @router.post("/{task_id}/mover", response_model=TaskResponse)
-async def mover_task(task_id: str, coluna_destino: str, autor: Optional[str] = None, motivo: Optional[str] = None):
+async def mover_task(
+    task_id: str,
+    coluna_destino: str,
+    autor: Optional[str] = None,
+    motivo: Optional[str] = None,
+    pessoa: dict = Depends(get_current_pessoa),
+):
     """Endpoint semântico para drag-and-drop entre colunas."""
     if coluna_destino not in {"planejado", "em_andamento", "concluida"}:
         raise HTTPException(status_code=422, detail="coluna_destino inválida")
-    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo))
+    return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo), pessoa=pessoa)
 
 
 @router.post("/{task_id}/travado/override", response_model=TaskResponse)
@@ -628,10 +696,10 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
 
-    if task.get("coluna_kanban") != "em_andamento":
+    if task.get("coluna_kanban") == "concluida" or not task.get("entrou_em_andamento_em"):
         raise HTTPException(
             status_code=409,
-            detail="Task não está em Em Andamento — não há travamento automático para suprimir.",
+            detail="Task não tem relógio de travamento rodando — não há alerta para suprimir.",
         )
 
     agora = datetime.now(timezone.utc)
@@ -665,7 +733,7 @@ async def reordenar_tasks(itens: list[TaskReordenarItem]):
     return {"updated": len(itens)}
 
 
-@router.delete("/{task_id}", status_code=204)
+@router.delete("/{task_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_task(task_id: str):
     client = get_client()
     check = client.table("tasks").select("id, sprint_id").eq("id", task_id).execute()

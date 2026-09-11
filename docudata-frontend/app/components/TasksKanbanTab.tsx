@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
 import { useAuth } from "./AuthGuard";
 import {
@@ -435,7 +436,7 @@ function TaskModal({
               {task?.travado_automatico && !task?.travado_override && (
                 <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
                   <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
-                    ⏱ Task parada em Em Andamento além do limiar esperado para {task.pontos} ponto(s)
+                    ⏱ Task parada além do limiar esperado para {task.pontos} ponto(s)
                     (~{Math.round(task.pontos * 1.5)} dias).
                   </p>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -535,6 +536,106 @@ function TaskModal({
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Modal de visualização — usado por operacionais: só leitura, exceto o
+// checklist (cada marcação salva na hora, sem botão de Salvar separado).
+
+function TaskViewModal({
+  task, sprints, funcionalidades, onClose, onSaved,
+}: {
+  task: TaskKanbanResponse;
+  sprints: SprintWithStatus[];
+  funcionalidades: FuncionalidadeResponse[];
+  onClose: () => void;
+  onSaved: (t: TaskKanbanResponse) => void;
+}) {
+  const [checklist, setChecklist] = useState(task.checklist);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const sprint = sprints.find((s) => s.id === task.sprint_id);
+  const funcionalidade = funcionalidades.find((f) => f.id === task.funcionalidade_id);
+  const done = checklist.filter((i) => i.done).length;
+
+  async function toggleItem(i: number) {
+    const anterior = checklist;
+    const atualizado = checklist.map((item, j) => (j === i ? { ...item, done: !item.done } : item));
+    setChecklist(atualizado);
+    setSaving(true);
+    setErr("");
+    try {
+      const saved = await patchTaskKanban(task.id, { checklist: atualizado });
+      onSaved(saved);
+    } catch (e) {
+      setChecklist(anterior);
+      setErr(e instanceof Error ? e.message : "Erro ao salvar checklist");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+    }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+      }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+          <span style={{ ...chip, background: "#f1f5f9", color: "#475569" }}>{task.pontos}pt</span>
+          {sprint && <span style={{ ...chip, background: "#ede9fe", color: "#7c3aed" }}>Sprint {sprint.numero}</span>}
+          {task.extra && <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>}
+          {task.bloqueado && (
+            <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>
+              Bloqueada{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
+            </span>
+          )}
+        </div>
+
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>{task.titulo}</h3>
+        {funcionalidade && (
+          <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>
+            {funcionalidade.id_funcional} — {funcionalidade.titulo}
+          </p>
+        )}
+
+        {task.descricao && (
+          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 20 }}>
+            <ReactMarkdown>{task.descricao}</ReactMarkdown>
+          </div>
+        )}
+
+        <div>
+          <label style={labelSt}>Checklist{checklist.length > 0 ? ` (${done}/${checklist.length})` : ""}</label>
+          {checklist.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Sem itens de checklist nesta task.</p>
+          ) : (
+            checklist.map((item, i) => (
+              <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={item.done} disabled={saving} onChange={() => toggleItem(i)} />
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
+                  {item.texto}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+
+        {err && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 10 }}>{err}</p>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button type="button" onClick={onClose} style={btnPrimary}>Fechar</button>
+        </div>
       </div>
     </div>
   );
@@ -715,6 +816,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoTask[]>([]);
   const [pedindoTask, setPedindoTask] = useState(false);
   const [avisoPedido, setAvisoPedido] = useState("");
+  const [sugestaoTask, setSugestaoTask] = useState("");
 
   const ehOperacional = auth?.cargo === "operacional";
   const meuOperacional = ehOperacional
@@ -738,8 +840,9 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     setPedindoTask(true);
     setAvisoPedido("");
     try {
-      await criarSolicitacaoTask(meuOperacional.id);
+      await criarSolicitacaoTask(meuOperacional.id, sugestaoTask);
       setAvisoPedido("Pedido enviado. O gerente foi avisado por e-mail.");
+      setSugestaoTask("");
       carregarSolicitacoes();
     } catch (e) {
       setAvisoPedido(e instanceof Error ? e.message : "Erro ao pedir nova task");
@@ -884,7 +987,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
     { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo, e o projeto também. Se o limite for atingido, o sistema bloqueia novos movimentos. Configure em Configurações." },
     { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia." },
-    { title: "Task travada por tempo", body: "Se uma task fica parada em 'Em andamento' por mais de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. O gerente pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
+    { title: "Task travada por tempo", body: "O relógio conta desde que a task está ativa — Planejado ou Em andamento, tanto faz — e a sprint dela já começou. Se passar de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. Mover a task pra uma sprint futura pausa o relógio; o gerente também pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
     { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não consome o orçamento de pontos da sprint e, se for concluída antes do fechamento, rende um bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
     { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint — cada task com coluna, pontos e se está bloqueada entra automaticamente no contexto. O que você vê aqui é exatamente o que a IA usa para escrever os documentos." },
     { title: "Sugestões automáticas do Review", body: "Quando um review é registrado na aba Sprints, o DocuData analisa o texto e detecta quais tasks foram mencionadas como concluídas. Sugestões aparecem no banner amarelo acima do kanban — você aceita ou ignora cada uma." },
@@ -929,12 +1032,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           ))}
         </select>
 
-        <button
-          onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-          style={{ ...btnPrimary, marginLeft: "auto" }}
-        >
-          + Nova task
-        </button>
+        {!ehOperacional && (
+          <button
+            onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
+            style={{ ...btnPrimary, marginLeft: "auto" }}
+          >
+            + Nova task
+          </button>
+        )}
       </div>
 
       {/* Pedir nova task — só aparece pro operacional que zerou a fila */}
@@ -955,13 +1060,22 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               Pedido enviado, aguardando o gerente.
             </p>
           ) : (
-            <button
-              onClick={handlePedirTask}
-              disabled={pedindoTask}
-              style={{ ...btnPrimary, background: "#166534" }}
-            >
-              {pedindoTask ? "Enviando..." : "Quero mais uma task"}
-            </button>
+            <>
+              <textarea
+                value={sugestaoTask}
+                onChange={(e) => setSugestaoTask(e.target.value)}
+                placeholder="Alguma sugestão do que seria útil fazer? (opcional — vai junto no e-mail pro gerente)"
+                rows={2}
+                style={{ ...inputSt, resize: "vertical", marginBottom: 8 }}
+              />
+              <button
+                onClick={handlePedirTask}
+                disabled={pedindoTask}
+                style={{ ...btnPrimary, background: "#166534" }}
+              >
+                {pedindoTask ? "Enviando..." : "Quero mais uma task"}
+              </button>
+            </>
           )}
           {avisoPedido && <p style={{ fontSize: 12, color: "#3f6f52", marginTop: 8 }}>{avisoPedido}</p>}
         </div>
@@ -982,9 +1096,16 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
                 background: "#fff", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px",
               }}>
-                <span style={{ fontSize: 13, color: "#374151", flex: 1, minWidth: 0 }}>
-                  <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, color: "#374151" }}>
+                    <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
+                  </span>
+                  {s.sugestao && (
+                    <p style={{ fontSize: 12, color: "#3f6f52", background: "#f0fdf4", borderRadius: 6, padding: "6px 10px", margin: "6px 0 0" }}>
+                      <strong>Sugestão:</strong> {s.sugestao}
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={() => { handleResolverPedido(s.id, "atendida"); setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id }); }}
                   style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534" }}
@@ -1087,16 +1208,18 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                   <span style={{ ...chip, background: col.bg, color: col.color, fontSize: 11 }}>
                     {colTasks.length}
                   </span>
-                  <button
-                    onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-                    title="Nova task nesta coluna"
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "#b8b8c0", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
-                    }}
-                  >
-                    +
-                  </button>
+                  {!ehOperacional && (
+                    <button
+                      onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
+                      title="Nova task nesta coluna"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "#b8b8c0", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
 
                 {/* Cards */}
@@ -1137,17 +1260,27 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       )}
 
       {editModal !== null && (
-        <TaskModal
-          mode="edit"
-          task={editModal}
-          projectId={projectId}
-          sprints={sprints}
-          operacionais={operacionais}
-          funcionalidades={funcionalidades}
-          onClose={() => setEditModal(null)}
-          onSaved={(t) => { upsertTask(t); setEditModal(null); }}
-          onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
-        />
+        ehOperacional ? (
+          <TaskViewModal
+            task={editModal}
+            sprints={sprints}
+            funcionalidades={funcionalidades}
+            onClose={() => setEditModal(null)}
+            onSaved={(t) => { upsertTask(t); setEditModal(t); }}
+          />
+        ) : (
+          <TaskModal
+            mode="edit"
+            task={editModal}
+            projectId={projectId}
+            sprints={sprints}
+            operacionais={operacionais}
+            funcionalidades={funcionalidades}
+            onClose={() => setEditModal(null)}
+            onSaved={(t) => { upsertTask(t); setEditModal(null); }}
+            onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
+          />
+        )
       )}
 
       {pendingMove !== null && (

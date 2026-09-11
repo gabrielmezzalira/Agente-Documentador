@@ -638,6 +638,15 @@ ALTER TABLE pessoa ADD COLUMN IF NOT EXISTS github_email text;
 ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT true;
 
 -- ═══════════════════════════════════════════════════════════════
+-- Sugestão de task no pedido de task extra (2026-09-09)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Texto livre opcional que o operacional escreve ao pedir mais trabalho,
+-- descrevendo o que ele acha que seria útil fazer. Vai junto no email pro
+-- gerente — é só um contexto a mais, não substitui o gerente decidir.
+ALTER TABLE solicitacoes_task ADD COLUMN IF NOT EXISTS sugestao text;
+
+-- ═══════════════════════════════════════════════════════════════
 -- Migrations incrementais do fluxo multi-subárea e configurações
 -- Executar manualmente no Supabase SQL Editor. A aplicação não as executa.
 -- ═══════════════════════════════════════════════════════════════

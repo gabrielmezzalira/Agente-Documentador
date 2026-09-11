@@ -10,13 +10,15 @@ Casos cobertos (per PLAN.md <behavior>):
     3. travado_override=True (mesmo cruzando limiar) -> nenhum update.
     4. travado_automatico=True já (idempotência) -> nenhum update redundante.
     5. entrou_em_andamento_em=None (legado) -> pulada sem erro, nenhum update.
-    6. select inicial filtra só coluna_kanban=em_andamento.
+    6. select inicial filtra coluna_kanban IN (planejado, em_andamento) — ALERT-04.
   Endpoint:
     7. POST /tasks/{id}/travado/override?autor=... numa task em em_andamento ->
        200; updates incluem travado_override=True, travado_override_por,
        travado_override_em; travado_automatico NÃO aparece em updates.
-    8. mesma chamada numa task fora de em_andamento -> 409, nenhuma escrita.
-    9. task inexistente -> 404.
+    8. mesma chamada numa task planejada com relógio ativo -> também 200
+       (ALERT-04: a coluna deixou de ser o que importa, só a concluída bloqueia).
+    9. mesma chamada numa task concluída, ou sem relógio ativo -> 409, nenhuma escrita.
+    10. task inexistente -> 404.
 """
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
@@ -28,7 +30,7 @@ from fastapi.testclient import TestClient
 
 def _make_job_mock_client(tasks_data):
     client = MagicMock()
-    calls = {"tasks_update": [], "eq_filters": []}
+    calls = {"tasks_update": [], "eq_filters": [], "in_filters": []}
 
     def table_side_effect(table_name):
         tbl = MagicMock()
@@ -40,7 +42,12 @@ def _make_job_mock_client(tasks_data):
                     calls["eq_filters"].append((field, value))
                     return query
 
+                def in_side_effect(field, values):
+                    calls["in_filters"].append((field, tuple(values)))
+                    return query
+
                 query.eq = MagicMock(side_effect=eq_side_effect)
+                query.in_ = MagicMock(side_effect=in_side_effect)
                 resp = MagicMock()
                 resp.data = tasks_data
                 query.execute = MagicMock(return_value=resp)
@@ -144,14 +151,14 @@ def test_job_pula_task_sem_entrou_em_andamento_em(monkeypatch):
     assert len(calls["tasks_update"]) == 0
 
 
-def test_job_filtra_select_por_coluna_em_andamento(monkeypatch):
+def test_job_filtra_select_por_planejado_ou_em_andamento(monkeypatch):
     import services.travamento_checker as checker
     mock_sb, calls = _make_job_mock_client([])
     monkeypatch.setattr(checker, "get_client", lambda: mock_sb)
 
     checker.check_travamento_automatico()
 
-    assert ("coluna_kanban", "em_andamento") in calls["eq_filters"]
+    assert ("coluna_kanban", ("planejado", "em_andamento")) in calls["in_filters"]
 
 
 # ── Endpoint POST /tasks/{id}/travado/override ─────────────────────────────
@@ -262,15 +269,39 @@ def test_override_em_task_em_andamento_grava_supressao_sem_tocar_automatico(monk
     assert "travado_automatico" not in updates
 
 
-def test_override_em_task_fora_de_em_andamento_retorna_409_sem_escrever(monkeypatch):
+def test_override_em_task_planejada_com_relogio_ativo_funciona(monkeypatch):
+    """ALERT-04: o relógio agora também roda em planejado, então o override
+    deve funcionar ali também — a coluna deixou de ser o que importa."""
     task = dict(_BASE_TASK, coluna_kanban="planejado")
+    mock_sb, calls = _make_endpoint_mock_client(task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks/task-1/travado/override", params={"autor": "Gerente X"})
+
+    assert resp.status_code == 200
+    updates = calls["tasks_update"][-1]
+    assert updates["travado_override"] is True
+
+
+def test_override_em_task_concluida_retorna_409_sem_escrever(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="concluida")
     mock_sb, calls = _make_endpoint_mock_client(task)
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.post("/tasks/task-1/travado/override")
 
     assert resp.status_code == 409
-    assert "Em Andamento" in resp.json()["detail"]
+    assert len(calls["tasks_update"]) == 0
+
+
+def test_override_em_task_sem_relogio_ativo_retorna_409_sem_escrever(monkeypatch):
+    task = dict(_BASE_TASK, coluna_kanban="planejado", entrou_em_andamento_em=None)
+    mock_sb, calls = _make_endpoint_mock_client(task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks/task-1/travado/override")
+
+    assert resp.status_code == 409
     assert len(calls["tasks_update"]) == 0
 
 

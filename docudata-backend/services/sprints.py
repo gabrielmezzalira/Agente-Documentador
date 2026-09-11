@@ -1,4 +1,5 @@
 """Helpers compartilhados pra entidade Sprint."""
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -74,3 +75,36 @@ def get_current_sprint_id(client, project_id: str) -> Optional[str]:
 
     maior_numero = max(numero_para_id)
     return numero_para_id[maior_numero]
+
+
+def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
+    """Marca a sprint como iniciada e ancora o relógio de travamento automático
+    (ALERT-01) das tasks que já estavam nela (planejado ou em_andamento) e ainda
+    não tinham relógio rodando.
+
+    Sem isso, uma task criada em Planejado para uma sprint futura ficaria sem
+    âncora até alguém movê-la manualmente pra Em Andamento — o que é exatamente
+    o cenário que motivou o relógio passar a contar desde Planejado: um
+    operacional pode estar trabalhando nela sem nunca arrastar o card. O relógio
+    só é ancorado a partir de AGORA (não retroativo à criação da task), porque
+    antes da sprint iniciar o tempo parado não deveria contar.
+
+    Chamado tanto pelo botão "Iniciar próxima sprint" quanto, implicitamente,
+    pela confirmação da Avaliação Semanal da sprint anterior (routers/avaliacoes.py)."""
+    client.table("sprints").update({
+        "iniciada": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", sprint_id).execute()
+
+    agora_iso = datetime.now(timezone.utc).isoformat()
+    pendentes = (
+        client.table("tasks")
+        .select("id")
+        .eq("sprint_id", sprint_id)
+        .neq("coluna_kanban", "concluida")
+        .is_("entrou_em_andamento_em", "null")
+        .execute()
+        .data or []
+    )
+    for t in pendentes:
+        client.table("tasks").update({"entrou_em_andamento_em": agora_iso}).eq("id", t["id"]).execute()

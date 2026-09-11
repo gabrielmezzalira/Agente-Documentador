@@ -1858,16 +1858,17 @@ export interface SolicitacaoTask {
   sprint_id: string | null;
   operacional_id: string;
   operacional_nome?: string | null;
+  sugestao?: string | null;
   status: "pendente" | "atendida" | "recusada";
   criado_em: string;
   respondido_em: string | null;
 }
 
-export async function criarSolicitacaoTask(operacionalId: string): Promise<SolicitacaoTask> {
+export async function criarSolicitacaoTask(operacionalId: string, sugestao?: string): Promise<SolicitacaoTask> {
   const res = await apiFetch(`${API}/solicitacoes-task`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ operacional_id: operacionalId }),
+    body: JSON.stringify({ operacional_id: operacionalId, sugestao: sugestao?.trim() || undefined }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
