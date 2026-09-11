@@ -119,8 +119,6 @@ class BancoFalso:
 @pytest.fixture
 def github_env(monkeypatch):
     valores = {
-        "GITHUB_INTEGRATION_ENABLED": "true",
-        "GITHUB_INTEGRATION_SUBAREAS": "dados,dev",
         "GITHUB_APP_ID": "123",
         "GITHUB_APP_SLUG": "citi-documentador-test",
         "GITHUB_APP_PRIVATE_KEY": "pem-mockado-nos-testes",
@@ -152,17 +150,18 @@ def headers_webhook(corpo: bytes, segredo: str, delivery="delivery-1", evento="p
     }
 
 
-def test_feature_desligada_inicia_sem_envs_e_migration():
+def test_integracao_permanente_inicia_sem_credenciais_e_migration():
     backend = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     for nome in list(env):
         if nome.startswith("GITHUB_"):
             env.pop(nome)
-    env["GITHUB_INTEGRATION_ENABLED"] = "false"
     codigo = (
         "import dotenv; dotenv.load_dotenv=lambda *a,**k: False; "
         "import main; from services.github_app import configuracao_publica_github; "
-        "assert configuracao_publica_github()['enabled'] is False"
+        "c=configuracao_publica_github(); "
+        "assert c == {'enabled': True, 'configured': False, "
+        "'subareas': ['dados', 'dev'], 'app_slug': None}"
     )
     resultado = subprocess.run(
         [sys.executable, "-c", codigo], cwd=backend, env=env,
@@ -171,11 +170,12 @@ def test_feature_desligada_inicia_sem_envs_e_migration():
     assert resultado.returncode == 0, resultado.stderr
 
 
-def test_rollout_padrao_cobre_dados_e_dev(monkeypatch):
-    from services.github_app import subareas_github_habilitadas
+def test_integracao_aceita_as_duas_subareas_sem_allowlist():
+    from services.github_app import subarea_github_habilitada
 
-    monkeypatch.delenv("GITHUB_INTEGRATION_SUBAREAS", raising=False)
-    assert subareas_github_habilitadas() == {"dados", "dev"}
+    assert subarea_github_habilitada("dados") is True
+    assert subarea_github_habilitada("dev") is True
+    assert subarea_github_habilitada("produto") is False
 
 
 def test_jwt_github_app_assinado_com_rs256():
@@ -201,18 +201,127 @@ def test_jwt_github_app_assinado_com_rs256():
     assert dados_payload["exp"] - dados_payload["iat"] <= 600
 
 
-def test_feature_desligada_nao_consulta_tabelas_novas(client, monkeypatch):
+def test_seletor_busca_recentes_e_pesquisa_sem_paginar_toda_a_organizacao(monkeypatch):
+    import services.github_app as github
+
+    github._cache_repositorios_recentes.clear()
+    chamadas = []
+
+    def request(_metodo, caminho, _token, _corpo=None):
+        chamadas.append(caminho)
+        if caminho.startswith("/search/repositories?"):
+            return {
+                "total_count": 3,
+                "items": [{"id": 3, "full_name": "CITi-UFPE/projeto-buscado"}],
+            }
+        return [
+            {"id": 1, "full_name": "CITi-UFPE/recente-1"},
+            {"id": 2, "full_name": "CITi-UFPE/recente-2"},
+        ]
+
+    monkeypatch.setattr(github, "criar_token_instalacao", lambda _id: "token-curto")
+    monkeypatch.setattr(github, "_request_github", request)
+    instalacao = {
+        "id": 77,
+        "repository_selection": "all",
+        "account": {"login": "CITi-UFPE", "type": "Organization"},
+    }
+
+    recentes, tem_mais_recentes = github.listar_repositorios_para_selecao(
+        instalacao, limite=2
+    )
+    encontrados, tem_mais_busca = github.listar_repositorios_para_selecao(
+        instalacao, consulta="projeto buscado", limite=2
+    )
+
+    assert [repo["id"] for repo in recentes] == [1, 2]
+    assert tem_mais_recentes is True
+    assert encontrados[0]["id"] == 3
+    assert tem_mais_busca is True
+    assert chamadas[0].startswith("/orgs/CITi-UFPE/repos?")
+    assert "sort=pushed" in chamadas[0]
+    parametros_busca = urllib.parse.parse_qs(urllib.parse.urlparse(chamadas[1]).query)
+    assert parametros_busca["q"] == ["projeto buscado in:name org:CITi-UFPE"]
+
+
+def test_seletor_reutiliza_cache_curto_apenas_na_lista_recente(monkeypatch):
+    import services.github_app as github
+
+    github._cache_repositorios_recentes.clear()
+    chamadas = []
+    monkeypatch.setattr(github.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(github, "criar_token_instalacao", lambda _id: "token-curto")
+
+    def request(_metodo, caminho, _token, _corpo=None):
+        chamadas.append(caminho)
+        if caminho.startswith("/search/repositories?"):
+            return {"total_count": 1, "items": [{"id": 9}]}
+        return [{"id": 1}]
+
+    monkeypatch.setattr(github, "_request_github", request)
+    instalacao = {
+        "id": 88,
+        "repository_selection": "all",
+        "account": {"login": "CITi-UFPE", "type": "Organization"},
+    }
+
+    primeira, _ = github.listar_repositorios_para_selecao(instalacao)
+    segunda, _ = github.listar_repositorios_para_selecao(instalacao)
+    busca, _ = github.listar_repositorios_para_selecao(instalacao, consulta="legado")
+
+    assert primeira == segunda == [{"id": 1}]
+    assert busca == [{"id": 9}]
+    assert len(chamadas) == 2
+    assert chamadas[1].startswith("/search/repositories?")
+
+
+def test_validacao_final_limita_token_aos_repositorios_escolhidos(monkeypatch):
+    import services.github_app as github
+
+    escopo_token = []
+    monkeypatch.setattr(
+        github,
+        "criar_token_instalacao",
+        lambda _id, repository_ids=None: escopo_token.extend(repository_ids or []) or "token-limitado",
+    )
+    monkeypatch.setattr(
+        github,
+        "_request_github",
+        lambda _metodo, caminho, _token, _corpo=None: {
+            "id": int(caminho.rsplit("/", 1)[1]),
+            "full_name": f"CITi-UFPE/repo-{caminho.rsplit('/', 1)[1]}",
+        },
+    )
+
+    repositorios = github.buscar_repositorios_instalacao(77, [101, 202])
+
+    assert escopo_token == [101, 202]
+    assert [repo["id"] for repo in repositorios] == [101, 202]
+
+
+def test_sem_credenciais_nao_consulta_tabelas_novas(client, monkeypatch):
     import routers.github_integration as router
 
-    monkeypatch.setenv("GITHUB_INTEGRATION_ENABLED", "false")
-    monkeypatch.setattr(router, "get_client", lambda: (_ for _ in ()).throw(AssertionError("não deve consultar")))
+    for nome in (
+        "GITHUB_APP_ID", "GITHUB_APP_SLUG", "GITHUB_APP_PRIVATE_KEY",
+        "GITHUB_WEBHOOK_SECRET", "GITHUB_CONNECTION_STATE_SECRET",
+    ):
+        monkeypatch.delenv(nome, raising=False)
+    banco = BancoFalso({
+        "projects": [{"id": "dev", "name": "Dev", "subarea": "dev"}],
+    })
+    monkeypatch.setattr(router, "get_client", lambda: banco)
     capability = client.get("/integrations/github/capabilities", headers=AUTH)
     sessao = client.post("/projects/dev/repositories/github/session", headers=AUTH)
     webhook = client.post("/webhooks/github", content=b"{}")
     assert capability.status_code == 200
-    assert capability.json() == {"enabled": False, "configured": False, "subareas": [], "app_slug": None}
-    assert sessao.status_code == 404
-    assert webhook.status_code == 404
+    assert capability.json() == {
+        "enabled": True, "configured": False,
+        "subareas": ["dados", "dev"], "app_slug": None,
+    }
+    assert sessao.status_code == 503
+    assert webhook.status_code == 503
+    assert banco.tabelas_consultadas == ["projects"]
 
 
 def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
@@ -225,6 +334,7 @@ def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
         ]
     })
     monkeypatch.setattr(router, "get_client", lambda: banco)
+    monkeypatch.setattr(router, "listar_instalacoes_app", lambda: [])
 
     dados = client.post("/projects/dados-1/repositories/github/session", headers=AUTH)
     dev = client.post("/projects/dev-1/repositories/github/session", headers=AUTH)
@@ -243,6 +353,70 @@ def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
     assert capabilities.json()["subareas"] == ["dados", "dev"]
 
 
+def test_instalacao_existente_abre_seletor_interno_com_status_dos_repositorios(
+    client, monkeypatch, github_env
+):
+    import routers.github_integration as router
+
+    banco = BancoFalso({
+        "projects": [
+            {"id": "dev-1", "name": "Projeto atual", "subarea": "dev"},
+            {"id": "dev-2", "name": "Outro projeto", "subarea": "dev"},
+        ],
+        "project_repositories": [
+            {"github_repository_id": 101, "project_id": "dev-1", "active": True},
+            {"github_repository_id": 202, "project_id": "dev-2", "active": True},
+        ],
+    })
+    repositorios = [
+        {"id": 101, "full_name": "CITi/atual", "html_url": "https://github.com/CITi/atual", "private": True},
+        {"id": 202, "full_name": "CITi/usado", "html_url": "https://github.com/CITi/usado", "private": True},
+        {"id": 303, "full_name": "CITi/disponivel", "html_url": "https://github.com/CITi/disponivel", "private": True},
+    ]
+    monkeypatch.setattr(router, "get_client", lambda: banco)
+    monkeypatch.setattr(router, "listar_instalacoes_app", lambda: [{
+        "id": 77,
+        "html_url": "https://github.com/organizations/CITi/settings/installations/77",
+        "repository_selection": "all",
+    }])
+    consultas = []
+    monkeypatch.setattr(
+        router,
+        "listar_repositorios_para_selecao",
+        lambda installation, consulta="", limite=30: (
+            consultas.append((installation["id"], consulta, limite)) or repositorios,
+            False,
+        ),
+    )
+
+    inicio = client.post("/projects/dev-1/repositories/github/session", headers=AUTH)
+
+    assert inicio.status_code == 200
+    assert inicio.json()["install_url"] is None
+    assert inicio.json()["connection_token"]
+    assert banco.dados["github_connection_sessions"][0]["status"] == "ready"
+
+    disponiveis = client.get(
+        "/integrations/github/repositories",
+        params={"connection_token": inicio.json()["connection_token"]},
+        headers=AUTH,
+    )
+    assert disponiveis.status_code == 200
+    assert disponiveis.json()["manage_url"].endswith("/installations/77")
+    assert disponiveis.json()["repository_scope"] == "all"
+    assert disponiveis.json()["has_more"] is False
+    assert consultas == [(77, "", 30)]
+    status_por_id = {
+        repo["github_repository_id"]: repo["connection_status"]
+        for repo in disponiveis.json()["repositories"]
+    }
+    assert status_por_id == {
+        101: "connected_here",
+        202: "unavailable",
+        303: "available",
+    }
+
+
 @pytest.mark.parametrize("subarea", ["dados", "dev"])
 def test_callback_state_uso_unico_e_token_nao_expoe_ids(
     client, monkeypatch, github_env, subarea
@@ -254,6 +428,7 @@ def test_callback_state_uso_unico_e_token_nao_expoe_ids(
         "projects": [{"id": project_id, "name": subarea.title(), "subarea": subarea}],
     })
     monkeypatch.setattr(router, "get_client", lambda: banco)
+    monkeypatch.setattr(router, "listar_instalacoes_app", lambda: [])
     inicio = client.post(f"/projects/{project_id}/repositories/github/session", headers=AUTH)
     state = urllib.parse.parse_qs(urllib.parse.urlparse(inicio.json()["install_url"]).query)["state"][0]
     assert project_id not in state
@@ -475,7 +650,13 @@ def test_associacao_multipla_e_conflito_entre_projetos(client, monkeypatch, gith
         {"id": 101, "full_name": "citi/front", "html_url": "https://github.com/citi/front", "default_branch": "main"},
         {"id": 202, "full_name": "citi/back", "html_url": "https://github.com/citi/back", "default_branch": "develop"},
     ]
-    monkeypatch.setattr(router, "listar_repositorios_instalacao", lambda _id: repos)
+    monkeypatch.setattr(
+        router,
+        "buscar_repositorios_instalacao",
+        lambda _installation_id, repository_ids: [
+            repo for repo in repos if repo["id"] in repository_ids
+        ],
+    )
 
     multipla = client.post("/projects/dev-1/repositories", headers=AUTH, json={"connection_token": "token-1", "repository_ids": [101, 202]})
     conflito = client.post("/projects/dev-2/repositories", headers=AUTH, json={"connection_token": "token-2", "repository_ids": [101]})

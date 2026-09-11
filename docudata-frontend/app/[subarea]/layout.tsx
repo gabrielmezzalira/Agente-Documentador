@@ -21,24 +21,26 @@ export default async function SubareaLayout({
     <div className={`${styles.shell} ${styles[subarea]}`}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <Link href={`/${subarea}`} className={styles.brand} aria-label={`Início da subárea de ${label}`}>
-            <span className={styles.brandMark} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M7 3.75h7l3 3V20.25H7V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                <path d="M14 3.75v3h3M9.75 11h4.5M9.75 14.25h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <span className={styles.brandCopy}>
-              <strong>Agente Documentador</strong>
-              <small>CITi</small>
-            </span>
-          </Link>
-
-          <nav className={styles.navigation} aria-label="Navegação da subárea">
-            <span className={styles.subareaBadge}>
+          <div className={styles.headerIdentity}>
+            <Link href={`/${subarea}`} className={styles.brand} aria-label={`Início da subárea de ${label}`}>
+              <span className={styles.brandMark} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M7 3.75h7l3 3V20.25H7V3.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                  <path d="M14 3.75v3h3M9.75 11h4.5M9.75 14.25h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <span className={styles.brandCopy}>
+                <strong>Agente Documentador</strong>
+                <small>CITi</small>
+              </span>
+            </Link>
+            <span className={styles.subareaBadge} aria-label={`Subárea atual: ${label}`}>
               <span className={styles.statusDot} aria-hidden="true" />
               {label}
             </span>
+          </div>
+
+          <nav className={styles.navigation} aria-label="Navegação da subárea">
             <Link href="/settings" className={styles.navLink}>
               Configurações
             </Link>

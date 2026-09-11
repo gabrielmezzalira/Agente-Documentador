@@ -6,9 +6,10 @@ from models.schemas import (
     TechTimelineResponse,
     ContratoUpdate,
     GerenteEmailUpdate,
+    ProjectSubareaUpdate,
 )
 from core.observability import falha_externa
-from services.auth import get_current_pessoa, require_project_access
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 
@@ -183,6 +184,32 @@ async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
     )
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update gerente email")
+    return _sanitize(response.data[0])
+
+
+@router.patch("/{project_id}/subarea", response_model=ProjectResponse)
+async def update_project_subarea(
+    project_id: str,
+    data: ProjectSubareaUpdate,
+    _pessoa: dict = Depends(require_not_operacional),
+):
+    """Move o projeto entre Dados e Dev sem alterar seus registros relacionados."""
+    client = get_client()
+    check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if check.data[0].get("subarea") == data.subarea:
+        response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
+    else:
+        # Todos os vínculos usam project_id; só a classificação do projeto deve mudar.
+        response = (
+            client.table("projects")
+            .update({"subarea": data.subarea})
+            .eq("id", project_id)
+            .execute()
+        )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update project subarea")
     return _sanitize(response.data[0])
 
 

@@ -1,8 +1,4 @@
-"""Configuração, autenticação e chamadas do GitHub App.
-
-As credenciais são lidas apenas quando a integração está habilitada. Assim, o
-deploy com a flag desligada não depende da migration nem de segredos do GitHub.
-"""
+"""Configuração, autenticação e chamadas do GitHub App."""
 
 from __future__ import annotations
 
@@ -16,6 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +22,12 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 GITHUB_API_URL = "https://api.github.com"
 _SUBAREAS_SUPORTADAS = {"dados", "dev"}
+_TTL_INSTALACOES_SEGUNDOS = 60.0
+_TTL_REPOSITORIOS_RECENTES_SEGUNDOS = 45.0
+_cache_instalacoes: tuple[float, list[dict[str, Any]]] | None = None
+_cache_repositorios_recentes: dict[
+    tuple[int, str, int], tuple[float, list[dict[str, Any]], bool]
+] = {}
 
 
 class GitHubConfigurationError(RuntimeError):
@@ -44,29 +47,12 @@ class GitHubConfig:
     state_secret: str
 
 
-def integracao_github_habilitada() -> bool:
-    return os.environ.get("GITHUB_INTEGRATION_ENABLED", "false").strip().lower() == "true"
-
-
-def subareas_github_habilitadas() -> set[str]:
-    # O padrão cobre todo o produto; a allowlist continua disponível para rollback gradual.
-    valor = os.environ.get("GITHUB_INTEGRATION_SUBAREAS", "dados,dev")
-    return {
-        item.strip()
-        for item in valor.split(",")
-        if item.strip() in _SUBAREAS_SUPORTADAS
-    }
-
-
 def subarea_github_habilitada(subarea: str) -> bool:
-    return integracao_github_habilitada() and subarea in subareas_github_habilitadas()
+    return subarea in _SUBAREAS_SUPORTADAS
 
 
 def obter_config_github() -> GitHubConfig:
-    """Valida credenciais somente no primeiro fluxo que realmente usa o App."""
-    if not integracao_github_habilitada():
-        raise GitHubConfigurationError("A integração com GitHub está desabilitada.")
-
+    """Valida as credenciais somente no primeiro fluxo que realmente usa o App."""
     nomes = {
         "app_id": "GITHUB_APP_ID",
         "app_slug": "GITHUB_APP_SLUG",
@@ -87,20 +73,19 @@ def obter_config_github() -> GitHubConfig:
 
 
 def configuracao_publica_github() -> dict[str, Any]:
-    habilitada = integracao_github_habilitada()
     configurada = False
     slug = None
-    if habilitada:
-        try:
-            config = obter_config_github()
-            configurada = True
-            slug = config.app_slug
-        except GitHubConfigurationError:
-            pass
+    try:
+        config = obter_config_github()
+        configurada = True
+        slug = config.app_slug
+    except GitHubConfigurationError:
+        pass
     return {
-        "enabled": habilitada,
+        # Mantido no contrato público para clientes antigos; a integração agora é permanente.
+        "enabled": True,
         "configured": configurada,
-        "subareas": sorted(subareas_github_habilitadas()) if habilitada else [],
+        "subareas": sorted(_SUBAREAS_SUPORTADAS),
         "app_slug": slug,
     }
 
@@ -205,17 +190,75 @@ def _request_github(
         raise GitHubApiError(f"Não foi possível consultar o GitHub{sufixo}.") from exc
 
 
-def criar_token_instalacao(installation_id: int) -> str:
+def criar_token_instalacao(
+    installation_id: int,
+    repository_ids: list[int] | None = None,
+) -> str:
+    corpo = {"repository_ids": repository_ids} if repository_ids else {}
     resposta = _request_github(
         "POST",
         f"/app/installations/{installation_id}/access_tokens",
         criar_jwt_github(),
-        {},
+        corpo,
     )
     token = resposta.get("token")
     if not token:
         raise GitHubApiError("O GitHub não retornou uma credencial temporária da instalação.")
     return token
+
+
+def buscar_repositorios_instalacao(
+    installation_id: int,
+    repository_ids: list[int],
+) -> list[dict[str, Any]]:
+    """Valida poucos IDs com um token temporário limitado aos próprios repositórios."""
+    token = criar_token_instalacao(installation_id, repository_ids=repository_ids)
+    repositorios = []
+    for repository_id in repository_ids:
+        resposta = _request_github("GET", f"/repositories/{repository_id}", token)
+        if not isinstance(resposta, dict) or int(resposta.get("id") or 0) != repository_id:
+            raise GitHubApiError("O GitHub retornou um repositório inválido.")
+        repositorios.append(resposta)
+    return repositorios
+
+
+def listar_instalacoes_app() -> list[dict[str, Any]]:
+    """Lista instalações ativas para reutilizar a autorização já concedida."""
+    global _cache_instalacoes
+    agora = time.monotonic()
+    if (
+        _cache_instalacoes
+        and agora - _cache_instalacoes[0] < _TTL_INSTALACOES_SEGUNDOS
+    ):
+        return deepcopy(_cache_instalacoes[1])
+
+    instalacoes: list[dict[str, Any]] = []
+    pagina = 1
+    token = criar_jwt_github()
+    while True:
+        lote = _request_github(
+            "GET", f"/app/installations?per_page=100&page={pagina}", token
+        )
+        if not isinstance(lote, list):
+            raise GitHubApiError("O GitHub retornou instalações em formato inválido.")
+        instalacoes.extend(item for item in lote if not item.get("suspended_at"))
+        if len(lote) < 100:
+            break
+        pagina += 1
+    # O cache guarda apenas metadados da instalação; credenciais nunca são retidas.
+    _cache_instalacoes = (agora, deepcopy(instalacoes))
+    return instalacoes
+
+
+def obter_instalacao_app(installation_id: int) -> dict[str, Any]:
+    resposta = _request_github(
+        "GET",
+        f"/app/installations/{installation_id}",
+        criar_jwt_github(),
+    )
+    if not isinstance(resposta, dict) or not resposta.get("id"):
+        raise GitHubApiError("O GitHub retornou uma instalação inválida.")
+    return resposta
 
 
 def listar_repositorios_instalacao(installation_id: int) -> list[dict[str, Any]]:
@@ -232,6 +275,80 @@ def listar_repositorios_instalacao(installation_id: int) -> list[dict[str, Any]]
             break
         pagina += 1
     return repositorios
+
+
+def listar_repositorios_para_selecao(
+    instalacao: dict[str, Any],
+    consulta: str = "",
+    limite: int = 30,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Busca só o necessário para o seletor; o fluxo completo fica na validação final."""
+    installation_id = int(instalacao["id"])
+    conta = instalacao.get("account") or {}
+    login = str(conta.get("login") or "").strip()
+    organizacao = conta.get("type") == "Organization"
+    acesso_total = instalacao.get("repository_selection") == "all"
+    termo = consulta.strip()
+
+    if acesso_total and organizacao and login:
+        cache_key = (installation_id, login.casefold(), limite)
+        agora = time.monotonic()
+        cache_recente = _cache_repositorios_recentes.get(cache_key)
+        if (
+            not termo
+            and cache_recente
+            and agora - cache_recente[0] < _TTL_REPOSITORIOS_RECENTES_SEGUNDOS
+        ):
+            return deepcopy(cache_recente[1]), cache_recente[2]
+
+        token = criar_token_instalacao(installation_id)
+        if termo:
+            query = f"{termo} in:name org:{login}"
+            resposta = _request_github(
+                "GET",
+                "/search/repositories?" + urllib.parse.urlencode({
+                    "q": query,
+                    "sort": "updated",
+                    "order": "desc",
+                    "per_page": limite,
+                }),
+                token,
+            )
+            repositorios = resposta.get("items") or []
+            return repositorios[:limite], int(resposta.get("total_count") or 0) > limite
+
+        caminho = f"/orgs/{urllib.parse.quote(login)}/repos?" + urllib.parse.urlencode({
+            "type": "all",
+            "sort": "pushed",
+            "direction": "desc",
+            "per_page": limite,
+        })
+        repositorios = _request_github("GET", caminho, token)
+        if not isinstance(repositorios, list):
+            raise GitHubApiError("O GitHub retornou repositórios em formato inválido.")
+        recentes = repositorios[:limite]
+        tem_mais = len(repositorios) == limite
+        _cache_repositorios_recentes[cache_key] = (
+            agora,
+            deepcopy(recentes),
+            tem_mais,
+        )
+        return recentes, tem_mais
+
+    # Instalações pessoais ou limitadas costumam ter poucos repositórios; aqui
+    # priorizamos não exibir um repositório fora da permissão efetiva do App.
+    repositorios = listar_repositorios_instalacao(installation_id)
+    if termo:
+        termo_normalizado = termo.casefold()
+        repositorios = [
+            repo for repo in repositorios
+            if termo_normalizado in str(repo.get("full_name") or "").casefold()
+        ]
+    repositorios.sort(
+        key=lambda repo: repo.get("pushed_at") or repo.get("updated_at") or "",
+        reverse=True,
+    )
+    return repositorios[:limite], len(repositorios) > limite
 
 
 def buscar_commit(

@@ -23,8 +23,6 @@
 | `GOOGLE_REFRESH_TOKEN` / `GOOGLE_REFRESH_TOKEN_DEV` | Identidade Drive de Dados e Dev. |
 | `GDOCS_TEMPLATE_ID*` | Templates de Dados e overrides opcionais com sufixo `_DEV`. |
 | `GDRIVE_FOLDER_ID` / `GDRIVE_FOLDER_ID_DEV` | Pastas raiz de Dados e Dev. |
-| `GITHUB_INTEGRATION_ENABLED` | `false` por padrão; liga a integração somente após a migration. |
-| `GITHUB_INTEGRATION_SUBAREAS` | Lista permitida para rollout/rollback; use `dados,dev` para habilitar o sistema inteiro. |
 | `GITHUB_APP_ID` / `GITHUB_APP_SLUG` | Identidade pública do GitHub App. |
 | `GITHUB_APP_PRIVATE_KEY` | Chave PEM privada do App, somente no backend. |
 | `GITHUB_WEBHOOK_SECRET` | Segredo aleatório usado no HMAC dos webhooks. |
@@ -59,10 +57,15 @@ apenas para não interromper consumidores já configurados.
 5. Eventos: **Push**, **Installation**, **Installation repositories** e **Repository** (para sincronizar renomes).
 6. Copie App ID e slug, gere a private key PEM e guarde tudo somente no Railway.
 7. Gere `GITHUB_CONNECTION_STATE_SECRET` com `openssl rand -hex 32`.
-8. Publique primeiro com a flag `false`, aplique manualmente a Migration v5 e só então altere para `true`, com `GITHUB_INTEGRATION_SUBAREAS=dados,dev`. Em produção, crie os índices em uma janela compatível com o volume atual.
+8. Aplique manualmente a Migration v5 antes de publicar o backend com as credenciais. Em produção, crie os índices em uma janela compatível com o volume atual.
 
-O GitHub permite selecionar um ou mais repositórios durante a instalação. A aplicação
-lista somente os repositórios autorizados e nunca envia o installation token ao navegador.
+O GitHub controla quais repositórios a instalação do App pode acessar globalmente.
+Depois da primeira instalação, cada projeto abre um seletor dentro da aplicação para
+vincular somente os repositórios que lhe pertencem; nenhum é marcado automaticamente.
+O seletor carrega os 30 repositórios com push mais recente e pesquisa os demais sob
+demanda, evitando transferir toda a organização a cada abertura.
+Use **Liberar mais repositórios no GitHub** apenas quando o repositório desejado ainda
+não estiver autorizado. O installation token nunca é enviado ao navegador.
 
 ## Hardening operacional (Spec 09)
 

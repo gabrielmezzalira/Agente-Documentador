@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import {
   getProject,
   updateGerenteEmail,
+  updateProjectSubarea,
   listIngestions,
   listDocs,
   listSprints,
@@ -40,6 +41,7 @@ import {
   updateOperacional,
   deleteOperacional,
   type Project,
+  type Subarea,
   type Ingestion,
   type GeneratedDoc,
   type SprintWithStatus,
@@ -107,8 +109,13 @@ const AvaliacaoSemanalModal = dynamic(
   () => import("../../../components/AvaliacaoSemanalModal"),
   { loading: semPlaceholder },
 );
+const GitHubRepositoryPicker = dynamic(
+  () => import("../../../components/GitHubRepositoryPicker"),
+  { loading: semPlaceholder },
+);
 
 type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
+const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
 
 function OperacionaisSection({
@@ -342,7 +349,7 @@ function OperacionaisSection({
 }
 
 export default function ProjectDashboard() {
-  const { id, subarea } = useParams<{ id: string; subarea: string }>();
+  const { id, subarea } = useParams<{ id: string; subarea: Subarea }>();
   const router = useRouter();
 
   // ---------- data ----------
@@ -359,7 +366,6 @@ export default function ProjectDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
-  const OPERACIONAL_TABS = new Set(["sprints", "tasks", "tecnologias", "documentos"]);
   const [descOpen, setDescOpen] = useState(false);
   const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
 
@@ -403,13 +409,25 @@ export default function ProjectDashboard() {
   const [githubRepositories, setGithubRepositories] = useState<ProjectRepository[]>([]);
   const [githubCandidates, setGithubCandidates] = useState<GitHubRepositoryCandidate[]>([]);
   const [githubSelected, setGithubSelected] = useState<number[]>([]);
+  const [githubSelectedCandidates, setGithubSelectedCandidates] = useState<GitHubRepositoryCandidate[]>([]);
   const [githubConnectionToken, setGithubConnectionToken] = useState("");
+  const [githubManageUrl, setGithubManageUrl] = useState<string | null>(null);
+  const [githubRepositoryScope, setGithubRepositoryScope] = useState<"all" | "selected" | "unknown">("unknown");
+  const [githubHasMore, setGithubHasMore] = useState(false);
+  const [githubSearching, setGithubSearching] = useState(false);
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
+  const [githubPreparing, setGithubPreparing] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [githubRepositoryActionId, setGithubRepositoryActionId] = useState<string | null>(null);
   const [githubError, setGithubError] = useState("");
+  const githubSearchRequestRef = useRef(0);
 
   const [emailInput, setEmailInput] = useState("");
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [subareaDestino, setSubareaDestino] = useState<Subarea | null>(null);
+  const [savingSubarea, setSavingSubarea] = useState(false);
+  const [subareaMsg, setSubareaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // ---------- bootstrap ----------
   useEffect(() => {
@@ -423,14 +441,27 @@ export default function ProjectDashboard() {
     ])
       .then(([p, ings, d, s, fs, ops]) => {
         setProject(p);
+        setSubareaDestino(p.subarea);
         setIngestions(ings);
         setDocs(d);
         setSprints(s);
         setFuncionalidades(fs);
         setOperacionais(ops);
+        if (p.subarea !== subarea) {
+          // O banco é a fonte de verdade; evita exibir um projeto Dev sob a navegação de Dados e vice-versa.
+          router.replace(`/${p.subarea}/projects/${p.id}`);
+        }
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, router, subarea]);
+
+  useEffect(() => {
+    const solicitada = new URLSearchParams(window.location.search).get("tab") as TabId | null;
+    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "config"];
+    if (solicitada && validas.includes(solicitada)) {
+      if (cargo !== "operacional" || OPERACIONAL_TABS.has(solicitada)) setActiveTab(solicitada);
+    }
+  }, [cargo]);
 
   useEffect(() => {
     const subareaProjeto = project?.subarea;
@@ -460,21 +491,13 @@ export default function ProjectDashboard() {
           setActiveTab("config");
           setGithubConnectionToken(token);
           window.history.replaceState({}, "", window.location.pathname + "?tab=config");
-          setGithubLoading(true);
-          try {
-            const candidatos = await listAvailableGitHubRepositories(token);
-            if (!active) return;
-            setGithubCandidates(candidatos);
-            setGithubSelected(candidatos.map((repo) => repo.github_repository_id));
-            if (candidatos.length === 0) setGithubError("Selecione pelo menos um repositório no GitHub.");
-          } catch (err) {
-            if (active) setGithubError(err instanceof Error ? err.message : "A conexão com o GitHub expirou.");
-          } finally {
-            if (active) setGithubLoading(false);
-          }
+          setGithubCandidates([]);
+          setGithubSelected([]);
+          setGithubSelectedCandidates([]);
+          setGithubPickerOpen(true);
         }
       })
-      // Backend antigo ou flag desligada mantém o restante do projeto funcional.
+      // Backend antigo ou credenciais ausentes mantêm o restante do projeto funcional.
       .catch(() => {});
     return () => { active = false; };
   }, [id, project?.subarea]);
@@ -507,6 +530,34 @@ export default function ProjectDashboard() {
       setEmailMsg({ ok: false, text: "Erro ao salvar email." });
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  async function handleChangeSubarea() {
+    if (!project || !subareaDestino || subareaDestino === project.subarea) return;
+    const origem = project.subarea === "dev" ? "Dev" : "Dados";
+    const destino = subareaDestino === "dev" ? "Dev" : "Dados";
+    const confirmado = confirm(
+      `Mover "${project.name}" de ${origem} para ${destino}?\n\n` +
+      "Sprints, ingestões, commits, documentos e repositórios conectados serão preservados. " +
+      "Novas exportações para o Drive usarão a pasta da subárea de destino."
+    );
+    if (!confirmado) return;
+
+    setSavingSubarea(true);
+    setSubareaMsg(null);
+    try {
+      const updated = await updateProjectSubarea(id, subareaDestino);
+      setProject(updated);
+      setSubareaMsg({ ok: true, text: `Projeto movido para ${destino}.` });
+      router.replace(`/${updated.subarea}/projects/${id}?tab=config`);
+    } catch (err) {
+      setSubareaMsg({
+        ok: false,
+        text: err instanceof Error ? err.message : "Não foi possível alterar a subárea.",
+      });
+    } finally {
+      setSavingSubarea(false);
     }
   }
 
@@ -581,16 +632,55 @@ export default function ProjectDashboard() {
   }
 
   async function handleStartGitHubConnection() {
-    setGithubLoading(true);
+    // O modal abre antes da consulta externa para dar retorno imediato ao clique.
+    setGithubPickerOpen(true);
+    setGithubPreparing(true);
     setGithubError("");
+    setGithubCandidates([]);
+    setGithubSelected([]);
+    setGithubSelectedCandidates([]);
+    setGithubConnectionToken("");
+    setGithubManageUrl(null);
+    setGithubRepositoryScope("unknown");
+    setGithubHasMore(false);
     try {
       const session = await startGitHubConnection(id);
-      window.location.assign(session.install_url);
+      if (session.connection_token) {
+        setGithubConnectionToken(session.connection_token);
+        return;
+      }
+      if (session.install_url) {
+        window.location.assign(session.install_url);
+        return;
+      }
+      throw new Error("O GitHub não retornou uma opção de conexão válida.");
     } catch (err) {
       setGithubError(err instanceof Error ? err.message : "Não foi possível iniciar a conexão com o GitHub.");
-      setGithubLoading(false);
+    } finally {
+      setGithubPreparing(false);
     }
   }
+
+  const handleSearchGitHubRepositories = useCallback(async (search: string) => {
+    if (!githubConnectionToken) return;
+    const requestId = ++githubSearchRequestRef.current;
+    setGithubSearching(true);
+    setGithubError("");
+    try {
+      const selecao = await listAvailableGitHubRepositories(githubConnectionToken, search);
+      if (requestId !== githubSearchRequestRef.current) return;
+      setGithubCandidates(selecao.repositories);
+      setGithubManageUrl(selecao.manage_url);
+      setGithubRepositoryScope(selecao.repository_scope);
+      setGithubHasMore(selecao.has_more);
+    } catch (err) {
+      if (requestId === githubSearchRequestRef.current) {
+        setGithubError(err instanceof Error ? err.message : "Não foi possível buscar os repositórios.");
+      }
+    } finally {
+      if (requestId === githubSearchRequestRef.current) setGithubSearching(false);
+    }
+  }, [githubConnectionToken]);
 
   async function handleConnectRepositories() {
     if (githubSelected.length === 0) {
@@ -603,7 +693,12 @@ export default function ProjectDashboard() {
       await connectProjectRepositories(id, githubConnectionToken, githubSelected);
       setGithubRepositories(await listProjectRepositories(id));
       setGithubCandidates([]);
+      setGithubSelectedCandidates([]);
       setGithubConnectionToken("");
+      setGithubManageUrl(null);
+      setGithubRepositoryScope("unknown");
+      setGithubHasMore(false);
+      setGithubPickerOpen(false);
       window.history.replaceState({}, "", window.location.pathname + "?tab=config");
     } catch (err) {
       setGithubError(err instanceof Error ? err.message : "Não foi possível conectar os repositórios.");
@@ -615,6 +710,7 @@ export default function ProjectDashboard() {
   async function handleDisconnectRepository(repository: ProjectRepository) {
     if (!confirm(`Desconectar ${repository.full_name}? O histórico de commits já ingerido será preservado.`)) return;
     setGithubLoading(true);
+    setGithubRepositoryActionId(repository.id);
     setGithubError("");
     try {
       await disconnectProjectRepository(id, repository.id);
@@ -623,6 +719,44 @@ export default function ProjectDashboard() {
       setGithubError(err instanceof Error ? err.message : "Não foi possível desconectar o repositório.");
     } finally {
       setGithubLoading(false);
+      setGithubRepositoryActionId(null);
+    }
+  }
+
+  async function handleReconnectRepository(repository: ProjectRepository) {
+    const confirmado = confirm(
+      `Reconectar ${repository.full_name} a este projeto?\n\n` +
+      "Os novos commits voltarão a ser ingeridos automaticamente."
+    );
+    if (!confirmado) return;
+
+    setGithubLoading(true);
+    setGithubRepositoryActionId(repository.id);
+    setGithubError("");
+    try {
+      // Revalida a autorização no GitHub antes de reativar o vínculo existente.
+      const session = await startGitHubConnection(id);
+      if (session.connection_token) {
+        await connectProjectRepositories(
+          id,
+          session.connection_token,
+          [repository.github_repository_id],
+        );
+        setGithubRepositories(await listProjectRepositories(id));
+        return;
+      }
+      if (session.install_url) {
+        window.location.assign(session.install_url);
+        return;
+      }
+      throw new Error("O GitHub não retornou uma opção de conexão válida.");
+    } catch (err) {
+      setGithubError(
+        err instanceof Error ? err.message : "Não foi possível reconectar o repositório."
+      );
+    } finally {
+      setGithubLoading(false);
+      setGithubRepositoryActionId(null);
     }
   }
 
@@ -1155,15 +1289,19 @@ export default function ProjectDashboard() {
         <>
           {githubVisible && (
             <section style={{ ...sectionStyle, borderColor: "#c7d2fe" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
-                <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 320px" }}>
                   <h2 style={{ ...sectionTitle, color: "#4338ca", marginBottom: 6 }}>Repositórios GitHub</h2>
                   <p style={{ fontSize: 13, color: "#64748b", margin: 0, lineHeight: 1.5 }}>
                     Os commits de todos os repositórios conectados alimentam automaticamente o contexto deste projeto.
                   </p>
                 </div>
-                <button onClick={handleStartGitHubConnection} disabled={githubLoading} style={{ ...btnPrimary, opacity: githubLoading ? 0.6 : 1 }}>
-                  {githubRepositories.length > 0 ? "Conectar outro" : "Conectar GitHub"}
+                <button onClick={handleStartGitHubConnection} disabled={githubLoading || githubPreparing} style={{ ...btnPrimary, opacity: githubLoading || githubPreparing ? 0.6 : 1 }}>
+                  {githubLoading || githubPreparing
+                    ? "Consultando..."
+                    : githubRepositories.length > 0
+                      ? "Adicionar repositórios"
+                      : "Selecionar repositórios"}
                 </button>
               </div>
 
@@ -1173,55 +1311,47 @@ export default function ProjectDashboard() {
                 </p>
               )}
 
-              {githubCandidates.length > 0 && (
-                <div style={{ padding: 16, borderRadius: 10, border: "1px solid #c7d2fe", background: "#f5f3ff", marginBottom: 16 }}>
-                  <strong style={{ display: "block", color: "#312e81", fontSize: 14, marginBottom: 4 }}>Selecione os repositórios</strong>
-                  <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 12px" }}>Todos os selecionados serão associados ao projeto {project.name}.</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {githubCandidates.map((repo) => (
-                      <label key={repo.github_repository_id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 8, background: "#fff", cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={githubSelected.includes(repo.github_repository_id)}
-                          onChange={(event) => setGithubSelected((current) => event.target.checked
-                            ? [...current, repo.github_repository_id]
-                            : current.filter((repositoryId) => repositoryId !== repo.github_repository_id))}
-                        />
-                        <span style={{ fontWeight: 650, color: "#1e293b", fontSize: 13 }}>{repo.full_name}</span>
-                        {repo.private && <span style={{ ...badgeChip, background: "#f1f5f9", color: "#64748b" }}>Privado</span>}
-                      </label>
-                    ))}
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-                    <button style={btnSecondary} onClick={() => { setGithubCandidates([]); setGithubConnectionToken(""); }}>Cancelar</button>
-                    <button style={{ ...btnPrimary, opacity: githubLoading ? 0.6 : 1 }} disabled={githubLoading} onClick={handleConnectRepositories}>
-                      Conectar selecionados
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {githubRepositories.length === 0 ? (
                 <div style={{ padding: "18px 0 4px", textAlign: "center" }}>
                   <strong style={{ display: "block", color: "#334155", fontSize: 14 }}>Nenhum repositório conectado</strong>
-                  <span style={{ color: "#94a3b8", fontSize: 12 }}>A conexão é recomendada, mas não bloqueia o uso do projeto.</span>
+                  <span style={{ color: "#94a3b8", fontSize: 12 }}>Escolha somente os repositórios que fazem parte deste projeto.</span>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {githubRepositories.map((repo) => (
-                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 9 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ color: "#3730a3", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>{repo.full_name}</a>
-                        <span style={{ marginLeft: 9, color: "#94a3b8", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
+                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 9, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#3730a3", fontWeight: 700, fontSize: 13, textDecoration: "none", overflowWrap: "anywhere" }}>{repo.full_name}</a>
+                        <span style={{ display: "block", marginTop: 3, color: "#94a3b8", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
                         <span style={{ ...badgeChip, background: repo.active ? "#dcfce7" : "#fef2f2", color: repo.active ? "#15803d" : "#b91c1c" }}>
                           {repo.active ? "✓ Ativo" : repo.permission_status === "disconnected" ? "Desconectado" : "Permissão revogada"}
                         </span>
                         {repo.active ? (
-                          <button style={{ ...btnDanger, padding: "5px 9px", fontSize: 11 }} onClick={() => handleDisconnectRepository(repo)}>Desconectar</button>
+                          <button
+                            style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={() => handleDisconnectRepository(repo)}
+                            disabled={githubLoading}
+                          >
+                            {githubRepositoryActionId === repo.id ? "Desconectando..." : "Desconectar"}
+                          </button>
+                        ) : repo.permission_status === "disconnected" ? (
+                          <button
+                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={() => handleReconnectRepository(repo)}
+                            disabled={githubLoading}
+                          >
+                            {githubRepositoryActionId === repo.id ? "Reconectando..." : "Reconectar"}
+                          </button>
                         ) : (
-                          <button style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11 }} onClick={handleStartGitHubConnection}>Reconectar</button>
+                          <button
+                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={handleStartGitHubConnection}
+                            disabled={githubLoading}
+                          >
+                            Reautorizar
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1248,13 +1378,13 @@ export default function ProjectDashboard() {
                     Remover
                   </button>
                 </div>
-                <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     type="email"
                     placeholder="Trocar email..."
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    style={{ ...inputStyle, width: 240 }}
+                    style={{ ...inputStyle, width: 240, maxWidth: "100%" }}
                   />
                   <button type="submit" disabled={savingEmail || !emailInput.trim()} style={btnSecondary}>
                     {savingEmail ? "..." : "Trocar"}
@@ -1262,7 +1392,7 @@ export default function ProjectDashboard() {
                 </form>
               </div>
             ) : (
-              <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   type="email"
                   placeholder="email@exemplo.com"
@@ -1292,6 +1422,56 @@ export default function ProjectDashboard() {
             onUpdated={setOperacionais}
           />
 
+          <section style={{ ...sectionStyle, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 220px" }}>
+                <h2 style={{ ...sectionTitle, marginBottom: 3 }}>Subárea</h2>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  Altera a lista e o destino das próximas exportações.
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
+                <label
+                  htmlFor="project-subarea"
+                  style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
+                >
+                  Subárea do projeto
+                </label>
+                <select
+                  id="project-subarea"
+                  value={subareaDestino ?? project.subarea}
+                  onChange={(event) => {
+                    setSubareaDestino(event.target.value as Subarea);
+                    setSubareaMsg(null);
+                  }}
+                  disabled={savingSubarea}
+                  style={{ ...inputStyle, width: 130, minHeight: 38, background: "#fff", cursor: "pointer" }}
+                >
+                  <option value="dados">Dados</option>
+                  <option value="dev">Dev</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleChangeSubarea}
+                  disabled={savingSubarea || !subareaDestino || subareaDestino === project.subarea}
+                  style={{
+                    ...btnSecondary,
+                    minHeight: 38,
+                    opacity: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? 0.5 : 1,
+                    cursor: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {savingSubarea ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </div>
+            {subareaMsg && (
+              <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#15803d" : "#b91c1c", fontSize: 12 }}>
+                {subareaMsg.text}
+              </p>
+            )}
+          </section>
+
           <section style={{ ...sectionStyle, borderColor: "#fecaca" }}>
             <h2 style={{ ...sectionTitle, color: "#dc2626" }}>Zona perigosa</h2>
             <p style={{ fontSize: 13, color: "#6a6a7a", marginBottom: 14 }}>
@@ -1301,6 +1481,48 @@ export default function ProjectDashboard() {
           </section>
         </>
       )}
+
+      <GitHubRepositoryPicker
+        open={githubPickerOpen}
+        projectName={project.name}
+        repositories={githubCandidates}
+        selected={githubSelected}
+        selectedRepositories={githubSelectedCandidates}
+        busy={githubLoading}
+        preparing={githubPreparing}
+        ready={Boolean(githubConnectionToken)}
+        searching={githubSearching}
+        error={githubError}
+        manageUrl={githubManageUrl}
+        repositoryScope={githubRepositoryScope}
+        hasMore={githubHasMore}
+        onSearch={handleSearchGitHubRepositories}
+        onToggle={(repository) => {
+          const repositoryId = repository.github_repository_id;
+          setGithubSelected((current) => current.includes(repositoryId)
+            ? current.filter((idSelecionado) => idSelecionado !== repositoryId)
+            : [...current, repositoryId]);
+          setGithubSelectedCandidates((current) => current.some((item) => item.github_repository_id === repositoryId)
+            ? current.filter((item) => item.github_repository_id !== repositoryId)
+            : [...current, repository]);
+        }}
+        onClose={() => {
+          githubSearchRequestRef.current += 1;
+          setGithubPickerOpen(false);
+          setGithubCandidates([]);
+          setGithubSelected([]);
+          setGithubSelectedCandidates([]);
+          setGithubConnectionToken("");
+          setGithubManageUrl(null);
+          setGithubRepositoryScope("unknown");
+          setGithubHasMore(false);
+          setGithubSearching(false);
+          setGithubPreparing(false);
+          setGithubError("");
+        }}
+        onRetry={handleStartGitHubConnection}
+        onConfirm={handleConnectRepositories}
+      />
 
       {/* ABA: ESCOPO */}
       {activeTab === "escopo" && (

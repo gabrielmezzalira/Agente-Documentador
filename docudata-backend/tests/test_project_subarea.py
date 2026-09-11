@@ -56,8 +56,17 @@ def _mock_supabase():
                 query.eq.side_effect = eq
                 return query
 
+            def update(payload):
+                query = MagicMock()
+                query.eq.return_value = query
+                response = MagicMock()
+                response.data = [_project_row(payload["subarea"])]
+                query.execute.return_value = response
+                return query
+
             table.insert.side_effect = insert
             table.select.side_effect = select
+            table.update.side_effect = update
         elif table_name == "ingestions":
             query = MagicMock()
             query.order.return_value = query
@@ -135,6 +144,40 @@ def test_get_project_por_id_inclui_subarea(client):
 
     assert response.status_code == 200
     assert response.json()["subarea"] == "dev"
+
+
+@pytest.mark.parametrize("subarea", ["dados", "dev"])
+def test_patch_subarea_move_ou_mantem_projeto(client, subarea):
+    response = client.patch(
+        "/projects/dev-project-id/subarea",
+        json={"subarea": subarea},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subarea"] == subarea
+
+
+def test_patch_subarea_rejeita_valor_invalido(client):
+    response = client.patch(
+        "/projects/dev-project-id/subarea",
+        json={"subarea": "produto"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_subarea_bloqueia_operacional(monkeypatch, autenticar):
+    import routers.projects as projects_router
+    from main import app
+
+    monkeypatch.setattr(projects_router, "get_client", _mock_supabase)
+    tc = autenticar(TestClient(app), cargo="operacional")
+    response = tc.patch(
+        "/projects/dev-project-id/subarea",
+        json={"subarea": "dados"},
+    )
+
+    assert response.status_code == 403
 
 
 def test_migration_v3_esta_comentada_no_final_do_schema():

@@ -61,6 +61,10 @@ class ProjectResponse(BaseModel):
     arquetipo: str = "padrao"
 
 
+class ProjectSubareaUpdate(BaseModel):
+    subarea: Literal["dados", "dev"]
+
+
 class GeminiApiKeyUpdate(BaseModel):
     api_key: str = Field(min_length=1)
 
@@ -79,7 +83,8 @@ class GitHubCapabilities(BaseModel):
 
 
 class GitHubConnectionSession(BaseModel):
-    install_url: str
+    install_url: Optional[str] = None
+    connection_token: Optional[str] = None
 
 
 class GitHubRepositoryCandidate(BaseModel):
@@ -87,11 +92,16 @@ class GitHubRepositoryCandidate(BaseModel):
     full_name: str
     html_url: str
     default_branch: Optional[str] = None
+    pushed_at: Optional[datetime] = None
     private: bool = False
+    connection_status: Literal["available", "connected_here", "unavailable"] = "available"
 
 
 class GitHubRepositoriesAvailable(BaseModel):
     repositories: list[GitHubRepositoryCandidate]
+    manage_url: Optional[str] = None
+    repository_scope: Literal["all", "selected", "unknown"] = "unknown"
+    has_more: bool = False
 
 
 class ProjectRepositoryCreate(BaseModel):

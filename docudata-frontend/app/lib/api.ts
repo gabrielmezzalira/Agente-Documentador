@@ -164,7 +164,16 @@ export interface GitHubRepositoryCandidate {
   full_name: string;
   html_url: string;
   default_branch: string | null;
+  pushed_at: string | null;
   private: boolean;
+  connection_status: "available" | "connected_here" | "unavailable";
+}
+
+export interface GitHubRepositorySelection {
+  repositories: GitHubRepositoryCandidate[];
+  manage_url: string | null;
+  repository_scope: "all" | "selected" | "unknown";
+  has_more: boolean;
 }
 
 export interface ProjectRepository {
@@ -369,6 +378,22 @@ export async function updateGerenteEmail(projectId: string, email: string | null
   return res.json();
 }
 
+export async function updateProjectSubarea(
+  projectId: string,
+  subarea: Subarea,
+): Promise<Project> {
+  const res = await apiFetch(`${API}/projects/${projectId}/subarea`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subarea }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao alterar subárea do projeto");
+  }
+  return res.json();
+}
+
 export async function createProject(data: {
   name: string;
   client: string;
@@ -397,21 +422,24 @@ export async function getGitHubCapabilities(): Promise<GitHubCapabilities> {
   return res.json();
 }
 
-export async function startGitHubConnection(projectId: string): Promise<{ install_url: string }> {
+export async function startGitHubConnection(projectId: string): Promise<{
+  install_url: string | null;
+  connection_token: string | null;
+}> {
   const res = await apiFetch(`${API}/projects/${projectId}/repositories/github/session`, { method: "POST" });
   if (!res.ok) throw await githubError(res, "Não foi possível iniciar a conexão com o GitHub.");
   return res.json();
 }
 
 export async function listAvailableGitHubRepositories(
-  connectionToken: string
-): Promise<GitHubRepositoryCandidate[]> {
-  const res = await apiFetch(
-    `${API}/integrations/github/repositories?connection_token=${encodeURIComponent(connectionToken)}`
-  );
+  connectionToken: string,
+  search = "",
+): Promise<GitHubRepositorySelection> {
+  const params = new URLSearchParams({ connection_token: connectionToken });
+  if (search.trim()) params.set("search", search.trim());
+  const res = await apiFetch(`${API}/integrations/github/repositories?${params}`);
   if (!res.ok) throw await githubError(res, "Não foi possível consultar o GitHub agora. Tente novamente.");
-  const data: { repositories: GitHubRepositoryCandidate[] } = await res.json();
-  return data.repositories;
+  return res.json();
 }
 
 export async function connectProjectRepositories(

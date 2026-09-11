@@ -22,14 +22,17 @@ from services.commit_extraction import DadosCommit, commit_ja_ingerido, extrair_
 from services.github_app import (
     GitHubApiError,
     GitHubConfigurationError,
+    buscar_repositorios_instalacao,
     buscar_commit,
     comparar_commits,
     configuracao_publica_github,
     criar_status_commit,
     criar_token_assinado,
     hash_token,
-    integracao_github_habilitada,
+    listar_instalacoes_app,
     listar_repositorios_instalacao,
+    listar_repositorios_para_selecao,
+    obter_instalacao_app,
     subarea_github_habilitada,
     url_instalacao,
     validar_assinatura_webhook,
@@ -114,6 +117,75 @@ def _repositorio_publico(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _repositorios_da_sessao(
+    sessao: dict[str, Any],
+    consulta: str = "",
+    completo: bool = False,
+) -> tuple[list[dict[str, Any]], str | None, str, bool]:
+    """Resolve os repositórios autorizados sem obrigar nova ida à tela global do GitHub."""
+    installation_id = sessao.get("installation_id")
+    instalacoes = (
+        [{"id": installation_id}] if installation_id and completo
+        else [obter_instalacao_app(int(installation_id))] if installation_id
+        else listar_instalacoes_app()
+    )
+    repositorios: dict[int, dict[str, Any]] = {}
+    manage_url: str | None = None
+    escopos: set[str] = set()
+    has_more = False
+    for instalacao in instalacoes:
+        identificador = int(instalacao["id"])
+        manage_url = manage_url or instalacao.get("html_url")
+        if instalacao.get("repository_selection") in {"all", "selected"}:
+            escopos.add(instalacao["repository_selection"])
+        if completo:
+            lote = listar_repositorios_instalacao(identificador)
+        else:
+            lote, mais_resultados = listar_repositorios_para_selecao(
+                instalacao, consulta=consulta, limite=30
+            )
+            has_more = has_more or mais_resultados
+        for repo in lote:
+            repositorios[int(repo["id"])] = {
+                **repo,
+                "_installation_id": identificador,
+            }
+    escopo = "all" if escopos == {"all"} else "selected" if escopos else "unknown"
+    ordenados = sorted(
+        repositorios.values(),
+        key=lambda repo: repo.get("pushed_at") or repo.get("updated_at") or "",
+        reverse=True,
+    )
+    if not completo and len(ordenados) > 30:
+        has_more = True
+        ordenados = ordenados[:30]
+    return (
+        ordenados,
+        manage_url,
+        escopo,
+        has_more,
+    )
+
+
+def _repositorios_selecionados_da_sessao(
+    sessao: dict[str, Any], repository_ids: list[int]
+) -> list[dict[str, Any]]:
+    """Evita percorrer centenas de repositórios para validar uma seleção pequena."""
+    installation_id = sessao.get("installation_id")
+    instalacoes = (
+        [{"id": installation_id}]
+        if installation_id
+        else listar_instalacoes_app()
+    )
+    if len(instalacoes) == 1 and len(repository_ids) <= 10:
+        identificador = int(instalacoes[0]["id"])
+        repositorios = buscar_repositorios_instalacao(identificador, repository_ids)
+        return [{**repo, "_installation_id": identificador} for repo in repositorios]
+    autorizados, _, _, _ = _repositorios_da_sessao(sessao, completo=True)
+    ids = set(repository_ids)
+    return [repo for repo in autorizados if int(repo["id"]) in ids]
+
+
 @router.get("/integrations/github/capabilities", response_model=GitHubCapabilities)
 async def github_capabilities():
     """Expõe apenas flags efetivas; nunca retorna credenciais."""
@@ -124,24 +196,27 @@ async def github_capabilities():
     "/projects/{project_id}/repositories/github/session",
     response_model=GitHubConnectionSession,
 )
-async def iniciar_conexao_github(project_id: str):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
+def iniciar_conexao_github(project_id: str):
     client = get_client()
     projeto = _obter_projeto(client, project_id)
     _exigir_subarea_habilitada(projeto)
     try:
         state = criar_token_assinado("state")
+        instalacoes = listar_instalacoes_app()
+        connection_token = criar_token_assinado("connection") if instalacoes else None
         resposta = client.table("github_connection_sessions").insert({
             "project_id": project_id,
             "state_hash": hash_token(state),
-            "status": "pending",
+            "connection_token_hash": hash_token(connection_token) if connection_token else None,
+            "status": "ready" if connection_token else "pending",
             "expires_at": _iso(_agora() + timedelta(minutes=10)),
         }).execute()
         if not resposta.data:
             raise RuntimeError
+        if connection_token:
+            return {"connection_token": connection_token}
         return {"install_url": url_instalacao(state)}
-    except (GitHubConfigurationError, RuntimeError) as exc:
+    except (GitHubApiError, GitHubConfigurationError, RuntimeError) as exc:
         raise _erro_indisponivel(exc) from exc
 
 
@@ -151,8 +226,6 @@ async def callback_github(
     installation_id: int | None = Query(default=None),
     setup_action: str | None = Query(default=None),
 ):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
     try:
         validar_token_assinado(state, "state")
     except GitHubConfigurationError as exc:
@@ -203,24 +276,50 @@ async def callback_github(
     "/integrations/github/repositories",
     response_model=GitHubRepositoriesAvailable,
 )
-async def listar_repositorios_disponiveis(connection_token: str = Query(...)):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
+def listar_repositorios_disponiveis(
+    connection_token: str = Query(...),
+    search: str = Query(default="", max_length=100),
+):
     client = get_client()
     _, sessao = _validar_sessao_conexao(client, connection_token)
     projeto = _obter_projeto(client, sessao["project_id"])
     _exigir_subarea_habilitada(projeto)
     try:
-        repositorios = listar_repositorios_instalacao(int(sessao["installation_id"]))
-    except GitHubApiError as exc:
+        repositorios, manage_url, repository_scope, has_more = _repositorios_da_sessao(
+            sessao, consulta=search
+        )
+    except (GitHubApiError, GitHubConfigurationError) as exc:
         raise _erro_indisponivel(exc) from exc
-    return {"repositories": [{
-        "github_repository_id": repo["id"],
-        "full_name": repo["full_name"],
-        "html_url": repo["html_url"],
-        "default_branch": repo.get("default_branch"),
-        "private": bool(repo.get("private")),
-    } for repo in repositorios]}
+    vinculados = (
+        client.table("project_repositories")
+        .select("github_repository_id, project_id, active")
+        .eq("active", True)
+        .execute()
+    )
+    vinculo_por_repo = {
+        int(row["github_repository_id"]): row
+        for row in (vinculados.data or [])
+    }
+    return {
+        "repositories": [{
+            "github_repository_id": repo["id"],
+            "full_name": repo["full_name"],
+            "html_url": repo["html_url"],
+            "default_branch": repo.get("default_branch"),
+            "pushed_at": repo.get("pushed_at"),
+            "private": bool(repo.get("private")),
+            "connection_status": (
+                "available"
+                if int(repo["id"]) not in vinculo_por_repo
+                else "connected_here"
+                if vinculo_por_repo[int(repo["id"])]["project_id"] == sessao["project_id"]
+                else "unavailable"
+            ),
+        } for repo in repositorios],
+        "manage_url": manage_url,
+        "repository_scope": repository_scope,
+        "has_more": has_more,
+    }
 
 
 @router.post(
@@ -229,8 +328,6 @@ async def listar_repositorios_disponiveis(connection_token: str = Query(...)):
     status_code=201,
 )
 async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
     client = get_client()
     _, sessao = _validar_sessao_conexao(client, body.connection_token)
     if sessao["project_id"] != project_id:
@@ -238,12 +335,12 @@ async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
     projeto = _obter_projeto(client, project_id)
     _exigir_subarea_habilitada(projeto)
 
+    selecionados = list(dict.fromkeys(body.repository_ids))
     try:
-        autorizados = listar_repositorios_instalacao(int(sessao["installation_id"]))
-    except GitHubApiError as exc:
+        autorizados = _repositorios_selecionados_da_sessao(sessao, selecionados)
+    except (GitHubApiError, GitHubConfigurationError) as exc:
         raise _erro_indisponivel(exc) from exc
     por_id = {int(repo["id"]): repo for repo in autorizados}
-    selecionados = list(dict.fromkeys(body.repository_ids))
     if not selecionados or any(repo_id not in por_id for repo_id in selecionados):
         raise HTTPException(status_code=422, detail="Selecione ao menos um repositório autorizado pelo GitHub.")
 
@@ -270,7 +367,7 @@ async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
         repo = por_id[repo_id]
         valores = {
             "project_id": project_id,
-            "installation_id": sessao["installation_id"],
+            "installation_id": repo["_installation_id"],
             "full_name": repo["full_name"],
             "html_url": repo["html_url"],
             "default_branch": repo.get("default_branch"),
@@ -302,8 +399,6 @@ async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
     response_model=list[ProjectRepositoryResponse],
 )
 async def listar_repositorios_projeto(project_id: str):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
     client = get_client()
     projeto = _obter_projeto(client, project_id)
     _exigir_subarea_habilitada(projeto)
@@ -316,8 +411,6 @@ async def listar_repositorios_projeto(project_id: str):
 
 @router.delete("/projects/{project_id}/repositories/{repository_id}", status_code=204)
 async def desconectar_repositorio(project_id: str, repository_id: str):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
     client = get_client()
     projeto = _obter_projeto(client, project_id)
     _exigir_subarea_habilitada(projeto)
@@ -509,8 +602,6 @@ async def _processar_push(client: Any, payload: dict[str, Any]) -> tuple[int, li
 
 @public_router.post("/webhooks/github")
 async def webhook_github(request: Request):
-    if not integracao_github_habilitada():
-        raise HTTPException(status_code=404, detail="Integração com GitHub indisponível.")
     corpo = await request.body()
     try:
         assinatura_valida = validar_assinatura_webhook(
