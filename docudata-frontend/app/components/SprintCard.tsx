@@ -330,6 +330,7 @@ export default function SprintCard({
   const [moveIngSprint, setMoveIngSprint] = useState<string>("");
   const [movingDocId, setMovingDocId] = useState<string | null>(null);
   const [moveDocSprint, setMoveDocSprint] = useState<string>("");
+  const [commitsExpanded, setCommitsExpanded] = useState(false);
   const [commitRepositoryFilter, setCommitRepositoryFilter] = useState("todos");
 
   const commits = ingestions.filter((item) => item.tipo_documentacao === "commit");
@@ -672,7 +673,7 @@ export default function SprintCard({
             </div>
           )}
 
-          {/* COMMITS — log compacto do GitHub Actions */}
+          {/* COMMITS — recolhido por padrão para sprints com histórico extenso */}
           {(() => {
             if (commits.length === 0) return (
               <p style={{ fontSize: 11, color: "#b8b8c0", margin: "14px 0 0", fontStyle: "italic" }}>
@@ -680,38 +681,71 @@ export default function SprintCard({
               </p>
             );
             return (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 18, marginBottom: 10 }}>
-                  <p style={{ ...subTitleStyle, margin: 0 }}>
-                    Commits ({filteredCommits.length})
+              <section
+                aria-label={`Commits da Sprint ${sprint.numero}`}
+                style={{ marginTop: 18, marginBottom: 18, border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}
+              >
+                <button
+                  type="button"
+                  aria-expanded={commitsExpanded}
+                  aria-controls={`commits-sprint-${sprint.id}`}
+                  onClick={() => setCommitsExpanded((aberto) => !aberto)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "11px 12px",
+                    border: "none",
+                    background: commitsExpanded ? "#f8fafc" : "#fff",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ ...subTitleStyle, margin: 0 }}>
+                    Commits ({commits.length})
                     <span style={{ ...muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
                       — GitHub App e legado
                     </span>
-                  </p>
-                  {commitRepositories.length > 1 && (
-                    <select
-                      aria-label="Filtrar commits por repositório"
-                      value={commitRepositoryFilter}
-                      onChange={(event) => setCommitRepositoryFilter(event.target.value)}
-                      style={{ border: "1px solid #dbe1ea", borderRadius: 7, padding: "5px 8px", color: "#475569", background: "#fff", fontSize: 11 }}
-                    >
-                      <option value="todos">Todos os repositórios</option>
-                      {commitRepositories.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
-                    </select>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 18 }}>
+                  </span>
+                  <span style={{ color: "#475569", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {commitsExpanded ? "Recolher ▲" : "Expandir ▼"}
+                  </span>
+                </button>
+                {commitsExpanded && (
+                  <div id={`commits-sprint-${sprint.id}`} style={{ padding: "0 12px 12px", background: "#f8fafc" }}>
+                    {commitRepositories.length > 1 && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "10px 0 8px" }}>
+                      {commitRepositoryFilter !== "todos" && (
+                        <span style={{ color: "#64748b", fontSize: 11 }}>{filteredCommits.length} exibido(s)</span>
+                      )}
+                      <select
+                        aria-label="Filtrar commits por repositório"
+                        value={commitRepositoryFilter}
+                        onChange={(event) => setCommitRepositoryFilter(event.target.value)}
+                        style={{ border: "1px solid #dbe1ea", borderRadius: 7, padding: "5px 8px", color: "#475569", background: "#fff", fontSize: 11 }}
+                      >
+                        <option value="todos">Todos os repositórios</option>
+                        {commitRepositories.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+                      </select>
+                    </div>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {filteredCommits.map((ing) => {
                     const meta = ing.extracted_content ?? {};
                     const sha = ing.source_commit_sha ?? meta._meta_commit_sha ?? (ing.file_name ?? "").replace("commit:", "");
                     const hash = sha.slice(0, 7);
-                    const autor = meta._meta_autor ?? "—";
+                    const autor = meta._meta_autor ?? "Autor não identificado";
+                    const autorLogin = meta._meta_autor_login;
+                    const committer = meta._meta_committer;
+                    const pusher = meta._meta_pusher ?? meta._meta_sender;
                     const branch = ing.source_branch ?? meta._meta_branch;
                     const repository = ing.source_repository_full_name ?? meta._meta_repository ?? "Origem não registrada (legado)";
                     const commitUrl = ing.source_url ?? meta._meta_commit_url;
                     const msg = meta._meta_commit_msg?.split("\n")[0] ?? meta.resumo ?? "";
-                    const when = new Date(ing.created_at).toLocaleString("pt-BR", {
-                      day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                    const when = new Date(meta._meta_data_commit ?? ing.created_at).toLocaleString("pt-BR", {
+                      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
                     });
                     return (
                       <div key={ing.id} style={{
@@ -736,7 +770,9 @@ export default function SprintCard({
                           <span style={{ color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {msg}
                           </span>
-                          <span style={{ color: "#94a3b8", flexShrink: 0 }}>{autor}</span>
+                          <span style={{ color: "#64748b", flexShrink: 0 }}>
+                            {autor}{autorLogin ? ` (@${autorLogin})` : ""}
+                          </span>
                           <span style={{ color: "#94a3b8", flexShrink: 0 }}>{when}</span>
                           <button
                             style={{ ...tinyBtn, fontSize: 11, padding: "2px 7px", flexShrink: 0 }}
@@ -753,6 +789,14 @@ export default function SprintCard({
                         </div>
                         {meta.resumo && (
                           <p style={{ color: "#64748b", fontSize: 11, lineHeight: 1.5, margin: "6px 0 0 0" }}>{meta.resumo}</p>
+                        )}
+                        {renderIngestionChips(meta)}
+                        {(committer || pusher || ing.source_diff_stat) && (
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", color: "#94a3b8", fontSize: 10, marginTop: 5 }}>
+                            {committer && committer !== autor && <span>Committer: {committer}</span>}
+                            {pusher && <span>Push por: {pusher}</span>}
+                            {ing.source_diff_stat && <span>Alterações: {ing.source_diff_stat}</span>}
+                          </div>
                         )}
                         {movingIngId === ing.id && (
                           <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
@@ -780,8 +824,10 @@ export default function SprintCard({
                       </div>
                     );
                   })}
-                </div>
-              </>
+                    </div>
+                  </div>
+                )}
+              </section>
             );
           })()}
 

@@ -4,11 +4,11 @@ O tracker registra automaticamente cada `push` como uma ingestão de commit no
 projeto correspondente. O script usa somente módulos da biblioteca padrão do
 Python e não exige instalação de pacotes no repositório da squad.
 
-## Instalando em um projeto de Dev
+## Instalando temporariamente em um projeto ainda não migrado
 
-1. No Agente Documentador, acesse `/dev/projects/new` e crie o projeto da squad.
+1. Na aplicação, crie o projeto na subárea correta (`/dados/projects/new` ou `/dev/projects/new`).
 2. Copie o UUID exibido na URL do projeto. Esse será o
-   `DOCUDATA_PROJECT_ID`; a subárea Dev já fica implícita nesse UUID.
+   `DOCUDATA_PROJECT_ID`; a subárea já fica implícita nesse UUID.
 3. Copie os arquivos para o repositório da squad:
 
    ```bash
@@ -21,7 +21,7 @@ Python e não exige instalação de pacotes no repositório da squad.
    Secrets:
 
    - `DOCUDATA_API_URL`: URL pública do backend no Railway, sem uma rota no final.
-   - `DOCUDATA_PROJECT_ID`: UUID do projeto de Dev criado no passo 1.
+   - `DOCUDATA_PROJECT_ID`: UUID do projeto criado no passo 1.
    - `DOCUDATA_APP_SECRET`: mesmo valor configurado no backend; solicite-o a quem
      administra o Railway.
 

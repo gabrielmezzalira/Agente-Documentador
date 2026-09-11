@@ -522,8 +522,8 @@ async def submit_review(
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
 
-    A review se baseia no planning + dailys + ingestões livres da sprint para
-    computar o delta (planejado vs realizado). Observações do gerente são
+    A review se baseia no planning + dailys + ingestões livres + commits da sprint
+    para computar o delta (planejado vs realizado). Observações do gerente são
     anexadas como contexto adicional.
     """
     project = _project_or_404(projeto_id)
@@ -630,7 +630,7 @@ async def submit_retrospectiva(
 ):
     """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
 
-    A retrospectiva consolida o que aconteceu na sprint (planning + dailys + review)
+    A retrospectiva consolida planning, dailys, review, uploads e commits da sprint
     e captura o status dos pedidos fora de escopo recebidos durante o review.
     """
     project = _project_or_404(projeto_id)

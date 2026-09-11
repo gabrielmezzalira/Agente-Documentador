@@ -120,7 +120,7 @@ class BancoFalso:
 def github_env(monkeypatch):
     valores = {
         "GITHUB_INTEGRATION_ENABLED": "true",
-        "GITHUB_INTEGRATION_SUBAREAS": "dev",
+        "GITHUB_INTEGRATION_SUBAREAS": "dados,dev",
         "GITHUB_APP_ID": "123",
         "GITHUB_APP_SLUG": "citi-documentador-test",
         "GITHUB_APP_PRIVATE_KEY": "pem-mockado-nos-testes",
@@ -171,6 +171,13 @@ def test_feature_desligada_inicia_sem_envs_e_migration():
     assert resultado.returncode == 0, resultado.stderr
 
 
+def test_rollout_padrao_cobre_dados_e_dev(monkeypatch):
+    from services.github_app import subareas_github_habilitadas
+
+    monkeypatch.delenv("GITHUB_INTEGRATION_SUBAREAS", raising=False)
+    assert subareas_github_habilitadas() == {"dados", "dev"}
+
+
 def test_jwt_github_app_assinado_com_rs256():
     import base64
     from services.github_app import GitHubConfig, criar_jwt_github
@@ -208,7 +215,7 @@ def test_feature_desligada_nao_consulta_tabelas_novas(client, monkeypatch):
     assert webhook.status_code == 404
 
 
-def test_dados_bloqueado_e_dev_inicia_sessao(client, monkeypatch, github_env):
+def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
     import routers.github_integration as router
 
     banco = BancoFalso({
@@ -222,21 +229,34 @@ def test_dados_bloqueado_e_dev_inicia_sessao(client, monkeypatch, github_env):
     dados = client.post("/projects/dados-1/repositories/github/session", headers=AUTH)
     dev = client.post("/projects/dev-1/repositories/github/session", headers=AUTH)
 
-    assert dados.status_code == 403
+    assert dados.status_code == 200
     assert dev.status_code == 200
+    assert dados.json()["install_url"].startswith("https://github.com/apps/citi-documentador-test/")
     assert dev.json()["install_url"].startswith("https://github.com/apps/citi-documentador-test/")
-    assert len(banco.dados["github_connection_sessions"]) == 1
-    assert banco.dados["github_connection_sessions"][0]["project_id"] == "dev-1"
+    assert len(banco.dados["github_connection_sessions"]) == 2
+    assert {sessao["project_id"] for sessao in banco.dados["github_connection_sessions"]} == {
+        "dados-1",
+        "dev-1",
+    }
+
+    capabilities = client.get("/integrations/github/capabilities", headers=AUTH)
+    assert capabilities.json()["subareas"] == ["dados", "dev"]
 
 
-def test_callback_state_uso_unico_e_token_nao_expoe_ids(client, monkeypatch, github_env):
+@pytest.mark.parametrize("subarea", ["dados", "dev"])
+def test_callback_state_uso_unico_e_token_nao_expoe_ids(
+    client, monkeypatch, github_env, subarea
+):
     import routers.github_integration as router
 
-    banco = BancoFalso({"projects": [{"id": "dev-secreto", "name": "Dev", "subarea": "dev"}]})
+    project_id = f"{subarea}-secreto"
+    banco = BancoFalso({
+        "projects": [{"id": project_id, "name": subarea.title(), "subarea": subarea}],
+    })
     monkeypatch.setattr(router, "get_client", lambda: banco)
-    inicio = client.post("/projects/dev-secreto/repositories/github/session", headers=AUTH)
+    inicio = client.post(f"/projects/{project_id}/repositories/github/session", headers=AUTH)
     state = urllib.parse.parse_qs(urllib.parse.urlparse(inicio.json()["install_url"]).query)["state"][0]
-    assert "dev-secreto" not in state
+    assert project_id not in state
 
     callback = client.get(
         "/integrations/github/callback",
@@ -249,8 +269,9 @@ def test_callback_state_uso_unico_e_token_nao_expoe_ids(client, monkeypatch, git
         follow_redirects=False,
     )
     assert callback.status_code == 307
+    assert f"/{subarea}/projects/{project_id}" in callback.headers["location"]
     assert "github_connection=" in callback.headers["location"]
-    assert "dev-secreto" not in callback.headers["location"].split("github_connection=")[1]
+    assert project_id not in callback.headers["location"].split("github_connection=")[1]
     assert repetido.status_code == 410
 
 
@@ -301,9 +322,15 @@ def payload_push(repo_id=101, commits=None, project_id_malicioso="outro-projeto"
     }
 
 
-def banco_com_repo(repo_id=101, active=True, project_id="dev-1", repo_row_id="repo-link-1"):
+def banco_com_repo(
+    repo_id=101,
+    active=True,
+    project_id="dev-1",
+    repo_row_id="repo-link-1",
+    subarea="dev",
+):
     return BancoFalso({
-        "projects": [{"id": project_id, "name": "Projeto Dev", "subarea": "dev"}],
+        "projects": [{"id": project_id, "name": f"Projeto {subarea.title()}", "subarea": subarea}],
         "project_repositories": [{
             "id": repo_row_id, "project_id": project_id, "github_repository_id": repo_id,
             "installation_id": 77, "full_name": f"citi/repo-{repo_id}",
@@ -339,23 +366,27 @@ def configurar_processamento_mock(monkeypatch, router):
     monkeypatch.setattr(router, "buscar_commit", buscar)
 
 
-def test_push_multicommit_resolve_vinculo_e_redelivery_nao_duplica(client, monkeypatch, github_env):
+@pytest.mark.parametrize("subarea", ["dados", "dev"])
+def test_push_multicommit_resolve_vinculo_e_redelivery_nao_duplica(
+    client, monkeypatch, github_env, subarea
+):
     import routers.github_integration as router
 
-    banco = banco_com_repo()
+    project_id = f"{subarea}-1"
+    banco = banco_com_repo(project_id=project_id, subarea=subarea)
     monkeypatch.setattr(router, "get_client", lambda: banco)
     configurar_processamento_mock(monkeypatch, router)
     statuses = []
     monkeypatch.setattr(router, "criar_status_commit", lambda *args: statuses.append(args))
     corpo = json.dumps(payload_push()).encode()
 
-    primeira = client.post("/webhooks/github", content=corpo, headers=headers_webhook(corpo, github_env["GITHUB_WEBHOOK_SECRET"], "push-1"))
-    segunda = client.post("/webhooks/github", content=corpo, headers=headers_webhook(corpo, github_env["GITHUB_WEBHOOK_SECRET"], "push-2"))
+    primeira = client.post("/webhooks/github", content=corpo, headers=headers_webhook(corpo, github_env["GITHUB_WEBHOOK_SECRET"], f"push-1-{subarea}"))
+    segunda = client.post("/webhooks/github", content=corpo, headers=headers_webhook(corpo, github_env["GITHUB_WEBHOOK_SECRET"], f"push-2-{subarea}"))
 
     assert primeira.json() == {"status": "succeeded", "processed": 2}
     assert segunda.json() == {"status": "ignored", "processed": 0}
     assert len(banco.dados["ingestions"]) == 2
-    assert {row["project_id"] for row in banco.dados["ingestions"]} == {"dev-1"}
+    assert {row["project_id"] for row in banco.dados["ingestions"]} == {project_id}
     assert {row["source_commit_sha"] for row in banco.dados["ingestions"]} == {"a" * 40, "b" * 40}
     assert {row["source_branch"] for row in banco.dados["ingestions"]} == {"feature/spec-08"}
     assert len(statuses) == 2
@@ -575,15 +606,23 @@ def test_contexto_commit_serializa_origem_e_tecnologias_sem_diff():
         "sprint_number": 2, "file_name": "commit:abcdef0", "tipo_documentacao": "commit",
         "source_repository_full_name": "citi/api", "source_branch": "main",
         "source_commit_sha": "abcdef012345", "source_url": "https://github.com/citi/api/commit/abcdef012345",
+        "source_diff_stat": "3 arquivos, +20 -4",
         "extracted_content": {
             "resumo": "Implementou endpoint", "tarefas": ["Criar rota"], "decisoes": ["Usar FastAPI"],
             "problemas": [], "contexto_cliente": "", "proximos_passos": ["Testar"],
             "tecnologias": ["FastAPI"], "tecnologias_removidas": ["Flask"],
-            "_meta_autor": "Ana", "_meta_data_commit": "2026-08-25", "_meta_commit_msg": "feat: rota",
+            "_meta_autor": "Ana", "_meta_autor_login": "ana-dev",
+            "_meta_committer": "Bia", "_meta_committer_login": "bia-dev",
+            "_meta_pusher": "ana-push", "_meta_data_commit": "2026-08-25",
+            "_meta_commit_msg": "feat: rota",
         },
     }]}
     contexto = compilar_contexto(state)["contexto"]
-    for trecho in ("Origem: citi/api", "Branch: main", "abcdef012345", "Ana", "feat: rota", "FastAPI", "Flask"):
+    for trecho in (
+        "Origem: citi/api", "Branch: main", "abcdef012345", "Ana (@ana-dev)",
+        "Committer: Bia (@bia-dev)", "Push enviado por: ana-push",
+        "Resumo das alterações: 3 arquivos, +20 -4", "feat: rota", "FastAPI", "Flask",
+    ):
         assert trecho in contexto
     assert "diff" not in contexto.lower()
 
@@ -602,6 +641,141 @@ def test_escopo_de_documentos_inclui_commit_sem_invadir_ingestion_only(monkeypat
     assert [row["id"] for row in daily["ingestions"]] == ["daily"]
     assert {row["id"] for row in sprint["ingestions"]} == {"daily", "commit"}
     assert {row["id"] for row in projeto["ingestions"]} == {"daily", "commit"}
+
+
+def test_matriz_de_documentos_combina_fontes_manuais_e_commits(monkeypatch):
+    import graphs.generation_graph as graph
+
+    ingestions = [
+        {
+            "id": "manual-s2", "project_id": "p", "sprint_number": 2,
+            "file_name": "daily-manual", "tipo_documentacao": "daily",
+            "extracted_content": {
+                "resumo": "Validação manual do cliente",
+                "decisoes": ["Manter autenticação por cookie"],
+                "tecnologias": ["Next.js"],
+            },
+        },
+        {
+            "id": "commit-s2", "project_id": "p", "sprint_number": 2,
+            "file_name": "commit:abc1234", "tipo_documentacao": "commit",
+            "source_repository_full_name": "citi/frontend", "source_branch": "feature/login",
+            "source_commit_sha": "abc123456789", "source_diff_stat": "2 arquivos, +12 -3",
+            "extracted_content": {
+                "resumo": "Implementou proteção da rota", "decisoes": ["Usar cookie httpOnly"],
+                "tecnologias": ["React"], "_meta_autor": "Ana Silva",
+                "_meta_autor_login": "ana", "_meta_data_commit": "2026-08-25T10:00:00Z",
+                "_meta_commit_msg": "feat: protege rota",
+            },
+        },
+        {
+            "id": "commit-s3", "project_id": "p", "sprint_number": 3,
+            "file_name": "commit:def5678", "tipo_documentacao": "commit",
+            "source_repository_full_name": "citi/backend", "source_branch": "main",
+            "source_commit_sha": "def567890123", "source_diff_stat": "1 arquivo, +5 -1",
+            "extracted_content": {
+                "resumo": "Ajustou endpoint", "decisoes": ["Validar payload no backend"],
+                "tecnologias": ["FastAPI"], "_meta_autor": "Bruno Lima",
+                "_meta_autor_login": "bruno", "_meta_data_commit": "2026-09-01T09:00:00Z",
+                "_meta_commit_msg": "fix: valida payload",
+            },
+        },
+        {
+            "id": "outro-projeto", "project_id": "outro", "sprint_number": 2,
+            "tipo_documentacao": "commit", "extracted_content": {"resumo": "Não pode vazar"},
+        },
+    ]
+    banco = BancoFalso({
+        "ingestions": ingestions,
+        "sprints": [{"id": "sprint-row-2", "project_id": "p", "numero": 2}],
+        "tasks": [{
+            "sprint_id": "sprint-row-2", "titulo": "Validar login", "pontos": 3,
+            "coluna_kanban": "em_andamento", "bloqueado": False,
+            "operacional_id": "op-1", "ordem": 1,
+        }],
+    })
+    monkeypatch.setattr(graph, "get_client", lambda: banco)
+
+    for tipo in ("planning", "daily", "ata_reuniao"):
+        resultado = graph.buscar_ingestions({
+            "tipo_doc": tipo, "ingestion_id": "manual-s2", "projeto_id": "p",
+        })
+        assert [row["id"] for row in resultado["ingestions"]] == ["manual-s2"]
+
+    for tipo in ("repasse_semanal", "review", "retrospectiva"):
+        resultado = graph.buscar_ingestions({
+            "tipo_doc": tipo, "projeto_id": "p", "sprint_numero": 2,
+        })
+        assert {row["id"] for row in resultado["ingestions"]} == {"manual-s2", "commit-s2"}
+
+    for tipo in ("log_decisoes", "adr", "onboarding", "documentacao_final"):
+        resultado = graph.buscar_ingestions({"tipo_doc": tipo, "projeto_id": "p"})
+        assert {row["id"] for row in resultado["ingestions"]} == {
+            "manual-s2", "commit-s2", "commit-s3",
+        }
+
+    contexto = graph.compilar_contexto({
+        "tipo_doc": "repasse_semanal", "projeto_id": "p", "sprint_numero": 2,
+        "ingestions": ingestions[:2],
+    })["contexto"]
+    for trecho in (
+        "Validação manual do cliente", "Manter autenticação por cookie",
+        "Implementou proteção da rota", "citi/frontend", "feature/login",
+        "Ana Silva (@ana)", "feat: protege rota", "2 arquivos, +12 -3",
+        "Backlog Kanban da Sprint 2", "Validar login (3pt)",
+    ):
+        assert trecho in contexto
+
+
+@pytest.mark.asyncio
+async def test_contexto_compilado_chega_ao_prompt_sem_consumir_gemini(monkeypatch):
+    import graphs.generation_graph as graph
+
+    chamadas = []
+
+    class LlmFalso:
+        async def ainvoke(self, prompt):
+            chamadas.append(prompt.to_string())
+            return SimpleNamespace(content="# Repasse gerado no teste")
+
+    monkeypatch.setattr(graph, "_make_llm", lambda _api_key: LlmFalso())
+    contexto = (
+        "Resumo manual: cliente aprovou a entrega.\n"
+        "Origem: citi/api\nBranch: main\nCommit: abc123\n"
+        "Autor e data: Ana (@ana) — 2026-08-25\nMensagem do commit: feat: endpoint"
+    )
+    resultado = await graph.gerar_documento({
+        "tipo_doc": "repasse_semanal", "api_key": "chave-falsa-nunca-enviada",
+        "projeto_nome": "Projeto", "cliente": "Cliente", "sprint_numero": 2,
+        "data_atual": "25/08/2026", "contexto": contexto, "observacoes": None,
+    })
+
+    assert resultado["documento"] == "# Repasse gerado no teste"
+    assert len(chamadas) == 1
+    for trecho in ("cliente aprovou", "citi/api", "Ana (@ana)", "feat: endpoint"):
+        assert trecho in chamadas[0]
+
+
+def test_insight_de_tecnologias_considera_ingestao_manual_e_commit():
+    from services.tech_timeline import build_tech_timeline
+
+    resultado = build_tech_timeline([
+        {"sprint_number": 1, "tipo_documentacao": "outro", "extracted_content": {"tecnologias": ["Python"]}},
+        {
+            "sprint_number": 2, "tipo_documentacao": "commit",
+            "extracted_content": {
+                "tecnologias": ["FastAPI"], "tecnologias_removidas": ["Python"],
+                "_meta_autor": "Ana",
+            },
+        },
+    ])
+
+    assert resultado["em_uso_atual"] == ["FastAPI"]
+    timeline = {item["tecnologia"]: item for item in resultado["timeline"]}
+    assert timeline["Python"] == {
+        "tecnologia": "Python", "introduzida_em": 1, "abandonada_em": 2,
+    }
+    assert timeline["FastAPI"]["introduzida_em"] == 2
 
 
 def test_registro_antigo_com_origem_nula_continua_valido():

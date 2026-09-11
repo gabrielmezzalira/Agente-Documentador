@@ -658,7 +658,7 @@ ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT t
 -- );
 -- ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 
--- Migration v5: integração aditiva com repositórios GitHub (piloto Dev)
+-- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (
 --     id                       uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

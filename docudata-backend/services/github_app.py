@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 
 GITHUB_API_URL = "https://api.github.com"
+_SUBAREAS_SUPORTADAS = {"dados", "dev"}
 
 
 class GitHubConfigurationError(RuntimeError):
@@ -48,8 +49,13 @@ def integracao_github_habilitada() -> bool:
 
 
 def subareas_github_habilitadas() -> set[str]:
-    valor = os.environ.get("GITHUB_INTEGRATION_SUBAREAS", "dev")
-    return {item.strip() for item in valor.split(",") if item.strip() in {"dados", "dev"}}
+    # O padrão cobre todo o produto; a allowlist continua disponível para rollback gradual.
+    valor = os.environ.get("GITHUB_INTEGRATION_SUBAREAS", "dados,dev")
+    return {
+        item.strip()
+        for item in valor.split(",")
+        if item.strip() in _SUBAREAS_SUPORTADAS
+    }
 
 
 def subarea_github_habilitada(subarea: str) -> bool:

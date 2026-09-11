@@ -398,7 +398,7 @@ export default function ProjectDashboard() {
   const [exportingDocId, setExportingDocId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<Record<string, string>>({});
 
-  // ---------- repositórios GitHub (piloto Dev) ----------
+  // ---------- repositórios GitHub ----------
   const [githubVisible, setGithubVisible] = useState(false);
   const [githubRepositories, setGithubRepositories] = useState<ProjectRepository[]>([]);
   const [githubCandidates, setGithubCandidates] = useState<GitHubRepositoryCandidate[]>([]);
@@ -433,12 +433,18 @@ export default function ProjectDashboard() {
   }, [id]);
 
   useEffect(() => {
-    // Dados não consulta a integração durante o piloto; o rollout é isolado em Dev.
-    if (project?.subarea !== "dev") return;
+    const subareaProjeto = project?.subarea;
+    if (!subareaProjeto) return;
     let active = true;
+    setGithubVisible(false);
     getGitHubCapabilities()
       .then(async (capabilities) => {
-        if (!active || !capabilities.enabled || !capabilities.configured || !capabilities.subareas.includes("dev")) return;
+        if (
+          !active ||
+          !capabilities.enabled ||
+          !capabilities.configured ||
+          !capabilities.subareas.includes(subareaProjeto)
+        ) return;
         setGithubVisible(true);
         const params = new URLSearchParams(window.location.search);
         const erroCallback = params.get("github_error");
@@ -833,7 +839,7 @@ export default function ProjectDashboard() {
             { title: "Planning", body: "Clique no chip 'Planning' na sprint. A tela já abre mostrando as tasks que estão no Kanban desta sprint, porque é dali que sai o backlog do documento: coluna, pontos e bloqueios entram no contexto da IA automaticamente. Você não precisa listar nada à mão. Abaixo das tasks tem o campo 'Contexto da sprint', em texto livre e sem formatação, para contar o que o Kanban não diz: por que a sprint é curta, o que mudou com o cliente, o que te preocupa. Se as tasks estiverem fora do DocuData (Notion, planilha, print), use o link no topo da tela para importar. E se preferir escrever o documento inteiro na mão, sem IA, use 'Escrever sem IA'." },
             { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
             { title: "Review", body: "Ao final da sprint, registre o review preenchendo os campos do formulário (Percepção do cliente, Sinal de satisfação, Pedidos fora do escopo, etc.). O documento gerado captura automaticamente o estado do kanban da sprint no momento da geração — cada task com seu status atual (planejada, em andamento, concluída, bloqueada) é injetada no contexto da IA sem você precisar listar manualmente. Além disso, o DocuData detecta tasks mencionadas no texto e cria sugestões de mover para 'Concluída' na aba Tasks." },
-            { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa todas as ingestões da sprint (planning, dailys, review) para gerar: O que foi feito, O que funcionou, O que não funcionou, Aprendizados." },
+            { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa planning, dailys, review, uploads e commits da sprint — com autoria e origem — para gerar: O que foi feito, O que funcionou, O que não funcionou e aprendizados." },
             { title: "Orçamento de pontos da sprint", body: "Todo projeto vale 100 pontos, fixo. Na aba Planejamento você distribui esses 100 entre as sprints, e o card da sprint mostra quanto ela recebeu e quanto já foi gasto em tasks. É esse número que faz a aba Métricas calcular o SPI e o faturamento previsto." },
             { title: "Avaliação Semanal", body: "No fim da sprint, o botão 'Avaliação Semanal' abre as sete perguntas sobre cada operacional que teve task na sprint. Só dá para confirmar quando não sobrar ninguém pendente. Confirmar fecha a semana e trava a pontuação: as tasks daquela sprint não podem mais ser excluídas. Antes de confirmar, confira se as tasks estão na coluna certa, se os bloqueios foram resolvidos com o responsável correto, e se as tasks concedidas fora do planejado estão marcadas como extra." },
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
@@ -1014,7 +1020,7 @@ export default function ProjectDashboard() {
               <TutorialBanner heading="Documentos Cross-sprint" steps={[
                 { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro — não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
                 { title: "Ata de Reunião", body: "Faça upload de um PDF ou arquivo de ata de reunião (com o cliente, stakeholders, etc). O DocuData gera uma ata formatada com pauta, decisões e próximos passos. Útil para registrar reuniões fora do ciclo de sprint." },
-                { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas em todas as ingestões do projeto (plannings, reviews, dailys). Ideal para onboarding de novos membros e auditoria." },
+                { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas nas ingestões e commits do projeto. Ideal para onboarding de novos membros e auditoria." },
                 { title: "Onboarding", body: "Documento de integração para novos membros entrarem no projeto rapidamente: contexto do cliente, stack técnica, decisões tomadas, estado atual. Gerado a partir de todo o histórico de ingestões." },
                 { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final. Preenche o vazio de documentação que existe em muitos projetos de dados." },
                 { title: "Observações adicionais", body: "O campo de observações permite incluir contexto extra que a IA deve considerar na geração. Use para orientações específicas, tom desejado, ou informações que não estão nos uploads." },
@@ -1093,7 +1099,7 @@ export default function ProjectDashboard() {
             <>
               <TutorialBanner heading="Documentos Por sprint" steps={[
                 { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
-                { title: "Retrospectiva", body: "Gerado ao final da sprint com base no planning, dailys e review. Inclui: O que foi feito, O que funcionou, O que não funcionou, Aprendizados. Gere pelo botão 'Retro' na sprint." },
+                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
                 { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
                 { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
               ]} />

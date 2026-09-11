@@ -208,6 +208,7 @@ export interface Ingestion {
     contexto_cliente?: string;
     proximos_passos?: string[];
     tecnologias?: string[];
+    tecnologias_removidas?: string[];
     _meta_autor?: string;
     _meta_data_commit?: string;
     _meta_commit_msg?: string;
@@ -216,6 +217,7 @@ export interface Ingestion {
     _meta_commit_sha?: string;
     _meta_commit_url?: string;
     _meta_autor_login?: string;
+    _meta_autor_email?: string;
     _meta_committer?: string;
     _meta_committer_login?: string;
     _meta_pusher?: string;

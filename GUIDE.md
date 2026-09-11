@@ -24,7 +24,7 @@
 | `GDOCS_TEMPLATE_ID*` | Templates de Dados e overrides opcionais com sufixo `_DEV`. |
 | `GDRIVE_FOLDER_ID` / `GDRIVE_FOLDER_ID_DEV` | Pastas raiz de Dados e Dev. |
 | `GITHUB_INTEGRATION_ENABLED` | `false` por padrão; liga a integração somente após a migration. |
-| `GITHUB_INTEGRATION_SUBAREAS` | Lista permitida; no piloto deve permanecer `dev`. |
+| `GITHUB_INTEGRATION_SUBAREAS` | Lista permitida para rollout/rollback; use `dados,dev` para habilitar o sistema inteiro. |
 | `GITHUB_APP_ID` / `GITHUB_APP_SLUG` | Identidade pública do GitHub App. |
 | `GITHUB_APP_PRIVATE_KEY` | Chave PEM privada do App, somente no backend. |
 | `GITHUB_WEBHOOK_SECRET` | Segredo aleatório usado no HMAC dos webhooks. |
@@ -38,7 +38,7 @@
 
 Nenhuma credencial de serviço usa prefixo `NEXT_PUBLIC_`; o navegador autentica por cookie httpOnly.
 
-### Hook legado (somente repositórios ainda não migrados durante o piloto)
+### Hook legado (somente repositórios ainda não migrados para o GitHub App)
 
 | Variável | Uso |
 |---|---|
@@ -47,10 +47,10 @@ Nenhuma credencial de serviço usa prefixo `NEXT_PUBLIC_`; o navegador autentica
 | `DOCUDATA_APP_SECRET` | Segredo compartilhado já usado pela aplicação. |
 | `GITHUB_TOKEN` / `GITHUB_REPOSITORY` / `GITHUB_SHA` | Valores fornecidos automaticamente pelo GitHub Actions. |
 
-Novos repositórios Dev devem usar o GitHub App. O hook legado não será removido até
-os consumidores atuais serem levantados e o piloto ser aprovado.
+Novos repositórios de Dados e Dev devem usar o GitHub App. O hook legado permanece
+apenas para não interromper consumidores já configurados.
 
-## Criar o GitHub App para o piloto Dev
+## Criar o GitHub App para Dados e Dev
 
 1. Em **GitHub → Settings → Developer settings → GitHub Apps**, crie um App.
 2. Configure o webhook como `https://SEU-BACKEND/webhooks/github` e gere um segredo aleatório para `GITHUB_WEBHOOK_SECRET`.
@@ -59,7 +59,7 @@ os consumidores atuais serem levantados e o piloto ser aprovado.
 5. Eventos: **Push**, **Installation**, **Installation repositories** e **Repository** (para sincronizar renomes).
 6. Copie App ID e slug, gere a private key PEM e guarde tudo somente no Railway.
 7. Gere `GITHUB_CONNECTION_STATE_SECRET` com `openssl rand -hex 32`.
-8. Publique primeiro com a flag `false`, aplique manualmente a Migration v5 e só então altere para `true`, mantendo `GITHUB_INTEGRATION_SUBAREAS=dev`. Em produção, crie os índices em uma janela compatível com o volume atual.
+8. Publique primeiro com a flag `false`, aplique manualmente a Migration v5 e só então altere para `true`, com `GITHUB_INTEGRATION_SUBAREAS=dados,dev`. Em produção, crie os índices em uma janela compatível com o volume atual.
 
 O GitHub permite selecionar um ou mais repositórios durante a instalação. A aplicação
 lista somente os repositórios autorizados e nunca envia o installation token ao navegador.
