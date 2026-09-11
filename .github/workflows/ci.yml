@@ -20,8 +20,9 @@ jobs:
     env:
       # Valores descartáveis, apenas para o boot do app nos testes.
       DOCUDATA_APP_SECRET: chave-de-aplicacao-para-ci
-      JWT_SECRET: segredo-jwt-apenas-para-ci
-      ALLOWED_ORIGINS: http://localhost:3000
+      JWT_SECRET: segredo-jwt-ci-com-entropia-suficiente-para-testes
+      ALLOWED_ORIGINS: https://frontend.test,http://localhost:3000
+      FRONTEND_URL: https://frontend.test
     steps:
       - uses: actions/checkout@v4
 
