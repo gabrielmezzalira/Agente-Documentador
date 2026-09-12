@@ -862,8 +862,6 @@ export interface FuncionalidadeResponse {
   criterios_aceite: string[];
   prioridade: string;
   status: "nao_iniciada" | "em_andamento" | "concluida";
-  status_cliente: "nao_enviado" | "enviado" | "aprovado" | "rejeitado" | "ajuste_pedido";
-  data_aprovacao_cliente?: string | null;
   responsavel?: string | null;
   sprint_alvo?: string | null;
   created_at: string;
@@ -873,14 +871,12 @@ export interface BlocoA {
   sem_dados: boolean;
   pct_prazo_consumido?: number;
   pct_escopo_concluido?: number;
-  pct_aprovado_cliente?: number;
   desvio_detectado?: boolean;
   desvio_pontos?: number;
 }
 
 export interface BlocoB {
   travadas: Array<{ id: string; titulo: string; dias: number }>;
-  aguardando_cliente: Array<{ id: string; titulo: string; dias_uteis: number }>;
 }
 
 export interface BlocoC {
@@ -912,7 +908,6 @@ export interface PainelData {
   bloco_b: BlocoB;
   bloco_c: BlocoC;
   bloco_d: BlocoD;
-  cobertura_aceite?: number | null;
 }
 
 export async function getPainel(projectId: string): Promise<PainelData> {
