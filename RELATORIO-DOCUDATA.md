@@ -308,11 +308,19 @@ nela começa a correr a partir daquele momento — nunca retroativamente.
 
 A tela de Planning **já abre mostrando as tasks daquela sprint que estão no Kanban**,
 porque é dali que sai o backlog do documento. O gerente escreve o contexto da sprint em
-texto livre e completa os campos estruturados: período, horas previstas, riscos,
-dependências e carry-over da sprint anterior. A IA monta o documento a partir disso.
+texto livre e completa os campos estruturados: squad da sprint, período, horas previstas
+e disponíveis, riscos, dependências e carry-over da sprint anterior. A IA monta o
+documento a partir disso.
 
 Se as tasks ainda estiverem fora do sistema, um link no topo leva para a importação por
-print ou texto. E quem preferir pode escrever o documento inteiro à mão, sem IA.
+print ou texto.
+
+**Todo campo do Planning é obrigatório.** O backlog precisa de pelo menos uma tarefa, e
+as listas de risco, dependência e carry-over — que por natureza podem estar
+genuinamente vazias — exigem uma confirmação explícita ("Nenhum risco identificado
+nesta sprint", e o mesmo para dependência e carry-over) em vez de simplesmente ficarem
+em branco. A ideia é que o Planning nunca saia do sistema com uma lacuna que passou
+despercebida, em vez de uma lacuna que o gerente conferiu e decidiu que não existe.
 
 ### Daily
 
@@ -324,13 +332,19 @@ Aceita um anexo opcional, como a transcrição da reunião.
 
 ### Review
 
-No fim da sprint, o gerente preenche a percepção do cliente, o sinal de satisfação e os
-pedidos que apareceram fora do escopo.
+No fim da sprint, o gerente preenche a percepção do cliente, o sinal de satisfação, o
+percentual de itens com "pronto" cumprido, e os pedidos que apareceram fora do escopo.
 
 A tabela **planejado vs. entregue é montada automaticamente a partir do Kanban real**:
 uma linha por task da sprint, marcada como entregue ou não conforme a coluna em que ela
 terminou. O que o sistema deixa em branco de propósito são as colunas de *motivo* e
 *causa raiz* — isso é julgamento humano e o gerente completa.
+
+**Todo campo da Review também é obrigatório**, com o mesmo princípio do Planning: a
+tabela planejado vs. entregue precisa ter pelo menos uma task (uma Review pressupõe que
+algo foi planejado), e as listas de pedido fora de escopo e de item para a próxima
+sprint exigem confirmação explícita de ausência quando estão vazias, em vez de ficarem
+simplesmente em branco.
 
 ### Retrospectiva
 
