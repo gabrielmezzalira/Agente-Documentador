@@ -193,13 +193,10 @@ class FuncionalidadeUpdate(BaseModel):
     criterios_aceite: Optional[list[str]] = None
     prioridade: Optional[str] = None
     status: Optional[str] = None
-    status_cliente: Optional[str] = None
     responsavel: Optional[str] = None
     sprint_alvo: Optional[str] = None
-    data_aprovacao_cliente: Optional[date] = None
     autor: Optional[str] = None
     motivo: Optional[str] = None
-    testes_e2e: Optional[list[str]] = None
 
     @field_validator("criterios_aceite")
     @classmethod
@@ -230,11 +227,8 @@ class FuncionalidadeResponse(BaseModel):
     criterios_aceite: list[str]
     prioridade: str
     status: str
-    status_cliente: str
-    data_aprovacao_cliente: Optional[date] = None
     responsavel: Optional[str] = None
     sprint_alvo: Optional[str] = None
-    testes_e2e: list[str] = []
     created_at: datetime
 
 
@@ -279,46 +273,6 @@ class ContratoUpdate(BaseModel):
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
     arquetipo: Optional[Literal["padrao", "consultoria_discovery"]] = None
     valor_projeto: Optional[float] = None
-
-
-class ExecucaoAceitePayload(BaseModel):
-    funcionalidade_id: str
-    commit_sha: str
-    gates: list[dict]
-
-
-class ExecucaoAceiteResponse(BaseModel):
-    id: str
-    funcionalidade_id: str
-    project_id: str
-    commit_sha: str
-    gates: list[dict]
-    disparado_em: datetime
-    concluido_em: Optional[datetime] = None
-
-
-class BoletimCreate(BaseModel):
-    project_id: str
-    sprint_numero: Optional[int] = None
-    funcionalidade_ids: list[str]
-
-
-class BoletimPatch(BaseModel):
-    status: str
-    retorno_tipo: Optional[str] = None
-
-
-class BoletimResponse(BaseModel):
-    id: str
-    project_id: str
-    sprint_numero: Optional[int] = None
-    funcionalidade_ids: list[str]
-    status: str
-    retorno_tipo: Optional[str] = None
-    conteudo: str
-    criado_em: datetime
-    enviado_em: Optional[datetime] = None
-    retorno_em: Optional[datetime] = None
 
 
 class ResumoSemanalRequest(BaseModel):

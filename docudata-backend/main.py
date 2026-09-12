@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, aceite_ingest, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas
 from services.notification_checker import check_and_send_notifications
 from services.travamento_checker import check_travamento_automatico
 from services.auth import get_current_pessoa, require_not_operacional
@@ -67,7 +67,6 @@ app.include_router(funcionalidades.router, dependencies=[Depends(get_current_pes
 app.include_router(painel.router, dependencies=[Depends(require_not_operacional)])
 app.include_router(revisao_ingest.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(composer.router, dependencies=[Depends(get_current_pessoa)])
-app.include_router(aceite_ingest.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(boletins.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(sprint_funcionalidades.router, dependencies=[Depends(get_current_pessoa)])
 app.include_router(operacionais.router, dependencies=[Depends(get_current_pessoa)])

@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS funcionalidades (
     criterios_aceite        text[]      NOT NULL DEFAULT '{}',
     prioridade              text        NOT NULL DEFAULT 'should',
     status                  text        NOT NULL DEFAULT 'nao_iniciada',
+    -- ORFA desde set/2026: as tres colunas abaixo (status_cliente,
+    -- data_aprovacao_cliente, testes_e2e) faziam parte da trilha de
+    -- acompanhamento do cliente, removida do codigo. Nenhum endpoint le ou
+    -- escreve nelas hoje. Ficam no banco de proposito, para nao destruir dado.
     status_cliente          text        NOT NULL DEFAULT 'nao_enviado',
     data_aprovacao_cliente  date,
     responsavel             text,
@@ -175,6 +179,11 @@ CREATE TABLE IF NOT EXISTS planning_rascunhos (
 
 -- Phase 11: Suíte de Verificação de Aceite
 -- Migration incremental: executar no Supabase SQL Editor
+-- ORFA desde set/2026: a tabela execucoes_aceite e seus indices ficaram sem
+-- codigo que os leia ou escreva — a trilha de acompanhamento do cliente foi
+-- removida do back-end. Mantidos no banco de proposito, sem migracao
+-- destrutiva. As colunas github_token / github_repo de projects continuam em
+-- uso pelas outras integracoes de GitHub (ingestao de commits e revisor).
 
 CREATE TABLE IF NOT EXISTS execucoes_aceite (
     id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,6 +212,10 @@ ALTER TABLE funcionalidades
 
 -- Phase 12: Boletim de Aceite, Encerramento e Resumo Semanal
 -- Migration incremental: executar no Supabase SQL Editor
+-- ORFA desde set/2026: a tabela boletins_aceite e seu indice ficaram sem
+-- codigo que os leia ou escreva. O resumo semanal continua existindo e grava
+-- em generated_docs; so o boletim de aceite saiu. Tabela mantida no banco de
+-- proposito, sem migracao destrutiva.
 
 CREATE TABLE IF NOT EXISTS boletins_aceite (
     id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
