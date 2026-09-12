@@ -109,7 +109,11 @@ def test_job_nao_marca_quando_abaixo_do_limiar(monkeypatch):
     assert len(calls["tasks_update"]) == 0
 
 
-def test_job_nao_marca_quando_travado_override_true(monkeypatch):
+def test_job_marca_travado_mesmo_com_override_antigo_e_relogio_vencido(monkeypatch):
+    """Override deixou de ser imunidade permanente (2026-09-12): se o relógio
+    (entrou_em_andamento_em) está vencido, o job trava de novo mesmo numa task
+    que já foi suprimida antes — o override reinicia o relógio no momento em
+    que é aplicado, não isenta a task para sempre."""
     import services.travamento_checker as checker
     task = {
         "id": "task-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
@@ -120,7 +124,8 @@ def test_job_nao_marca_quando_travado_override_true(monkeypatch):
 
     checker.check_travamento_automatico()
 
-    assert len(calls["tasks_update"]) == 0
+    assert len(calls["tasks_update"]) == 1
+    assert calls["tasks_update"][0]["updates"] == {"travado_automatico": True}
 
 
 def test_job_idempotente_quando_ja_travado_automatico(monkeypatch):
@@ -254,11 +259,16 @@ _BASE_TASK = {
 }
 
 
-def test_override_em_task_em_andamento_grava_supressao_sem_tocar_automatico(monkeypatch):
+def test_override_em_task_em_andamento_reinicia_relogio_e_desmarca_automatico(monkeypatch):
+    """Suprimir o alerta não é imunidade permanente: a task sai do estado
+    travada (travado_automatico=False) e o relógio reinicia do zero
+    (entrou_em_andamento_em=agora) — se ficar parada além do novo prazo,
+    trava de novo."""
     task = dict(_BASE_TASK)
     mock_sb, calls = _make_endpoint_mock_client(task)
     tc = _patch_and_client(monkeypatch, mock_sb)
 
+    antes = datetime.now(timezone.utc)
     resp = tc.post("/tasks/task-1/travado/override", params={"autor": "Gerente X"})
 
     assert resp.status_code == 200
@@ -266,7 +276,9 @@ def test_override_em_task_em_andamento_grava_supressao_sem_tocar_automatico(monk
     assert updates["travado_override"] is True
     assert updates["travado_override_por"] == "Gerente X"
     assert updates["travado_override_em"] is not None
-    assert "travado_automatico" not in updates
+    assert updates["travado_automatico"] is False
+    novo_relogio = datetime.fromisoformat(updates["entrou_em_andamento_em"])
+    assert novo_relogio >= antes
 
 
 def test_override_em_task_planejada_com_relogio_ativo_funciona(monkeypatch):

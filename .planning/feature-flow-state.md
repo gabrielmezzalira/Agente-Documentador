@@ -7,7 +7,7 @@ etapa: 12
 etapa_nome: "Concluído"
 gates_reusados: ["knowledge-graph (graphify-out/ em docudata-backend e docudata-frontend, reextraído em 2026-09-12, mesma sessão anterior — reaproveitado sem regenerar)"]
 started_at: "2026-09-12T00:00:00Z"
-last_saved: "2026-09-12T18:19:07Z"
+last_saved: "2026-09-12T20:16:36Z"
 status: "concluido"
 
 ## Concluído

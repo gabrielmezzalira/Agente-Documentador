@@ -679,10 +679,18 @@ async def mover_task(
 @router.post("/{task_id}/travado/override", response_model=TaskResponse)
 async def override_travamento(task_id: str, autor: Optional[str] = None):
     """
-    ALERT-03: suprime a exibição do alerta de travamento automático sem apagar
-    o histórico de que o sistema sinalizou — travado_automatico NÃO é tocado
-    aqui, só travado_override/_por/_em. O badge some porque a condição de
-    exibição no frontend é travado_automatico && !travado_override.
+    ALERT-03: suprime o alerta de travamento automático e reinicia o relógio
+    (revisão 2026-09-12) — não é mais imunidade permanente. Muita task trava
+    por motivo alheio ao operacional (ex: falta de retorno do cliente); nesses
+    casos o gerente precisa de um novo prazo do zero, não de uma isenção
+    eterna que nunca mais avisa se a task continuar parada.
+
+    travado_automatico volta a False (o badge some porque a condição de
+    exibição no frontend é travado_automatico && !travado_override) e
+    entrou_em_andamento_em é reancorado em agora, então o job diário volta a
+    avaliar essa task normalmente a partir daqui — se ficar parada além do
+    novo prazo, trava de novo. travado_override/_por/_em continuam gravados
+    como histórico de que houve uma supressão.
 
     Desde a revisão de 2026-09-07 o override também dispensa a penalidade de
     Entrega: os eventos de travamento ainda não contabilizados desta task são
@@ -707,6 +715,8 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
         "travado_override": True,
         "travado_override_por": autor,
         "travado_override_em": agora.isoformat(),
+        "travado_automatico": False,
+        "entrou_em_andamento_em": agora.isoformat(),
     }
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 

@@ -42,7 +42,7 @@ def check_travamento_automatico() -> None:
 
     resp = (
         client.table("tasks")
-        .select("id, pontos, operacional_id, entrou_em_andamento_em, travado_automatico, travado_override")
+        .select("id, pontos, operacional_id, entrou_em_andamento_em, travado_automatico")
         .in_("coluna_kanban", ["planejado", "em_andamento"])
         .execute()
     )
@@ -52,8 +52,6 @@ def check_travamento_automatico() -> None:
     marcadas = 0
 
     for task in tasks:
-        if task.get("travado_override"):
-            continue
         if task.get("travado_automatico"):
             # Idempotência — já sinalizada, nada a fazer.
             continue

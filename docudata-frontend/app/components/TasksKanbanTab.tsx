@@ -479,6 +479,8 @@ function TaskModal({
                           <tr style={{ color: "#9696a0" }}>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>Campo</th>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>De → Para</th>
+                            <th style={{ textAlign: "left", padding: "4px 6px" }}>Quem</th>
+                            <th style={{ textAlign: "left", padding: "4px 6px" }}>Quando</th>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>Tempo anterior</th>
                           </tr>
                         </thead>
@@ -487,6 +489,10 @@ function TaskModal({
                             <tr key={t.id} style={{ borderTop: "1px solid #f0f0f4" }}>
                               <td style={{ padding: "4px 6px", color: "#374151" }}>{t.campo}</td>
                               <td style={{ padding: "4px 6px", color: "#111116" }}>{t.de ?? "—"} → {t.para ?? "—"}</td>
+                              <td style={{ padding: "4px 6px", color: "#374151" }}>{t.autor ?? "—"}</td>
+                              <td style={{ padding: "4px 6px", color: "#9696a0" }}>
+                                {t.timestamp ? new Date(t.timestamp).toLocaleString("pt-BR") : "—"}
+                              </td>
                               <td style={{ padding: "4px 6px", color: "#9696a0" }}>
                                 {t.duracao_fase_anterior_segundos != null
                                   ? formatDuration(t.duracao_fase_anterior_segundos)
@@ -928,7 +934,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       const updated = await moverTaskKanban(
         pendingMove.taskId,
         pendingMove.para,
-        undefined,
+        auth?.nome,
         motivoReabertura.trim() || undefined
       );
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
