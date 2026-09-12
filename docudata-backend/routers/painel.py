@@ -47,30 +47,26 @@ def calcular_bloco_a(proj: dict, funcs: list[dict]) -> dict:
 
     total_funcs = len(funcs)
     concluidas = sum(1 for f in funcs if f.get("status") == "concluida")
-    aprovadas = sum(1 for f in funcs if f.get("status_cliente") == "aprovado")
 
     pct_escopo = round(concluidas / total_funcs * 100, 1) if total_funcs > 0 else 0.0
-    pct_aprovado = round(aprovadas / total_funcs * 100, 1) if total_funcs > 0 else 0.0
 
     tolerancia = proj.get("tolerancia_desvio_pontos") or 0
-    desvio = pct_prazo - pct_aprovado
+    desvio = pct_prazo - pct_escopo
     desvio_detectado = desvio > tolerancia
 
     return {
         "sem_dados": False,
         "pct_prazo_consumido": pct_prazo,
         "pct_escopo_concluido": pct_escopo,
-        "pct_aprovado_cliente": pct_aprovado,
         "desvio_detectado": desvio_detectado,
         "desvio_pontos": round(desvio, 1),
     }
 
 
-def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None, execucoes_aceite: list[dict] | None = None) -> dict:
+def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None) -> dict:
     hoje = datetime.now(timezone.utc)
 
     ultima_transicao_status: dict[str, datetime] = {}
-    ultima_ts_enviado: dict[str, datetime] = {}
 
     for t in transicoes:
         fid = t.get("funcionalidade_id")
@@ -84,19 +80,11 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
         if campo == "status":
             ultima_transicao_status[fid] = ts
 
-        if campo == "status_cliente" and t.get("para") == "enviado":
-            prev = ultima_ts_enviado.get(fid)
-            if prev is None or ts > prev:
-                ultima_ts_enviado[fid] = ts
-
     travadas = []
-    aguardando_cliente = []
-    em_ajuste = []
 
     for f in funcs:
         fid = f.get("id")
         status = f.get("status")
-        status_cliente = f.get("status_cliente")
         titulo = f.get("titulo", "")
 
         if status == "em_andamento":
@@ -107,16 +95,6 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
             dias = (hoje - ref_ts).days
             if dias > 7:
                 travadas.append({"id": fid, "titulo": titulo, "dias": dias})
-
-        if status_cliente == "enviado" and fid in ultima_ts_enviado:
-            ts_enviado = ultima_ts_enviado[fid]
-            dias_corridos = (hoje - ts_enviado).days
-            dias_uteis = round(dias_corridos * 5 / 7, 1)
-            if dias_uteis > 5:
-                aguardando_cliente.append({"id": fid, "titulo": titulo, "dias_uteis": dias_uteis})
-
-        if status == "em_ajuste":
-            em_ajuste.append({"id": fid, "titulo": titulo})
 
     if revisao_recente:
         achados_raw: list[dict] = revisao_recente.get("achados") or []
@@ -133,48 +111,13 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
         relatorio_tecnico = None
         data_revisao = None
 
-    # Calcular funcionalidades concluídas com suíte de aceite falhando (per D-09)
-    aceite_por_func: dict[str, dict] = {}
-    for ea in (execucoes_aceite or []):
-        fid = ea.get("funcionalidade_id")
-        if fid:
-            aceite_por_func[fid] = ea
-
-    funcionalidades_com_aceite_falhando = []
-    for f in funcs:
-        if f.get("status") != "concluida":
-            continue
-        fid = f.get("id")
-        ea = aceite_por_func.get(fid)
-        if ea and ea.get("concluido_em"):
-            gates: list[dict] = ea.get("gates") or []
-            tem_falha = any(g.get("resultado") in ("falhou", "erro") for g in gates)
-            if tem_falha:
-                funcionalidades_com_aceite_falhando.append({"id": fid, "titulo": f.get("titulo", "")})
-
     return {
         "travadas": travadas,
-        "aguardando_cliente": aguardando_cliente,
-        "em_ajuste": em_ajuste,
         "achados_criticos": achados_criticos,
         "relatorio_gerente": relatorio_gerente,
         "relatorio_tecnico": relatorio_tecnico,
         "data_revisao": data_revisao,
-        "funcionalidades_com_aceite_falhando": funcionalidades_com_aceite_falhando,
     }
-
-
-def _calcular_cobertura_aceite(funcs: list[dict], execucoes_aceite: list[dict]) -> float | None:
-    """Calcula a porcentagem de funcionalidades concluídas com cobertura de aceite (per D-10)."""
-    concluidas = [f for f in funcs if f.get("status") == "concluida"]
-    if not concluidas:
-        return None
-    aceite_por_func: dict[str, dict] = {ea["funcionalidade_id"]: ea for ea in execucoes_aceite if ea.get("funcionalidade_id")}
-    com_cobertura = sum(
-        1 for f in concluidas
-        if f.get("id") in aceite_por_func and aceite_por_func[f["id"]].get("concluido_em")
-    )
-    return round(com_cobertura / len(concluidas) * 100, 1)
 
 
 def calcular_bloco_c(funcs: list[dict], transicoes: list[dict]) -> dict:
@@ -364,37 +307,17 @@ async def get_painel(project_id: str):
         )
         revisao_recente = revisao_resp.data[0] if revisao_resp.data else None
 
-        step = "execucoes_aceite"
-        execucoes_resp = (
-            client.table("execucoes_aceite")
-            .select("funcionalidade_id, commit_sha, gates, disparado_em, concluido_em")
-            .eq("project_id", project_id)
-            .order("disparado_em", desc=True)
-            .execute()
-        )
-        execucoes_aceite_raw: list[dict] = execucoes_resp.data or []
-
-        seen_func_ids: set[str] = set()
-        execucoes_aceite_list: list[dict] = []
-        for ea in execucoes_aceite_raw:
-            fid = ea.get("funcionalidade_id")
-            if fid and fid not in seen_func_ids:
-                seen_func_ids.add(fid)
-                execucoes_aceite_list.append(ea)
-
         step = "calc"
         bloco_a = calcular_bloco_a(proj, func_list)
-        bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente, execucoes_aceite=execucoes_aceite_list)
+        bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente)
         bloco_c = calcular_bloco_c(func_list, trans_list)
         bloco_d = calcular_bloco_d(func_list, trans_list)
-        cobertura_aceite = _calcular_cobertura_aceite(func_list, execucoes_aceite_list)
 
         return {
             "bloco_a": bloco_a,
             "bloco_b": bloco_b,
             "bloco_c": bloco_c,
             "bloco_d": bloco_d,
-            "cobertura_aceite": cobertura_aceite,
         }
     except HTTPException:
         raise
