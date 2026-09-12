@@ -3,16 +3,24 @@ e retorna campos estruturados prontos para o gerente revisar antes de gerar o do
 
 Não salva nada no banco — é uma etapa de pré-visualização/validação.
 """
+import logging
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
+
+_LOG = logging.getLogger("docudata.enrich")
 
 router = APIRouter(prefix="/enrich", tags=["enrich"])
+
+_ERRO_ANALISE = "Não foi possível analisar o conteúdo com a IA. Tente novamente em instantes."
 
 
 # ── Schemas de retorno por tipo de doc ────────────────────────────────────────
@@ -240,20 +248,6 @@ _PROMPTS = {
 }
 
 
-def _get_api_key(projeto_id: str) -> str:
-    client = get_client()
-    resp = client.table("projects").select("gemini_api_key").eq("id", projeto_id).execute()
-    if not resp.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    key = resp.data[0].get("gemini_api_key") or ""
-    if not key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada.",
-        )
-    return key
-
-
 async def _prepare_content(
     texto: Optional[str],
     arquivo: Optional[UploadFile],
@@ -296,7 +290,10 @@ async def _prepare_content(
 
 
 @router.post("")
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def enrich(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     doc_type: str = Form(...),
     texto: Optional[str] = Form(None),
@@ -312,7 +309,7 @@ async def enrich(
             detail=f"doc_type inválido: {doc_type!r}. Use: {list(_SCHEMA_MAP)}",
         )
 
-    api_key = _get_api_key(projeto_id)
+    api_key = get_gemini_api_key()
     content_text, is_vision, image_b64, image_mime = await _prepare_content(texto, arquivo)
 
     if not content_text and not is_vision:
@@ -343,7 +340,7 @@ async def enrich(
         parsed = raw_result.get("parsed")
         if parsed is None:
             pe = raw_result.get("parsing_error")
-            print(f"[enrich] Structured output parsing failed for doc_type={doc_type}: {pe}")
+            _LOG.warning("estruturacao_falhou doc_type=%s", doc_type)
             raise HTTPException(
                 status_code=502,
                 detail="Falha ao estruturar resposta da IA. Tente reformular o texto ou use um arquivo diferente.",
@@ -352,11 +349,14 @@ async def enrich(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+        raise falha_externa("gemini.enrich", exc, _ERRO_ANALISE)
 
 
 @router.post("/planning-correlacoes")
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def enrich_planning_com_correlacoes(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     texto: Optional[str] = Form(None),
     arquivo: Optional[UploadFile] = File(None),
@@ -368,7 +368,7 @@ async def enrich_planning_com_correlacoes(
     2. Para cada task, identifica a funcionalidade mais provável do escopo do projeto.
     Não salva nada no banco — serve para pré-popular o PlanningModal antes da confirmação.
     """
-    api_key = _get_api_key(projeto_id)
+    api_key = get_gemini_api_key()
     content_text, is_vision, image_b64, image_mime = await _prepare_content(texto, arquivo)
 
     if not content_text and not is_vision:
@@ -401,7 +401,7 @@ async def enrich_planning_com_correlacoes(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro na análise: {exc}")
+        raise falha_externa("gemini.enrich_planning", exc, _ERRO_ANALISE)
 
     tasks = [item.item for item in enriquecimento.itens_backlog if item.item]
 

@@ -10,17 +10,22 @@ LLM quando só vêm os campos estruturados (já estão estruturados — chamar G
 seria desperdício e fonte de alucinação). Se houver PDF anexo, ele passa pelo
 `extraction_graph` separadamente e os campos extraídos são mesclados.
 """
+import logging
 import json
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
 
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.extraction_graph import extraction_graph, ExtractionState
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import SprintDocResponse
 from services.supabase_client import get_client
+from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row, compute_planejado_vs_entregue
+
+_LOG = logging.getLogger("docudata.sprint_docs")
 
 router = APIRouter(prefix="/sprint-docs", tags=["sprint-docs"])
 
@@ -60,13 +65,14 @@ async def _extract_anexo_to_content(
         "mime_type": anexo.content_type,
         "sprint_numero": sprint_numero,
         "projeto_id": project_id,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "tipo": "",
         "texto_preprocessado": "",
         "conteudo_estruturado": None,
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": tipo_esperado,
         "force": force,
@@ -90,8 +96,8 @@ async def _extract_anexo_to_content(
         )
     if not result.get("valido"):
         raise HTTPException(
-            status_code=502,
-            detail=f"Extração do PDF anexo falhou: {result.get('erro') or 'erro desconhecido'}",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo do anexo",
         )
 
     # Remove o registro intermediário criado pelo graph — vamos inserir um único
@@ -144,20 +150,13 @@ def _require_lista_ou_confirmado(items: list, confirmado_vazio: bool, rotulo: st
         )
 
 
-def _project_or_404(project_id: str) -> tuple[dict, str]:
-    """Carrega projeto e retorna (project_dict, api_key). Levanta 404/422 se inválido."""
+def _project_or_404(project_id: str) -> dict:
+    """Carrega somente os campos públicos necessários do projeto."""
     client = get_client()
-    resp = client.table("projects").select("*").eq("id", project_id).execute()
+    resp = client.table("projects").select("id, name, client, description").eq("id", project_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    project = resp.data[0]
-    api_key = project.get("gemini_api_key") or ""
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada.",
-        )
-    return project, api_key
+    return resp.data[0]
 
 
 async def _run_generation(
@@ -176,7 +175,7 @@ async def _run_generation(
         "sprint_numero": sprint_numero,
         "ingestion_id": ingestion_id,
         "observacoes": None,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "data_atual": datetime.now().strftime("%d/%m/%Y"),
         "ingestions": [],
         "contexto": "",
@@ -245,7 +244,10 @@ async def get_planejado_vs_entregue(projeto_id: str, sprint_numero: int):
 
 
 @router.post("/planning", response_model=SprintDocResponse, status_code=201)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def submit_planning(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     descricao: str = Form(...),
@@ -272,7 +274,8 @@ async def submit_planning(
     (sem_riscos/sem_dependencias/sem_carry_over), pra impedir que o Planning saia
     do sistema com lacunas silenciosas.
     """
-    project, api_key = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id)
+    api_key = get_gemini_api_key()
     try:
         backlog = json.loads(itens_backlog)
         if not isinstance(backlog, list):
@@ -293,7 +296,7 @@ async def submit_planning(
         risco_items = json.loads(riscos_items) if isinstance(riscos_items, str) else []
         co_items = json.loads(carry_over_items) if isinstance(carry_over_items, str) else []
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"Payload inválido: {exc}")
+        raise HTTPException(status_code=422, detail="Payload inválido")
 
     if not backlog_items:
         raise HTTPException(status_code=422, detail="O backlog da sprint é obrigatório — inclua ao menos 1 item.")
@@ -368,7 +371,10 @@ async def submit_planning(
 
 
 @router.post("/daily", response_model=SprintDocResponse, status_code=201)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def submit_daily(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     data: str = Form(...),                     # ISO date (YYYY-MM-DD)
@@ -379,7 +385,8 @@ async def submit_daily(
     force: bool = Form(False),
 ):
     """Submete uma Daily. Cria ingestion + dispara geração do doc."""
-    project, api_key = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id)
+    api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
     impedimentos_clean = (impedimentos or "").strip()
@@ -439,7 +446,10 @@ async def submit_daily(
 
 
 @router.post("/ata", response_model=SprintDocResponse, status_code=201)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def submit_ata_with_upload(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     anexo: UploadFile = File(...),
@@ -451,7 +461,8 @@ async def submit_ata_with_upload(
     SEMPRE de uma transcrição — o PDF é obrigatório. A ingestão resultante fica com
     tipo_documentacao=NULL (é um insumo livre, não conta como mínimo obrigatório).
     """
-    project, api_key = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id)
+    api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
     if anexo.content_type != _PDF_MIME:
@@ -468,13 +479,14 @@ async def submit_ata_with_upload(
         "mime_type": anexo.content_type,
         "sprint_numero": sprint_numero,
         "projeto_id": projeto_id,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "tipo": "",
         "texto_preprocessado": "",
         "conteudo_estruturado": None,
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": "ata_reuniao",
         "force": force,
@@ -498,8 +510,8 @@ async def submit_ata_with_upload(
         )
     if not result.get("valido"):
         raise HTTPException(
-            status_code=502,
-            detail=f"Extração da transcrição falhou: {result.get('erro') or 'erro desconhecido'}",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo da transcrição",
         )
 
     ingestion_id = result.get("ingestion_id")
@@ -524,7 +536,10 @@ async def submit_ata_with_upload(
 
 
 @router.post("/review", response_model=SprintDocResponse, status_code=201)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def submit_review(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     observacoes: str = Form(...),
@@ -547,8 +562,8 @@ async def submit_review(
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
 
-    A review se baseia no planning + dailys + ingestões livres da sprint para
-    computar o delta (planejado vs realizado). Observações do gerente são
+    A review se baseia no planning + dailys + ingestões livres + commits da sprint
+    para computar o delta (planejado vs realizado). Observações do gerente são
     anexadas como contexto adicional.
 
     Todo campo é obrigatório. itens_planejados_entregues (pré-preenchido pelo
@@ -557,7 +572,8 @@ async def submit_review(
     As demais listas de evento (pedidos fora de escopo, itens pra próxima sprint)
     exigem confirmação explícita de ausência quando vazias.
     """
-    project, api_key = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id)
+    api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
     observacoes_clean = observacoes.strip()
@@ -613,7 +629,7 @@ async def submit_review(
         except HTTPException as exc:
             if exc.status_code == 422:
                 raise
-            print(f"[submit_review] Anexo extraction failed (non-fatal): {exc.detail}")
+            _LOG.warning("anexo_review_ignorado status=%s", exc.status_code)
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,
@@ -644,7 +660,10 @@ async def submit_review(
 
 
 @router.post("/retrospectiva", response_model=SprintDocResponse, status_code=201)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def submit_retrospectiva(
+    request: Request,
+    response: Response,
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     observacoes: Optional[str] = Form(None),
@@ -665,10 +684,11 @@ async def submit_retrospectiva(
 ):
     """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
 
-    A retrospectiva consolida o que aconteceu na sprint (planning + dailys + review)
+    A retrospectiva consolida planning, dailys, review, uploads e commits da sprint
     e captura o status dos pedidos fora de escopo recebidos durante o review.
     """
-    project, api_key = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id)
+    api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
     try:
@@ -716,7 +736,7 @@ async def submit_retrospectiva(
         except HTTPException as exc:
             if exc.status_code == 422:
                 raise
-            print(f"[submit_retrospectiva] Anexo extraction failed (non-fatal): {exc.detail}")
+            _LOG.warning("anexo_retrospectiva_ignorado status=%s", exc.status_code)
 
     ingestion = _insert_ingestion(
         project_id=projeto_id,

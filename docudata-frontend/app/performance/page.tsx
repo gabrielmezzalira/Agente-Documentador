@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "../components/AuthGuard";
 import { getPerformance, type PerformanceResponse, type PerformanceOperacional } from "../lib/api";
 
@@ -42,7 +43,8 @@ export default function PerformancePage() {
   if (auth && auth.cargo !== "lider" && auth.cargo !== "owner") {
     return (
       <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <p style={{ color: "#dc2626" }}>Acesso restrito a Líder e Owner.</p>
+        <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
+        <p style={{ color: "#dc2626", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
       </main>
     );
   }
@@ -51,7 +53,8 @@ export default function PerformancePage() {
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "52px 24px" }}>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", marginBottom: 24 }}>Performance</h1>
+      <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", margin: "20px 0 24px" }}>Performance</h1>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {(["sprint", "quinzenal", "mensal"] as const).map((j) => (
@@ -108,3 +111,8 @@ export default function PerformancePage() {
     </main>
   );
 }
+
+const linkProjetosStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#9696a0",
+};

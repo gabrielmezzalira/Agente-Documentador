@@ -658,3 +658,138 @@ ALTER TABLE sprints ADD COLUMN IF NOT EXISTS iniciada boolean NOT NULL DEFAULT t
 -- descrevendo o que ele acha que seria útil fazer. Vai junto no email pro
 -- gerente — é só um contexto a mais, não substitui o gerente decidir.
 ALTER TABLE solicitacoes_task ADD COLUMN IF NOT EXISTS sugestao text;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Migrations incrementais do fluxo multi-subárea e configurações
+-- Executar manualmente no Supabase SQL Editor. A aplicação não as executa.
+-- ═══════════════════════════════════════════════════════════════
+
+-- O DEFAULT preserva todos os projetos existentes como projetos de Dados.
+-- Migration v3: subárea do projeto (dados | dev)
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS subarea text NOT NULL DEFAULT 'dados';
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev'));
+
+-- Migration v4: configuração global e criptografada da chave Gemini
+-- Não há policy para acesso pelo browser; somente o backend usa a service role.
+-- CREATE TABLE IF NOT EXISTS app_settings (
+--     key             text        PRIMARY KEY,
+--     encrypted_value text        NOT NULL,
+--     display_hint    text,
+--     updated_at      timestamptz NOT NULL DEFAULT now()
+-- );
+-- ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+-- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
+-- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
+-- CREATE TABLE IF NOT EXISTS project_repositories (
+--     id                       uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--     project_id               uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--     github_repository_id     bigint      NOT NULL UNIQUE,
+--     installation_id          bigint      NOT NULL,
+--     full_name                text        NOT NULL,
+--     html_url                 text        NOT NULL,
+--     default_branch           text,
+--     active                   boolean     NOT NULL DEFAULT true,
+--     inactive_reason          text,
+--     connected_at             timestamptz NOT NULL DEFAULT now(),
+--     updated_at               timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS project_repositories_project_id_idx
+--     ON project_repositories (project_id);
+-- CREATE INDEX IF NOT EXISTS project_repositories_installation_id_idx
+--     ON project_repositories (installation_id);
+--
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_repository_id uuid
+--     REFERENCES project_repositories(id);
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_repository_full_name text;
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_commit_sha text;
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_branch text;
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_url text;
+-- ALTER TABLE ingestions ADD COLUMN IF NOT EXISTS source_diff_stat text;
+-- CREATE UNIQUE INDEX IF NOT EXISTS ingestions_repository_commit_unique_idx
+--     ON ingestions (source_repository_id, source_commit_sha)
+--     WHERE source_commit_sha IS NOT NULL;
+--
+-- CREATE TABLE IF NOT EXISTS github_webhook_deliveries (
+--     delivery_id text        PRIMARY KEY,
+--     event       text        NOT NULL,
+--     status      text        NOT NULL,
+--     attempts    int         NOT NULL DEFAULT 1,
+--     last_error  text,
+--     created_at  timestamptz NOT NULL DEFAULT now(),
+--     updated_at  timestamptz NOT NULL DEFAULT now()
+-- );
+--
+-- CREATE TABLE IF NOT EXISTS github_connection_sessions (
+--     id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--     project_id            uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--     state_hash            text        NOT NULL UNIQUE,
+--     connection_token_hash text        UNIQUE,
+--     installation_id       bigint,
+--     status                text        NOT NULL DEFAULT 'pending',
+--     expires_at            timestamptz NOT NULL,
+--     created_at            timestamptz NOT NULL DEFAULT now(),
+--     updated_at            timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS github_connection_sessions_project_id_idx
+--     ON github_connection_sessions (project_id);
+
+-- ---------------------------------------------------------------------------
+-- Migration v6: índices aditivos de leitura (Spec 09)
+-- ---------------------------------------------------------------------------
+-- Nenhum destes índices é requisito funcional: o código roda igual sem eles.
+-- São só custo de leitura. Por isso NÃO são aplicados por deploy nem por
+-- agente — aplicar manualmente, um por vez, em janela compatível com o volume
+-- real da tabela, e usar CREATE INDEX CONCURRENTLY (fora de transação) quando
+-- a tabela já for grande o bastante para o lock incomodar.
+--
+-- Cada índice abaixo está amarrado à query que o justifica hoje:
+--
+-- projects (subarea, created_at DESC)
+--   GET /projects?subarea=... — .eq("subarea").order("created_at", desc=True)
+--   em routers/projects.py::list_projects. É a consulta da home das duas
+--   subáreas e hoje não tem índice nenhum.
+-- CREATE INDEX IF NOT EXISTS idx_projects_subarea_created
+--     ON projects (subarea, created_at DESC);
+--
+-- ingestions (project_id, created_at DESC)
+--   GET /ingestions/{projeto_id} e o cálculo de last_ingestion_at da listagem
+--   de projetos (agora restrito por .in_("project_id", ids da página)).
+-- CREATE INDEX IF NOT EXISTS idx_ingestions_project_created
+--     ON ingestions (project_id, created_at DESC);
+--
+-- ingestions (project_id, sprint_number, created_at DESC)
+--   GET /ingestions/{projeto_id}/{sprint}, o delete em cascata de sprint
+--   (routers/sprints.py) e a busca de contexto do grafo de geração.
+--   O índice anterior é prefixo deste, mas só este serve o filtro por sprint.
+-- CREATE INDEX IF NOT EXISTS idx_ingestions_project_sprint_created
+--     ON ingestions (project_id, sprint_number, created_at DESC);
+--
+-- generated_docs (project_id, sprint_number, created_at DESC)
+--   GET /docs/{projeto_id} (listagem ordenada por data) e as consultas por
+--   sprint em routers/generate.py e routers/sprints.py.
+-- CREATE INDEX IF NOT EXISTS idx_generated_docs_project_sprint_created
+--     ON generated_docs (project_id, sprint_number, created_at DESC);
+--
+-- funcionalidades (project_id)
+--   GET /funcionalidades/{project_id}, carregado em toda abertura de projeto
+--   e no modal de status pós-review.
+-- CREATE INDEX IF NOT EXISTS idx_funcionalidades_project
+--     ON funcionalidades (project_id);
+--
+-- operacionais (email, ativo)
+--   Filtro de vínculo do operacional em list_projects e em
+--   services/auth.py::require_project_access — roda em toda navegação de quem
+--   tem cargo operacional. Já existe idx_operacionais_project_nome, mas ele é
+--   (project_id, nome) e não atende este filtro.
+-- CREATE INDEX IF NOT EXISTS idx_operacionais_email_ativo
+--     ON operacionais (email, ativo);
+--
+-- pontuacao_operacional_sprint (operacional_id, sprint_fim DESC)
+--   services/performance.py::_sequencia_pessoal —
+--   .in_("operacional_id", ...).order("sprint_fim", desc=True), base do
+--   ranking de pessoas. Torna idx_pontuacao_operacional_sprint_operacional
+--   redundante, mas remover índice não faz parte desta spec.
+-- CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_fim
+--     ON pontuacao_operacional_sprint (operacional_id, sprint_fim DESC);

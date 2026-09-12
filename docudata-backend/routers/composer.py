@@ -1,12 +1,15 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, field_validator
 
+from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
+from core.observability import falha_externa, registrar_falha_interna
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 
 router = APIRouter(prefix="/composer", tags=["composer"])
 
@@ -104,7 +107,6 @@ def calcular_throughput_ref(
 
 @router.get("/rascunho/{project_id}/{sprint_numero}", response_model=RascunhoResponse)
 async def get_rascunho(project_id: str, sprint_numero: int):
-    import traceback
     step = "init"
     try:
         client = get_client()
@@ -184,10 +186,8 @@ async def get_rascunho(project_id: str, sprint_numero: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Composer failed at step={step}: {type(e).__name__}: {str(e)[:500]}\n{traceback.format_exc()[:800]}",
-        )
+        registrar_falha_interna(f"composer.rascunho.{step}", e)
+        raise HTTPException(status_code=500, detail="Não foi possível montar o rascunho")
 
 
 @router.patch("/rascunho/{project_id}/{sprint_numero}")
@@ -387,7 +387,8 @@ def _montar_contexto_gerar(
 
 
 @router.post("/gerar")
-async def gerar_planning(body: GerarBody):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def gerar_planning(request: Request, response: Response, body: GerarBody):
     """Gera o texto do planning via Gemini sem persistir.
 
     Retorna {"markdown": str}. A persistência ocorre somente em POST /confirmar.
@@ -410,22 +411,17 @@ async def gerar_planning(body: GerarBody):
         )
     rascunho = rascunho_resp.data[0]
 
-    # Buscar projeto para obter gemini_api_key (422 se ausente/vazia)
+    # A existência do projeto e a configuração global são validadas separadamente.
     proj_resp = (
         client.table("projects")
-        .select("name, client, gemini_api_key")
+        .select("name, client")
         .eq("id", body.project_id)
         .execute()
     )
     if not proj_resp.data:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
     projeto = proj_resp.data[0]
-    api_key = (projeto.get("gemini_api_key") or "").strip()
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada.",
-        )
+    api_key = get_gemini_api_key()
 
     # Buscar todas as funcionalidades do projeto
     funcs_resp = (
@@ -499,7 +495,7 @@ async def gerar_planning(body: GerarBody):
         else:
             markdown = str(raw)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini failed: {exc}")
+        raise falha_externa("gemini.composer", exc, "Não foi possível gerar o conteúdo com a IA")
 
     # NÃO persistir — retornar apenas o markdown (D-06)
     return {"markdown": markdown}

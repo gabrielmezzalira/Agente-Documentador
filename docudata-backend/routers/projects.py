@@ -1,47 +1,54 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Literal
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
     TechTimelineResponse,
     ContratoUpdate,
     GerenteEmailUpdate,
+    ProjectSubareaUpdate,
 )
-from services.auth import get_current_pessoa, require_project_access
+from core.observability import falha_externa
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+# Projeção explícita das leituras que devolvem ProjectResponse. Cobre todos os
+# campos do response model mais `github_token`/`github_repo`, usados só para
+# derivar `has_github_config`. Deixa de fora `gemini_api_key`: era um segredo
+# legado por projeto que vinha do banco a cada listagem só para ser descartado
+# depois por _sanitize.
+_CAMPOS_PROJETO = (
+    "id, name, client, subarea, description, squad, valor_projeto, valor_por_ponto, "
+    "is_delivered, created_at, data_inicio, data_fim_contratada, "
+    "tolerancia_desvio_pontos, periodo_garantia_dias, gerente_email, arquetipo, "
+    "github_token, github_repo"
+)
+
 
 def _sanitize(row: dict) -> dict:
-    """Strip sensitive keys from row; inject has_api_key and has_github_config bools.
-
-    - gemini_api_key → nunca enviado; has_api_key: bool calculado a partir dele
-    - github_token   → nunca enviado (T-11-02); has_github_config: bool calculado
-    - github_repo    → nunca enviado como campo sensível; apenas afeta has_github_config
-    """
-    has_key = bool(row.get("gemini_api_key"))
+    """Remove segredos legados e mantém apenas o status da integração de aceite."""
     has_github_config = bool(row.get("github_token")) and bool(row.get("github_repo"))
     filtered = {k: v for k, v in row.items() if k not in ("gemini_api_key", "github_token")}
-    return filtered | {"has_api_key": has_key, "has_github_config": has_github_config}
-
-
-class ApiKeyUpdate(BaseModel):
-    gemini_api_key: Optional[str] = None
+    return filtered | {"has_github_config": has_github_config}
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(data: ProjectCreate):
     """Create a new project. Returns the inserted row with its generated UUID."""
     client = get_client()
-    payload = {"name": data.name, "client": data.client, "description": data.description, "squad": data.squad}
+    payload = {
+        "name": data.name,
+        "client": data.client,
+        "subarea": data.subarea,
+        "description": data.description,
+        "squad": data.squad,
+    }
     if data.valor_projeto is not None:
         payload["valor_projeto"] = data.valor_projeto
         payload["valor_por_ponto"] = round(data.valor_projeto / 100, 2)
-    if data.gemini_api_key:
-        payload["gemini_api_key"] = data.gemini_api_key
     response = client.table("projects").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
@@ -49,14 +56,23 @@ async def create_project(data: ProjectCreate):
 
 
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects(pessoa: dict = Depends(get_current_pessoa)):
+async def list_projects(
+    subarea: Literal["dados", "dev"] = Query(...),
+    pessoa: dict = Depends(get_current_pessoa),
+):
     """List projects ordered by creation date (most recent first).
 
     Operacional só vê os projetos em que está vinculado como operacional — sem
     isso, a home page expunha a existência (nome, cliente) de todo projeto do
     CITi a qualquer conta, mesmo projetos em que a pessoa nunca trabalhou."""
     client = get_client()
-    response = client.table("projects").select("*").order("created_at", desc=True).execute()
+    response = (
+        client.table("projects")
+        .select(_CAMPOS_PROJETO)
+        .eq("subarea", subarea)
+        .order("created_at", desc=True)
+        .execute()
+    )
     rows = response.data or []
 
     if pessoa["cargo"] == "operacional":
@@ -74,9 +90,15 @@ async def list_projects(pessoa: dict = Depends(get_current_pessoa)):
     projects = [_sanitize(row) for row in rows]
 
     if projects:
+        # Só os IDs que já vão ser devolvidos. Antes a consulta varria a tabela
+        # inteira de ingestões — todo projeto do CITi, das duas subáreas,
+        # inclusive os que o operacional não pode ver — para preencher uma
+        # data de cada projeto da página.
+        ids_da_pagina = [p["id"] for p in projects]
         ing_resp = (
             client.table("ingestions")
             .select("project_id, created_at")
+            .in_("project_id", ids_da_pagina)
             .order("created_at", desc=True)
             .execute()
         )
@@ -96,30 +118,10 @@ async def get_project(project_id: str):
     """Get a single project by UUID. Returns 404 if not found, 403 se o
     operacional não estiver vinculado a este projeto."""
     client = get_client()
-    response = client.table("projects").select("*").eq("id", project_id).execute()
+    response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
     return _sanitize(response.data[0])
-
-
-@router.patch("/{project_id}/api-key", response_model=ProjectResponse)
-async def update_api_key(project_id: str, data: ApiKeyUpdate):
-    """Set or clear the Gemini API key for an existing project."""
-    client = get_client()
-    check = client.table("projects").select("id").eq("id", project_id).execute()
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    response = (
-        client.table("projects")
-        .update({"gemini_api_key": data.gemini_api_key or None})
-        .eq("id", project_id)
-        .execute()
-    )
-    if not response.data:
-        raise HTTPException(status_code=500, detail="Failed to update API key")
-    return _sanitize(response.data[0])
-
-
 
 
 @router.patch("/{project_id}/delivered", response_model=ProjectResponse)
@@ -185,6 +187,32 @@ async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
     return _sanitize(response.data[0])
 
 
+@router.patch("/{project_id}/subarea", response_model=ProjectResponse)
+async def update_project_subarea(
+    project_id: str,
+    data: ProjectSubareaUpdate,
+    _pessoa: dict = Depends(require_not_operacional),
+):
+    """Move o projeto entre Dados e Dev sem alterar seus registros relacionados."""
+    client = get_client()
+    check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if check.data[0].get("subarea") == data.subarea:
+        response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
+    else:
+        # Todos os vínculos usam project_id; só a classificação do projeto deve mudar.
+        response = (
+            client.table("projects")
+            .update({"subarea": data.subarea})
+            .eq("id", project_id)
+            .execute()
+        )
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update project subarea")
+    return _sanitize(response.data[0])
+
+
 @router.patch("/{project_id}/contrato", response_model=ProjectResponse)
 async def update_contrato(project_id: str, data: ContratoUpdate):
     """Atualiza campos de contrato do projeto: datas, tolerancia, garantia e valor do projeto."""
@@ -235,7 +263,9 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
         # cabeçalho de CORS (o middleware nunca chega a rodar numa exceção não
         # tratada) — o navegador mostra como bloqueio de CORS, escondendo o
         # erro real. Levantar como HTTPException garante resposta formada.
-        raise HTTPException(status_code=500, detail=f"Falha ao salvar contrato: {exc}")
+        raise falha_externa(
+            "supabase.projects.contrato", exc, "Não foi possível salvar o contrato", status_code=500
+        )
 
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update contract fields")

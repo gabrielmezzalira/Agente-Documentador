@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from typing import TypedDict, Optional
@@ -7,7 +8,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from models.schemas import ConteudoEstruturado
+from services.file_parser import (
+    ArquivoExcedeLimite,
+    ArquivoInvalido,
+    ProcessamentoDemorouDemais,
+)
 from services.supabase_client import get_client
+
+_LOG = logging.getLogger("docudata.extracao")
 
 
 class ExtractionState(TypedDict):
@@ -16,13 +24,15 @@ class ExtractionState(TypedDict):
     mime_type: str
     sprint_numero: int
     projeto_id: str
-    gemini_api_key: str
+    api_key: str
     tipo: str
     texto_preprocessado: str
     conteudo_estruturado: Optional[dict]
     valido: bool
     tentativas: int
     erro: Optional[str]
+    # Status HTTP sugerido para `erro` — 413/422 vêm das guardas de arquivo.
+    erro_status: Optional[int]
     ingestion_id: Optional[str]
     # Validation fields — set by router before invoke
     tipo_esperado: Optional[str]
@@ -104,7 +114,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
     projeto_nome = state.get("projeto_nome") or ""
     cliente = state.get("cliente") or ""
     projeto_descricao = state.get("projeto_descricao") or ""
-    gemini_api_key = state.get("gemini_api_key") or ""
+    api_key = state.get("api_key") or ""
     arquivo_nome = state.get("arquivo_nome") or ""
     arquivo_bytes = state.get("arquivo_bytes") or b""
     mime_type = state.get("mime_type") or ""
@@ -135,7 +145,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
         llm = ChatGoogleGenerativeAI(
             model="gemini-3.5-flash-lite",
             max_tokens=256,
-            google_api_key=gemini_api_key,
+            google_api_key=api_key,
         )
         human_content = (
             f"Arquivo: {arquivo_nome}\n"
@@ -146,7 +156,7 @@ async def validar_tipo(state: ExtractionState) -> dict:
             SystemMessage(content=system_prompt),
             HumanMessage(content=human_content),
         ]
-        print(f"[validar_tipo] Classificando '{arquivo_nome}' | tipo_esperado={tipo_esperado}")
+        _LOG.info("classificando tipo_esperado=%s", tipo_esperado)
         response = await llm.ainvoke(messages)
         response_text = response.content.strip()
         # Strip markdown fences if present
@@ -159,9 +169,9 @@ async def validar_tipo(state: ExtractionState) -> dict:
         tipo_detectado = parsed.get("tipo_detectado", "upload_livre")
         nao_bloquear = parsed.get("nao_bloquear", True)
         explicacao = parsed.get("explicacao", "")
-    except Exception as exc:
+    except Exception:
         # Safe fallback: never block on parse or API error
-        print(f"[validar_tipo] Error during classification — defaulting to nao_bloquear=True: {exc}")
+        _LOG.warning("classificacao_falhou usando_nao_bloquear=true")
         nao_bloquear = True
 
     # Apply blocking logic
@@ -244,9 +254,29 @@ def detectar_tipo(state: ExtractionState) -> dict:
 
 
 def preprocessar_arquivo(state: ExtractionState) -> dict:
+    """Guardas de arquivo viram erro tratado: sem elas, imagem corrompida ou
+    Poppler travado subiam como exceção não tratada (500 genérico)."""
+    try:
+        return _preprocessar(state)
+    except ArquivoExcedeLimite as exc:
+        return _falha_de_arquivo(str(exc), 413)
+    except (ArquivoInvalido, ProcessamentoDemorouDemais) as exc:
+        return _falha_de_arquivo(str(exc), 422)
+
+
+def _falha_de_arquivo(mensagem: str, status: int) -> dict:
+    # tentativas=2 encerra o grafo pelo roteador sem gastar chamada de IA.
+    return {
+        "texto_preprocessado": "",
+        "tentativas": 2,
+        "erro": mensagem,
+        "erro_status": status,
+    }
+
+
+def _preprocessar(state: ExtractionState) -> dict:
     tipo = state["tipo"]
     arquivo_bytes = state["arquivo_bytes"]
-    arquivo_nome = state["arquivo_nome"]
 
     if tipo == "texto":
         if state["mime_type"] == (
@@ -261,17 +291,14 @@ def preprocessar_arquivo(state: ExtractionState) -> dict:
         original_len = len(texto)
         texto = texto[:50_000]
         if len(texto) < original_len:
-            print(
-                f"[preprocessar_arquivo] Truncated '{arquivo_nome}': "
-                f"{original_len} -> 50000 chars"
-            )
+            _LOG.info("texto_truncado de=%s para=50000", original_len)
         return {"texto_preprocessado": texto}
 
     if tipo == "pdf":
         from services.file_parser import parse_pdf
         result = parse_pdf(arquivo_bytes)
         if result["is_scanned"]:
-            print(f"[preprocessar_arquivo] Scanned PDF '{arquivo_nome}' — switching to vision")
+            _LOG.info("pdf_escaneado usando_visao=true")
             return {"texto_preprocessado": f"base64_image:image/png:{result['b64']}"}
         texto = result["text"][:50_000]
         return {"texto_preprocessado": texto}
@@ -282,7 +309,7 @@ def preprocessar_arquivo(state: ExtractionState) -> dict:
         return {"texto_preprocessado": f"base64_image:image/png:{b64}"}
 
     # Unknown type — signal failure; completeness guardrail will terminate via _roteador
-    return {"texto_preprocessado": "", "tentativas": 2, "erro": f"Unsupported file type: {tipo}"}
+    return _falha_de_arquivo("Tipo de arquivo não suportado", 422)
 
 
 import re as _re
@@ -321,21 +348,25 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
         SystemMessage(content=_SYSTEM_PROMPT),
         _build_human_message(texto, suffix),
     ]
-    print(
-        f"[extrair_conteudo] Tentativa {tentativas + 1} | "
-        f"arquivo: {state['arquivo_nome']} | "
-        f"{'[vision]' if is_vision else f'preview: {texto[:200]!r}'}"
+    # O preview do conteúdo fica fora do log: é material do cliente.
+    _LOG.info(
+        "extraindo tentativa=%s visao=%s",
+        tentativas + 1,
+        is_vision,
     )
     try:
-        structured_llm = _make_structured_llm(state["gemini_api_key"])
+        structured_llm = _make_structured_llm(state["api_key"])
         raw_result = await structured_llm.ainvoke(messages)
         parsed: Optional[ConteudoEstruturado] = raw_result.get("parsed")
         raw_msg = raw_result["raw"]
 
         if parsed is None:
-            pe = raw_result.get("parsing_error")
-            print(f"[extrair_conteudo] Structured output parsing failed: {pe}")
-            return {"valido": False, "tentativas": tentativas + 1, "erro": f"Structured output parsing failed: {pe}"}
+            _LOG.warning("estruturacao_falhou tentativa=%s", tentativas + 1)
+            return {
+                "valido": False,
+                "tentativas": tentativas + 1,
+                "erro": "Não foi possível estruturar a resposta da IA",
+            }
 
         content = parsed.model_dump()
 
@@ -350,15 +381,16 @@ async def extrair_conteudo(state: ExtractionState) -> dict:
             return {
                 "valido": False,
                 "tentativas": tentativas + 1,
-                "erro": "Completeness check failed: all extracted fields are empty",
+                "erro": "A IA não encontrou conteúdo aproveitável neste arquivo",
             }
 
         return {
             "conteudo_estruturado": content,
             "valido": True,
         }
-    except Exception as exc:
-        return {"valido": False, "tentativas": tentativas + 1, "erro": str(exc)}
+    except Exception:
+        # A exceção do SDK não é propagada para evitar vazar credenciais ou payloads.
+        return {"valido": False, "tentativas": tentativas + 1, "erro": "Falha ao processar conteúdo com Gemini"}
 
 
 async def salvar(state: ExtractionState) -> dict:
@@ -383,8 +415,20 @@ async def salvar(state: ExtractionState) -> dict:
         if not response.data:
             raise RuntimeError("Insert returned no data — row may not have been written")
     except Exception as exc:
-        return {"erro": f"Supabase insert failed: {exc}", "valido": False}
+        _LOG.warning("falha_ao_salvar_ingestao exc=%s", type(exc).__name__)
+        return {"erro": "Não foi possível salvar a ingestão", "valido": False}
     return {"ingestion_id": response.data[0].get("id")}
+
+
+def _roteador_preprocessamento(state: ExtractionState):
+    """Guarda de arquivo já reprovou: encerra sem gastar chamada de IA.
+
+    Antes o edge era incondicional — arquivo inválido ainda ia para o Gemini
+    com conteúdo vazio e a mensagem de erro específica era sobrescrita pela
+    falha genérica da extração."""
+    if state.get("erro_status"):
+        return END
+    return "extrair_conteudo"
 
 
 def _roteador(state: ExtractionState):
@@ -405,7 +449,11 @@ _builder.add_node("salvar", salvar)
 _builder.add_edge(START, "validar_tipo")
 _builder.add_conditional_edges("validar_tipo", _roteador_validacao, {"detectar_tipo": "detectar_tipo", END: END})
 _builder.add_edge("detectar_tipo", "preprocessar_arquivo")
-_builder.add_edge("preprocessar_arquivo", "extrair_conteudo")
+_builder.add_conditional_edges(
+    "preprocessar_arquivo",
+    _roteador_preprocessamento,
+    {"extrair_conteudo": "extrair_conteudo", END: END},
+)
 _builder.add_conditional_edges("extrair_conteudo", _roteador)
 _builder.add_edge("salvar", END)
 

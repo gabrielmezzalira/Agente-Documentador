@@ -11,6 +11,7 @@ Instalação no repositório do projeto:
 Variáveis de ambiente (GitHub Secrets):
   DOCUDATA_API_URL      — ex: https://docudata-backend.railway.app
   DOCUDATA_PROJECT_ID   — UUID do projeto no DocuData
+  DOCUDATA_APP_SECRET   — segredo compartilhado das automações
 
 Este agente é propositalmente best-effort: nunca falha o CI.
 Roda diariamente às 08:00 UTC (05:00 BRT) via cron do GitHub Actions.
@@ -21,6 +22,7 @@ from datetime import date
 
 API_URL    = os.environ.get("DOCUDATA_API_URL", "").rstrip("/")
 PROJECT_ID = os.environ.get("DOCUDATA_PROJECT_ID", "")
+APP_SECRET = os.environ.get("DOCUDATA_APP_SECRET", "")
 
 LIMITE_CHARS = 100_000
 
@@ -30,6 +32,7 @@ def git(*args):
 def http_json(url, method="GET", data=None):
     body = json.dumps(data).encode() if data else None
     headers = {"Content-Type": "application/json"}
+    headers["X-Docudata-Key"] = APP_SECRET
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=30) as r:

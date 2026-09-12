@@ -8,6 +8,7 @@ A task concedida é marcada como extra: ela não consome o orçamento de pontos 
 sprint e, se concluída antes do fechamento, vira bônus no score em vez de entrar
 em Entrega (services/performance.py::_bonus_extra).
 """
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +22,8 @@ from services.auth import get_current_pessoa, require_not_operacional
 from services.email_service import email_solicitacao_task, send_email
 from services.sprints import get_current_sprint_id
 from services.supabase_client import get_client
+
+_LOG = logging.getLogger("docudata.solicitacoes")
 
 router = APIRouter(prefix="/solicitacoes-task", tags=["solicitacoes-task"])
 
@@ -107,7 +110,7 @@ def _avisar_gerente(
         for g in gerentes:
             send_email(g["email"], subject, html)
     except Exception as exc:
-        print(f"[solicitacoes-task] Aviso: falha ao notificar gerente ({exc}) — pedido registrado mesmo assim")
+        _LOG.warning("notificacao_solicitacao_falhou exc=%s", type(exc).__name__)
 
 
 @router.get("/projects/{project_id}", response_model=list[SolicitacaoTaskResponse])

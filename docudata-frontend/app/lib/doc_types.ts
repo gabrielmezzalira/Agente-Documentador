@@ -46,7 +46,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Status executivo de uma sprint específica, com o que foi concluído, o que está em andamento e o que está bloqueado.",
     pra_que: "Comunicar progresso da sprint ao líder estratégico e ao cliente — leitura rápida com o foco do momento.",
     quando: "Ao final de cada sprint (semanal/quinzenal), ou antes de uma reunião de status com o cliente.",
-    fontes: "Planning + Dailys + ingestões livres da sprint selecionada.",
+    fontes: "Planning + Dailys + ingestões livres + commits da sprint selecionada.",
   },
   retrospectiva: {
     key: "retrospectiva",
@@ -56,7 +56,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Ata de reunião de retrospectiva de uma sprint, com tópicos discutidos, decisões e outputs.",
     pra_que: "Registrar de forma formal o que foi alinhado na retro, pra que decisões não se percam entre sprints.",
     quando: "Depois de uma reunião de retrospectiva da sprint.",
-    fontes: "Todas as ingestões da sprint selecionada (planning, dailys, review, uploads livres).",
+    fontes: "Todas as ingestões da sprint selecionada (planning, dailys, review, uploads livres e commits).",
   },
   ata_reuniao: {
     key: "ata_reuniao",
@@ -76,7 +76,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Lista cronológica de todas as decisões técnicas e de escopo tomadas ao longo do projeto.",
     pra_que: "Manter rastreabilidade do porquê das escolhas — útil em handoffs e revisões pós-projeto.",
     quando: "A qualquer momento; ideal antes de virar uma nova milestone ou quando o time vai mudar.",
-    fontes: "Todas as ingestões do projeto, ordenadas por sprint.",
+    fontes: "Todas as ingestões e commits do projeto, ordenados por sprint.",
   },
   onboarding: {
     key: "onboarding",
@@ -86,7 +86,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Guia completo pra quem vai assumir o projeto: o que é, contexto do cliente, stack atual, decisões importantes, próximos passos.",
     pra_que: "Reduzir o tempo de ramp-up de um novo gerente ou analista entrando no projeto.",
     quando: "Antes de trocar de gerente, no início da gestão, ou pra integrar um novo analista ao projeto.",
-    fontes: "Todas as ingestões do projeto. A sprint mais recente define o estado ATUAL.",
+    fontes: "Todas as ingestões e commits do projeto. A sprint mais recente define o estado ATUAL.",
   },
   documentacao_final: {
     key: "documentacao_final",
@@ -96,7 +96,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Documentação oficial completa do projeto no template do CITi: overview, arquitetura, dados, qualidade, deploy e glossário.",
     pra_que: "Entregar ao cliente como artefato final do projeto — o documento de fechamento.",
     quando: "Ao final do projeto, antes da entrega oficial ao cliente.",
-    fontes: "Todas as ingestões do projeto, com prioridade pra estado da sprint mais recente.",
+    fontes: "Todas as ingestões e commits do projeto, com prioridade pro estado da sprint mais recente.",
   },
   planning: {
     key: "planning",
@@ -126,7 +126,7 @@ export const DOC_TYPES: Record<DocTypeKey, DocTypeMeta> = {
     o_que: "Review de sprint comparando o que foi planejado vs. o que foi efetivamente entregue (delta).",
     pra_que: "Explicitar diferenças entre planning e execução, gerar aprendizados pra próxima sprint.",
     quando: "Ao final de cada sprint, antes da retrospectiva.",
-    fontes: "Planning da sprint + dailys + ingestões livres da sprint + observações do gerente. Acessar pelo card de sprint → + Review.",
+    fontes: "Planning + dailys + ingestões livres + commits da sprint + observações do gerente. Acessar pelo card de sprint → + Review.",
   },
 };
 

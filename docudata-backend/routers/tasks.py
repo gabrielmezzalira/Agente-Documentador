@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -20,6 +21,8 @@ from services.wip_check import check_wip
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento
+
+_LOG = logging.getLogger("docudata.tasks")
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -98,7 +101,7 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         subject, html = email_task_atribuida(projeto_nome, operacional_nome, task["titulo"], sprint_numero)
         send_email(operacional_email, subject, html)
     except Exception as exc:
-        print(f"[tasks] Aviso: falha ao notificar operacional sobre atribuição ({exc}) — task salva mesmo assim")
+        _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
 
 
 def _avisar_gerente_task_concluida(client, task: dict) -> None:
@@ -286,9 +289,10 @@ async def create_task(data: TaskCreate):
         if orcamento is not None and not data.extra:
             usados = _pontos_usados_na_sprint(client, data.sprint_id)
             if usados + data.pontos > orcamento:
+                mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
                 raise HTTPException(
                     status_code=409,
-                    detail=f"Orçamento da sprint excedido: restam {orcamento - usados} pontos.",
+                    detail=mensagem,
                 )
 
     payload: dict = {
@@ -500,9 +504,10 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             if orcamento is not None and not extra_efetivo:
                 usados = _pontos_usados_na_sprint(client, sprint_id_efetivo, ignorar_task_id=task_id)
                 if usados + pontos_efetivo > orcamento:
+                    mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
                     raise HTTPException(
                         status_code=409,
-                        detail=f"Orçamento da sprint excedido: restam {orcamento - usados} pontos.",
+                        detail=mensagem,
                     )
 
     # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado

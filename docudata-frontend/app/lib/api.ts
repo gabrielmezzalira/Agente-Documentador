@@ -129,10 +129,10 @@ export interface Project {
   id: string;
   name: string;
   client: string;
+  subarea: Subarea;
   description?: string;
   valor_projeto?: number | null;
   valor_por_ponto?: number | null;
-  has_api_key: boolean;
   is_delivered: boolean;
   created_at: string;
   last_ingestion_at?: string | null;
@@ -142,6 +142,51 @@ export interface Project {
   periodo_garantia_dias?: number | null;
   arquetipo?: "padrao" | "consultoria_discovery";
   gerente_email?: string | null;
+}
+
+export type Subarea = "dados" | "dev";
+
+export interface GeminiApiKeyStatus {
+  configured: boolean;
+  key_hint: string | null;
+  updated_at: string | null;
+}
+
+export interface GitHubCapabilities {
+  enabled: boolean;
+  configured: boolean;
+  subareas: Subarea[];
+  app_slug: string | null;
+}
+
+export interface GitHubRepositoryCandidate {
+  github_repository_id: number;
+  full_name: string;
+  html_url: string;
+  default_branch: string | null;
+  pushed_at: string | null;
+  private: boolean;
+  connection_status: "available" | "connected_here" | "unavailable";
+}
+
+export interface GitHubRepositorySelection {
+  repositories: GitHubRepositoryCandidate[];
+  manage_url: string | null;
+  repository_scope: "all" | "selected" | "unknown";
+  has_more: boolean;
+}
+
+export interface ProjectRepository {
+  id: string;
+  project_id: string;
+  github_repository_id: number;
+  full_name: string;
+  html_url: string;
+  default_branch: string | null;
+  active: boolean;
+  permission_status: "active" | "revoked" | "disconnected";
+  connected_at: string;
+  updated_at: string;
 }
 
 export interface StackSearchResult {
@@ -172,11 +217,30 @@ export interface Ingestion {
     contexto_cliente?: string;
     proximos_passos?: string[];
     tecnologias?: string[];
+    tecnologias_removidas?: string[];
     _meta_autor?: string;
     _meta_data_commit?: string;
     _meta_commit_msg?: string;
     _meta_branch?: string;
+    _meta_repository?: string;
+    _meta_commit_sha?: string;
+    _meta_commit_url?: string;
+    _meta_autor_login?: string;
+    _meta_autor_email?: string;
+    _meta_committer?: string;
+    _meta_committer_login?: string;
+    _meta_pusher?: string;
+    _meta_sender?: string;
   };
+  input_tokens?: number;
+  output_tokens?: number;
+  cost_usd?: number;
+  source_repository_id?: string | null;
+  source_repository_full_name?: string | null;
+  source_commit_sha?: string | null;
+  source_branch?: string | null;
+  source_url?: string | null;
+  source_diff_stat?: string | null;
   created_at: string;
 }
 
@@ -269,8 +333,8 @@ export interface SprintDocResponse {
   created_at: string;
 }
 
-export async function listProjects(): Promise<Project[]> {
-  const res = await apiFetch(`${API}/projects`);
+export async function listProjects(subarea: Subarea): Promise<Project[]> {
+  const res = await apiFetch(`${API}/projects?subarea=${encodeURIComponent(subarea)}`);
   if (!res.ok) throw new Error("Erro ao buscar projetos");
   return res.json();
 }
@@ -304,16 +368,6 @@ export async function updateContrato(
   return res.json();
 }
 
-export async function updateApiKey(projectId: string, key: string | null): Promise<Project> {
-  const res = await apiFetch(`${API}/projects/${projectId}/api-key`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ gemini_api_key: key }),
-  });
-  if (!res.ok) throw new Error("Erro ao atualizar chave de API");
-  return res.json();
-}
-
 export async function updateGerenteEmail(projectId: string, email: string | null): Promise<Project> {
   const res = await apiFetch(`${API}/projects/${projectId}/gerente-email`, {
     method: "PATCH",
@@ -324,13 +378,29 @@ export async function updateGerenteEmail(projectId: string, email: string | null
   return res.json();
 }
 
+export async function updateProjectSubarea(
+  projectId: string,
+  subarea: Subarea,
+): Promise<Project> {
+  const res = await apiFetch(`${API}/projects/${projectId}/subarea`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subarea }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao alterar subárea do projeto");
+  }
+  return res.json();
+}
+
 export async function createProject(data: {
   name: string;
   client: string;
+  subarea: Subarea;
   description?: string;
   squad?: string;
   valor_projeto?: number | null;
-  gemini_api_key?: string;
 }): Promise<Project> {
   const res = await apiFetch(`${API}/projects`, {
     method: "POST",
@@ -338,6 +408,78 @@ export async function createProject(data: {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Erro ao criar projeto");
+  return res.json();
+}
+
+async function githubError(res: Response, fallback: string): Promise<Error> {
+  const body = await res.json().catch(() => ({}));
+  return new Error(typeof body.detail === "string" ? body.detail : fallback);
+}
+
+export async function getGitHubCapabilities(): Promise<GitHubCapabilities> {
+  const res = await apiFetch(`${API}/integrations/github/capabilities`);
+  if (!res.ok) throw await githubError(res, "Integração com GitHub indisponível.");
+  return res.json();
+}
+
+export async function startGitHubConnection(projectId: string): Promise<{
+  install_url: string | null;
+  connection_token: string | null;
+}> {
+  const res = await apiFetch(`${API}/projects/${projectId}/repositories/github/session`, { method: "POST" });
+  if (!res.ok) throw await githubError(res, "Não foi possível iniciar a conexão com o GitHub.");
+  return res.json();
+}
+
+export async function listAvailableGitHubRepositories(
+  connectionToken: string,
+  search = "",
+): Promise<GitHubRepositorySelection> {
+  const params = new URLSearchParams({ connection_token: connectionToken });
+  if (search.trim()) params.set("search", search.trim());
+  const res = await apiFetch(`${API}/integrations/github/repositories?${params}`);
+  if (!res.ok) throw await githubError(res, "Não foi possível consultar o GitHub agora. Tente novamente.");
+  return res.json();
+}
+
+export async function connectProjectRepositories(
+  projectId: string,
+  connectionToken: string,
+  repositoryIds: number[]
+): Promise<ProjectRepository[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/repositories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ connection_token: connectionToken, repository_ids: repositoryIds }),
+  });
+  if (!res.ok) throw await githubError(res, "Não foi possível conectar os repositórios.");
+  return res.json();
+}
+
+export async function listProjectRepositories(projectId: string): Promise<ProjectRepository[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/repositories`);
+  if (!res.ok) throw await githubError(res, "Não foi possível listar os repositórios.");
+  return res.json();
+}
+
+export async function disconnectProjectRepository(projectId: string, repositoryId: string): Promise<void> {
+  const res = await apiFetch(`${API}/projects/${projectId}/repositories/${repositoryId}`, { method: "DELETE" });
+  if (!res.ok) throw await githubError(res, "Não foi possível desconectar o repositório.");
+}
+
+export async function getGeminiApiKeyStatus(): Promise<GeminiApiKeyStatus> {
+  const res = await apiFetch(`${API}/settings/gemini`);
+  if (!res.ok) throw new Error("Erro ao consultar configuração do Gemini");
+  return res.json();
+}
+
+export async function updateGeminiApiKey(apiKey: string): Promise<GeminiApiKeyStatus> {
+  const res = await apiFetch(`${API}/settings/gemini/api-key`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!res.ok) throw new Error("Erro ao salvar chave do Gemini");
   return res.json();
 }
 
@@ -392,8 +534,10 @@ export async function toggleDelivered(projectId: string): Promise<Project> {
   return res.json();
 }
 
-export async function searchStack(query: string): Promise<StackSearchResponse> {
-  const res = await apiFetch(`${API}/search?q=${encodeURIComponent(query)}`);
+export async function searchStack(query: string, subarea: Subarea): Promise<StackSearchResponse> {
+  const res = await apiFetch(
+    `${API}/search?q=${encodeURIComponent(query)}&subarea=${encodeURIComponent(subarea)}`
+  );
   if (!res.ok) throw new Error("Erro ao buscar stack");
   return res.json();
 }

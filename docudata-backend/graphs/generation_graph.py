@@ -17,7 +17,7 @@ class GenerationState(TypedDict):
     sprint_numero: Optional[int]
     ingestion_id: Optional[str]
     observacoes: Optional[str]
-    gemini_api_key: str
+    api_key: str
     data_atual: str
     ingestions: list
     contexto: str
@@ -63,7 +63,7 @@ _NO_HALLUCINATE = (
 _PROMPTS = {
     # ── REPASSE SEMANAL ───────────────────────────────────────────────────────
     # Escopo: sprint-scoped
-    # Insumos: planning + dailys + uploads livres da sprint selecionada
+    # Insumos: planning + dailys + uploads livres + commits da sprint selecionada
     # Campos de ingestion usados: resumo, tarefas, decisoes, problemas, proximos_passos
     "repasse_semanal": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto das ingestões abaixo, gere um Repasse Semanal da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}).
@@ -104,13 +104,13 @@ Contexto das ingestões da Sprint {sprint_numero}:
 
     # ── RETROSPECTIVA ─────────────────────────────────────────────────────────
     # Escopo: sprint-scoped
-    # Insumos: TODAS as ingestões da sprint + campos_retrospectiva do gerente
+    # Insumos: TODAS as ingestões da sprint, incluindo commits, + campos do gerente
     # Segue Template 3 CITi exatamente.
     # Campos do gerente ficam em DADOS ESTRUTURADOS DA RETROSPECTIVA no contexto — USE-OS DIRETO.
     "retrospectiva": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto das ingestões abaixo, gere a Retrospectiva da Sprint {sprint_numero} para o projeto "{projeto_nome}" (cliente: {cliente}), seguindo o Template 3 oficial do CITi.
 
-REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA RETROSPECTIVA", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, review, uploads).
+REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA RETROSPECTIVA", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, review, uploads e commits).
 
 Categorias de causa raiz: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada/não entregue · 3. Pedido de escopo novo (potencial CR) · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro
 
@@ -393,13 +393,13 @@ Insumos:
 
     # ── REVIEW ────────────────────────────────────────────────────────────────
     # Escopo: sprint-scoped — busca TODAS as ingestões da sprint selecionada
-    # Insumos: planning da sprint + dailys + uploads livres + campos_review do gerente
+    # Insumos: planning + dailys + uploads livres + commits + campos_review do gerente
     # Segue Template 2 CITi exatamente.
     # Campos do gerente ficam em DADOS ESTRUTURADOS DA REVIEW no contexto — USE-OS DIRETO.
     "review": """Você é um assistente de documentação do CITi — Centro Integrado de Tecnologia da Informação (UFPE).
 Com base no contexto da Sprint {sprint_numero} do projeto "{projeto_nome}" (cliente: {cliente}), gere a Review da Sprint seguindo o Template 2 oficial do CITi.
 
-REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA REVIEW", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, uploads).
+REGRA DE PRIORIDADE: Se o contexto contiver uma seção "DADOS ESTRUTURADOS DA REVIEW", use esses valores DIRETAMENTE nos campos correspondentes — não recalcule nem reinterprete. Para campos sem dados estruturados, derive do contexto de ingestões (planning, dailys, uploads e commits).
 
 Categorias de causa raiz: 1. Especificação incompleta no Planning · 2. Dependência do cliente atrasada/não entregue · 3. Pedido de escopo novo (potencial CR) · 4. Estimativa de horas equivocada · 5. Bloqueio técnico/infraestrutura · 6. Ausência/rotatividade de membro · 7. Outro
 
@@ -917,6 +917,8 @@ def compilar_contexto(state: GenerationState) -> dict:
         decisoes = ", ".join(content.get("decisoes") or [])
         problemas = ", ".join(content.get("problemas") or [])
         proximos = ", ".join(content.get("proximos_passos") or [])
+        tecnologias = ", ".join(content.get("tecnologias") or [])
+        tecnologias_removidas = ", ".join(content.get("tecnologias_removidas") or [])
 
         header = f"--- Sprint {sprint} | {nome}"
         if tipo_doc:
@@ -930,8 +932,41 @@ def compilar_contexto(state: GenerationState) -> dict:
             f"Decisoes: {decisoes}\n"
             f"Problemas: {problemas}\n"
             f"Contexto do cliente: {content.get('contexto_cliente', '')}\n"
+            f"Tecnologias: {tecnologias}\n"
+            f"Tecnologias removidas: {tecnologias_removidas}\n"
             f"Proximos passos: {proximos}"
         )
+
+        if tipo_doc == "commit":
+            repositorio = ing.get("source_repository_full_name") or content.get("_meta_repository")
+            branch = ing.get("source_branch") or content.get("_meta_branch")
+            sha = ing.get("source_commit_sha") or content.get("_meta_commit_sha")
+            url = ing.get("source_url") or content.get("_meta_commit_url")
+            origem = repositorio or "Origem não registrada (legado)"
+            autor = content.get("_meta_autor") or "não registrado"
+            autor_login = content.get("_meta_autor_login")
+            committer = content.get("_meta_committer")
+            committer_login = content.get("_meta_committer_login")
+            pusher = content.get("_meta_pusher") or content.get("_meta_sender")
+            diff_stat = ing.get("source_diff_stat")
+            identidade_autor = f"{autor} (@{autor_login})" if autor_login else autor
+            detalhes_commit = [
+                f"Origem: {origem}",
+                f"Branch: {branch or 'não registrada'}",
+                f"Commit: {sha or nome}{f' — {url}' if url else ''}",
+                f"Autor e data: {identidade_autor} — {content.get('_meta_data_commit', 'não registrada')}",
+                f"Mensagem do commit: {content.get('_meta_commit_msg', '')}",
+            ]
+            if committer:
+                identidade_committer = (
+                    f"{committer} (@{committer_login})" if committer_login else committer
+                )
+                detalhes_commit.append(f"Committer: {identidade_committer}")
+            if pusher:
+                detalhes_commit.append(f"Push enviado por: {pusher}")
+            if diff_stat:
+                detalhes_commit.append(f"Resumo das alterações: {diff_stat}")
+            bloco += "\n" + "\n".join(detalhes_commit)
 
         # Serializa sub-dicts campos_* para que o LLM os veja durante a geração
         for campo_key in ("campos_review", "campos_retrospectiva", "campos_planning", "campos_daily"):
@@ -948,7 +983,7 @@ def compilar_contexto(state: GenerationState) -> dict:
         partes.append(changes)
 
     # Adiciona bloco de kanban de tasks para docs sprint-scoped
-    if state["tipo_doc"] in _SPRINT_SCOPED_TYPES and state.get("sprint_numero"):
+    if state.get("tipo_doc") in _SPRINT_SCOPED_TYPES and state.get("sprint_numero"):
         bloco = _bloco_kanban_tasks(state["projeto_id"], state["sprint_numero"])
         if bloco:
             partes.append(bloco)
@@ -962,7 +997,7 @@ async def gerar_documento(state: GenerationState) -> dict:
         "{contexto}", _NO_HALLUCINATE + "\n\n{contexto}"
     )
     prompt = ChatPromptTemplate.from_template(template)
-    llm = _make_llm(state["gemini_api_key"])
+    llm = _make_llm(state["api_key"])
 
     contexto = state["contexto"]
     obs = (state.get("observacoes") or "").strip()

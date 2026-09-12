@@ -31,7 +31,7 @@ export default function LoginPage() {
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#16a34a" }}>
-            citi · subárea de dados
+            citi · subáreas de dados e dev
           </span>
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 10 }}>
             DocuData

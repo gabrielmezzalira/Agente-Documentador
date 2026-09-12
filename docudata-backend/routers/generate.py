@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, HTTPException, UploadFile
+from fastapi import APIRouter, Form, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
 from services.supabase_client import get_client
+from services.gemini_key import get_gemini_api_key
 
 router = APIRouter(tags=["generate"])
 
@@ -20,7 +22,8 @@ _INGESTION_REQUIRED = {"ata_reuniao", "planning", "daily"}
 
 
 @router.post("/generate", response_model=GenerateResponse)
-async def generate(req: GenerateRequest):
+@limiter.limit(GEMINI_RATE_LIMIT)
+async def generate(request: Request, response: Response, req: GenerateRequest):
     if req.tipo_doc not in _VALID_DOC_TYPES:
         raise HTTPException(
             status_code=422,
@@ -38,17 +41,12 @@ async def generate(req: GenerateRequest):
         )
 
     client = get_client()
-    project_resp = client.table("projects").select("*").eq("id", req.projeto_id).execute()
+    project_resp = client.table("projects").select("id, name, client").eq("id", req.projeto_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
     project = project_resp.data[0]
 
-    api_key = project.get("gemini_api_key") or ""
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada. Configure-a no dashboard antes de gerar documentos.",
-        )
+    api_key = get_gemini_api_key()
 
     state: GenerationState = {
         "projeto_id": req.projeto_id,
@@ -58,7 +56,7 @@ async def generate(req: GenerateRequest):
         "sprint_numero": req.sprint_numero,
         "ingestion_id": req.ingestion_id,
         "observacoes": req.observacoes,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "data_atual": datetime.now().strftime("%d/%m/%Y"),
         "ingestions": [],
         "contexto": "",

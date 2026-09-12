@@ -55,6 +55,7 @@ def _patch_and_client(monkeypatch, mock_supabase, generation_result=None):
     monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.sprint_docs as sprint_docs_router
     monkeypatch.setattr(sprint_docs_router, "get_client", lambda: mock_supabase)
+    monkeypatch.setattr(sprint_docs_router, "get_gemini_api_key", lambda: "fake-key")
     monkeypatch.setattr(
         sprint_docs_router.generation_graph,
         "ainvoke",

@@ -10,6 +10,7 @@
 # Configurar GitHub Secrets no repositório do projeto:
 #   DOCUDATA_API_URL     — https://docudata-backend.railway.app
 #   DOCUDATA_PROJECT_ID  — UUID do projeto no DocuData
+#   DOCUDATA_APP_SECRET  — segredo compartilhado das automações
 
 name: DocuData Revisor Diário
 
@@ -37,4 +38,5 @@ jobs:
         env:
           DOCUDATA_API_URL:    ${{ secrets.DOCUDATA_API_URL }}
           DOCUDATA_PROJECT_ID: ${{ secrets.DOCUDATA_PROJECT_ID }}
+          DOCUDATA_APP_SECRET: ${{ secrets.DOCUDATA_APP_SECRET }}
         run: python scripts/revisor_agent.py

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
+from core.rate_limit import LOGIN_RATE_LIMIT, SIGNUP_RATE_LIMIT, limiter
 from models.schemas import (
     LoginRequest,
     LoginResponse,
@@ -19,6 +20,10 @@ from services.supabase_client import get_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# O limite é por IP e conta tentativas antes de qualquer consulta ao banco: o
+# 429 sai igual para e-mail existente e inexistente, então não vira oráculo de
+# enumeração de contas.
+
 
 def _set_session_cookie(response: Response, pessoa_id: str, email: str, cargo: str) -> None:
     token = criar_jwt(pessoa_id, email, cargo)
@@ -33,9 +38,17 @@ def _set_session_cookie(response: Response, pessoa_id: str, email: str, cargo: s
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(data: LoginRequest, response: Response):
+@limiter.limit(LOGIN_RATE_LIMIT)
+async def login(request: Request, data: LoginRequest, response: Response):
     client = get_client()
-    resp = client.table("pessoa").select("*").eq("email", data.email).execute()
+    # senha_hash entra só para a verificação local; `select("*")` trazia junto
+    # todo o resto da linha da pessoa para uma resposta de dois campos.
+    resp = (
+        client.table("pessoa")
+        .select("id, nome, email, cargo, senha_hash")
+        .eq("email", data.email)
+        .execute()
+    )
     if not resp.data:
         raise HTTPException(status_code=401, detail="Email ou senha inválidos")
     pessoa = resp.data[0]
@@ -84,7 +97,8 @@ async def operacionais_sem_conta():
 
 
 @router.post("/signup/claim", response_model=LoginResponse, status_code=201)
-async def signup_claim(data: SignupClaimRequest, response: Response):
+@limiter.limit(SIGNUP_RATE_LIMIT)
+async def signup_claim(request: Request, data: SignupClaimRequest, response: Response):
     client = get_client()
     op_resp = client.table("operacionais").select("*").eq("id", data.operacional_id).execute()
     if not op_resp.data:
@@ -120,7 +134,8 @@ async def signup_claim(data: SignupClaimRequest, response: Response):
 
 
 @router.post("/signup/novo", response_model=LoginResponse, status_code=201)
-async def signup_novo(data: SignupNovoRequest, response: Response):
+@limiter.limit(SIGNUP_RATE_LIMIT)
+async def signup_novo(request: Request, data: SignupNovoRequest, response: Response):
     client = get_client()
     existing = client.table("pessoa").select("id").eq("email", data.email).execute()
     if existing.data:

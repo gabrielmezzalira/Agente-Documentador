@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import {
   getProject,
-  updateApiKey,
   updateGerenteEmail,
+  updateProjectSubarea,
   listIngestions,
   listDocs,
   listSprints,
@@ -24,6 +25,12 @@ import {
   moveIngestion,
   moveDoc,
   toggleDelivered,
+  getGitHubCapabilities,
+  startGitHubConnection,
+  listAvailableGitHubRepositories,
+  connectProjectRepositories,
+  listProjectRepositories,
+  disconnectProjectRepository,
   listFuncionalidades,
   gerarResumoSemanal,
   listOperacionais,
@@ -34,33 +41,81 @@ import {
   updateOperacional,
   deleteOperacional,
   type Project,
+  type Subarea,
   type Ingestion,
   type GeneratedDoc,
   type SprintWithStatus,
   type SprintDocType,
   type FuncionalidadeResponse,
   type OperacionalResponse,
-} from "../../lib/api";
-import Tabs from "../../components/Tabs";
-import { useAuth } from "../../components/AuthGuard";
-import SprintCard from "../../components/SprintCard";
-import SprintDocModal from "../../components/SprintDocModal";
-import TechnologiesTab from "../../components/TechnologiesTab";
-import PainelTab from "../../components/PainelTab";
-import PlanningModal from "../../components/PlanningModal";
-import FuncionalidadesStatusModal from "../../components/FuncionalidadesStatusModal";
-import EscopoTab from "../../components/EscopoTab";
-import TasksKanbanTab from "../../components/TasksKanbanTab";
-import MetricasTab from "../../components/MetricasTab";
-import DocTypeCard from "../../components/DocTypeCard";
-import TutorialBanner from "../../components/TutorialBanner";
-import ManualDocModal from "../../components/ManualDocModal";
-import UploadLivreModal from "../../components/UploadLivreModal";
-import RetroModal from "../../components/RetroModal";
-import AvaliacaoSemanalModal from "../../components/AvaliacaoSemanalModal";
-import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../lib/doc_types";
+  type GitHubRepositoryCandidate,
+  type ProjectRepository,
+} from "../../../lib/api";
+import Tabs from "../../../components/Tabs";
+import { useAuth } from "../../../components/AuthGuard";
+import SprintCard from "../../../components/SprintCard";
+import DocTypeCard from "../../../components/DocTypeCard";
+import TutorialBanner from "../../../components/TutorialBanner";
+import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
+
+// A aba Sprints é a que abre por padrão, então Tabs/SprintCard/DocTypeCard
+// continuam no bundle inicial. O resto — abas que exigem um clique e modais
+// que exigem uma ação — vira chunk sob demanda: antes, o gráfico da aba
+// Métricas (recharts) e os seis modais pesavam no First Load de quem só
+// queria olhar a lista de sprints.
+const placeholderCarregando = (
+  <div style={{ padding: "24px 2px", fontSize: 13, color: "#8a8a95" }}>Carregando…</div>
+);
+const abaCarregando = () => placeholderCarregando;
+// Modal não mostra placeholder: aparece direto quando o chunk chega, em vez
+// de piscar uma caixa vazia sobre a tela.
+const semPlaceholder = () => null;
+
+const TechnologiesTab = dynamic(() => import("../../../components/TechnologiesTab"), {
+  loading: abaCarregando,
+});
+const PainelTab = dynamic(() => import("../../../components/PainelTab"), {
+  loading: abaCarregando,
+});
+const EscopoTab = dynamic(() => import("../../../components/EscopoTab"), {
+  loading: abaCarregando,
+});
+const TasksKanbanTab = dynamic(() => import("../../../components/TasksKanbanTab"), {
+  loading: abaCarregando,
+});
+const MetricasTab = dynamic(() => import("../../../components/MetricasTab"), {
+  loading: abaCarregando,
+});
+const SprintDocModal = dynamic(() => import("../../../components/SprintDocModal"), {
+  loading: semPlaceholder,
+});
+const PlanningModal = dynamic(() => import("../../../components/PlanningModal"), {
+  loading: semPlaceholder,
+});
+const FuncionalidadesStatusModal = dynamic(
+  () => import("../../../components/FuncionalidadesStatusModal"),
+  { loading: semPlaceholder },
+);
+const ManualDocModal = dynamic(() => import("../../../components/ManualDocModal"), {
+  loading: semPlaceholder,
+});
+const UploadLivreModal = dynamic(() => import("../../../components/UploadLivreModal"), {
+  loading: semPlaceholder,
+});
+const RetroModal = dynamic(() => import("../../../components/RetroModal"), {
+  loading: semPlaceholder,
+});
+const AvaliacaoSemanalModal = dynamic(
+  () => import("../../../components/AvaliacaoSemanalModal"),
+  { loading: semPlaceholder },
+);
+const GitHubRepositoryPicker = dynamic(
+  () => import("../../../components/GitHubRepositoryPicker"),
+  { loading: semPlaceholder },
+);
 
 type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
+const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
 
 function OperacionaisSection({
@@ -294,7 +349,7 @@ function OperacionaisSection({
 }
 
 export default function ProjectDashboard() {
-  const { id } = useParams<{ id: string }>();
+  const { id, subarea } = useParams<{ id: string; subarea: Subarea }>();
   const router = useRouter();
 
   // ---------- data ----------
@@ -311,7 +366,6 @@ export default function ProjectDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
-  const OPERACIONAL_TABS = new Set(["sprints", "tasks", "tecnologias", "documentos"]);
   const [descOpen, setDescOpen] = useState(false);
   const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
 
@@ -350,14 +404,30 @@ export default function ProjectDashboard() {
   const [exportingDocId, setExportingDocId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<Record<string, string>>({});
 
-  // ---------- api key ----------
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [apiKeyMsg, setApiKeyMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [savingKey, setSavingKey] = useState(false);
+  // ---------- repositórios GitHub ----------
+  const [githubVisible, setGithubVisible] = useState(false);
+  const [githubRepositories, setGithubRepositories] = useState<ProjectRepository[]>([]);
+  const [githubCandidates, setGithubCandidates] = useState<GitHubRepositoryCandidate[]>([]);
+  const [githubSelected, setGithubSelected] = useState<number[]>([]);
+  const [githubSelectedCandidates, setGithubSelectedCandidates] = useState<GitHubRepositoryCandidate[]>([]);
+  const [githubConnectionToken, setGithubConnectionToken] = useState("");
+  const [githubManageUrl, setGithubManageUrl] = useState<string | null>(null);
+  const [githubRepositoryScope, setGithubRepositoryScope] = useState<"all" | "selected" | "unknown">("unknown");
+  const [githubHasMore, setGithubHasMore] = useState(false);
+  const [githubSearching, setGithubSearching] = useState(false);
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
+  const [githubPreparing, setGithubPreparing] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubRepositoryActionId, setGithubRepositoryActionId] = useState<string | null>(null);
+  const [githubError, setGithubError] = useState("");
+  const githubSearchRequestRef = useRef(0);
 
   const [emailInput, setEmailInput] = useState("");
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [subareaDestino, setSubareaDestino] = useState<Subarea | null>(null);
+  const [savingSubarea, setSavingSubarea] = useState(false);
+  const [subareaMsg, setSubareaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // ---------- bootstrap ----------
   useEffect(() => {
@@ -371,14 +441,66 @@ export default function ProjectDashboard() {
     ])
       .then(([p, ings, d, s, fs, ops]) => {
         setProject(p);
+        setSubareaDestino(p.subarea);
         setIngestions(ings);
         setDocs(d);
         setSprints(s);
         setFuncionalidades(fs);
         setOperacionais(ops);
+        if (p.subarea !== subarea) {
+          // O banco é a fonte de verdade; evita exibir um projeto Dev sob a navegação de Dados e vice-versa.
+          router.replace(`/${p.subarea}/projects/${p.id}`);
+        }
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, router, subarea]);
+
+  useEffect(() => {
+    const solicitada = new URLSearchParams(window.location.search).get("tab") as TabId | null;
+    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "config"];
+    if (solicitada && validas.includes(solicitada)) {
+      if (cargo !== "operacional" || OPERACIONAL_TABS.has(solicitada)) setActiveTab(solicitada);
+    }
+  }, [cargo]);
+
+  useEffect(() => {
+    const subareaProjeto = project?.subarea;
+    if (!subareaProjeto) return;
+    let active = true;
+    setGithubVisible(false);
+    getGitHubCapabilities()
+      .then(async (capabilities) => {
+        if (
+          !active ||
+          !capabilities.enabled ||
+          !capabilities.configured ||
+          !capabilities.subareas.includes(subareaProjeto)
+        ) return;
+        setGithubVisible(true);
+        const params = new URLSearchParams(window.location.search);
+        const erroCallback = params.get("github_error");
+        const token = params.get("github_connection");
+        if (params.get("tab") === "config") setActiveTab("config");
+        if (erroCallback === "cancelled") {
+          setActiveTab("config");
+          setGithubError("A conexão com o GitHub foi cancelada.");
+        }
+        const vinculados = await listProjectRepositories(id);
+        if (active) setGithubRepositories(vinculados);
+        if (token && active) {
+          setActiveTab("config");
+          setGithubConnectionToken(token);
+          window.history.replaceState({}, "", window.location.pathname + "?tab=config");
+          setGithubCandidates([]);
+          setGithubSelected([]);
+          setGithubSelectedCandidates([]);
+          setGithubPickerOpen(true);
+        }
+      })
+      // Backend antigo ou credenciais ausentes mantêm o restante do projeto funcional.
+      .catch(() => {});
+    return () => { active = false; };
+  }, [id, project?.subarea]);
 
 
   function refreshSprints() {
@@ -396,23 +518,6 @@ export default function ProjectDashboard() {
   }
 
   // ---------- handlers ----------
-  async function handleSaveApiKey(e: React.FormEvent) {
-    e.preventDefault();
-    if (!apiKeyInput.trim()) return;
-    setSavingKey(true);
-    setApiKeyMsg(null);
-    try {
-      const updated = await updateApiKey(id, apiKeyInput.trim());
-      setProject(updated);
-      setApiKeyInput("");
-      setApiKeyMsg({ ok: true, text: "Chave salva com sucesso." });
-    } catch {
-      setApiKeyMsg({ ok: false, text: "Erro ao salvar chave." });
-    } finally {
-      setSavingKey(false);
-    }
-  }
-
   async function handleSaveEmail(e: React.FormEvent) {
     e.preventDefault();
     setSavingEmail(true);
@@ -425,6 +530,34 @@ export default function ProjectDashboard() {
       setEmailMsg({ ok: false, text: "Erro ao salvar email." });
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  async function handleChangeSubarea() {
+    if (!project || !subareaDestino || subareaDestino === project.subarea) return;
+    const origem = project.subarea === "dev" ? "Dev" : "Dados";
+    const destino = subareaDestino === "dev" ? "Dev" : "Dados";
+    const confirmado = confirm(
+      `Mover "${project.name}" de ${origem} para ${destino}?\n\n` +
+      "Sprints, ingestões, commits, documentos e repositórios conectados serão preservados. " +
+      "Novas exportações para o Drive usarão a pasta da subárea de destino."
+    );
+    if (!confirmado) return;
+
+    setSavingSubarea(true);
+    setSubareaMsg(null);
+    try {
+      const updated = await updateProjectSubarea(id, subareaDestino);
+      setProject(updated);
+      setSubareaMsg({ ok: true, text: `Projeto movido para ${destino}.` });
+      router.replace(`/${updated.subarea}/projects/${id}?tab=config`);
+    } catch (err) {
+      setSubareaMsg({
+        ok: false,
+        text: err instanceof Error ? err.message : "Não foi possível alterar a subárea.",
+      });
+    } finally {
+      setSavingSubarea(false);
     }
   }
 
@@ -476,7 +609,7 @@ export default function ProjectDashboard() {
   async function handleDeleteProject() {
     if (!confirm(`Excluir o projeto "${project?.name}"? Todas as ingestões e documentos serão removidos.`))
       return;
-    try { await deleteProject(id); router.push("/"); }
+    try { await deleteProject(id); router.push(`/${subarea}`); }
     catch { alert("Erro ao excluir projeto."); }
   }
 
@@ -495,6 +628,135 @@ export default function ProjectDashboard() {
       setProject(updated);
     } catch {
       alert("Erro ao atualizar status do projeto.");
+    }
+  }
+
+  async function handleStartGitHubConnection() {
+    // O modal abre antes da consulta externa para dar retorno imediato ao clique.
+    setGithubPickerOpen(true);
+    setGithubPreparing(true);
+    setGithubError("");
+    setGithubCandidates([]);
+    setGithubSelected([]);
+    setGithubSelectedCandidates([]);
+    setGithubConnectionToken("");
+    setGithubManageUrl(null);
+    setGithubRepositoryScope("unknown");
+    setGithubHasMore(false);
+    try {
+      const session = await startGitHubConnection(id);
+      if (session.connection_token) {
+        setGithubConnectionToken(session.connection_token);
+        return;
+      }
+      if (session.install_url) {
+        window.location.assign(session.install_url);
+        return;
+      }
+      throw new Error("O GitHub não retornou uma opção de conexão válida.");
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível iniciar a conexão com o GitHub.");
+    } finally {
+      setGithubPreparing(false);
+    }
+  }
+
+  const handleSearchGitHubRepositories = useCallback(async (search: string) => {
+    if (!githubConnectionToken) return;
+    const requestId = ++githubSearchRequestRef.current;
+    setGithubSearching(true);
+    setGithubError("");
+    try {
+      const selecao = await listAvailableGitHubRepositories(githubConnectionToken, search);
+      if (requestId !== githubSearchRequestRef.current) return;
+      setGithubCandidates(selecao.repositories);
+      setGithubManageUrl(selecao.manage_url);
+      setGithubRepositoryScope(selecao.repository_scope);
+      setGithubHasMore(selecao.has_more);
+    } catch (err) {
+      if (requestId === githubSearchRequestRef.current) {
+        setGithubError(err instanceof Error ? err.message : "Não foi possível buscar os repositórios.");
+      }
+    } finally {
+      if (requestId === githubSearchRequestRef.current) setGithubSearching(false);
+    }
+  }, [githubConnectionToken]);
+
+  async function handleConnectRepositories() {
+    if (githubSelected.length === 0) {
+      setGithubError("Selecione pelo menos um repositório no GitHub.");
+      return;
+    }
+    setGithubLoading(true);
+    setGithubError("");
+    try {
+      await connectProjectRepositories(id, githubConnectionToken, githubSelected);
+      setGithubRepositories(await listProjectRepositories(id));
+      setGithubCandidates([]);
+      setGithubSelectedCandidates([]);
+      setGithubConnectionToken("");
+      setGithubManageUrl(null);
+      setGithubRepositoryScope("unknown");
+      setGithubHasMore(false);
+      setGithubPickerOpen(false);
+      window.history.replaceState({}, "", window.location.pathname + "?tab=config");
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível conectar os repositórios.");
+    } finally {
+      setGithubLoading(false);
+    }
+  }
+
+  async function handleDisconnectRepository(repository: ProjectRepository) {
+    if (!confirm(`Desconectar ${repository.full_name}? O histórico de commits já ingerido será preservado.`)) return;
+    setGithubLoading(true);
+    setGithubRepositoryActionId(repository.id);
+    setGithubError("");
+    try {
+      await disconnectProjectRepository(id, repository.id);
+      setGithubRepositories(await listProjectRepositories(id));
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível desconectar o repositório.");
+    } finally {
+      setGithubLoading(false);
+      setGithubRepositoryActionId(null);
+    }
+  }
+
+  async function handleReconnectRepository(repository: ProjectRepository) {
+    const confirmado = confirm(
+      `Reconectar ${repository.full_name} a este projeto?\n\n` +
+      "Os novos commits voltarão a ser ingeridos automaticamente."
+    );
+    if (!confirmado) return;
+
+    setGithubLoading(true);
+    setGithubRepositoryActionId(repository.id);
+    setGithubError("");
+    try {
+      // Revalida a autorização no GitHub antes de reativar o vínculo existente.
+      const session = await startGitHubConnection(id);
+      if (session.connection_token) {
+        await connectProjectRepositories(
+          id,
+          session.connection_token,
+          [repository.github_repository_id],
+        );
+        setGithubRepositories(await listProjectRepositories(id));
+        return;
+      }
+      if (session.install_url) {
+        window.location.assign(session.install_url);
+        return;
+      }
+      throw new Error("O GitHub não retornou uma opção de conexão válida.");
+    } catch (err) {
+      setGithubError(
+        err instanceof Error ? err.message : "Não foi possível reconectar o repositório."
+      );
+    } finally {
+      setGithubLoading(false);
+      setGithubRepositoryActionId(null);
     }
   }
 
@@ -640,7 +902,7 @@ export default function ProjectDashboard() {
 
   return (
     <main style={{ maxWidth: 920, margin: "0 auto", padding: "48px 24px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
+      <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
 
       {/* HEADER */}
       <div style={{ marginTop: 24, marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "start", gap: 16 }}>
@@ -675,33 +937,6 @@ export default function ProjectDashboard() {
         </div>
       </div>
 
-      {/* API KEY ALERT — sempre visível se faltando */}
-      {!project.has_api_key && (
-        <section style={{ ...alertBox }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", margin: 0, marginBottom: 12 }}>
-            Chave de API do Gemini não configurada — uploads e geração de documentos não funcionarão.
-          </p>
-          <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="password"
-              placeholder="AIza..."
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              style={{ ...inputStyle, flex: 1 }}
-              required
-            />
-            <button type="submit" disabled={savingKey} style={btnPrimary}>
-              {savingKey ? "Salvando..." : "Salvar chave"}
-            </button>
-          </form>
-          {apiKeyMsg && (
-            <p style={{ marginTop: 10, fontSize: 13, color: apiKeyMsg.ok ? "#16a34a" : "#dc2626" }}>
-              {apiKeyMsg.text}
-            </p>
-          )}
-        </section>
-      )}
-
       <Tabs
         tabs={[
           { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
@@ -717,6 +952,19 @@ export default function ProjectDashboard() {
         onChange={(t) => setActiveTab(t as TabId)}
       />
 
+      {githubVisible && githubRepositories.every((repo) => !repo.active) && activeTab !== "config" && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16,
+          padding: "13px 16px", margin: "-8px 0 18px", border: "1px solid #bfdbfe",
+          borderRadius: 12, background: "#eff6ff", color: "#1e3a8a", fontSize: 13,
+        }}>
+          <span>Conecte os repositórios deste projeto para incorporar automaticamente os commits ao contexto.</span>
+          <button style={{ ...btnSecondary, color: "#1d4ed8", borderColor: "#93c5fd" }} onClick={() => setActiveTab("config")}>
+            Configurar
+          </button>
+        </div>
+      )}
+
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
         <>
@@ -725,7 +973,7 @@ export default function ProjectDashboard() {
             { title: "Planning", body: "Clique no chip 'Planning' na sprint. A tela já abre mostrando as tasks que estão no Kanban desta sprint, porque é dali que sai o backlog do documento: coluna, pontos e bloqueios entram no contexto da IA automaticamente. Você não precisa listar nada à mão. Abaixo das tasks tem o campo 'Contexto da sprint', em texto livre e sem formatação, para contar o que o Kanban não diz: por que a sprint é curta, o que mudou com o cliente, o que te preocupa. Se as tasks estiverem fora do DocuData (Notion, planilha, print), use o link no topo da tela para importar. E se preferir escrever o documento inteiro na mão, sem IA, use 'Escrever sem IA'." },
             { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
             { title: "Review", body: "Ao final da sprint, registre o review preenchendo os campos do formulário (Percepção do cliente, Sinal de satisfação, Pedidos fora do escopo, etc.). O documento gerado captura automaticamente o estado do kanban da sprint no momento da geração — cada task com seu status atual (planejada, em andamento, concluída, bloqueada) é injetada no contexto da IA sem você precisar listar manualmente. Além disso, o DocuData detecta tasks mencionadas no texto e cria sugestões de mover para 'Concluída' na aba Tasks." },
-            { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa todas as ingestões da sprint (planning, dailys, review) para gerar: O que foi feito, O que funcionou, O que não funcionou, Aprendizados." },
+            { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa planning, dailys, review, uploads e commits da sprint — com autoria e origem — para gerar: O que foi feito, O que funcionou, O que não funcionou e aprendizados." },
             { title: "Orçamento de pontos da sprint", body: "Todo projeto vale 100 pontos, fixo. Na aba Planejamento você distribui esses 100 entre as sprints, e o card da sprint mostra quanto ela recebeu e quanto já foi gasto em tasks. É esse número que faz a aba Métricas calcular o SPI e o faturamento previsto." },
             { title: "Avaliação Semanal", body: "No fim da sprint, o botão 'Avaliação Semanal' abre as sete perguntas sobre cada operacional que teve task na sprint. Só dá para confirmar quando não sobrar ninguém pendente. Confirmar fecha a semana e trava a pontuação: as tasks daquela sprint não podem mais ser excluídas. Antes de confirmar, confira se as tasks estão na coluna certa, se os bloqueios foram resolvidos com o responsável correto, e se as tasks concedidas fora do planejado estão marcadas como extra." },
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
@@ -906,7 +1154,7 @@ export default function ProjectDashboard() {
               <TutorialBanner heading="Documentos Cross-sprint" steps={[
                 { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro — não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
                 { title: "Ata de Reunião", body: "Faça upload de um PDF ou arquivo de ata de reunião (com o cliente, stakeholders, etc). O DocuData gera uma ata formatada com pauta, decisões e próximos passos. Útil para registrar reuniões fora do ciclo de sprint." },
-                { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas em todas as ingestões do projeto (plannings, reviews, dailys). Ideal para onboarding de novos membros e auditoria." },
+                { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas nas ingestões e commits do projeto. Ideal para onboarding de novos membros e auditoria." },
                 { title: "Onboarding", body: "Documento de integração para novos membros entrarem no projeto rapidamente: contexto do cliente, stack técnica, decisões tomadas, estado atual. Gerado a partir de todo o histórico de ingestões." },
                 { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final. Preenche o vazio de documentação que existe em muitos projetos de dados." },
                 { title: "Observações adicionais", body: "O campo de observações permite incluir contexto extra que a IA deve considerar na geração. Use para orientações específicas, tom desejado, ou informações que não estão nos uploads." },
@@ -985,7 +1233,7 @@ export default function ProjectDashboard() {
             <>
               <TutorialBanner heading="Documentos Por sprint" steps={[
                 { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
-                { title: "Retrospectiva", body: "Gerado ao final da sprint com base no planning, dailys e review. Inclui: O que foi feito, O que funcionou, O que não funcionou, Aprendizados. Gere pelo botão 'Retro' na sprint." },
+                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
                 { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
                 { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
               ]} />
@@ -1039,26 +1287,79 @@ export default function ProjectDashboard() {
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
         <>
-          <section style={sectionStyle}>
-            <h2 style={sectionTitle}>Chave da API do Gemini</h2>
-            {project.has_api_key ? (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>Chave configurada</span>
-                <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="password" placeholder="Nova chave..." value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} style={{ ...inputStyle, width: 240 }} />
-                  <button type="submit" disabled={savingKey || !apiKeyInput.trim()} style={btnSecondary}>
-                    {savingKey ? "..." : "Trocar"}
-                  </button>
-                </form>
+          {githubVisible && (
+            <section style={{ ...sectionStyle, borderColor: "#c7d2fe" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 320px" }}>
+                  <h2 style={{ ...sectionTitle, color: "#4338ca", marginBottom: 6 }}>Repositórios GitHub</h2>
+                  <p style={{ fontSize: 13, color: "#64748b", margin: 0, lineHeight: 1.5 }}>
+                    Os commits de todos os repositórios conectados alimentam automaticamente o contexto deste projeto.
+                  </p>
+                </div>
+                <button onClick={handleStartGitHubConnection} disabled={githubLoading || githubPreparing} style={{ ...btnPrimary, opacity: githubLoading || githubPreparing ? 0.6 : 1 }}>
+                  {githubLoading || githubPreparing
+                    ? "Consultando..."
+                    : githubRepositories.length > 0
+                      ? "Adicionar repositórios"
+                      : "Selecionar repositórios"}
+                </button>
               </div>
-            ) : (
-              <form onSubmit={handleSaveApiKey} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <input type="password" placeholder="AIza..." value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} style={{ ...inputStyle, flex: 1 }} required />
-                <button type="submit" disabled={savingKey} style={btnPrimary}>{savingKey ? "Salvando..." : "Salvar"}</button>
-              </form>
-            )}
-            {apiKeyMsg && <p style={{ marginTop: 10, fontSize: 13, color: apiKeyMsg.ok ? "#16a34a" : "#dc2626" }}>{apiKeyMsg.text}</p>}
-          </section>
+
+              {githubError && (
+                <p role="alert" style={{ padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13 }}>
+                  {githubError}
+                </p>
+              )}
+
+              {githubRepositories.length === 0 ? (
+                <div style={{ padding: "18px 0 4px", textAlign: "center" }}>
+                  <strong style={{ display: "block", color: "#334155", fontSize: 14 }}>Nenhum repositório conectado</strong>
+                  <span style={{ color: "#94a3b8", fontSize: 12 }}>Escolha somente os repositórios que fazem parte deste projeto.</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {githubRepositories.map((repo) => (
+                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 9, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#3730a3", fontWeight: 700, fontSize: 13, textDecoration: "none", overflowWrap: "anywhere" }}>{repo.full_name}</a>
+                        <span style={{ display: "block", marginTop: 3, color: "#94a3b8", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+                        <span style={{ ...badgeChip, background: repo.active ? "#dcfce7" : "#fef2f2", color: repo.active ? "#15803d" : "#b91c1c" }}>
+                          {repo.active ? "✓ Ativo" : repo.permission_status === "disconnected" ? "Desconectado" : "Permissão revogada"}
+                        </span>
+                        {repo.active ? (
+                          <button
+                            style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={() => handleDisconnectRepository(repo)}
+                            disabled={githubLoading}
+                          >
+                            {githubRepositoryActionId === repo.id ? "Desconectando..." : "Desconectar"}
+                          </button>
+                        ) : repo.permission_status === "disconnected" ? (
+                          <button
+                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={() => handleReconnectRepository(repo)}
+                            disabled={githubLoading}
+                          >
+                            {githubRepositoryActionId === repo.id ? "Reconectando..." : "Reconectar"}
+                          </button>
+                        ) : (
+                          <button
+                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={handleStartGitHubConnection}
+                            disabled={githubLoading}
+                          >
+                            Reautorizar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
 
           <section style={sectionStyle}>
@@ -1077,13 +1378,13 @@ export default function ProjectDashboard() {
                     Remover
                   </button>
                 </div>
-                <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     type="email"
                     placeholder="Trocar email..."
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    style={{ ...inputStyle, width: 240 }}
+                    style={{ ...inputStyle, width: 240, maxWidth: "100%" }}
                   />
                   <button type="submit" disabled={savingEmail || !emailInput.trim()} style={btnSecondary}>
                     {savingEmail ? "..." : "Trocar"}
@@ -1091,7 +1392,7 @@ export default function ProjectDashboard() {
                 </form>
               </div>
             ) : (
-              <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <form onSubmit={handleSaveEmail} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   type="email"
                   placeholder="email@exemplo.com"
@@ -1121,6 +1422,56 @@ export default function ProjectDashboard() {
             onUpdated={setOperacionais}
           />
 
+          <section style={{ ...sectionStyle, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 220px" }}>
+                <h2 style={{ ...sectionTitle, marginBottom: 3 }}>Subárea</h2>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  Altera a lista e o destino das próximas exportações.
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
+                <label
+                  htmlFor="project-subarea"
+                  style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
+                >
+                  Subárea do projeto
+                </label>
+                <select
+                  id="project-subarea"
+                  value={subareaDestino ?? project.subarea}
+                  onChange={(event) => {
+                    setSubareaDestino(event.target.value as Subarea);
+                    setSubareaMsg(null);
+                  }}
+                  disabled={savingSubarea}
+                  style={{ ...inputStyle, width: 130, minHeight: 38, background: "#fff", cursor: "pointer" }}
+                >
+                  <option value="dados">Dados</option>
+                  <option value="dev">Dev</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleChangeSubarea}
+                  disabled={savingSubarea || !subareaDestino || subareaDestino === project.subarea}
+                  style={{
+                    ...btnSecondary,
+                    minHeight: 38,
+                    opacity: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? 0.5 : 1,
+                    cursor: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {savingSubarea ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </div>
+            {subareaMsg && (
+              <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#15803d" : "#b91c1c", fontSize: 12 }}>
+                {subareaMsg.text}
+              </p>
+            )}
+          </section>
+
           <section style={{ ...sectionStyle, borderColor: "#fecaca" }}>
             <h2 style={{ ...sectionTitle, color: "#dc2626" }}>Zona perigosa</h2>
             <p style={{ fontSize: 13, color: "#6a6a7a", marginBottom: 14 }}>
@@ -1130,6 +1481,48 @@ export default function ProjectDashboard() {
           </section>
         </>
       )}
+
+      <GitHubRepositoryPicker
+        open={githubPickerOpen}
+        projectName={project.name}
+        repositories={githubCandidates}
+        selected={githubSelected}
+        selectedRepositories={githubSelectedCandidates}
+        busy={githubLoading}
+        preparing={githubPreparing}
+        ready={Boolean(githubConnectionToken)}
+        searching={githubSearching}
+        error={githubError}
+        manageUrl={githubManageUrl}
+        repositoryScope={githubRepositoryScope}
+        hasMore={githubHasMore}
+        onSearch={handleSearchGitHubRepositories}
+        onToggle={(repository) => {
+          const repositoryId = repository.github_repository_id;
+          setGithubSelected((current) => current.includes(repositoryId)
+            ? current.filter((idSelecionado) => idSelecionado !== repositoryId)
+            : [...current, repositoryId]);
+          setGithubSelectedCandidates((current) => current.some((item) => item.github_repository_id === repositoryId)
+            ? current.filter((item) => item.github_repository_id !== repositoryId)
+            : [...current, repository]);
+        }}
+        onClose={() => {
+          githubSearchRequestRef.current += 1;
+          setGithubPickerOpen(false);
+          setGithubCandidates([]);
+          setGithubSelected([]);
+          setGithubSelectedCandidates([]);
+          setGithubConnectionToken("");
+          setGithubManageUrl(null);
+          setGithubRepositoryScope("unknown");
+          setGithubHasMore(false);
+          setGithubSearching(false);
+          setGithubPreparing(false);
+          setGithubError("");
+        }}
+        onRetry={handleStartGitHubConnection}
+        onConfirm={handleConnectRepositories}
+      />
 
       {/* ABA: ESCOPO */}
       {activeTab === "escopo" && (
@@ -1149,20 +1542,22 @@ export default function ProjectDashboard() {
       )}
 
       {/* MODAL Planning/Daily/Review */}
-      <SprintDocModal
-        open={modal !== null}
-        onClose={() => setModal(null)}
-        tipo={modal?.tipo ?? "daily"}
-        projetoId={id}
-        sprintNumero={modal?.sprintNumero ?? 1}
-        initialCarryOver={carryOverPrefill}
-        onSubmitted={async () => {
-          await refreshAll();
-          if (modal?.tipo === "review" && modal.sprintId) {
-            setStatusModal({ sprintId: modal.sprintId, sprintNumero: modal.sprintNumero });
-          }
-        }}
-      />
+      {modal !== null && (
+        <SprintDocModal
+          open={modal !== null}
+          onClose={() => setModal(null)}
+          tipo={modal?.tipo ?? "daily"}
+          projetoId={id}
+          sprintNumero={modal?.sprintNumero ?? 1}
+          initialCarryOver={carryOverPrefill}
+          onSubmitted={async () => {
+            await refreshAll();
+            if (modal?.tipo === "review" && modal.sprintId) {
+              setStatusModal({ sprintId: modal.sprintId, sprintNumero: modal.sprintNumero });
+            }
+          }}
+        />
+      )}
 
       {/* MODAL Planning — novo fluxo com correlação de funcionalidades */}
       {planningModal && (
@@ -1197,47 +1592,55 @@ export default function ProjectDashboard() {
       )}
 
       {/* MODAL Doc Manual */}
-      <ManualDocModal
-        open={manualModal !== null}
-        onClose={() => setManualModal(null)}
-        projetoId={id}
-        defaultSprintNumero={manualModal?.sprintNumero ?? null}
-        onCreated={async () => {
-          await refreshAll();
-        }}
-      />
+      {manualModal !== null && (
+        <ManualDocModal
+          open={manualModal !== null}
+          onClose={() => setManualModal(null)}
+          projetoId={id}
+          defaultSprintNumero={manualModal?.sprintNumero ?? null}
+          onCreated={async () => {
+            await refreshAll();
+          }}
+        />
+      )}
 
       {/* MODAL Status Funcionalidades — abre após review */}
-      <FuncionalidadesStatusModal
-        open={statusModal !== null}
-        onClose={() => setStatusModal(null)}
-        sprintId={statusModal?.sprintId ?? ""}
-        sprintNumero={statusModal?.sprintNumero ?? 1}
-        onUpdated={() => { setStatusModal(null); listFuncionalidades(id).then(setFuncionalidades).catch(() => {}); }}
-      />
+      {statusModal !== null && (
+        <FuncionalidadesStatusModal
+          open={statusModal !== null}
+          onClose={() => setStatusModal(null)}
+          sprintId={statusModal?.sprintId ?? ""}
+          sprintNumero={statusModal?.sprintNumero ?? 1}
+          onUpdated={() => { setStatusModal(null); listFuncionalidades(id).then(setFuncionalidades).catch(() => {}); }}
+        />
+      )}
 
       {/* MODAL Upload Livre */}
-      <UploadLivreModal
-        open={uploadModal !== null}
-        onClose={() => setUploadModal(null)}
-        projetoId={id}
-        sprintNumero={uploadModal?.sprintNumero ?? 1}
-        onCompleted={async () => {
-          await refreshAll();
-        }}
-      />
+      {uploadModal !== null && (
+        <UploadLivreModal
+          open={uploadModal !== null}
+          onClose={() => setUploadModal(null)}
+          projetoId={id}
+          sprintNumero={uploadModal?.sprintNumero ?? 1}
+          onCompleted={async () => {
+            await refreshAll();
+          }}
+        />
+      )}
 
       {/* MODAL Retrospectiva */}
-      <RetroModal
-        open={retroModal !== null}
-        onClose={() => setRetroModal(null)}
-        projetoId={id}
-        sprintNumero={retroModal?.sprintNumero ?? 1}
-        onSubmitted={(doc) => {
-          setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
-          setRetroModal(null);
-        }}
-      />
+      {retroModal !== null && (
+        <RetroModal
+          open={retroModal !== null}
+          onClose={() => setRetroModal(null)}
+          projetoId={id}
+          sprintNumero={retroModal?.sprintNumero ?? 1}
+          onSubmitted={(doc) => {
+            setDocs((prev) => [doc as unknown as GeneratedDoc, ...prev]);
+            setRetroModal(null);
+          }}
+        />
+      )}
     </main>
   );
 }

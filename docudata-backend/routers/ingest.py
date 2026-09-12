@@ -1,8 +1,10 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Response
 
+from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.extraction_graph import extraction_graph, ExtractionState
 from models.schemas import IngestResponse
 from services.supabase_client import get_client
+from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row
 from services.task_events import on_review_ingested
 
@@ -26,7 +28,10 @@ router = APIRouter(tags=["ingest"])
 
 
 @router.post("/ingest", response_model=IngestResponse)
+@limiter.limit(GEMINI_RATE_LIMIT)
 async def ingest(
+    request: Request,
+    response: Response,
     arquivo: UploadFile = File(...),
     sprint_numero: int = Form(...),
     projeto_id: str = Form(...),
@@ -43,19 +48,13 @@ async def ingest(
         )
 
     db = get_client()
-    project_resp = db.table("projects").select("gemini_api_key, name, client, description").eq("id", projeto_id).execute()
+    project_resp = db.table("projects").select("name, client, description").eq("id", projeto_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    api_key = project_resp.data[0].get("gemini_api_key") or ""
+    api_key = get_gemini_api_key()
     projeto_nome = project_resp.data[0].get("name", "")
     cliente = project_resp.data[0].get("client", "")
     projeto_descricao = project_resp.data[0].get("description", "") or ""
-    if not api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="Este projeto não tem uma chave de API do Gemini configurada. Configure-a no dashboard antes de enviar arquivos.",
-        )
-
     ensure_sprint_row(db, projeto_id, sprint_numero)
 
     file_bytes = await arquivo.read()
@@ -65,13 +64,14 @@ async def ingest(
         "mime_type": arquivo.content_type,
         "sprint_numero": sprint_numero,
         "projeto_id": projeto_id,
-        "gemini_api_key": api_key,
+        "api_key": api_key,
         "tipo": "",
         "texto_preprocessado": "",
         "conteudo_estruturado": None,
         "valido": False,
         "tentativas": 0,
         "erro": None,
+        "erro_status": None,
         "ingestion_id": None,
         "tipo_esperado": "upload_livre",
         "force": force,
@@ -96,9 +96,11 @@ async def ingest(
         )
 
     if not result.get("valido"):
+        # 413/422 vêm das guardas de imagem/PDF; o resto continua 502 (falha
+        # da IA). Toda mensagem de `erro` já sai sanitizada do grafo.
         raise HTTPException(
-            status_code=502,
-            detail=result.get("erro") or "Extraction failed",
+            status_code=result.get("erro_status") or 502,
+            detail=result.get("erro") or "Não foi possível extrair o conteúdo do arquivo",
         )
 
     if result.get("tipo_detectado") == "review":

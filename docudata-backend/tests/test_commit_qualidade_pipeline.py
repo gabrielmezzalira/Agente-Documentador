@@ -7,6 +7,7 @@ existente.
 """
 from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
+import os
 
 from models.schemas import ConteudoEstruturado, AvaliacaoQualidadeCommit
 
@@ -22,7 +23,7 @@ def _mock_client(arquetipo="padrao", operacionais=None, commit_qualidade_insert=
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
             resp = MagicMock()
-            resp.data = [{"gemini_api_key": "fake-key", "arquetipo": arquetipo}]
+            resp.data = [{"id": "proj-1", "arquetipo": arquetipo}]
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
         elif name == "sprints":
@@ -91,14 +92,13 @@ def _client(monkeypatch, mock_supabase):
     monkeypatch.setattr(commit_router, "get_client", lambda: mock_supabase)
     monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     from main import app
-    from services.auth import criar_jwt
     tc = TestClient(app)
-    tc.cookies.set("docudata_session", criar_jwt("pessoa-1", "p@citi.com", "gerente"))
+    tc.headers.update({"X-Docudata-Key": os.environ["DOCUDATA_APP_SECRET"]})
     return tc
 
 
 def _mock_gemini(monkeypatch, conteudo: ConteudoEstruturado, avaliacao: AvaliacaoQualidadeCommit):
-    import routers.commit_ingest as commit_router
+    import services.commit_extraction as commit_service
 
     class _FakeStructuredExtracao:
         async def ainvoke(self, messages):
@@ -116,7 +116,8 @@ def _mock_gemini(monkeypatch, conteudo: ConteudoEstruturado, avaliacao: Avaliaca
                 return _FakeStructuredExtracao()
             return _FakeStructuredQualidade()
 
-    monkeypatch.setattr(commit_router, "ChatGoogleGenerativeAI", lambda **kwargs: _FakeLLM())
+    monkeypatch.setattr(commit_service, "get_gemini_api_key", lambda: "fake-key")
+    monkeypatch.setattr(commit_service, "ChatGoogleGenerativeAI", lambda **kwargs: _FakeLLM())
 
 
 _CONTEUDO = ConteudoEstruturado(
@@ -208,7 +209,7 @@ def test_falha_na_avaliacao_de_qualidade_nao_derruba_ingestao(monkeypatch):
     insert_capture = []
     mock_sb = _mock_client(arquetipo="padrao", operacionais=[{"id": "op-1"}], commit_qualidade_insert=insert_capture)
 
-    import routers.commit_ingest as commit_router
+    import services.commit_extraction as commit_service
 
     class _FakeStructuredExtracao:
         async def ainvoke(self, messages):
@@ -226,7 +227,8 @@ def test_falha_na_avaliacao_de_qualidade_nao_derruba_ingestao(monkeypatch):
                 return _FakeStructuredExtracao()
             return _FakeStructuredQualidadeQuebrado()
 
-    monkeypatch.setattr(commit_router, "ChatGoogleGenerativeAI", lambda **kwargs: _FakeLLM())
+    monkeypatch.setattr(commit_service, "get_gemini_api_key", lambda: "fake-key")
+    monkeypatch.setattr(commit_service, "ChatGoogleGenerativeAI", lambda **kwargs: _FakeLLM())
     tc = _client(monkeypatch, mock_sb)
 
     resp = tc.post("/ingest/commit", json=_PAYLOAD)

@@ -6,6 +6,8 @@ Instalação no repositório do projeto:
 Variáveis de ambiente (GitHub Secrets):
   DOCUDATA_API_URL      — ex: https://docudata-backend.railway.app
   DOCUDATA_PROJECT_ID   — UUID do projeto no DocuData
+  DOCUDATA_APP_SECRET   — mesmo valor configurado no backend
+  GITHUB_TOKEN          — fornecido automaticamente pelo GitHub Actions
 Este agente é propositalmente best-effort: nunca falha o processo do CI.
 """
 import os, subprocess, re, json
@@ -13,15 +15,21 @@ import urllib.request, urllib.error
 
 API_URL    = os.environ.get("DOCUDATA_API_URL", "").rstrip("/")
 PROJECT_ID = os.environ.get("DOCUDATA_PROJECT_ID", "")
+APP_SECRET = os.environ.get("DOCUDATA_APP_SECRET", "")
+GH_TOKEN   = os.environ.get("GITHUB_TOKEN", "")
+GH_REPO    = os.environ.get("GITHUB_REPOSITORY", "")
+GH_SHA     = os.environ.get("GITHUB_SHA", "")
 
 def git(*args):
     return subprocess.run(["git"] + list(args), capture_output=True, text=True).stdout.strip()
 
-def http_json(url, method="GET", data=None, token=None):
+def http_json(url, method="GET", data=None, token=None, app_secret=None):
     body = json.dumps(data).encode() if data else None
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"token {token}"
+    if app_secret:
+        headers["X-Docudata-Key"] = app_secret
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
@@ -37,7 +45,9 @@ if not API_URL or not PROJECT_ID:
     raise SystemExit(0)
 
 # 1. Detectar sprint via DocuData (última planning ingerida)
-sprint_data, status = http_json(f"{API_URL}/projects/{PROJECT_ID}/current-sprint")
+sprint_data, status = http_json(
+    f"{API_URL}/projects/{PROJECT_ID}/current-sprint", app_secret=APP_SECRET
+)
 sprint_number = sprint_data.get("sprint_number", 1) if status == 200 else 1
 
 # 2. Verificar override [sprint:N] na mensagem do commit
@@ -70,7 +80,24 @@ payload = {
     "diff_stat":     diff_stat,
     "diff":          diff_full,
 }
-_, post_status = http_json(f"{API_URL}/ingest/commit", method="POST", data=payload)
+_, post_status = http_json(
+    f"{API_URL}/ingest/commit", method="POST", data=payload, app_secret=APP_SECRET
+)
+
+if GH_TOKEN and GH_REPO and GH_SHA:
+    state = "success" if post_status == 201 else "failure"
+    descricao = (
+        f"DocuData — Sprint {sprint_number}"
+        if post_status == 201
+        else "DocuData — falha ao registrar"
+    )
+    http_json(
+        f"https://api.github.com/repos/{GH_REPO}/statuses/{GH_SHA}",
+        method="POST",
+        data={"state": state, "description": descricao, "context": "DocuData"},
+        token=GH_TOKEN,
+    )
+    print(f"[docudata] Commit Status escrito: {state} — {descricao}")
 
 if post_status == 201:
     print(f"[docudata] Commit {commit_hash[:7]} registrado na Sprint {sprint_number}")

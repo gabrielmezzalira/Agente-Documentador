@@ -33,21 +33,22 @@ class RevisaoEstruturada(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     client: str
+    subarea: Literal["dados", "dev"]
     description: Optional[str] = None
     squad: Optional[str] = None
     valor_projeto: Optional[float] = None
-    gemini_api_key: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
     client: str
+    # Registros anteriores à migration v3 continuam pertencendo a Dados.
+    subarea: Literal["dados", "dev"] = "dados"
     description: Optional[str] = None
     squad: Optional[str] = None
     valor_projeto: Optional[float] = None
     valor_por_ponto: Optional[float] = None
-    has_api_key: bool = False
     is_delivered: bool = False
     created_at: datetime
     last_ingestion_at: Optional[datetime] = None
@@ -58,6 +59,67 @@ class ProjectResponse(BaseModel):
     has_github_config: bool = False
     gerente_email: Optional[str] = None
     arquetipo: str = "padrao"
+
+
+class ProjectSubareaUpdate(BaseModel):
+    subarea: Literal["dados", "dev"]
+
+
+class GeminiApiKeyUpdate(BaseModel):
+    api_key: str = Field(min_length=1)
+
+
+class GeminiApiKeyStatus(BaseModel):
+    configured: bool
+    key_hint: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class GitHubCapabilities(BaseModel):
+    enabled: bool
+    configured: bool
+    subareas: list[str]
+    app_slug: Optional[str] = None
+
+
+class GitHubConnectionSession(BaseModel):
+    install_url: Optional[str] = None
+    connection_token: Optional[str] = None
+
+
+class GitHubRepositoryCandidate(BaseModel):
+    github_repository_id: int
+    full_name: str
+    html_url: str
+    default_branch: Optional[str] = None
+    pushed_at: Optional[datetime] = None
+    private: bool = False
+    connection_status: Literal["available", "connected_here", "unavailable"] = "available"
+
+
+class GitHubRepositoriesAvailable(BaseModel):
+    repositories: list[GitHubRepositoryCandidate]
+    manage_url: Optional[str] = None
+    repository_scope: Literal["all", "selected", "unknown"] = "unknown"
+    has_more: bool = False
+
+
+class ProjectRepositoryCreate(BaseModel):
+    connection_token: str = Field(min_length=1)
+    repository_ids: list[int] = Field(min_length=1)
+
+
+class ProjectRepositoryResponse(BaseModel):
+    id: str
+    project_id: str
+    github_repository_id: int
+    full_name: str
+    html_url: str
+    default_branch: Optional[str] = None
+    active: bool
+    permission_status: Literal["active", "revoked", "disconnected"]
+    connected_at: datetime
+    updated_at: datetime
 
 
 class GerenteEmailUpdate(BaseModel):
@@ -94,6 +156,15 @@ class IngestionResponse(BaseModel):
     file_type: Optional[str] = None
     tipo_documentacao: Optional[str] = None
     extracted_content: Optional[dict] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    source_repository_id: Optional[str] = None
+    source_repository_full_name: Optional[str] = None
+    source_commit_sha: Optional[str] = None
+    source_branch: Optional[str] = None
+    source_url: Optional[str] = None
+    source_diff_stat: Optional[str] = None
     created_at: datetime
 
 

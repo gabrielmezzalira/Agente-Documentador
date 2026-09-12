@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Nenhum job usa segredo real: os testes já rodam com Gemini, GitHub, Drive,
+# Resend e Supabase mockados, e as auditorias consultam só bases públicas.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — testes e auditoria de dependências
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docudata-backend
+    env:
+      # Valores descartáveis, apenas para o boot do app nos testes.
+      DOCUDATA_APP_SECRET: chave-de-aplicacao-para-ci
+      JWT_SECRET: segredo-jwt-ci-com-entropia-suficiente-para-testes
+      ALLOWED_ORIGINS: https://frontend.test,http://localhost:3000
+      FRONTEND_URL: https://frontend.test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          # Cacheia só o índice de wheels do pip; nunca .env, PEM ou credencial.
+          cache: pip
+          cache-dependency-path: |
+            docudata-backend/requirements.txt
+            docudata-backend/requirements-dev.txt
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: pytest
+        run: pytest -q
+
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+  frontend:
+    name: Frontend — build, testes e npm audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docudata-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docudata-frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testes de headers de segurança
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: npm audit (produção)
+        run: npm audit --omit=dev --audit-level=high
+
+  higiene:
+    name: Higiene — segredos e whitespace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: git diff --check
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            echo "Branch nova, sem base de comparação — nada a checar."
+            exit 0
+          fi
+          git diff --check "$base" HEAD
+
+      - name: Varredura de segredos
+        run: |
+          set -uo pipefail
+          # Padrões de credencial que nunca podem entrar no repositório.
+          # `.env.example` e a documentação só listam nomes de variável, sem valor.
+          padroes='-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|gh[opsu]_[A-Za-z0-9]{36}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{32,}|re_[A-Za-z0-9]{24,}|eyJhbGciOi[A-Za-z0-9_-]{20,}'
+          if git grep -nIE -e "$padroes" -- . ':(exclude)package-lock.json'; then
+            echo "::error::Credencial encontrada no repositório — remova e rotacione o segredo."
+            exit 1
+          fi
+          echo "Nenhuma credencial encontrada."

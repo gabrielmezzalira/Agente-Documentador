@@ -1,16 +1,18 @@
-import os
 import json
+import logging
 from typing import TypedDict, Optional
 
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
+_LOG = logging.getLogger("docudata.importacao")
+
 
 class ImportState(TypedDict):
     texto_contrato: str
     projeto_id: str
-    gemini_api_key: str
+    api_key: str
     proposta: Optional[list]
     valido: bool
     tentativas: int
@@ -40,7 +42,7 @@ async def gerar_proposta(state: ImportState) -> dict:
         llm = ChatGoogleGenerativeAI(
             model="gemini-3.5-flash-lite",
             max_tokens=4096,
-            google_api_key=state["gemini_api_key"],
+            google_api_key=state["api_key"],
         )
         messages = [
             SystemMessage(_IMPORT_SYSTEM_PROMPT),
@@ -62,7 +64,12 @@ async def gerar_proposta(state: ImportState) -> dict:
             }
         return {"proposta": funcionalidades, "valido": True}
     except Exception as exc:
-        return {"valido": False, "tentativas": tentativas + 1, "erro": str(exc)}
+        _LOG.warning("proposta_falhou tentativa=%s exc=%s", tentativas + 1, type(exc).__name__)
+        return {
+            "valido": False,
+            "tentativas": tentativas + 1,
+            "erro": "Não foi possível interpretar a resposta da IA",
+        }
 
 
 def _roteador(state: ImportState) -> str:

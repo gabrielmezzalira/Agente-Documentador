@@ -1,27 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { createProject } from "../../lib/api";
+import { createProject, type Subarea } from "../../../lib/api";
 
 export default function NewProject() {
   const router = useRouter();
+  const { subarea } = useParams<{ subarea: Subarea }>();
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [description, setDescription] = useState("");
   const [squad, setSquad] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const subareaLabel = subarea === "dev" ? "Dev" : "Dados";
+  const subareaColor = subarea === "dev" ? "#1d4ed8" : "#15803d";
+  const subareaBackground = subarea === "dev" ? "#eff6ff" : "#ecfdf3";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const project = await createProject({ name, client, description, squad: squad || undefined, gemini_api_key: apiKey || undefined });
-      router.push(`/projects/${project.id}`);
+      const project = await createProject({ name, client, subarea, description, squad: squad || undefined });
+      router.push(`/${subarea}/projects/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar projeto");
     } finally {
@@ -31,14 +34,19 @@ export default function NewProject() {
 
   return (
     <main style={{ maxWidth: 520, margin: "0 auto", padding: "52px 24px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#9696a0", display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#9696a0", display: "inline-flex", alignItems: "center", gap: 6 }}>
         ← Projetos
       </Link>
 
-      <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 28, marginBottom: 6 }}>
-        Novo projeto
+      <span style={{ display: "inline-flex", marginTop: 28, padding: "5px 9px", borderRadius: 999, color: subareaColor, background: subareaBackground, fontSize: 11, fontWeight: 750 }}>
+        Subárea de {subareaLabel}
+      </span>
+      <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 12, marginBottom: 6 }}>
+        Novo projeto de {subareaLabel}
       </h1>
-      <p style={{ color: "#9696a0", marginBottom: 36, fontSize: 14 }}>Preencha as informações básicas.</p>
+      <p style={{ color: "#737380", marginBottom: 36, fontSize: 14, lineHeight: 1.55 }}>
+        O projeto será cadastrado automaticamente em {subareaLabel}. Você poderá alterar essa classificação nas configurações do projeto.
+      </p>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
         <div>
@@ -70,14 +78,6 @@ export default function NewProject() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Breve descrição do escopo..."
           />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Chave de API do Gemini</label>
-          <input style={inputStyle} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="AIza..." />
-          <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
-            Obtida em <strong style={{ color: "#9696a0" }}>aistudio.google.com</strong> → Get API Key.
-          </p>
         </div>
 
         {error && <p style={{ color: "#dc2626", fontSize: 14 }}>{error}</p>}

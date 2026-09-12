@@ -1,10 +1,13 @@
 """Sprint Funcionalidades — vincula funcionalidades a sprints com tasks e status de conclusão."""
+import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.supabase_client import get_client
+
+_LOG = logging.getLogger("docudata.sprint_funcionalidades")
 
 router = APIRouter(prefix="/sprint-funcionalidades", tags=["sprint-funcionalidades"])
 
@@ -64,7 +67,7 @@ def create_sprint_funcionalidades(data: BatchCreate):
             results.extend(resp.data or [])
             func_ids_to_update.append(func_id)
         except Exception as exc:
-            print(f"[sprint_funcionalidades] Erro ao upsert func {func_id}: {exc}")
+            _LOG.warning("upsert_funcionalidade_falhou func_id=%s exc=%s", func_id, type(exc).__name__)
 
     # Promove funcionalidades de nao_iniciada → em_andamento
     for func_id in func_ids_to_update:
@@ -73,7 +76,7 @@ def create_sprint_funcionalidades(data: BatchCreate):
             if func_resp.data and func_resp.data[0]["status"] == "nao_iniciada":
                 client.table("funcionalidades").update({"status": "em_andamento"}).eq("id", func_id).execute()
         except Exception as exc:
-            print(f"[sprint_funcionalidades] Erro ao atualizar status func {func_id}: {exc}")
+            _LOG.warning("status_funcionalidade_falhou func_id=%s exc=%s", func_id, type(exc).__name__)
 
     return {"created": len(results), "sprint_funcionalidades": results}
 
@@ -119,7 +122,7 @@ def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate):
             try:
                 client.table("funcionalidades").update({"status": "concluida"}).eq("id", func_id).execute()
             except Exception as exc:
-                print(f"[sprint_funcionalidades] Erro ao concluir funcionalidade {func_id}: {exc}")
+                _LOG.warning("conclusao_funcionalidade_falhou func_id=%s exc=%s", func_id, type(exc).__name__)
 
     return sf
 
