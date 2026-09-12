@@ -20,7 +20,7 @@ from graphs.extraction_graph import extraction_graph, ExtractionState
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import SprintDocResponse
 from services.supabase_client import get_client
-from services.sprints import ensure_sprint_row
+from services.sprints import ensure_sprint_row, compute_planejado_vs_entregue
 
 router = APIRouter(prefix="/sprint-docs", tags=["sprint-docs"])
 
@@ -133,6 +133,17 @@ def _merge_content(base: dict, extra: dict) -> dict:
     return merged
 
 
+def _require_lista_ou_confirmado(items: list, confirmado_vazio: bool, rotulo: str) -> None:
+    """Bloqueia envio quando uma lista de evento (riscos, dependências etc.) está
+    vazia e o gerente não confirmou explicitamente que não há nenhum item — evita
+    lacuna silenciosa (campo em branco por esquecimento) no documento gerado."""
+    if not items and not confirmado_vazio:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Preencha ao menos um item em '{rotulo}', ou confirme que não há nenhum.",
+        )
+
+
 def _project_or_404(project_id: str) -> tuple[dict, str]:
     """Carrega projeto e retorna (project_dict, api_key). Levanta 404/422 se inválido."""
     client = get_client()
@@ -221,25 +232,46 @@ def _insert_ingestion(
 # ---------------------------------------------------------------------------
 
 
+@router.get("/review/planejado-entregue")
+async def get_planejado_vs_entregue(projeto_id: str, sprint_numero: int):
+    """Pré-preenchimento da tabela 'planejado vs. entregue' da Review, calculado
+    a partir do kanban real da sprint (1 linha por task). Chamado pelo frontend
+    ao abrir o formulário de Review — recalculado do zero a cada chamada."""
+    client = get_client()
+    if not client.table("projects").select("id").eq("id", projeto_id).execute().data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    itens = compute_planejado_vs_entregue(client, projeto_id, sprint_numero)
+    return {"itens_planejados_entregues": itens}
+
+
 @router.post("/planning", response_model=SprintDocResponse, status_code=201)
 async def submit_planning(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
     descricao: str = Form(...),
-    itens_backlog: str = Form("[]"),  # JSON array de {item, prazo?, criterio?}
-    squad: Optional[str] = Form(None),
-    periodo_inicio: Optional[str] = Form(None),  # formato ISO date YYYY-MM-DD
-    periodo_fim: Optional[str] = Form(None),      # formato ISO date YYYY-MM-DD
-    horas_disponiveis: Optional[int] = Form(None),  # horas reais disponíveis do squad
-    horas_estimadas: Optional[int] = Form(None),    # horas estimadas necessárias
+    itens_backlog: str = Form("[]"),  # JSON array de {item, prazo?, criterio?} — exige >=1 item
+    squad: str = Form(...),
+    periodo_inicio: str = Form(...),  # formato ISO date YYYY-MM-DD
+    periodo_fim: str = Form(...),      # formato ISO date YYYY-MM-DD
+    horas_disponiveis: int = Form(...),  # horas reais disponíveis do squad
+    horas_estimadas: int = Form(...),    # horas estimadas necessárias
     dependencias_items: str = Form("[]"),   # [{item, prazo?, consequencia?, confianca?}]
     riscos_items: str = Form("[]"),         # [{risco, consequencia?}]
     carry_over_items: str = Form("[]"),     # [{item, causa_raiz?}]
-    contexto_livre: Optional[str] = Form(None),  # texto solto do gerente, sem formato
+    sem_dependencias: bool = Form(...),
+    sem_riscos: bool = Form(...),
+    sem_carry_over: bool = Form(...),
+    contexto_livre: str = Form(...),  # texto solto do gerente, sem formato
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
 ):
-    """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc."""
+    """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc.
+
+    Todo campo é obrigatório — listas de evento (riscos/dependências/carry-over)
+    exigem ou pelo menos 1 item, ou confirmação explícita de que não há nenhum
+    (sem_riscos/sem_dependencias/sem_carry_over), pra impedir que o Planning saia
+    do sistema com lacunas silenciosas.
+    """
     project, api_key = _project_or_404(projeto_id)
     try:
         backlog = json.loads(itens_backlog)
@@ -262,6 +294,12 @@ async def submit_planning(
         co_items = json.loads(carry_over_items) if isinstance(carry_over_items, str) else []
     except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Payload inválido: {exc}")
+
+    if not backlog_items:
+        raise HTTPException(status_code=422, detail="O backlog da sprint é obrigatório — inclua ao menos 1 item.")
+    _require_lista_ou_confirmado(dep_items, sem_dependencias, "dependências")
+    _require_lista_ou_confirmado(risco_items, sem_riscos, "riscos")
+    _require_lista_ou_confirmado(co_items, sem_carry_over, "carry-over")
 
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
@@ -489,19 +527,21 @@ async def submit_ata_with_upload(
 async def submit_review(
     projeto_id: str = Form(...),
     sprint_numero: int = Form(...),
-    observacoes: Optional[str] = Form(None),
-    percepcao_cliente: Optional[str] = Form(None),   # frase literal ou paráfrase objetiva do cliente
-    sinal_satisfacao: Optional[str] = Form(None),    # categoria de satisfação do cliente
-    pedidos_fora_escopo: Optional[str] = Form(None), # texto livre backward-compat
+    observacoes: str = Form(...),
+    percepcao_cliente: str = Form(...),   # frase literal ou paráfrase objetiva do cliente
+    sinal_satisfacao: str = Form(...),    # categoria de satisfação do cliente
+    pedidos_fora_escopo: Optional[str] = Form(None), # texto livre backward-compat — segue opcional
     # Campos Template 2 CITi
-    squad: Optional[str] = Form(None),               # membros e papéis do squad
-    periodo_inicio: Optional[str] = Form(None),      # ISO date YYYY-MM-DD
-    periodo_fim: Optional[str] = Form(None),         # ISO date YYYY-MM-DD
-    subarea: Optional[str] = Form(None),             # "desenvolvimento" | "dados" | "produto"
-    itens_planejados_entregues: str = Form("[]"),     # [{item, entregue, motivo_nao, causa_raiz_num}]
-    percentual_itens_prontos: Optional[str] = Form(None),  # ex: "8 de 10 = 80%"
+    squad: str = Form(...),               # membros e papéis do squad
+    periodo_inicio: str = Form(...),      # ISO date YYYY-MM-DD
+    periodo_fim: str = Form(...),         # ISO date YYYY-MM-DD
+    subarea: str = Form(...),             # "desenvolvimento" | "dados" | "produto"
+    itens_planejados_entregues: str = Form("[]"),     # [{item, entregue, motivo_nao, causa_raiz_num}] — exige >=1 item
+    percentual_itens_prontos: str = Form(...),  # ex: "8 de 10 = 80%"
     pedidos_fora_escopo_itens: str = Form("[]"),     # [{data, descricao, status}]
     itens_proxima_sprint: str = Form("[]"),          # [{item, causa_raiz_num}]
+    sem_pedidos_fora_escopo: bool = Form(...),
+    sem_itens_proxima_sprint: bool = Form(...),
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
 ):
@@ -510,11 +550,17 @@ async def submit_review(
     A review se baseia no planning + dailys + ingestões livres da sprint para
     computar o delta (planejado vs realizado). Observações do gerente são
     anexadas como contexto adicional.
+
+    Todo campo é obrigatório. itens_planejados_entregues (pré-preenchido pelo
+    frontend a partir do kanban — ver GET /sprint-docs/review/planejado-entregue)
+    precisa ter ao menos 1 item: uma Review pressupõe que algo foi planejado.
+    As demais listas de evento (pedidos fora de escopo, itens pra próxima sprint)
+    exigem confirmação explícita de ausência quando vazias.
     """
     project, api_key = _project_or_404(projeto_id)
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
-    observacoes_clean = (observacoes or "").strip()
+    observacoes_clean = observacoes.strip()
 
     try:
         ipe_parsed = json.loads(itens_planejados_entregues) if isinstance(itens_planejados_entregues, str) else []
@@ -522,6 +568,14 @@ async def submit_review(
         ips_parsed = json.loads(itens_proxima_sprint) if isinstance(itens_proxima_sprint, str) else []
     except (json.JSONDecodeError, ValueError):
         ipe_parsed, pfe_parsed, ips_parsed = [], [], []
+
+    if not ipe_parsed:
+        raise HTTPException(
+            status_code=422,
+            detail="A tabela 'Planejado vs Entregue' é obrigatória — nenhuma task planejada foi encontrada para esta sprint.",
+        )
+    _require_lista_ou_confirmado(pfe_parsed, sem_pedidos_fora_escopo, "pedidos fora de escopo")
+    _require_lista_ou_confirmado(ips_parsed, sem_itens_proxima_sprint, "itens para a próxima sprint")
 
     base_content = {
         "resumo": observacoes_clean or f"Review da Sprint {sprint_numero}",

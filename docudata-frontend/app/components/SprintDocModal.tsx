@@ -6,6 +6,7 @@ import {
   submitDaily,
   submitReview,
   enrichContent,
+  getPlanejadoVsEntregue,
   ValidationError,
   type ValidationError422,
   type SprintDocResponse,
@@ -155,6 +156,11 @@ export default function SprintDocModal({
   const [carryOverItems, setCarryOverItems] = useState<{ item: string; causa_raiz: string }[]>([
     { item: "", causa_raiz: "" },
   ]);
+  const [squadPlanning, setSquadPlanning] = useState("");
+  const [contextoLivre, setContextoLivre] = useState("");
+  const [semDependencias, setSemDependencias] = useState(false);
+  const [semRiscos, setSemRiscos] = useState(false);
+  const [semCarryOver, setSemCarryOver] = useState(false);
 
   // Daily state
   const today = new Date().toISOString().slice(0, 10);
@@ -183,6 +189,9 @@ export default function SprintDocModal({
   const [itensProximaSprint, setItensProximaSprint] = useState<
     { item: string; causa_raiz_num: string }[]
   >([{ item: "", causa_raiz_num: "" }]);
+  const [semPedidosForaEscopo, setSemPedidosForaEscopo] = useState(false);
+  const [semItensProximaSprint, setSemItensProximaSprint] = useState(false);
+  const [carregandoPlanejadoEntregue, setCarregandoPlanejadoEntregue] = useState(false);
 
   // Common
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -207,6 +216,11 @@ export default function SprintDocModal({
       setDependencias([{ item: "", prazo: "", consequencia: "", confianca: "" }]);
       setRiscos([{ risco: "", consequencia: "" }]);
       setCarryOverItems([{ item: "", causa_raiz: "" }]);
+      setSquadPlanning("");
+      setContextoLivre("");
+      setSemDependencias(false);
+      setSemRiscos(false);
+      setSemCarryOver(false);
       setData(today);
       setFeito("");
       setProximo("");
@@ -223,6 +237,8 @@ export default function SprintDocModal({
       setPercentualItensProntos("");
       setPedidosForaEscopoItens([{ data: "", descricao: "", status: "" }]);
       setItensProximaSprint([{ item: "", causa_raiz_num: "" }]);
+      setSemPedidosForaEscopo(false);
+      setSemItensProximaSprint(false);
       setAnexoName(null);
       if (fileRef.current) fileRef.current.value = "";
       if (enrichFileRef.current) enrichFileRef.current.value = "";
@@ -238,6 +254,21 @@ export default function SprintDocModal({
       }
     }
   }, [open, today, initialCarryOver, initialDescricao, initialItens, tipo]);
+
+  useEffect(() => {
+    if (!open || tipo !== "review" || step !== "form") return;
+    let cancelado = false;
+    setCarregandoPlanejadoEntregue(true);
+    getPlanejadoVsEntregue({ projetoId, sprintNumero })
+      .then((itens) => {
+        if (cancelado) return;
+        setItensPlanejadasEntregues(
+          itens.length ? itens : [{ item: "", entregue: "", motivo_nao: "", causa_raiz_num: "" }]
+        );
+      })
+      .finally(() => { if (!cancelado) setCarregandoPlanejadoEntregue(false); });
+    return () => { cancelado = true; };
+  }, [open, tipo, step, projetoId, sprintNumero]);
 
   if (!open) return null;
 
@@ -293,7 +324,8 @@ export default function SprintDocModal({
       const toDate = (s: string) => { const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : s; };
       if (result.periodo_inicio) { setReviewPeriodoInicio(toDate(result.periodo_inicio)); fields.add("reviewPeriodo"); }
       if (result.periodo_fim) { setReviewPeriodoFim(toDate(result.periodo_fim)); fields.add("reviewPeriodo"); }
-      if (result.itens_planejados_entregues?.length) { setItensPlanejadasEntregues(result.itens_planejados_entregues); fields.add("itensEntregues"); }
+      // itens_planejados_entregues NÃO vem mais do anexo/IA — é sempre recalculado
+      // a partir do kanban real da sprint (ver efeito de pré-preenchimento acima).
       if (result.percentual_itens_prontos) { setPercentualItensProntos(result.percentual_itens_prontos); fields.add("percentual"); }
       if (result.pedidos_fora_escopo_itens?.length) { setPedidosForaEscopoItens(result.pedidos_fora_escopo_itens); fields.add("pedidosItens"); }
       if (result.itens_proxima_sprint?.length) { setItensProximaSprint(result.itens_proxima_sprint); fields.add("itensProxima"); }
@@ -331,19 +363,35 @@ export default function SprintDocModal({
       let response: SprintDocResponse;
       if (tipo === "planning") {
         const cleanItens = itens.filter((i) => i.item.trim());
+        const cleanDependencias = dependencias.filter((d) => d.item.trim());
+        const cleanRiscos = riscos.filter((r) => r.risco.trim());
+        const cleanCarryOver = carryOverItems.filter((c) => c.item.trim());
         if (!descricao.trim()) throw new Error("Descrição é obrigatória");
+        if (!cleanItens.length) throw new Error("O backlog da sprint é obrigatório — inclua ao menos 1 item.");
+        if (!squadPlanning.trim()) throw new Error("Squad é obrigatório");
+        if (!periodoInicio || !periodoFim) throw new Error("Período da sprint é obrigatório");
+        if (horasDisponiveis === "" || horasEstimadas === "") throw new Error("Horas disponíveis e estimadas são obrigatórias");
+        if (!contextoLivre.trim()) throw new Error("Contexto livre é obrigatório");
+        if (!cleanDependencias.length && !semDependencias) throw new Error("Preencha ao menos uma dependência, ou confirme que não há nenhuma.");
+        if (!cleanRiscos.length && !semRiscos) throw new Error("Preencha ao menos um risco, ou confirme que não há nenhum.");
+        if (!cleanCarryOver.length && !semCarryOver) throw new Error("Preencha ao menos um item de carry-over, ou confirme que não há nenhum.");
         response = await submitPlanning({
           projetoId,
           sprintNumero,
           descricao,
           itensBacklog: cleanItens,
-          periodoInicio: periodoInicio || undefined,
-          periodoFim: periodoFim || undefined,
-          horasDisponiveis: horasDisponiveis !== "" ? horasDisponiveis : undefined,
-          horasEstimadas: horasEstimadas !== "" ? horasEstimadas : undefined,
-          dependenciasItems: dependencias.filter((d) => d.item.trim()),
-          riscosItems: riscos.filter((r) => r.risco.trim()),
-          carryOverItems: carryOverItems.filter((c) => c.item.trim()),
+          squad: squadPlanning,
+          periodoInicio,
+          periodoFim,
+          horasDisponiveis: horasDisponiveis as number,
+          horasEstimadas: horasEstimadas as number,
+          contextoLivre,
+          dependenciasItems: cleanDependencias,
+          riscosItems: cleanRiscos,
+          carryOverItems: cleanCarryOver,
+          semDependencias,
+          semRiscos,
+          semCarryOver,
           anexo,
           force,
         });
@@ -364,21 +412,33 @@ export default function SprintDocModal({
         const cleanIPE = itensPlanejadasEntregues.filter((i) => i.item.trim());
         const cleanPFE = pedidosForaEscopoItens.filter((i) => i.descricao.trim());
         const cleanIPS = itensProximaSprint.filter((i) => i.item.trim());
+        if (!observacoes.trim()) throw new Error("Observações do gerente são obrigatórias");
+        if (!percepcaoCliente.trim()) throw new Error("Percepção do cliente é obrigatória");
+        if (!sinalSatisfacao) throw new Error("Sinal de satisfação é obrigatório");
+        if (!reviewSquad.trim()) throw new Error("Squad é obrigatório");
+        if (!reviewPeriodoInicio || !reviewPeriodoFim) throw new Error("Período da sprint é obrigatório");
+        if (!reviewSubarea) throw new Error("Subárea é obrigatória");
+        if (!percentualItensProntos.trim()) throw new Error("% de itens com Pronto cumprido é obrigatório");
+        if (!cleanIPE.length) throw new Error("A tabela 'Planejado vs Entregue' está vazia — nenhuma task foi encontrada para esta sprint.");
+        if (!cleanPFE.length && !semPedidosForaEscopo) throw new Error("Preencha ao menos um pedido fora de escopo, ou confirme que não há nenhum.");
+        if (!cleanIPS.length && !semItensProximaSprint) throw new Error("Preencha ao menos um item para a próxima sprint, ou confirme que não há nenhum.");
         response = await submitReview({
           projetoId,
           sprintNumero,
-          observacoes: observacoes || undefined,
-          percepcaoCliente: percepcaoCliente || undefined,
-          sinalSatisfacao: sinalSatisfacao || undefined,
+          observacoes,
+          percepcaoCliente,
+          sinalSatisfacao,
           pedidosForaEscopo: pedidosForaEscopo || undefined,
-          squad: reviewSquad || undefined,
-          periodoInicio: reviewPeriodoInicio || undefined,
-          periodoFim: reviewPeriodoFim || undefined,
-          subarea: reviewSubarea || undefined,
-          itensPlanejadasEntregues: cleanIPE.length ? cleanIPE : undefined,
-          percentualItensProntos: percentualItensProntos || undefined,
-          pedidosForaEscopoItens: cleanPFE.length ? cleanPFE : undefined,
-          itensProximaSprint: cleanIPS.length ? cleanIPS : undefined,
+          squad: reviewSquad,
+          periodoInicio: reviewPeriodoInicio,
+          periodoFim: reviewPeriodoFim,
+          subarea: reviewSubarea,
+          itensPlanejadasEntregues: cleanIPE,
+          percentualItensProntos,
+          pedidosForaEscopoItens: cleanPFE,
+          itensProximaSprint: cleanIPS,
+          semPedidosForaEscopo,
+          semItensProximaSprint,
           anexo,
           force,
         });
@@ -507,6 +567,18 @@ export default function SprintDocModal({
                   placeholder="Ex: Sprint focada em finalizar o ETL e iniciar a camada de visualização"
                 />
 
+                <label style={labelStyle}>Contexto livre (o porquê da sprint)</label>
+                <textarea
+                  style={textareaStyle}
+                  value={contextoLivre}
+                  onChange={(e) => setContextoLivre(e.target.value)}
+                  placeholder="Ex: Cliente priorizou o módulo financeiro por causa do fechamento fiscal"
+                />
+
+                <label style={labelStyle}>Squad (membros e papéis)</label>
+                <input style={inputStyle} value={squadPlanning} onChange={(e) => setSquadPlanning(e.target.value)}
+                  placeholder="Ex: Gabriel (Gerente), Ana (Analista), João (Analista)" />
+
                 <label style={labelStyle}>
                   Itens do backlog
                   <AiBadge field="itens_backlog" />
@@ -590,9 +662,14 @@ export default function SprintDocModal({
                   </div>
                 ))}
                 <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-                  onClick={() => setDependencias([...dependencias, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
+                  onClick={() => setDependencias([...dependencias, { item: "", prazo: "", consequencia: "", confianca: "" }])}
+                  disabled={semDependencias}>
                   + Adicionar dependência
                 </button>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                  <input type="checkbox" checked={semDependencias} onChange={(e) => setSemDependencias(e.target.checked)} />
+                  Nenhuma dependência do cliente identificada nesta sprint
+                </label>
 
                 <label style={labelStyle}>
                   Riscos identificados
@@ -615,9 +692,14 @@ export default function SprintDocModal({
                   </div>
                 ))}
                 <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-                  onClick={() => setRiscos([...riscos, { risco: "", consequencia: "" }])}>
+                  onClick={() => setRiscos([...riscos, { risco: "", consequencia: "" }])}
+                  disabled={semRiscos}>
                   + Adicionar risco
                 </button>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                  <input type="checkbox" checked={semRiscos} onChange={(e) => setSemRiscos(e.target.checked)} />
+                  Nenhum risco identificado nesta sprint
+                </label>
 
                 <label style={labelStyle}>
                   Carry-over da sprint anterior
@@ -640,9 +722,14 @@ export default function SprintDocModal({
                   </div>
                 ))}
                 <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-                  onClick={() => setCarryOverItems([...carryOverItems, { item: "", causa_raiz: "" }])}>
+                  onClick={() => setCarryOverItems([...carryOverItems, { item: "", causa_raiz: "" }])}
+                  disabled={semCarryOver}>
                   + Adicionar item
                 </button>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                  <input type="checkbox" checked={semCarryOver} onChange={(e) => setSemCarryOver(e.target.checked)} />
+                  Nenhum item de carry-over da sprint anterior
+                </label>
               </>
             )}
 
@@ -744,7 +831,9 @@ export default function SprintDocModal({
 
                 <label style={labelStyle}>
                   Planejado vs Entregue
-                  <AiBadge field="itensEntregues" />
+                  <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6, fontSize: 12 }}>
+                    {carregandoPlanejadoEntregue ? "— calculando a partir do kanban…" : "— calculado a partir do kanban, ajuste se necessário"}
+                  </span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "3fr 60px 2fr 80px auto", gap: 6, marginBottom: 4 }}>
                   {["Item", "Entregue", "Motivo se não", "Causa raiz", ""].map((h, i) => (
@@ -809,9 +898,14 @@ export default function SprintDocModal({
                   </div>
                 ))}
                 <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-                  onClick={() => setPedidosForaEscopoItens([...pedidosForaEscopoItens, { data: "", descricao: "", status: "" }])}>
+                  onClick={() => setPedidosForaEscopoItens([...pedidosForaEscopoItens, { data: "", descricao: "", status: "" }])}
+                  disabled={semPedidosForaEscopo}>
                   + Adicionar pedido
                 </button>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                  <input type="checkbox" checked={semPedidosForaEscopo} onChange={(e) => setSemPedidosForaEscopo(e.target.checked)} />
+                  Nenhum pedido fora de escopo nesta sprint
+                </label>
 
                 <label style={labelStyle}>
                   Itens para a próxima sprint
@@ -834,9 +928,14 @@ export default function SprintDocModal({
                   </div>
                 ))}
                 <button type="button" style={{ ...ghostBtn, marginTop: 4 }}
-                  onClick={() => setItensProximaSprint([...itensProximaSprint, { item: "", causa_raiz_num: "" }])}>
+                  onClick={() => setItensProximaSprint([...itensProximaSprint, { item: "", causa_raiz_num: "" }])}
+                  disabled={semItensProximaSprint}>
                   + Adicionar item
                 </button>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                  <input type="checkbox" checked={semItensProximaSprint} onChange={(e) => setSemItensProximaSprint(e.target.checked)} />
+                  Nenhum item pendente para a próxima sprint
+                </label>
               </>
             )}
 
@@ -896,11 +995,15 @@ export default function SprintDocModal({
               </button>
               <button
                 type="button"
-                style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
+                style={{ ...primaryBtn, opacity: submitting || carregandoPlanejadoEntregue ? 0.6 : 1 }}
                 onClick={() => handleSubmit()}
-                disabled={submitting}
+                disabled={submitting || carregandoPlanejadoEntregue}
               >
-                {submitting ? "Gerando…" : `Gerar ${tipo === "planning" ? "Planning" : tipo === "daily" ? "Daily" : "Review"}`}
+                {submitting
+                  ? "Gerando…"
+                  : carregandoPlanejadoEntregue
+                  ? "Calculando planejado vs entregue…"
+                  : `Gerar ${tipo === "planning" ? "Planning" : tipo === "daily" ? "Daily" : "Review"}`}
               </button>
             </div>
           </>

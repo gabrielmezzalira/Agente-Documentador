@@ -54,6 +54,45 @@ def get_current_sprint_id(client, project_id: str) -> Optional[str]:
     return numero_para_id[maior_numero]
 
 
+def compute_planejado_vs_entregue(client, project_id: str, numero: int) -> list[dict]:
+    """Monta a tabela 'planejado vs. entregue' da Review a partir do kanban real
+    da sprint — 1 linha por task, 'entregue' = task concluída ao final da sprint.
+
+    motivo_nao/causa_raiz_num ficam sempre vazios (dependem de julgamento humano,
+    o gerente completa manualmente); recalculado do zero a cada chamada.
+    """
+    sprint_resp = (
+        client.table("sprints")
+        .select("id")
+        .eq("project_id", project_id)
+        .eq("numero", numero)
+        .limit(1)
+        .execute()
+    )
+    if not sprint_resp.data:
+        return []
+    sprint_id = sprint_resp.data[0]["id"]
+
+    tasks_resp = (
+        client.table("tasks")
+        .select("titulo, coluna_kanban")
+        .eq("sprint_id", sprint_id)
+        .order("coluna_kanban")
+        .order("ordem")
+        .execute()
+    )
+    tasks = tasks_resp.data or []
+    return [
+        {
+            "item": t["titulo"],
+            "entregue": "S" if t["coluna_kanban"] == "concluida" else "N",
+            "motivo_nao": "",
+            "causa_raiz_num": "",
+        }
+        for t in tasks
+    ]
+
+
 def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     """Marca a sprint como iniciada e ancora o relógio de travamento automático
     (ALERT-01) das tasks que já estavam nela (planejado ou em_andamento) e ainda

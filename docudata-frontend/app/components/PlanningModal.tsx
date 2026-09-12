@@ -303,6 +303,10 @@ export default function PlanningModal({
   const [dependencias, setDependencias] = useState<DepsItem[]>([]);
   const [riscos, setRiscos] = useState<RiscoItem[]>([]);
   const [carryOver, setCarryOver] = useState<CarryItem[]>([]);
+  const [squad, setSquad] = useState("");
+  const [semDependencias, setSemDependencias] = useState(false);
+  const [semRiscos, setSemRiscos] = useState(false);
+  const [semCarryOver, setSemCarryOver] = useState(false);
   const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
 
   // manual path
@@ -337,6 +341,10 @@ export default function PlanningModal({
       setDependencias([]);
       setRiscos([]);
       setCarryOver([]);
+      setSquad("");
+      setSemDependencias(false);
+      setSemRiscos(false);
+      setSemCarryOver(false);
       setAiFilledFields(new Set());
       setManualMarkdown("");
       setManualSaving(false);
@@ -442,6 +450,16 @@ export default function PlanningModal({
       setError("Preencha ao menos o objetivo da sprint.");
       return;
     }
+    const cleanDependencias = dependencias.filter((d) => d.item.trim());
+    const cleanRiscos = riscos.filter((r) => r.risco.trim());
+    const cleanCarryOver = carryOver.filter((c) => c.item.trim());
+    if (!squad.trim()) { setError("Squad é obrigatório."); return; }
+    if (!periodoInicio || !periodoFim) { setError("Período da sprint é obrigatório."); return; }
+    if (!horasDisponiveis || !horasEstimadas) { setError("Horas disponíveis e estimadas são obrigatórias."); return; }
+    if (!contextoLivre.trim()) { setError("Contexto da sprint é obrigatório."); return; }
+    if (!cleanDependencias.length && !semDependencias) { setError("Preencha ao menos uma dependência, ou confirme que não há nenhuma."); return; }
+    if (!cleanRiscos.length && !semRiscos) { setError("Preencha ao menos um risco, ou confirme que não há nenhum."); return; }
+    if (!cleanCarryOver.length && !semCarryOver) { setError("Preencha ao menos um item de carry-over, ou confirme que não há nenhum."); return; }
     setError("");
     setStep("gerando");
 
@@ -458,21 +476,25 @@ export default function PlanningModal({
           projetoId,
           sprintNumero,
           descricao: descricao || `Planning da Sprint ${sprintNumero}`,
-          contextoLivre: contextoLivre || undefined,
+          contextoLivre,
+          squad,
           itensBacklog,
-          periodoInicio: periodoInicio || undefined,
-          periodoFim: periodoFim || undefined,
-          horasDisponiveis: horasDisponiveis ? Number(horasDisponiveis) : undefined,
-          horasEstimadas: horasEstimadas ? Number(horasEstimadas) : undefined,
-          dependenciasItems: dependencias.filter((d) => d.item.trim()).map((d) => ({
+          periodoInicio,
+          periodoFim,
+          horasDisponiveis: Number(horasDisponiveis),
+          horasEstimadas: Number(horasEstimadas),
+          dependenciasItems: cleanDependencias.map((d) => ({
             item: d.item, prazo: d.prazo, consequencia: d.consequencia, confianca: d.confianca,
           })),
-          riscosItems: riscos.filter((r) => r.risco.trim()).map((r) => ({
+          riscosItems: cleanRiscos.map((r) => ({
             risco: r.risco, consequencia: r.consequencia,
           })),
-          carryOverItems: carryOver.filter((c) => c.item.trim()).map((c) => ({
+          carryOverItems: cleanCarryOver.map((c) => ({
             item: c.item, causa_raiz: c.causa_raiz,
           })),
+          semDependencias,
+          semRiscos,
+          semCarryOver,
         }),
         (() => {
           const byFunc = new Map<string | null, string[]>();
@@ -860,6 +882,16 @@ export default function PlanningModal({
               onChange={(e) => setDescricao(e.target.value)}
             />
 
+            {/* Squad */}
+            <div style={sectionDivider} />
+            <span style={{ ...lbl, marginTop: 16 }}>Squad (membros e papéis)</span>
+            <input
+              style={inp}
+              placeholder="Ex: Gabriel (Gerente), Ana (Analista), João (Analista)"
+              value={squad}
+              onChange={(e) => setSquad(e.target.value)}
+            />
+
             {/* Período */}
             <div style={sectionDivider} />
             <span style={{ ...lbl, marginTop: 16 }}>Período da sprint {aiFilledFields.has("periodo") && <span style={aiBadge}>IA</span>}</span>
@@ -918,9 +950,13 @@ export default function PlanningModal({
                 <button style={tinyBtn} onClick={() => setDependencias((prev) => prev.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
-            <button style={addBtn} onClick={() => setDependencias((prev) => [...prev, { item: "", prazo: "", consequencia: "", confianca: "" }])}>
+            <button style={addBtn} onClick={() => setDependencias((prev) => [...prev, { item: "", prazo: "", consequencia: "", confianca: "" }])} disabled={semDependencias}>
               + Adicionar dependência
             </button>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+              <input type="checkbox" checked={semDependencias} onChange={(e) => setSemDependencias(e.target.checked)} />
+              Nenhuma dependência externa identificada nesta sprint
+            </label>
 
             {/* Riscos */}
             <div style={sectionDivider} />
@@ -942,9 +978,13 @@ export default function PlanningModal({
                 <button style={tinyBtn} onClick={() => setRiscos((prev) => prev.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
-            <button style={addBtn} onClick={() => setRiscos((prev) => [...prev, { risco: "", consequencia: "" }])}>
+            <button style={addBtn} onClick={() => setRiscos((prev) => [...prev, { risco: "", consequencia: "" }])} disabled={semRiscos}>
               + Adicionar risco
             </button>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+              <input type="checkbox" checked={semRiscos} onChange={(e) => setSemRiscos(e.target.checked)} />
+              Nenhum risco identificado nesta sprint
+            </label>
 
             {/* Carry-over */}
             <div style={sectionDivider} />
@@ -966,9 +1006,13 @@ export default function PlanningModal({
                 <button style={tinyBtn} onClick={() => setCarryOver((prev) => prev.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
-            <button style={addBtn} onClick={() => setCarryOver((prev) => [...prev, { item: "", causa_raiz: "" }])}>
+            <button style={addBtn} onClick={() => setCarryOver((prev) => [...prev, { item: "", causa_raiz: "" }])} disabled={semCarryOver}>
               + Adicionar carry-over
             </button>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+              <input type="checkbox" checked={semCarryOver} onChange={(e) => setSemCarryOver(e.target.checked)} />
+              Nenhum item de carry-over da sprint anterior
+            </label>
 
             {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{error}</p>}
 

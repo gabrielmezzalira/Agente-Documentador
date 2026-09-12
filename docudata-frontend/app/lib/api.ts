@@ -513,16 +513,18 @@ export async function submitPlanning(input: {
   sprintNumero: number;
   descricao: string;
   itensBacklog: { item: string; responsavel?: string; prazo?: string; criterio?: string }[];
-  dependenciasItems?: { item: string; prazo?: string; consequencia?: string; confianca?: string }[];
-  riscosItems?: { risco: string; consequencia?: string }[];
-  carryOverItems?: { item: string; causa_raiz?: string }[];
-  periodoInicio?: string;
-  periodoFim?: string;
-  horasDisponiveis?: number;
-  horasEstimadas?: number;
-  dependenciasCliente?: string;
-  carryOver?: string;
-  contextoLivre?: string;
+  squad: string;
+  periodoInicio: string;
+  periodoFim: string;
+  horasDisponiveis: number;
+  horasEstimadas: number;
+  contextoLivre: string;
+  dependenciasItems: { item: string; prazo?: string; consequencia?: string; confianca?: string }[];
+  riscosItems: { risco: string; consequencia?: string }[];
+  carryOverItems: { item: string; causa_raiz?: string }[];
+  semDependencias: boolean;
+  semRiscos: boolean;
+  semCarryOver: boolean;
   anexo?: File | null;
   force?: boolean;
 }): Promise<SprintDocResponse> {
@@ -531,17 +533,35 @@ export async function submitPlanning(input: {
   form.append("sprint_numero", String(input.sprintNumero));
   form.append("descricao", input.descricao);
   form.append("itens_backlog", JSON.stringify(input.itensBacklog));
-  if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
-  if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
-  if (input.horasDisponiveis != null) form.append("horas_disponiveis", String(input.horasDisponiveis));
-  if (input.horasEstimadas != null) form.append("horas_estimadas", String(input.horasEstimadas));
-  if (input.contextoLivre?.trim()) form.append("contexto_livre", input.contextoLivre.trim());
-  if (input.dependenciasItems?.length) form.append("dependencias_items", JSON.stringify(input.dependenciasItems));
-  if (input.riscosItems?.length) form.append("riscos_items", JSON.stringify(input.riscosItems));
-  if (input.carryOverItems?.length) form.append("carry_over_items", JSON.stringify(input.carryOverItems));
+  form.append("squad", input.squad);
+  form.append("periodo_inicio", input.periodoInicio);
+  form.append("periodo_fim", input.periodoFim);
+  form.append("horas_disponiveis", String(input.horasDisponiveis));
+  form.append("horas_estimadas", String(input.horasEstimadas));
+  form.append("contexto_livre", input.contextoLivre);
+  form.append("dependencias_items", JSON.stringify(input.dependenciasItems));
+  form.append("riscos_items", JSON.stringify(input.riscosItems));
+  form.append("carry_over_items", JSON.stringify(input.carryOverItems));
+  form.append("sem_dependencias", String(input.semDependencias));
+  form.append("sem_riscos", String(input.semRiscos));
+  form.append("sem_carry_over", String(input.semCarryOver));
   if (input.anexo) form.append("anexo", input.anexo);
   if (input.force) form.append("force", "true");
   return _postSprintDoc("planning", form);
+}
+
+export async function getPlanejadoVsEntregue(input: {
+  projetoId: string;
+  sprintNumero: number;
+}): Promise<{ item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[]> {
+  const params = new URLSearchParams({
+    projeto_id: input.projetoId,
+    sprint_numero: String(input.sprintNumero),
+  });
+  const res = await apiFetch(`${API}/sprint-docs/review/planejado-entregue?${params}`);
+  if (!res.ok) return [];
+  const body = await res.json();
+  return body.itens_planejados_entregues ?? [];
 }
 
 export async function submitDaily(input: {
@@ -569,37 +589,41 @@ export async function submitDaily(input: {
 export async function submitReview(input: {
   projetoId: string;
   sprintNumero: number;
-  observacoes?: string;
-  percepcaoCliente?: string;
-  sinalSatisfacao?: string;
+  observacoes: string;
+  percepcaoCliente: string;
+  sinalSatisfacao: string;
   pedidosForaEscopo?: string;
   // Template 2 CITi
-  squad?: string;
-  periodoInicio?: string;
-  periodoFim?: string;
-  subarea?: string;
-  itensPlanejadasEntregues?: { item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[];
-  percentualItensProntos?: string;
-  pedidosForaEscopoItens?: { data: string; descricao: string; status: string }[];
-  itensProximaSprint?: { item: string; causa_raiz_num: string }[];
+  squad: string;
+  periodoInicio: string;
+  periodoFim: string;
+  subarea: string;
+  itensPlanejadasEntregues: { item: string; entregue: string; motivo_nao: string; causa_raiz_num: string }[];
+  percentualItensProntos: string;
+  pedidosForaEscopoItens: { data: string; descricao: string; status: string }[];
+  itensProximaSprint: { item: string; causa_raiz_num: string }[];
+  semPedidosForaEscopo: boolean;
+  semItensProximaSprint: boolean;
   anexo?: File | null;
   force?: boolean;
 }): Promise<SprintDocResponse> {
   const form = new FormData();
   form.append("projeto_id", input.projetoId);
   form.append("sprint_numero", String(input.sprintNumero));
-  if (input.observacoes) form.append("observacoes", input.observacoes);
-  if (input.percepcaoCliente) form.append("percepcao_cliente", input.percepcaoCliente);
-  if (input.sinalSatisfacao) form.append("sinal_satisfacao", input.sinalSatisfacao);
+  form.append("observacoes", input.observacoes);
+  form.append("percepcao_cliente", input.percepcaoCliente);
+  form.append("sinal_satisfacao", input.sinalSatisfacao);
   if (input.pedidosForaEscopo) form.append("pedidos_fora_escopo", input.pedidosForaEscopo);
-  if (input.squad) form.append("squad", input.squad);
-  if (input.periodoInicio) form.append("periodo_inicio", input.periodoInicio);
-  if (input.periodoFim) form.append("periodo_fim", input.periodoFim);
-  if (input.subarea) form.append("subarea", input.subarea);
-  if (input.itensPlanejadasEntregues?.length) form.append("itens_planejados_entregues", JSON.stringify(input.itensPlanejadasEntregues));
-  if (input.percentualItensProntos) form.append("percentual_itens_prontos", input.percentualItensProntos);
-  if (input.pedidosForaEscopoItens?.length) form.append("pedidos_fora_escopo_itens", JSON.stringify(input.pedidosForaEscopoItens));
-  if (input.itensProximaSprint?.length) form.append("itens_proxima_sprint", JSON.stringify(input.itensProximaSprint));
+  form.append("squad", input.squad);
+  form.append("periodo_inicio", input.periodoInicio);
+  form.append("periodo_fim", input.periodoFim);
+  form.append("subarea", input.subarea);
+  form.append("itens_planejados_entregues", JSON.stringify(input.itensPlanejadasEntregues));
+  form.append("percentual_itens_prontos", input.percentualItensProntos);
+  form.append("pedidos_fora_escopo_itens", JSON.stringify(input.pedidosForaEscopoItens));
+  form.append("itens_proxima_sprint", JSON.stringify(input.itensProximaSprint));
+  form.append("sem_pedidos_fora_escopo", String(input.semPedidosForaEscopo));
+  form.append("sem_itens_proxima_sprint", String(input.semItensProximaSprint));
   if (input.anexo) form.append("anexo", input.anexo);
   if (input.force) form.append("force", "true");
   return _postSprintDoc("review", form);
