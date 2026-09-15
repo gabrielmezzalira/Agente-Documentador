@@ -7,6 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from services.supabase_client import get_client
+from services.sprints import compute_planejado_vs_entregue
 
 
 class GenerationState(TypedDict):
@@ -78,6 +79,8 @@ Siga EXATAMENTE esta estrutura em markdown:
 [Parágrafo narrativo: visão geral do que foi feito na sprint, sentimento geral, maior conquista ou maior bloqueio, contexto do foco da equipe. Escreva de forma que o cliente ou diretor entenda o estado do projeto lendo apenas este parágrafo.]
 
 ## Principais Pontos
+
+Se o contexto tiver um bloco "Entregue vs Pendente da Sprint (calculado do kanban)", use-o como fonte de verdade de status — não reclassifique um item marcado [Entregue] como em andamento, nem o contrário.
 
 - [Funcionalidade/artefato/etapa concluída] — **Concluído**
 - [Funcionalidade/artefato/etapa em progresso] — **Em andamento**
@@ -905,6 +908,26 @@ def _bloco_kanban_tasks(projeto_id: str, sprint_numero: int) -> str:
         return ""
 
 
+def _bloco_entregue_pendente(projeto_id: str, sprint_numero: int) -> str:
+    """Tabela objetiva de entregue/pendente calculada do kanban real da
+    sprint — a mesma fonte que pré-preenche 'planejado vs entregue' na
+    Review (services.sprints.compute_planejado_vs_entregue), recalculada do
+    zero aqui. Dá ao Repasse Semanal um sinal confiável de status sem
+    depender de uma Review já ter sido gerada, nem da IA inferir 'concluída
+    = entregue' a partir do nome cru da coluna."""
+    try:
+        itens = compute_planejado_vs_entregue(get_client(), projeto_id, sprint_numero)
+    except Exception:
+        return ""
+    if not itens:
+        return ""
+    linhas = [f"--- Entregue vs Pendente da Sprint {sprint_numero} (calculado do kanban) ---"]
+    for item in itens:
+        status = "Entregue" if item["entregue"] == "S" else "Pendente"
+        linhas.append(f"- [{status}] {item['item']}")
+    return "\n".join(linhas)
+
+
 def compilar_contexto(state: GenerationState) -> dict:
     partes = []
     for ing in state["ingestions"]:
@@ -987,6 +1010,13 @@ def compilar_contexto(state: GenerationState) -> dict:
         bloco = _bloco_kanban_tasks(state["projeto_id"], state["sprint_numero"])
         if bloco:
             partes.append(bloco)
+
+    # Repasse Semanal não passa por um formulário próprio (como a Review) que
+    # já traga entregue/pendente pronto — calcula aqui, sempre fresco.
+    if state.get("tipo_doc") == "repasse_semanal" and state.get("sprint_numero"):
+        bloco_status = _bloco_entregue_pendente(state["projeto_id"], state["sprint_numero"])
+        if bloco_status:
+            partes.append(bloco_status)
 
     contexto = "\n\n".join(partes) if partes else "Nenhuma ingestão encontrada para este projeto/sprint."
     return {"contexto": contexto}
