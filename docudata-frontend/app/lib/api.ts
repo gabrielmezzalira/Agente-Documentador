@@ -47,6 +47,29 @@ export async function login(email: string, senha: string): Promise<LoginResponse
   return res.json();
 }
 
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const res = await apiFetch(`${API}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error("Erro ao solicitar redefinição de senha");
+  return res.json();
+}
+
+export async function resetPassword(token: string, novaSenha: string): Promise<{ message: string }> {
+  const res = await apiFetch(`${API}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, nova_senha: novaSenha }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao redefinir senha");
+  }
+  return res.json();
+}
+
 export async function logout(): Promise<void> {
   await apiFetch(`${API}/auth/logout`, { method: "POST" });
 }

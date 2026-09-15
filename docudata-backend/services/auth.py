@@ -15,6 +15,7 @@ from services.supabase_client import get_client
 
 _JWT_ALG = "HS256"
 _JWT_EXP_HOURS = 8
+_RESET_SENHA_EXP_MINUTES = 30
 COOKIE_NAME = "docudata_session"
 
 # Hierarquia de acesso. Um cargo alcança tudo que os abaixo dele alcançam, então
@@ -49,6 +50,31 @@ def criar_jwt(pessoa_id: str, email: str, cargo: str) -> str:
 
 def decodificar_jwt(token: str) -> dict:
     return jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[_JWT_ALG])
+
+
+def criar_jwt_reset_senha(pessoa_id: str, email: str) -> str:
+    """Token de vida curta (30min) para o fluxo de 'esqueci minha senha'.
+    Carrega purpose='password_reset' para não poder ser confundido com um
+    token de sessão normal — ver decodificar_jwt_reset_senha."""
+    agora = datetime.now(timezone.utc)
+    payload = {
+        "sub": pessoa_id,
+        "email": email,
+        "purpose": "password_reset",
+        "iat": agora,
+        "exp": agora + timedelta(minutes=_RESET_SENHA_EXP_MINUTES),
+    }
+    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=_JWT_ALG)
+
+
+def decodificar_jwt_reset_senha(token: str) -> dict:
+    """Valida assinatura, expiração E o claim purpose — sem isso, qualquer
+    JWT válido do sistema (inclusive um token de sessão de 8h) serviria para
+    trocar a senha de qualquer pessoa."""
+    payload = jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[_JWT_ALG])
+    if payload.get("purpose") != "password_reset":
+        raise jwt.InvalidTokenError("Token não é de redefinição de senha")
+    return payload
 
 
 async def get_current_pessoa(

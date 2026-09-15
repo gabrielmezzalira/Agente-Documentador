@@ -485,10 +485,16 @@ function TaskModal({
                           </tr>
                         </thead>
                         <tbody>
-                          {transicoes.map((t) => (
+                          {transicoes.map((t) => {
+                            const resolverValor = (v: string | null | undefined) => {
+                              if (t.campo !== "operacional_id") return v ?? "—";
+                              if (!v) return "—";
+                              return operacionais.find((o) => o.id === v)?.nome ?? v;
+                            };
+                            return (
                             <tr key={t.id} style={{ borderTop: "1px solid #f0f0f4" }}>
                               <td style={{ padding: "4px 6px", color: "#374151" }}>{t.campo}</td>
-                              <td style={{ padding: "4px 6px", color: "#111116" }}>{t.de ?? "—"} → {t.para ?? "—"}</td>
+                              <td style={{ padding: "4px 6px", color: "#111116" }}>{resolverValor(t.de)} → {resolverValor(t.para)}</td>
                               <td style={{ padding: "4px 6px", color: "#374151" }}>{t.autor ?? "—"}</td>
                               <td style={{ padding: "4px 6px", color: "#9696a0" }}>
                                 {t.timestamp ? new Date(t.timestamp).toLocaleString("pt-BR") : "—"}
@@ -499,7 +505,8 @@ function TaskModal({
                                   : "—"}
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     )}

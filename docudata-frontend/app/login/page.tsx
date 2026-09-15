@@ -48,6 +48,9 @@ export default function LoginPage() {
             <div>
               <label style={labelStyle}>Senha</label>
               <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required style={inputStyle} />
+              <div style={{ textAlign: "right", marginTop: 6 }}>
+                <a href="/esqueci-senha" style={{ fontSize: 12, color: "#9696a0" }}>Esqueci minha senha</a>
+              </div>
             </div>
             {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
             <button type="submit" disabled={loading} style={btnPrimary}>

@@ -1,21 +1,29 @@
+import os
+
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from core.rate_limit import LOGIN_RATE_LIMIT, SIGNUP_RATE_LIMIT, limiter
 from models.schemas import (
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
     MeResponse,
     OperacionalSemContaResponse,
+    ResetPasswordRequest,
     SignupClaimRequest,
     SignupNovoRequest,
 )
 from services.auth import (
     COOKIE_NAME,
     criar_jwt,
+    criar_jwt_reset_senha,
+    decodificar_jwt_reset_senha,
     get_current_pessoa,
     hash_senha,
     verificar_senha,
 )
+from services.email_service import email_esqueci_senha, send_email
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -153,3 +161,43 @@ async def signup_novo(request: Request, data: SignupNovoRequest, response: Respo
     pessoa = novo.data[0]
     _set_session_cookie(response, pessoa["id"], pessoa["email"], pessoa["cargo"])
     return {"nome": pessoa["nome"], "cargo": pessoa["cargo"]}
+
+
+_MENSAGEM_FORGOT_PASSWORD = {"message": "Se o e-mail existir, você vai receber um link em instantes."}
+
+
+@router.post("/forgot-password")
+@limiter.limit(SIGNUP_RATE_LIMIT)
+async def forgot_password(request: Request, data: ForgotPasswordRequest, response: Response):
+    """Resposta idêntica exista ou não a conta (anti-enumeração) — o e-mail só
+    é disparado quando a conta existe, mas o chamador nunca sabe qual caso
+    ocorreu pela resposta."""
+    client = get_client()
+    resp = client.table("pessoa").select("id, nome, email").eq("email", data.email).execute()
+    if resp.data:
+        pessoa = resp.data[0]
+        token = criar_jwt_reset_senha(pessoa["id"], pessoa["email"])
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        link = f"{frontend_url}/redefinir-senha?token={token}"
+        subject, body_html = email_esqueci_senha(pessoa["nome"], link)
+        try:
+            send_email(pessoa["email"], subject, body_html)
+        except Exception:
+            pass  # best-effort — não revela falha de envio pro chamador (anti-enumeração)
+    return _MENSAGEM_FORGOT_PASSWORD
+
+
+@router.post("/reset-password")
+@limiter.limit(LOGIN_RATE_LIMIT)
+async def reset_password(request: Request, data: ResetPasswordRequest, response: Response):
+    try:
+        payload = decodificar_jwt_reset_senha(data.token)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
+
+    client = get_client()
+    senha_hash = hash_senha(data.nova_senha)
+    resp = client.table("pessoa").update({"senha_hash": senha_hash}).eq("id", payload["sub"]).execute()
+    if not resp.data:
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
+    return {"message": "Senha redefinida com sucesso."}

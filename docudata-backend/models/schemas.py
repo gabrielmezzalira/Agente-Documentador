@@ -531,6 +531,15 @@ class LoginResponse(BaseModel):
     cargo: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    nova_senha: str = Field(..., min_length=6)
+
+
 class MeResponse(BaseModel):
     nome: str
     email: str

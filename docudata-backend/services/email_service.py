@@ -19,7 +19,8 @@ def send_email(to: str, subject: str, body_html: str) -> None:
     })
 
 
-def _base_template(titulo: str, corpo: str) -> str:
+def _base_template(titulo: str, corpo: str, badge: str = "Lembrete", rodape: str | None = None) -> str:
+    rodape_final = rodape or "Este email foi enviado automaticamente pelo DocuData. Para parar de receber lembretes, remova o email do projeto nas Configurações."
     return f"""
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -29,14 +30,15 @@ def _base_template(titulo: str, corpo: str) -> str:
   .badge {{ display: inline-block; background: #fff7ed; color: #c2410c; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; margin-bottom: 16px; }}
   h2 {{ font-size: 20px; font-weight: 800; color: #111116; margin: 0 0 8px; }}
   p {{ font-size: 14px; color: #374151; line-height: 1.6; margin: 0 0 12px; }}
+  .btn {{ display: inline-block; background: #111116; color: #ffffff !important; text-decoration: none; border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 700; margin: 8px 0 16px; }}
   .footer {{ margin-top: 24px; font-size: 11px; color: #9696a0; }}
 </style></head>
 <body>
   <div class="card">
-    <div class="badge">DocuData · Lembrete</div>
+    <div class="badge">DocuData · {badge}</div>
     <h2>{titulo}</h2>
     {corpo}
-    <div class="footer">Este email foi enviado automaticamente pelo DocuData. Para parar de receber lembretes, remova o email do projeto nas Configurações.</div>
+    <div class="footer">{rodape_final}</div>
   </div>
 </body>
 </html>"""
@@ -110,3 +112,16 @@ def email_task_concluida(projeto_nome: str, operacional_nome: str, task_titulo: 
     <p>Acesse o DocuData para conferir o resultado.</p>
     """
     return subject, _base_template("Task concluída", corpo)
+
+
+def email_esqueci_senha(nome: str, link_redefinicao: str) -> tuple[str, str]:
+    """Retorna (subject, html) para o email de redefinição de senha. O link
+    expira em 30min (ver services.auth.criar_jwt_reset_senha)."""
+    subject = "[DocuData] Redefinição de senha"
+    corpo = f"""
+    <p>Olá, {nome}. Recebemos um pedido para redefinir a senha da sua conta no DocuData.</p>
+    <p><a class="btn" href="{link_redefinicao}">Definir nova senha</a></p>
+    <p>Esse link expira em 30 minutos. Se você não pediu essa redefinição, pode ignorar este email — sua senha continua a mesma.</p>
+    """
+    rodape = "Este email foi enviado porque alguém solicitou a redefinição de senha desta conta no DocuData."
+    return subject, _base_template("Redefinir sua senha", corpo, badge="Segurança", rodape=rodape)

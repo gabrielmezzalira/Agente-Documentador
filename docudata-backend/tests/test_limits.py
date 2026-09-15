@@ -183,6 +183,8 @@ def test_apenas_endpoints_de_ia_e_autenticacao_tem_rate_limit():
         "routers.auth.login",
         "routers.auth.signup_claim",
         "routers.auth.signup_novo",
+        "routers.auth.forgot_password",
+        "routers.auth.reset_password",
         "routers.ingest.ingest",
         "routers.generate.generate",
         "routers.enrich.enrich",
