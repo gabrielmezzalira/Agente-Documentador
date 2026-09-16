@@ -895,6 +895,7 @@ export default function ProjectDashboard() {
         onExport={handleExportGdocs}
         onDelete={handleDeleteDoc}
         onMove={handleMoveDoc}
+        onSaveContent={handleUpdateDocContent}
         ingestionCard={ingestionCard}
         tagStyle={tagStyle}
         btnSecondary={btnSecondary}
@@ -1711,6 +1712,7 @@ function DocRow({
   onExport,
   onDelete,
   onMove,
+  onSaveContent,
   ingestionCard,
   tagStyle,
   btnSecondary: btnSec,
@@ -1725,6 +1727,7 @@ function DocRow({
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (id: string, sprint: number | null) => void;
+  onSaveContent: (id: string, content: string) => Promise<void>;
   ingestionCard: React.CSSProperties;
   tagStyle: React.CSSProperties;
   btnSecondary: React.CSSProperties;
@@ -1733,6 +1736,10 @@ function DocRow({
 }) {
   const [movingDoc, setMovingDoc] = useState(false);
   const [moveToSprint, setMoveToSprint] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editErr, setEditErr] = useState("");
   return (
     <div style={ingestionCard}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1742,11 +1749,29 @@ function DocRow({
           <span style={{ color: "#94a3b8", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button onClick={() => onToggleExpand(doc.id)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
+          <button
+            onClick={() => {
+              const closing = expandedDocId === doc.id;
+              onToggleExpand(doc.id);
+              if (closing) { setEditing(false); setEditErr(""); }
+            }}
+            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
+          >
             {expandedDocId === doc.id ? "Fechar" : "Ver"}
           </button>
           <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
             Copiar
+          </button>
+          <button
+            onClick={() => {
+              if (expandedDocId !== doc.id) onToggleExpand(doc.id);
+              setEditing(true);
+              setDraft(doc.content);
+              setEditErr("");
+            }}
+            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
+          >
+            Editar
           </button>
           <button
             onClick={() => onExport(doc.id)}
@@ -1784,7 +1809,54 @@ function DocRow({
           <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} onClick={() => setMovingDoc(false)}>Cancelar</button>
         </div>
       )}
-      {expandedDocId === doc.id && (
+      {expandedDocId === doc.id && editing && (
+        <div style={{ marginTop: 14 }}>
+          <textarea
+            style={{
+              width: "100%",
+              minHeight: 260,
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              padding: "12px 14px",
+              fontSize: 13,
+              fontFamily: "monospace",
+              lineHeight: 1.6,
+              boxSizing: "border-box",
+              resize: "vertical",
+            }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
+            autoFocus
+          />
+          {editErr && <p style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{editErr}</p>}
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button
+              style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "#dcfce7", color: "#15803d", borderColor: "#86efac", opacity: saving ? 0.6 : 1 }}
+              disabled={saving}
+              onClick={async () => {
+                if (!draft.trim()) { setEditErr("O documento não pode ficar vazio."); return; }
+                setSaving(true);
+                setEditErr("");
+                try {
+                  await onSaveContent(doc.id, draft);
+                  setEditing(false);
+                } catch (e) {
+                  setEditErr(e instanceof Error ? e.message : "Erro ao salvar edição.");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? "Salvando…" : "Salvar"}
+            </button>
+            <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} disabled={saving} onClick={() => { setEditing(false); setEditErr(""); }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {expandedDocId === doc.id && !editing && (
         <div style={{ ...mdContainer, marginTop: 14 }}>
           <ReactMarkdown>{doc.content}</ReactMarkdown>
         </div>
