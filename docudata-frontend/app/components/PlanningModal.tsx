@@ -13,6 +13,7 @@ import {
   type TaskCorrelacao,
   type SprintDocResponse,
   type EnrichResult,
+  type OperacionalResponse,
 } from "../lib/api";
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
   sprintNumero: number;
   sprintId: string;
   funcionalidades: FuncionalidadeResponse[];
+  operacionais?: OperacionalResponse[];
   onSubmitted?: (response: SprintDocResponse) => void;
 }
 
@@ -279,6 +281,7 @@ export default function PlanningModal({
   sprintNumero,
   sprintId,
   funcionalidades,
+  operacionais = [],
   onSubmitted,
 }: Props) {
   const [step, setStep] = useState<Step>("input");
@@ -364,6 +367,14 @@ export default function PlanningModal({
       .finally(() => setCarregandoTasks(false));
   }, [open, projetoId, sprintNumero]);
 
+  useEffect(() => {
+    if (!open) return;
+    const ativos = operacionais.filter((o) => o.ativo);
+    if (ativos.length === 0) return;
+    const prefill = ativos.map((o) => (o.papel ? `${o.nome} (${o.papel})` : o.nome)).join(", ");
+    setSquad(prefill);
+  }, [open, operacionais]);
+
   if (!open) return null;
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -445,6 +456,26 @@ export default function PlanningModal({
     setNewTask("");
   }
 
+  function handleContinuarComKanban() {
+    // O usuário está seguindo direto com as tasks que já existem no Kanban desta
+    // sprint (sem passar pelo fluxo de importar/analisar com IA). Sem isso,
+    // `correlacoes` fica vazio e o backlog enviado ao gerar a planning também
+    // fica vazio, mesmo com tasks visíveis na tela.
+    if (correlacoes.length === 0 && tasksDaSprint.length > 0) {
+      setCorrelacoes(
+        tasksDaSprint.map((t) => {
+          const func = funcionalidades.find((f) => f.id === t.funcionalidade_id);
+          return {
+            task: t.titulo,
+            funcionalidade_id: t.funcionalidade_id,
+            funcionalidade_titulo: func?.titulo ?? null,
+          };
+        })
+      );
+    }
+    setStep("form");
+  }
+
   async function handleGerar() {
     if (correlacoes.length === 0 && !descricao.trim()) {
       setError("Preencha ao menos o objetivo da sprint.");
@@ -456,7 +487,6 @@ export default function PlanningModal({
     if (!squad.trim()) { setError("Squad é obrigatório."); return; }
     if (!periodoInicio || !periodoFim) { setError("Período da sprint é obrigatório."); return; }
     if (!horasDisponiveis || !horasEstimadas) { setError("Horas disponíveis e estimadas são obrigatórias."); return; }
-    if (!contextoLivre.trim()) { setError("Contexto da sprint é obrigatório."); return; }
     if (!cleanDependencias.length && !semDependencias) { setError("Preencha ao menos uma dependência, ou confirme que não há nenhuma."); return; }
     if (!cleanRiscos.length && !semRiscos) { setError("Preencha ao menos um risco, ou confirme que não há nenhum."); return; }
     if (!cleanCarryOver.length && !semCarryOver) { setError("Preencha ao menos um item de carry-over, ou confirme que não há nenhum."); return; }
@@ -617,7 +647,7 @@ export default function PlanningModal({
               As tasks desta sprint estão em outro lugar (Notion, planilha, print)?
             </button>
 
-            {recomendadas.length > 0 && (
+            {sprintNumero > 1 && recomendadas.length > 0 && (
               <div style={banner("yellow")}>
                 <strong>
                   {recomendadas.length}{" "}
@@ -693,7 +723,7 @@ export default function PlanningModal({
               </button>
               <div style={{ display: "flex", gap: 10 }}>
                 <button style={btnSecondary} onClick={onClose}>Cancelar</button>
-                <button style={btnPrimary} onClick={() => setStep("form")}>
+                <button style={btnPrimary} onClick={handleContinuarComKanban}>
                   Continuar →
                 </button>
               </div>
@@ -704,7 +734,7 @@ export default function PlanningModal({
         {/* ── STEP: INPUT ── */}
         {step === "importar" && (
           <>
-            {recomendadas.length > 0 && (
+            {sprintNumero > 1 && recomendadas.length > 0 && (
               <div style={banner("yellow")}>
                 <strong>
                   {recomendadas.length}{" "}

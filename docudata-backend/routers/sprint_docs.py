@@ -263,16 +263,16 @@ async def submit_planning(
     sem_dependencias: bool = Form(...),
     sem_riscos: bool = Form(...),
     sem_carry_over: bool = Form(...),
-    contexto_livre: str = Form(...),  # texto solto do gerente, sem formato
+    contexto_livre: str = Form(""),  # texto solto do gerente, sem formato — opcional
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
 ):
     """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc.
 
-    Todo campo é obrigatório — listas de evento (riscos/dependências/carry-over)
-    exigem ou pelo menos 1 item, ou confirmação explícita de que não há nenhum
-    (sem_riscos/sem_dependencias/sem_carry_over), pra impedir que o Planning saia
-    do sistema com lacunas silenciosas.
+    Todo campo é obrigatório, exceto contexto_livre — listas de evento
+    (riscos/dependências/carry-over) exigem ou pelo menos 1 item, ou confirmação
+    explícita de que não há nenhum (sem_riscos/sem_dependencias/sem_carry_over),
+    pra impedir que o Planning saia do sistema com lacunas silenciosas.
     """
     project = _project_or_404(projeto_id)
     api_key = get_gemini_api_key()

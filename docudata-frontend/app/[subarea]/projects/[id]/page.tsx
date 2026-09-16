@@ -1568,6 +1568,7 @@ export default function ProjectDashboard() {
           sprintNumero={planningModal.sprint.numero}
           sprintId={planningModal.sprint.id}
           funcionalidades={funcionalidades}
+          operacionais={operacionais}
           onSubmitted={async () => {
             setPlanningModal(null);
             await refreshAll();
