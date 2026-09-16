@@ -495,18 +495,22 @@ export default function PlanningModal({
 
     try {
       const itensBacklog = correlacoes.map((c) => {
-        // Se a task já está no Kanban desta sprint e tem um operacional vinculado
-        // (atribuição feita lá, não aqui), usa o nome dele como responsável — em
-        // vez de mandar o campo em branco quando o dado já existe no sistema.
+        // Se a task já está no Kanban desta sprint, aproveita o que já existe lá
+        // em vez de mandar tudo em branco: o operacional vinculado vira o
+        // responsável, e o checklist da task vira o critério de pronto (DoD).
         const kanbanTask = tasksDaSprint.find((t) => t.titulo === c.task);
         const operacional = kanbanTask?.operacional_id
           ? operacionais.find((o) => o.id === kanbanTask.operacional_id)
           : undefined;
+        const checklistTextos = (kanbanTask?.checklist ?? [])
+          .map((it) => it.texto?.trim())
+          .filter((t): t is string => !!t);
         return {
           item: c.task,
           responsavel: operacional?.nome ?? "",
-          prazo: "",
-          criterio: "",
+          // Todo item do backlog é, por definição, devido até o fim da sprint.
+          prazo: periodoFim || "",
+          criterio: checklistTextos.join("; "),
         };
       });
 

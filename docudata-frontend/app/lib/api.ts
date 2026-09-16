@@ -1239,6 +1239,7 @@ export interface BacklogTask {
   operacional_id: string | null;
   funcionalidade_id: string | null;
   bloqueado: boolean;
+  checklist?: { texto: string; done: boolean }[];
 }
 
 export interface GetRascunhoResponse {

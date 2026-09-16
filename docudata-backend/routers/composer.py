@@ -168,7 +168,7 @@ async def get_rascunho(project_id: str, sprint_numero: int):
             sprint_id = sprint_resp.data[0]["id"]
             tasks_resp = (
                 client.table("tasks")
-                .select("id, titulo, pontos, coluna_kanban, operacional_id, funcionalidade_id, bloqueado")
+                .select("id, titulo, pontos, coluna_kanban, operacional_id, funcionalidade_id, bloqueado, checklist")
                 .eq("sprint_id", sprint_id)
                 .in_("coluna_kanban", ["planejado", "em_andamento"])
                 .order("coluna_kanban")
