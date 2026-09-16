@@ -995,6 +995,19 @@ export async function moveDoc(docId: string, sprintNumber: number | null): Promi
   return res.json();
 }
 
+export async function updateDocContent(docId: string, content: string): Promise<GeneratedDoc> {
+  const res = await apiFetch(`${API}/docs/${docId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail ?? "Erro ao salvar edição do documento");
+  }
+  return res.json();
+}
+
 export async function generateDoc(
   projectId: string,
   tipoDoc: string,

@@ -24,6 +24,7 @@ import {
   deleteIngestion,
   moveIngestion,
   moveDoc,
+  updateDocContent,
   toggleDelivered,
   getGitHubCapabilities,
   startGitHubConnection,
@@ -794,6 +795,12 @@ export default function ProjectDashboard() {
     }
   }
 
+  async function handleUpdateDocContent(docId: string, content: string) {
+    const updated = await updateDocContent(docId, content);
+    setDocs((prev) => prev.map((d) => d.id === docId ? updated : d));
+    if (generatedDoc?.id === docId) setGeneratedDoc(updated);
+  }
+
   async function handleDeleteIngestion(ingestionId: string) {
     try {
       await deleteIngestion(ingestionId);
@@ -1085,6 +1092,7 @@ export default function ProjectDashboard() {
                 exportingDocId={exportingDocId}
                 onDeleteDoc={handleDeleteDoc}
                 onMoveDoc={handleMoveDoc}
+                onSaveDocContent={handleUpdateDocContent}
                 onDeleteIngestion={handleDeleteIngestion}
                 onMoveIngestion={handleMoveIngestion}
                 onDeleteSprint={handleDeleteSprint}

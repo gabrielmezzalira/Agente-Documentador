@@ -31,6 +31,7 @@ interface Props {
   exportingDocId: string | null;
   onDeleteDoc: (docId: string) => void;
   onMoveDoc: (docId: string, sprintNumber: number | null) => void;
+  onSaveDocContent: (docId: string, content: string) => Promise<void>;
   onDeleteIngestion: (ingestionId: string) => void;
   onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
@@ -295,6 +296,7 @@ export default function SprintCard({
   exportingDocId,
   onDeleteDoc,
   onMoveDoc,
+  onSaveDocContent,
   onDeleteIngestion,
   onMoveIngestion,
   onDeleteSprint,
@@ -330,6 +332,10 @@ export default function SprintCard({
   const [moveIngSprint, setMoveIngSprint] = useState<string>("");
   const [movingDocId, setMovingDocId] = useState<string | null>(null);
   const [moveDocSprint, setMoveDocSprint] = useState<string>("");
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
   const [commitsExpanded, setCommitsExpanded] = useState(false);
   const [commitRepositoryFilter, setCommitRepositoryFilter] = useState("todos");
 
@@ -577,7 +583,11 @@ export default function SprintCard({
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                       <button
                         style={tinyBtn}
-                        onClick={() => setExpandedDocId(expandedDocId === d.id ? null : d.id)}
+                        onClick={() => {
+                          const closing = expandedDocId === d.id;
+                          setExpandedDocId(closing ? null : d.id);
+                          if (closing && editingDocId === d.id) { setEditingDocId(null); setEditError(""); }
+                        }}
                       >
                         {expandedDocId === d.id ? "Fechar" : "Ver"}
                       </button>
@@ -586,6 +596,17 @@ export default function SprintCard({
                         onClick={() => navigator.clipboard.writeText(d.content)}
                       >
                         Copiar
+                      </button>
+                      <button
+                        style={tinyBtn}
+                        onClick={() => {
+                          setExpandedDocId(d.id);
+                          setEditingDocId(d.id);
+                          setEditDraft(d.content);
+                          setEditError("");
+                        }}
+                      >
+                        Editar
                       </button>
                       <button
                         style={{ ...tinyBtn, opacity: exportingDocId === d.id ? 0.6 : 1 }}
@@ -633,7 +654,60 @@ export default function SprintCard({
                       <button style={tinyBtn} onClick={() => setMovingDocId(null)}>Cancelar</button>
                     </div>
                   )}
-                  {expandedDocId === d.id && (
+                  {expandedDocId === d.id && editingDocId === d.id && (
+                    <div style={{ marginTop: 12 }}>
+                      <textarea
+                        style={{
+                          width: "100%",
+                          minHeight: 260,
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 8,
+                          padding: "12px 14px",
+                          fontSize: 13,
+                          fontFamily: "monospace",
+                          lineHeight: 1.6,
+                          boxSizing: "border-box",
+                          resize: "vertical",
+                        }}
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        disabled={savingEdit}
+                        autoFocus
+                      />
+                      {editError && (
+                        <p style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{editError}</p>
+                      )}
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        <button
+                          style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac", opacity: savingEdit ? 0.6 : 1 }}
+                          disabled={savingEdit}
+                          onClick={async () => {
+                            if (!editDraft.trim()) { setEditError("O documento não pode ficar vazio."); return; }
+                            setSavingEdit(true);
+                            setEditError("");
+                            try {
+                              await onSaveDocContent(d.id, editDraft);
+                              setEditingDocId(null);
+                            } catch (e) {
+                              setEditError(e instanceof Error ? e.message : "Erro ao salvar edição.");
+                            } finally {
+                              setSavingEdit(false);
+                            }
+                          }}
+                        >
+                          {savingEdit ? "Salvando…" : "Salvar"}
+                        </button>
+                        <button
+                          style={tinyBtn}
+                          disabled={savingEdit}
+                          onClick={() => { setEditingDocId(null); setEditError(""); }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {expandedDocId === d.id && editingDocId !== d.id && (
                     <div style={markdownContainer}>
                       <ReactMarkdown>{d.content}</ReactMarkdown>
                     </div>

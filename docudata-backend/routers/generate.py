@@ -183,18 +183,30 @@ async def delete_doc(doc_id: str):
 
 class UpdateDocSprint(BaseModel):
     sprint_number: Optional[int] = None
+    content: Optional[str] = None
 
 
 @router.patch("/docs/{doc_id}", response_model=GenerateResponse)
 async def update_doc_sprint(doc_id: str, body: UpdateDocSprint):
-    """Move um documento gerado para outra sprint (ou sem sprint quando None)."""
+    """Move um documento gerado para outra sprint e/ou edita seu conteúdo markdown.
+
+    Só atualiza os campos que vieram no corpo da requisição — `sprint_number`
+    explicitamente `null` limpa a sprint (comportamento de mover já existente);
+    `content` omitido não mexe no conteúdo.
+    """
+    updates = body.model_dump(exclude_unset=True)
+    if "content" in updates and not (updates["content"] or "").strip():
+        raise HTTPException(status_code=422, detail="content não pode estar vazio")
+    if not updates:
+        raise HTTPException(status_code=422, detail="Nenhum campo para atualizar")
+
     client = get_client()
     response = client.table("generated_docs").select("id").eq("id", doc_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Document not found")
     result = (
         client.table("generated_docs")
-        .update({"sprint_number": body.sprint_number})
+        .update(updates)
         .eq("id", doc_id)
         .execute()
     )
