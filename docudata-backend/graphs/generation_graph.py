@@ -330,6 +330,8 @@ Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente c
 **Projeto:** {projeto_nome}
 **Cliente:** {cliente}
 **Data:** {data_atual}
+[Se "squad" disponível nos insumos: **Squad:** <valor>]
+[Se "período início" e "período fim" disponíveis nos insumos: **Período:** <início> – <fim>]
 
 ## Objetivo da sprint
 
@@ -337,13 +339,13 @@ Siga EXATAMENTE esta estrutura em markdown (os headers ## devem ser exatamente c
 
 ## Backlog da sprint
 
-- [Item do backlog] — Responsável: [nome/papel se identificado] — Prazo: [se mencionado] — DoD: [critério de pronto se mencionado]
+- [Item do backlog][ — Responsável: nome/papel, apenas se identificado para ESSE item][ — Prazo: apenas se mencionado para ESSE item][ — DoD: apenas se critério de pronto foi mencionado para ESSE item]
 
-(Liste cada item do backlog informado. Um item por linha no formato acima.)
+(Liste cada item do backlog informado, um por linha. Inclua "— Responsável", "— Prazo" e "— DoD" SOMENTE quando aquela informação específica existir nos insumos para aquele item. Se um item não tiver responsável/prazo/DoD informado, omita esse trecho da linha — não é uma falha de contexto, é normal nesta etapa do planning. NUNCA escreva a frase de insumo insuficiente dentro de uma linha do backlog.)
 
 ## Responsabilidades
 
-[Tabela de atribuições. Se não houver atribuição explícita, escreva: "A definir na primeira daily da sprint".]
+Se os insumos trouxerem atribuição explícita de uma pessoa a um item/frente específico, monte a tabela abaixo só com essas atribuições. Uma lista de squad (nomes e papéis) SEM vínculo a itens específicos não conta como atribuição explícita — nesse caso, escreva apenas a frase "A definir na primeira daily da sprint" e NÃO inclua a tabela.
 
 | Responsável | Item / Frente |
 |---|---|

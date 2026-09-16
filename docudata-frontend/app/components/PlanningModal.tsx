@@ -494,12 +494,21 @@ export default function PlanningModal({
     setStep("gerando");
 
     try {
-      const itensBacklog = correlacoes.map((c) => ({
-        item: c.task,
-        responsavel: "",
-        prazo: "",
-        criterio: "",
-      }));
+      const itensBacklog = correlacoes.map((c) => {
+        // Se a task já está no Kanban desta sprint e tem um operacional vinculado
+        // (atribuição feita lá, não aqui), usa o nome dele como responsável — em
+        // vez de mandar o campo em branco quando o dado já existe no sistema.
+        const kanbanTask = tasksDaSprint.find((t) => t.titulo === c.task);
+        const operacional = kanbanTask?.operacional_id
+          ? operacionais.find((o) => o.id === kanbanTask.operacional_id)
+          : undefined;
+        return {
+          item: c.task,
+          responsavel: operacional?.nome ?? "",
+          prazo: "",
+          criterio: "",
+        };
+      });
 
       const [docResponse] = await Promise.all([
         submitPlanning({
