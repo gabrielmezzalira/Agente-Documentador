@@ -1,4 +1,8 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Sempre relativo (mesma origem do frontend): o Next.js reescreve /api/* para
+// o backend (ver `rewrites()` em next.config.ts). Chamar o backend direto
+// (domínio diferente) faria do cookie de sessão um cookie de terceiro, que o
+// Safari — desktop e iOS — bloqueia por padrão desde 2020.
+const API = "/api";
 
 function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   return globalThis.fetch(input, { ...init, credentials: "include" }).then((res) => {
