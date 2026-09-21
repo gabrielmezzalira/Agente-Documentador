@@ -33,7 +33,13 @@ def _make_create_mock_client(project_exists=True, existing_operacionais=None, in
                 q = MagicMock()
                 resp = MagicMock()
                 resp.data = (
-                    [dict(payload, id="new-op-id", ativo=True, created_at="2026-09-06T00:00:00+00:00")]
+                    [dict(
+                        payload,
+                        id="new-op-id",
+                        ativo=True,
+                        created_at="2026-09-06T00:00:00+00:00",
+                        data_entrada="2026-09-06T00:00:00+00:00",
+                    )]
                     if insert_ok else []
                 )
                 q.execute = MagicMock(return_value=resp)

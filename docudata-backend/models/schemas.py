@@ -443,6 +443,8 @@ class OperacionalResponse(BaseModel):
     github_login: Optional[str] = None
     github_email: Optional[str] = None
     created_at: datetime
+    data_entrada: datetime
+    data_saida: Optional[datetime] = None
 
 
 # ── Tasks ────────────────────────────────────────────────────────────────────
@@ -684,6 +686,17 @@ class PendenciaAvaliacaoResponse(BaseModel):
     operacional_id: str
     nome: str
     ultima_avaliacao_outro_projeto: Optional[AvaliacaoAnteriorResponse] = None
+
+
+class ElegivelResponse(BaseModel):
+    """RF-C7 (Entrega 2): todo operacional vinculado ao projeto no momento da
+    consulta, com contagem de tasks na sprint (0 é válido) e se já tem
+    avaliação registrada — auditoria de quem entra no denominador da
+    Avaliação Semanal."""
+    operacional_id: str
+    nome: str
+    tasks_na_sprint: int
+    avaliado: bool
 
 
 class PontuacaoOperacionalSprintResponse(BaseModel):
