@@ -12,6 +12,7 @@ histórico de transições, pra "quem completou") quando roda.
 import logging
 from datetime import datetime, timezone
 
+from services.elegibilidade import listar_vinculados_no_projeto
 from services.sprints import get_current_sprint_id
 
 log = logging.getLogger("pontuacao")
@@ -66,7 +67,17 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         .execute()
         .data or []
     )
-    if not tasks:
+
+    # Entrega 2: todo vinculado ao projeto no momento do fechamento ganha
+    # linha, mesmo sem nenhuma task — corrige o bug de PULL onde quem não
+    # puxava nada nunca contava no denominador. `agora` é definido mais
+    # abaixo pro resto da função; aqui usamos o mesmo timestamp calculado
+    # já nesse ponto pra manter consistência com o congelamento de modo.
+    momento_fechamento = datetime.now(timezone.utc).isoformat()
+    vinculados = listar_vinculados_no_projeto(client, project_id, momento_fechamento)
+    vinculados_ids = {op["id"] for op in vinculados}
+
+    if not tasks and not vinculados_ids:
         return []
 
     task_ids_concluidas = [t["id"] for t in tasks if t.get("coluna_kanban") == "concluida"]
@@ -182,11 +193,12 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         | set(pontos_penalizados)
         | set(bonus_extra)
         | set(avaliacao_por_operacional)
+        | vinculados_ids
     )
     if not operacional_ids:
         return []
 
-    agora = datetime.now(timezone.utc).isoformat()
+    agora = momento_fechamento
     linhas = []
     for operacional_id in operacional_ids:
         aval = avaliacao_por_operacional.get(operacional_id)

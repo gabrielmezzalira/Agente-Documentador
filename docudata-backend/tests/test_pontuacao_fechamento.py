@@ -27,6 +27,7 @@ def _mock_client(
     sprint_update_capture=None,
     eventos_insert_capture=None,
     eventos_insert_raises=False,
+    operacionais=None,
 ):
     pontuacao_existente = pontuacao_existente or []
     cutoff_existente = cutoff_existente or []
@@ -41,6 +42,7 @@ def _mock_client(
     projeto = projeto or {"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS"}
     sprint_update_capture = sprint_update_capture if sprint_update_capture is not None else []
     eventos_insert_capture = eventos_insert_capture if eventos_insert_capture is not None else []
+    operacionais = operacionais or []
 
     client = MagicMock()
 
@@ -236,6 +238,16 @@ def _mock_client(
                 q.eq = MagicMock(return_value=q)
                 resp = MagicMock()
                 resp.data = avaliacoes
+                q.execute = MagicMock(return_value=resp)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
+        elif name == "operacionais":
+            def select_side_effect(cols):
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                resp = MagicMock()
+                resp.data = operacionais
                 q.execute = MagicMock(return_value=resp)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
@@ -798,3 +810,65 @@ def test_extrato_nao_insere_nada_quando_nao_ha_eventos():
     calcular_e_travar_pontuacao(client, "sprint-1")
 
     assert eventos_insert_capture == []
+
+
+def test_vinculado_sem_task_ganha_linha_zerada():
+    """O ponto central da correção do bug de PULL: alguém vinculado ao
+    projeto, mas sem nenhuma contribuição na sprint (sem task, sem
+    avaliação), ainda assim ganha uma linha em pontuacao_operacional_sprint
+    com todos os contadores zerados — pra contar no denominador em vez de
+    sumir. Ver
+    docs/superpowers/specs/2026-09-21-modos-trabalho-avaliacao-entrega2-design.md §2.4."""
+    vinculado_ativo = {
+        "id": "op-ocioso", "nome": "Bruno", "email": None, "project_id": "proj-1",
+        "data_entrada": "2020-01-01T00:00:00+00:00", "data_saida": None,
+    }
+    task_de_outra_pessoa = {
+        "id": "task-1", "operacional_id": "op-com-task", "pontos": 5,
+        "coluna_kanban": "concluida", "extra": False,
+        "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None,
+    }
+    insert_capture = []
+    client = _mock_client(
+        sprint={"id": "sprint-1", "project_id": "proj-1"},
+        tasks=[task_de_outra_pessoa],
+        operacionais=[vinculado_ativo],
+        insert_capture=insert_capture,
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    linhas_por_operacional = {r["operacional_id"]: r for r in resultado}
+    assert "op-ocioso" in linhas_por_operacional
+    linha = linhas_por_operacional["op-ocioso"]
+    assert linha["entrega_pontos_alocados"] == 0
+    assert linha["entrega_pontos_concluidos"] == 0
+    assert linha["bonus_pontos_extra"] == 0
+    # A pessoa com task continua presente normalmente.
+    assert "op-com-task" in linhas_por_operacional
+
+
+def test_sprint_sem_nenhuma_task_ainda_cria_linhas_zeradas_pra_vinculados():
+    """Antes desta Entrega 2, uma sprint com zero tasks retornava [] direto
+    (early return). Agora, se houver vinculados, eles ainda ganham linha
+    zerada — só retorna [] se não houver NEM task NEM vinculado."""
+    vinculado = {
+        "id": "op-1", "nome": "Ana", "email": None, "project_id": "proj-1",
+        "data_entrada": "2020-01-01T00:00:00+00:00", "data_saida": None,
+    }
+    client = _mock_client(
+        sprint={"id": "sprint-1", "project_id": "proj-1"},
+        tasks=[],
+        operacionais=[vinculado],
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert len(resultado) == 1
+    assert resultado[0]["operacional_id"] == "op-1"
+    assert resultado[0]["entrega_pontos_alocados"] == 0
+
+
+def test_sprint_sem_task_e_sem_vinculado_continua_retornando_vazio():
+    client = _mock_client(sprint={"id": "sprint-1", "project_id": "proj-1"}, tasks=[], operacionais=[])
+    assert calcular_e_travar_pontuacao(client, "sprint-1") == []
