@@ -29,3 +29,17 @@ test("SprintCard mostra o contador N/M de avaliação semanal", () => {
   assert.ok(SPRINT_CARD.includes("sprint.elegiveis_avaliacao_count > 0"));
   assert.ok(SPRINT_CARD.includes("{sprint.avaliados_count}/{sprint.elegiveis_avaliacao_count} Avaliação"));
 });
+
+const PROJECT_PAGE = readFileSync(new URL("../app/[subarea]/projects/[id]/page.tsx", import.meta.url), "utf8");
+
+test("Configurações mostram os selects de modo com campos condicionais e WIP forçado", () => {
+  assert.ok(PROJECT_PAGE.includes("function ModosTrabalhoSection("));
+  assert.ok(PROJECT_PAGE.includes('id="project-modo-trabalho"'));
+  assert.ok(PROJECT_PAGE.includes('id="project-modo-avaliacao"'));
+  assert.ok(PROJECT_PAGE.includes("updateProjectModos(projectId,"));
+  assert.ok(PROJECT_PAGE.includes('modoTrabalho === "PULL"'));
+  assert.ok(PROJECT_PAGE.includes('modoAvaliacao === "PONTOS_RELATIVO"'));
+  assert.ok(PROJECT_PAGE.includes("updateWipConfig(projectId,"));
+  assert.ok(PROJECT_PAGE.includes("getModosHistorico(projectId)"));
+  assert.ok(PROJECT_PAGE.includes("<ModosTrabalhoSection"));
+});

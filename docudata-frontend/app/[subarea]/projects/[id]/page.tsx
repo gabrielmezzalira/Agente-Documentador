@@ -51,6 +51,10 @@ import {
   type OperacionalResponse,
   type GitHubRepositoryCandidate,
   type ProjectRepository,
+  updateProjectModos,
+  getModosHistorico,
+  updateWipConfig,
+  type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
 import { useAuth } from "../../../components/AuthGuard";
@@ -345,6 +349,252 @@ function OperacionaisSection({
           </p>
         </div>
       )}
+    </section>
+  );
+}
+
+type ModoTrabalho = "ATRIBUICAO" | "PULL";
+type ModoAvaliacao = "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
+
+function ModosTrabalhoSection({
+  projectId,
+  project,
+  onProjectUpdated,
+}: {
+  projectId: string;
+  project: Project;
+  onProjectUpdated: (updated: Project) => void;
+}) {
+  const [modoTrabalhoDestino, setModoTrabalhoDestino] = useState<ModoTrabalho | null>(null);
+  const [modoAvaliacaoDestino, setModoAvaliacaoDestino] = useState<ModoAvaliacao | null>(null);
+  const [hidratacaoDestino, setHidratacaoDestino] = useState<boolean | null>(null);
+  const [pisoDestino, setPisoDestino] = useState<string | null>(null);
+  const [tetoDestino, setTetoDestino] = useState<string | null>(null);
+  const [savingModos, setSavingModos] = useState(false);
+  const [modosMsg, setModosMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [wipPorPessoaInput, setWipPorPessoaInput] = useState(String(project.wip_config?.por_pessoa ?? ""));
+  const [savingWip, setSavingWip] = useState(false);
+  const [wipMsg, setWipMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [historico, setHistorico] = useState<ConfiguracaoHistoricoEntry[]>([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(true);
+
+  useEffect(() => {
+    getModosHistorico(projectId)
+      .then(setHistorico)
+      .catch(() => setHistorico([]))
+      .finally(() => setLoadingHistorico(false));
+  }, [projectId]);
+
+  const modoTrabalho = modoTrabalhoDestino ?? project.modo_trabalho;
+  const modoAvaliacao = modoAvaliacaoDestino ?? project.modo_avaliacao;
+  const hidratacao = hidratacaoDestino ?? project.pull_exigir_hidratacao;
+  const piso = pisoDestino ?? String(project.pull_piso_pontos);
+  const teto = tetoDestino ?? String(project.pull_teto);
+
+  const modosMudou =
+    modoTrabalho !== project.modo_trabalho ||
+    modoAvaliacao !== project.modo_avaliacao ||
+    hidratacao !== project.pull_exigir_hidratacao ||
+    piso !== String(project.pull_piso_pontos) ||
+    teto !== String(project.pull_teto);
+
+  async function handleSalvarModos() {
+    setSavingModos(true);
+    setModosMsg(null);
+    try {
+      const updated = await updateProjectModos(projectId, {
+        modo_trabalho: modoTrabalho,
+        modo_avaliacao: modoAvaliacao,
+        pull_exigir_hidratacao: hidratacao,
+        pull_piso_pontos: Number(piso),
+        pull_teto: Number(teto),
+      });
+      onProjectUpdated(updated);
+      setModosMsg({ ok: true, text: "Configuração salva." });
+      getModosHistorico(projectId).then(setHistorico).catch(() => {});
+    } catch (err) {
+      setModosMsg({ ok: false, text: err instanceof Error ? err.message : "Erro ao salvar." });
+    } finally {
+      setSavingModos(false);
+    }
+  }
+
+  async function handleSalvarWip() {
+    setSavingWip(true);
+    setWipMsg(null);
+    try {
+      const valor = Number(wipPorPessoaInput);
+      const updated = await updateWipConfig(projectId, {
+        por_pessoa: Number.isFinite(valor) && valor > 0 ? valor : undefined,
+      });
+      onProjectUpdated(updated);
+      setWipMsg({ ok: true, text: "Limite de WIP salvo." });
+    } catch (err) {
+      setWipMsg({ ok: false, text: err instanceof Error ? err.message : "Erro ao salvar." });
+    } finally {
+      setSavingWip(false);
+    }
+  }
+
+  return (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitle}>Modos de Trabalho e de Avaliação</h2>
+      <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
+        Define como as tasks chegam ao operacional (atribuição direta ou fila de puxada) e
+        qual fórmula calcula a dimensão Entrega da pontuação. Pode ser trocado a qualquer
+        momento, inclusive no meio de uma sprint em andamento.
+      </p>
+
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <label htmlFor="project-modo-trabalho" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+            Modo de trabalho
+          </label>
+          <select
+            id="project-modo-trabalho"
+            value={modoTrabalho}
+            onChange={(e) => { setModoTrabalhoDestino(e.target.value as ModoTrabalho); setModosMsg(null); }}
+            disabled={savingModos}
+            style={{ ...inputStyle, width: 180, minHeight: 38, background: "#fff", cursor: "pointer" }}
+          >
+            <option value="ATRIBUICAO">Atribuição</option>
+            <option value="PULL">Puxada (pull)</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="project-modo-avaliacao" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+            Modo de avaliação da Entrega
+          </label>
+          <select
+            id="project-modo-avaliacao"
+            value={modoAvaliacao}
+            onChange={(e) => { setModoAvaliacaoDestino(e.target.value as ModoAvaliacao); setModosMsg(null); }}
+            disabled={savingModos}
+            style={{ ...inputStyle, width: 200, minHeight: 38, background: "#fff", cursor: "pointer" }}
+          >
+            <option value="PONTOS_ATRIBUIDOS">Pontos atribuídos</option>
+            <option value="PONTOS_RELATIVO">Pontos relativo ao squad</option>
+          </select>
+        </div>
+      </div>
+
+      {modoTrabalho === "PULL" && (
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", marginBottom: 16, padding: "12px 14px", background: "#f7f7fa", borderRadius: 10 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
+            <input
+              type="checkbox"
+              checked={hidratacao}
+              onChange={(e) => { setHidratacaoDestino(e.target.checked); setModosMsg(null); }}
+              disabled={savingModos}
+            />
+            Exigir hidratação para entrar na fila
+          </label>
+        </div>
+      )}
+
+      {modoAvaliacao === "PONTOS_RELATIVO" && (
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
+          <div>
+            <label htmlFor="project-pull-piso" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+              Piso mínimo (pontos)
+            </label>
+            <input
+              id="project-pull-piso"
+              type="number"
+              min={0}
+              step="0.5"
+              value={piso}
+              onChange={(e) => { setPisoDestino(e.target.value); setModosMsg(null); }}
+              disabled={savingModos}
+              style={{ ...inputStyle, width: 110 }}
+            />
+          </div>
+          <div>
+            <label htmlFor="project-pull-teto" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+              Teto do bônus (múltiplo da média)
+            </label>
+            <input
+              id="project-pull-teto"
+              type="number"
+              min={1}
+              step="0.1"
+              value={teto}
+              onChange={(e) => { setTetoDestino(e.target.value); setModosMsg(null); }}
+              disabled={savingModos}
+              style={{ ...inputStyle, width: 110 }}
+            />
+          </div>
+          <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, maxWidth: 320, alignSelf: "center" }}>
+            Padrão 1 e 1,5. Com denominador em pontos, o piso 1 tende a ficar baixo — recalibre depois da primeira sprint real.
+          </p>
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          type="button"
+          onClick={handleSalvarModos}
+          disabled={savingModos || !modosMudou}
+          style={{ ...btnSecondary, opacity: savingModos || !modosMudou ? 0.5 : 1, cursor: savingModos || !modosMudou ? "not-allowed" : "pointer" }}
+        >
+          {savingModos ? "Salvando..." : "Salvar"}
+        </button>
+        {modosMsg && (
+          <span style={{ fontSize: 12, color: modosMsg.ok ? "#15803d" : "#b91c1c" }}>{modosMsg.text}</span>
+        )}
+      </div>
+
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f0f4" }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: "0 0 6px" }}>Limite de WIP por pessoa</h3>
+        {modoTrabalho === "PULL" ? (
+          <p style={{ fontSize: 12, color: "#6a6a7a", margin: 0 }}>
+            Fixo em <strong>1</strong> — o modo pull opera com uma task em andamento por pessoa. O limite de WIP da coluna inteira continua editável na aba Tasks.
+          </p>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number"
+              min={1}
+              value={wipPorPessoaInput}
+              onChange={(e) => { setWipPorPessoaInput(e.target.value); setWipMsg(null); }}
+              disabled={savingWip}
+              placeholder="Sem limite"
+              style={{ ...inputStyle, width: 100 }}
+            />
+            <button
+              type="button"
+              onClick={handleSalvarWip}
+              disabled={savingWip}
+              style={{ ...btnSecondary, opacity: savingWip ? 0.5 : 1 }}
+            >
+              {savingWip ? "Salvando..." : "Salvar"}
+            </button>
+            {wipMsg && <span style={{ fontSize: 12, color: wipMsg.ok ? "#15803d" : "#b91c1c" }}>{wipMsg.text}</span>}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f0f4" }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: "0 0 10px" }}>Histórico de configuração</h3>
+        {loadingHistorico ? (
+          <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+        ) : historico.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#9696a0" }}>Nenhuma troca de modo registrada ainda.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {historico.map((h) => (
+              <div key={h.id} style={{ fontSize: 12, color: "#374151" }}>
+                <strong>{new Date(h.criado_em).toLocaleString("pt-BR")}</strong> — {h.usuario_email} mudou{" "}
+                {h.campo === "modo_trabalho" ? "modo de trabalho" : "modo de avaliação"} de{" "}
+                <em>{h.valor_anterior ?? "—"}</em> para <em>{h.valor_novo}</em>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -1424,6 +1674,12 @@ export default function ProjectDashboard() {
               {project.is_delivered ? "✓ Marcado como entregue (desfazer)" : "Marcar como entregue"}
             </button>
           </section>
+
+          <ModosTrabalhoSection
+            projectId={id}
+            project={project}
+            onProjectUpdated={(updated) => setProject(updated)}
+          />
 
           <OperacionaisSection
             projectId={id}
