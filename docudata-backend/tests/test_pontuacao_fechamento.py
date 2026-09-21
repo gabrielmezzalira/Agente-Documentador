@@ -323,6 +323,7 @@ def test_congela_modo_trabalho_e_avaliacao_da_sprint_no_fechamento():
 def test_entrega_modo_default_pontos_atribuidos_quando_projeto_nao_configurado():
     client = _mock_client(
         sprint=_SPRINT,
+        projeto={"modo_trabalho": None, "modo_avaliacao": None},
         tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
     )
 
