@@ -19,3 +19,19 @@ test("pergunta 1 da Avaliação Semanal muda de texto conforme o modo de trabalh
   assert.match(src, /modoTrabalho/);
   assert.match(src, /Puxou e entregou num ritmo consistente\?/);
 });
+
+test("api.ts expõe puxarTask e devolverTask", () => {
+  const src = readFileSync(new URL("../app/lib/api.ts", import.meta.url), "utf-8");
+  assert.match(src, /export async function puxarTask/);
+  assert.match(src, /export async function devolverTask/);
+});
+
+test("Kanban mostra badge de rascunho e ações de puxar/devolver conforme o modo", () => {
+  const src = readFileSync(
+    new URL("../app/components/TasksKanbanTab.tsx", import.meta.url),
+    "utf-8"
+  );
+  assert.match(src, /rascunho/);
+  assert.match(src, /puxarTask/);
+  assert.match(src, /devolverTask/);
+});

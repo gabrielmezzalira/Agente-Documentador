@@ -1628,6 +1628,13 @@ export interface TaskKanbanResponse {
   travado_override_por?: string | null;
   travado_override_em?: string | null;
   extra: boolean;
+  entrou_na_fila_em?: string | null;
+  pull_em?: string | null;
+  atribuida_manualmente: boolean;
+  motivo_atribuicao_manual?: string | null;
+  rascunho: boolean;
+  motivo_rascunho?: string | null;
+  ordem_fila?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -2115,5 +2122,17 @@ export async function getComparacaoModos(projectId: string): Promise<ComparacaoM
 export async function getComparacaoModosEntreProjetos(projetoIds: string[]): Promise<ComparacaoModoPonto[]> {
   const res = await apiFetch(`${API}/metricas/comparacao-modos?projeto_ids=${projetoIds.join(",")}`);
   if (!res.ok) throw new Error("Erro ao buscar comparação entre projetos");
+  return res.json();
+}
+
+export async function puxarTask(taskId: string): Promise<TaskKanbanResponse> {
+  const res = await apiFetch(`${API}/tasks/${taskId}/puxar`, { method: "POST" });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? "Erro ao puxar task");
+  return res.json();
+}
+
+export async function devolverTask(taskId: string): Promise<TaskKanbanResponse> {
+  const res = await apiFetch(`${API}/tasks/${taskId}/devolver`, { method: "POST" });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? "Erro ao devolver task");
   return res.json();
 }

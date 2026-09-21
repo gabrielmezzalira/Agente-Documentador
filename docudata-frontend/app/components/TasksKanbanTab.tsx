@@ -18,6 +18,8 @@ import {
   criarSolicitacaoTask,
   listSolicitacoesTask,
   resolverSolicitacaoTask,
+  puxarTask,
+  devolverTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
@@ -32,6 +34,7 @@ interface Props {
   sprints: SprintWithStatus[];
   operacionais: OperacionalResponse[];
   funcionalidades: FuncionalidadeResponse[];
+  modoTrabalho: "ATRIBUICAO" | "PULL";
 }
 
 type Coluna = "planejado" | "em_andamento" | "concluida";
@@ -559,13 +562,15 @@ function TaskModal({
 // checklist (cada marcação salva na hora, sem botão de Salvar separado).
 
 function TaskViewModal({
-  task, sprints, funcionalidades, onClose, onSaved,
+  task, sprints, funcionalidades, onClose, onSaved, modoTrabalho, meuOperacionalId,
 }: {
   task: TaskKanbanResponse;
   sprints: SprintWithStatus[];
   funcionalidades: FuncionalidadeResponse[];
   onClose: () => void;
   onSaved: (t: TaskKanbanResponse) => void;
+  modoTrabalho: "ATRIBUICAO" | "PULL";
+  meuOperacionalId: string | null;
 }) {
   const [checklist, setChecklist] = useState(task.checklist);
   const [saving, setSaving] = useState(false);
@@ -645,6 +650,35 @@ function TaskViewModal({
         </div>
 
         {err && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 10 }}>{err}</p>}
+
+        {modoTrabalho === "PULL" && !task.operacional_id && !task.rascunho && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={async () => {
+                const atualizada = await puxarTask(task.id);
+                onSaved(atualizada);
+              }}
+              style={btnPrimary}
+            >
+              Puxar esta task
+            </button>
+          </div>
+        )}
+        {modoTrabalho === "PULL" && task.operacional_id && (meuOperacionalId === task.operacional_id) && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={async () => {
+                const atualizada = await devolverTask(task.id);
+                onSaved(atualizada);
+              }}
+              style={{ ...btnPrimary, background: "#fff", color: "#dc2626", border: "1px solid #fecaca" }}
+            >
+              Devolver à fila
+            </button>
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
           <button type="button" onClick={onClose} style={btnPrimary}>Fechar</button>
@@ -795,6 +829,12 @@ function TaskCard({
           <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }}>⏱ Travada</span>
         )}
 
+        {task.rascunho && (
+          <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }} title={task.motivo_rascunho ?? undefined}>
+            📝 Rascunho
+          </span>
+        )}
+
         {total > 0 && (
           <span style={{ ...chip, background: done === total ? "#dcfce7" : "#f1f5f9", color: done === total ? "#166534" : "#64748b" }}>
             {done}/{total} ✓
@@ -808,7 +848,7 @@ function TaskCard({
 // ---------------------------------------------------------------------------
 // Main component
 
-export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades }: Props) {
+export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades, modoTrabalho }: Props) {
   const [tasks, setTasks] = useState<TaskKanbanResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -1280,6 +1320,8 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             funcionalidades={funcionalidades}
             onClose={() => setEditModal(null)}
             onSaved={(t) => { upsertTask(t); setEditModal(t); }}
+            modoTrabalho={modoTrabalho}
+            meuOperacionalId={meuOperacional?.id ?? null}
           />
         ) : (
           <TaskModal

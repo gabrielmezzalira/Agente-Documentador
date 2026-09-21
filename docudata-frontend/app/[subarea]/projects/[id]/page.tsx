@@ -1379,6 +1379,7 @@ export default function ProjectDashboard() {
           sprints={sprints}
           operacionais={operacionais}
           funcionalidades={funcionalidades}
+          modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"}
         />
       )}
 
