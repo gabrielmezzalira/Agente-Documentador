@@ -11,6 +11,7 @@ def _mock_client(
     update_rowcount=1,
     task_travamentos=None,
     pontuacao_eventos_capture=None,
+    modo_trabalho="PULL",
 ):
     task_travamentos = task_travamentos or []
     pontuacao_eventos_capture = (
@@ -67,7 +68,7 @@ def _mock_client(
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
             resp = MagicMock()
-            resp.data = [{"wip_config": wip_config or {}}]
+            resp.data = [{"wip_config": wip_config or {}, "modo_trabalho": modo_trabalho}]
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
         elif name == "task_travamentos":
@@ -110,6 +111,7 @@ def make_client(monkeypatch, autenticar):
         update_rowcount=1,
         task_travamentos=None,
         pontuacao_eventos_capture=None,
+        modo_trabalho="PULL",
     ):
         import routers.tasks as tasks_router
         from main import app
@@ -120,6 +122,7 @@ def make_client(monkeypatch, autenticar):
             update_rowcount,
             task_travamentos=task_travamentos,
             pontuacao_eventos_capture=pontuacao_eventos_capture,
+            modo_trabalho=modo_trabalho,
         )
         monkeypatch.setattr(tasks_router, "get_client", lambda: mock_sb)
         # A fixture `autenticar` (tests/conftest.py) sempre autentica como
@@ -153,6 +156,24 @@ def test_puxar_task_ja_puxada_da_409(make_client):
     # — este último serializa para a string literal "None" no postgrest e quebra a
     # comparação contra a coluna `uuid`, falhando em produção mesmo no caso sem disputa.
     tc._mock_sb._tasks_update_is_.assert_called_once_with("operacional_id", "null")
+
+
+def test_puxar_task_projeto_em_atribuicao_da_403(make_client):
+    """Fix 2 (revisão final): auto-atribuição via /puxar só existe em modo
+    PULL — sem esta guarda, /puxar era um desvio de
+    _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL (que barra o mesmo em PATCH
+    /tasks/{id}) para todo projeto em ATRIBUICAO."""
+    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
+    tc = make_client(
+        task,
+        operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"},
+        modo_trabalho="ATRIBUICAO",
+    )
+
+    resp = tc.post("/tasks/t1/puxar")
+
+    assert resp.status_code == 403
+    assert "Pull" in resp.json()["detail"]
 
 
 def test_puxar_task_rascunho_da_403(make_client):
@@ -245,6 +266,68 @@ def test_devolver_task_travada_sem_pontos_ativos_nao_gera_evento(make_client):
 
     assert resp.status_code == 200
     assert tc._mock_sb._pontuacao_eventos_capture == []
+
+
+def test_devolver_task_travada_sem_sprint_nao_quebra_e_nao_gera_evento(make_client):
+    """Fix 5 (revisão final): task travado_automatico=True, com pontos de
+    travamento ativos, mas SEM sprint_id (sprintless) — pontuacao_eventos.
+    sprint_id é NOT NULL, então o insert deve ser pulado (não deve levantar
+    exceção) e a devolução em si precisa seguir até o fim (200)."""
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-a", "rascunho": False,
+        "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
+        "travado_automatico": True, "sprint_id": None, "ordem": 0,
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(
+        task,
+        operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"},
+        task_travamentos=[{"pontos": 2, "dispensado": False}],
+    )
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operacional_id"] is None
+    assert body["coluna_kanban"] == "planejado"
+    assert tc._mock_sb._pontuacao_eventos_capture == []
+
+
+def test_devolver_task_ledger_falha_nao_aborta_devolucao(make_client, monkeypatch):
+    """Fix 5 (revisão final): insert em pontuacao_eventos best-effort — se o
+    ledger falhar, a devolução (o que importa: liberar a task) ainda
+    completa com 200, igual services/pontuacao.py::calcular_e_travar_pontuacao
+    trata sua própria escrita de extrato."""
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-a", "rascunho": False,
+        "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
+        "travado_automatico": True, "sprint_id": "sprint-1", "ordem": 0,
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(
+        task,
+        operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"},
+        task_travamentos=[{"pontos": 2, "dispensado": False}],
+    )
+
+    original_table_side_effect = tc._mock_sb.table.side_effect
+
+    def table_side_effect(name):
+        if name == "pontuacao_eventos":
+            tbl = original_table_side_effect(name)
+            tbl.insert = MagicMock(side_effect=Exception("ledger indisponível"))
+            return tbl
+        return original_table_side_effect(name)
+
+    monkeypatch.setattr(tc._mock_sb, "table", MagicMock(side_effect=table_side_effect))
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operacional_id"] is None
+    assert body["coluna_kanban"] == "planejado"
 
 
 def test_devolver_task_por_gerente_de_task_de_outra_pessoa_permite(make_client):

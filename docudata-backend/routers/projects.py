@@ -426,12 +426,34 @@ async def aplicar_migrar_modo(
     task_transicoes/task_reaberturas (RF-M3) — reclassificação estrutural,
     não movimento de Kanban."""
     client = get_client()
-    proj = client.table("projects").select("id, modo_trabalho").eq("id", project_id).execute()
+    proj = client.table("projects").select("id, modo_trabalho, pull_exigir_hidratacao").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
     de_modo = proj.data[0].get("modo_trabalho") or "ATRIBUICAO"
+    pull_exigir_hidratacao = proj.data[0].get("pull_exigir_hidratacao")
 
-    client.table("projects").update({"modo_trabalho": data.para}).eq("id", project_id).execute()
+    # Toda mudança de modo_trabalho grava um registro imutável em
+    # configuracao_historico — mesmo formato que update_modos já usa para
+    # esse campo (o histórico geral que outras telas leem), independente do
+    # registro mais rico e migração-específico em migracoes_modo logo abaixo.
+    if de_modo != data.para:
+        client.table("configuracao_historico").insert({
+            "project_id": project_id,
+            "campo": "modo_trabalho",
+            "valor_anterior": de_modo,
+            "valor_novo": data.para,
+            "usuario_email": pessoa["email"],
+        }).execute()
+
+    proj_update = client.table("projects").update({"modo_trabalho": data.para}).eq("id", project_id).execute()
+
+    # RF-A5: entrar em PULL força WIP por pessoa = 1, mesmo vindo de uma
+    # migração (não só de PATCH /modos) — sem isso um projeto migrado ficaria
+    # em modo pull com WIP de atribuição, incoerente com a regra do modo.
+    if data.para == "PULL":
+        wip_atual = (proj_update.data[0].get("wip_config") if proj_update.data else None) or {}
+        novo_wip = {**wip_atual, "por_pessoa": 1}
+        client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
 
     tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
 
@@ -442,7 +464,10 @@ async def aplicar_migrar_modo(
             # Mantém responsável e estado de bloqueio — nunca reclassifica.
             contagem["mantem_responsavel"] += 1
         elif coluna == "planejado" and data.para == "PULL":
-            rascunho, motivo = calcular_hidratacao(task)
+            if pull_exigir_hidratacao:
+                rascunho, motivo = calcular_hidratacao(task)
+            else:
+                rascunho, motivo = False, None
             updates = {
                 "operacional_id": None,
                 "rascunho": rascunho,

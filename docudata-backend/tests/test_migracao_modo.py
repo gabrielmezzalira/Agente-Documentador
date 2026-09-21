@@ -226,6 +226,109 @@ def test_aplicar_migracao_planejado_para_atribuicao_limpa_campos_de_fila(make_cl
     assert projects_update[0]["modo_trabalho"] == "ATRIBUICAO"
 
 
+def test_aplicar_migracao_para_pull_forca_wip_por_pessoa_1(make_client_completo, monkeypatch):
+    """Fix 1 (revisão final): aplicar_migrar_modo precisa honrar RF-A5 igual
+    update_modos já faz — sem isso um projeto migrado para PULL via este
+    endpoint ficaria com WIP de atribuição, incoerente com o modo."""
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: None)
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
+
+    assert resp.status_code == 200
+    # Segunda escrita em projects (a primeira só grava modo_trabalho) precisa
+    # forçar wip_config.por_pessoa = 1.
+    assert len(projects_update) == 2
+    assert projects_update[0]["modo_trabalho"] == "PULL"
+    assert projects_update[1]["wip_config"]["por_pessoa"] == 1
+
+
+def test_aplicar_migracao_para_atribuicao_nao_mexe_no_wip(make_client_completo, monkeypatch):
+    """Fix 1 (revisão final), caso negativo: migrar para ATRIBUICAO não deve
+    disparar a escrita extra de wip_config — só entrar em PULL força isso."""
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: None)
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": True},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "ATRIBUICAO"})
+
+    assert resp.status_code == 200
+    assert len(projects_update) == 1
+    assert "wip_config" not in projects_update[0]
+
+
+def _mock_client_com_historico(projeto, tasks):
+    """Fix 3 (revisão final): estende _mock_client_completo capturando
+    também os inserts em configuracao_historico, sem alterar o helper
+    original (usado por todos os outros testes deste arquivo)."""
+    mock_sb, tasks_update, migracoes_insert, sprints_update, projects_update = _mock_client_completo(projeto, tasks)
+    historico_insert: list = []
+    original_table_side_effect = mock_sb.table.side_effect
+
+    def table_side_effect(name):
+        if name == "configuracao_historico":
+            tbl = MagicMock()
+
+            def _insert(payload):
+                historico_insert.append(payload)
+                iq = MagicMock()
+                iresp = MagicMock()
+                iresp.data = [payload]
+                iq.execute = MagicMock(return_value=iresp)
+                return iq
+
+            tbl.insert = MagicMock(side_effect=_insert)
+            return tbl
+        return original_table_side_effect(name)
+
+    mock_sb.table = MagicMock(side_effect=table_side_effect)
+    return mock_sb, tasks_update, migracoes_insert, sprints_update, projects_update, historico_insert
+
+
+@pytest.fixture
+def make_client_com_historico(monkeypatch, autenticar):
+    def _make(projeto, tasks):
+        import routers.projects as projects_router
+        from main import app
+        mock_sb, tasks_update, migracoes_insert, sprints_update, projects_update, historico_insert = (
+            _mock_client_com_historico(projeto, tasks)
+        )
+        monkeypatch.setattr(projects_router, "get_client", lambda: mock_sb)
+        tc = autenticar(TestClient(app), cargo="gerente")
+        return tc, historico_insert
+    return _make
+
+
+def test_aplicar_migracao_grava_configuracao_historico_quando_modo_muda(make_client_com_historico, monkeypatch):
+    """Fix 3 (revisão final): toda mudança real de modo_trabalho precisa
+    gravar em configuracao_historico (o histórico geral que outras telas já
+    leem via GET /projects/{id}/modos-historico) — não só em
+    migracoes_modo, que é o registro rico específico da migração."""
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: None)
+    tc, historico_insert = make_client_com_historico(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
+
+    assert resp.status_code == 200
+    assert len(historico_insert) == 1
+    assert historico_insert[0]["campo"] == "modo_trabalho"
+    assert historico_insert[0]["valor_anterior"] == "ATRIBUICAO"
+    assert historico_insert[0]["valor_novo"] == "PULL"
+    assert historico_insert[0]["project_id"] == "proj-1"
+    assert "usuario_email" in historico_insert[0]
+
+
 def test_desvincular_planejado_limpa_responsavel_so_de_tasks_planejadas(make_client_completo, monkeypatch):
     tc, tasks_update, _, _, _ = make_client_completo(
         projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": False},

@@ -59,6 +59,14 @@ def _registrar_task_transicao(
     )
     if anterior.data:
         ts_anterior = datetime.fromisoformat(anterior.data[0]["timestamp"]).replace(tzinfo=timezone.utc)
+    elif task_atual.get("pull_em"):
+        # Task puxada via /puxar nunca ganhou uma task_transicoes anterior
+        # (puxar_task é estrutural, não passa por aqui — ver comentário acima
+        # de puxar_task/devolver_task). Sem isso, a primeira transição
+        # registrada por patch_task (ex.: -> concluida) ancoraria em
+        # created_at e a duração absorveria todo o tempo de espera na fila,
+        # não só o tempo de trabalho após o pull.
+        ts_anterior = datetime.fromisoformat(task_atual["pull_em"]).replace(tzinfo=timezone.utc)
     else:
         ts_anterior = datetime.fromisoformat(task_atual["created_at"]).replace(tzinfo=timezone.utc)
 
@@ -446,6 +454,14 @@ def _resolver_operacional_id_da_pessoa(client, project_id: str, pessoa_email: st
     return resp.data[0]["id"] if resp.data else None
 
 
+# puxar_task e devolver_task deliberadamente NÃO chamam
+# _registrar_transicao/on_task_transition/auto_update_sprint_health: são
+# operações estruturais da fila de PULL, não movimentos de Kanban
+# autorados pela pessoa — mesmo racional já documentado para a exclusão de
+# RF-M3 em aplicar_migrar_modo (routers/projects.py). Consequência: o
+# cycle-time em routers/metricas.py não tem task_transicoes para ancorar o
+# início do trabalho dessas tasks; o fallback de duração usa pull_em (ver
+# _registrar_task_transicao) para não contar o tempo de fila como trabalho.
 @router.post("/{task_id}/puxar", response_model=TaskResponse)
 async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
@@ -456,6 +472,13 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
 
     if task.get("rascunho") or task.get("operacional_id") is not None:
         raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
+
+    # Auto-atribuição só existe em modo PULL — em ATRIBUICAO, patch_task já
+    # bloqueia o operacional de setar operacional_id (_CAMPOS_BLOQUEADOS_
+    # PARA_OPERACIONAL); sem esta checagem, /puxar seria um desvio dessa regra.
+    proj = client.table("projects").select("modo_trabalho").eq("id", task["project_id"]).execute()
+    if not proj.data or proj.data[0].get("modo_trabalho") != "PULL":
+        raise HTTPException(status_code=403, detail="Este projeto não está em modo Pull.")
 
     operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
     if not operacional_id:
@@ -506,16 +529,24 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
 
     if task.get("travado_automatico"):
         pontos = pontos_travamento_ativo(client, task_id)
-        if pontos > 0:
-            client.table("pontuacao_eventos").insert({
-                "operacional_id": task["operacional_id"],
-                "sprint_id": task.get("sprint_id"),
-                "projeto_id": task["project_id"],
-                "task_id": task_id,
-                "tipo": "devolucao_penalidade",
-                "pontos": -pontos,
-                "descricao": "Devolução após travamento automático",
-            }).execute()
+        # sprint_id é NOT NULL em pontuacao_eventos — uma task sem sprint não
+        # tem onde atribuir o evento; pular o insert (não a devolução).
+        if pontos > 0 and task.get("sprint_id"):
+            # Extrato (pontuacao_eventos) é best-effort, mesmo racional de
+            # services/pontuacao.py::calcular_e_travar_pontuacao: a devolução
+            # em si (abaixo) não pode falhar por causa de um erro só no ledger.
+            try:
+                client.table("pontuacao_eventos").insert({
+                    "operacional_id": task["operacional_id"],
+                    "sprint_id": task.get("sprint_id"),
+                    "projeto_id": task["project_id"],
+                    "task_id": task_id,
+                    "tipo": "devolucao_penalidade",
+                    "pontos": -pontos,
+                    "descricao": "Devolução após travamento automático",
+                }).execute()
+            except Exception:
+                _LOG.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da devolução da task %s", task_id)
 
     agora = datetime.now(timezone.utc).isoformat()
     fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
