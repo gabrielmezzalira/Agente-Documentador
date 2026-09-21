@@ -63,12 +63,13 @@ def test_preview_migracao_conta_tasks_por_categoria(make_client):
 
 
 def _mock_client_completo(projeto, tasks):
-    """Estende _mock_client com update de tasks/sprints e insert de
+    """Estende _mock_client com update de tasks/sprints/projects e insert de
     migracoes_modo, capturando os payloads em listas (mesmo padrão das
     Tasks 2 e 11) pra assertar o que a rota de aplicação de fato gravou."""
     tasks_update = []
     migracoes_insert = []
     sprints_update = []
+    projects_update = []
     client = MagicMock()
 
     def table_side_effect(name):
@@ -80,6 +81,16 @@ def _mock_client_completo(projeto, tasks):
             resp.data = [projeto] if projeto else []
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
+
+            def _update(payload):
+                projects_update.append(payload)
+                uq = MagicMock()
+                uq.eq = MagicMock(return_value=uq)
+                uresp = MagicMock()
+                uresp.data = [payload]
+                uq.execute = MagicMock(return_value=uresp)
+                return uq
+            tbl.update = MagicMock(side_effect=_update)
         elif name == "tasks":
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
@@ -119,7 +130,7 @@ def _mock_client_completo(projeto, tasks):
         return tbl
 
     client.table = MagicMock(side_effect=table_side_effect)
-    return client, tasks_update, migracoes_insert, sprints_update
+    return client, tasks_update, migracoes_insert, sprints_update, projects_update
 
 
 @pytest.fixture
@@ -127,17 +138,17 @@ def make_client_completo(monkeypatch, autenticar):
     def _make(projeto, tasks):
         import routers.projects as projects_router
         from main import app
-        mock_sb, tasks_update, migracoes_insert, sprints_update = _mock_client_completo(projeto, tasks)
+        mock_sb, tasks_update, migracoes_insert, sprints_update, projects_update = _mock_client_completo(projeto, tasks)
         monkeypatch.setattr(projects_router, "get_client", lambda: mock_sb)
         tc = autenticar(TestClient(app), cargo="gerente")
-        return tc, tasks_update, migracoes_insert, sprints_update
+        return tc, tasks_update, migracoes_insert, sprints_update, projects_update
     return _make
 
 
 def test_aplicar_migracao_para_pull_reclassifica_tasks_e_grava_auditoria(make_client_completo, monkeypatch):
     import routers.projects as projects_router
     monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
-    tc, tasks_update, migracoes_insert, sprints_update = make_client_completo(
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
         projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True},
         tasks=[
             {"id": "t1", "coluna_kanban": "planejado", "operacional_id": "op-a", "titulo": "X", "pontos": 3, "descricao": "d", "checklist": [{"texto": "a", "done": False}], "bloqueado": False},
@@ -160,3 +171,56 @@ def test_aplicar_migracao_para_pull_reclassifica_tasks_e_grava_auditoria(make_cl
     assert migracoes_insert[0]["contagem"]["mantem_responsavel"] == 1  # t5, bloqueada
     assert migracoes_insert[0]["contagem"]["sem_alteracao"] == 1  # t4, concluída
     assert sprints_update[0]["hibrida"] is True
+    # Fix 1: a rota também precisa persistir projects.modo_trabalho, senão o
+    # projeto fica fora de sincronia com as tasks que acabou de reclassificar.
+    assert projects_update[0]["modo_trabalho"] == "PULL"
+
+
+def test_aplicar_migracao_em_andamento_para_pull_mantem_operacional_e_marca_pull_em(make_client_completo, monkeypatch):
+    """(a) em_andamento + PULL: mantém operacional_id (responsável) e carimba
+    pull_em (não nulo) no payload de update — task não é reclassificada, só
+    passa a contar tempo de pull a partir de agora."""
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True},
+        tasks=[
+            {"id": "t3", "coluna_kanban": "em_andamento", "operacional_id": "op-b", "titulo": "Z", "pontos": 5, "descricao": "d", "checklist": [], "bloqueado": False},
+        ],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
+
+    assert resp.status_code == 200
+    assert len(tasks_update) == 1
+    # operacional_id não está no payload de update -> permanece inalterado no banco.
+    assert "operacional_id" not in tasks_update[0]
+    assert tasks_update[0].get("pull_em") is not None
+    assert migracoes_insert[0]["contagem"]["mantem_responsavel"] == 1
+    assert projects_update[0]["modo_trabalho"] == "PULL"
+
+
+def test_aplicar_migracao_planejado_para_atribuicao_limpa_campos_de_fila(make_client_completo, monkeypatch):
+    """(b) planejado + ATRIBUICAO (reversão): rascunho, motivo_rascunho e
+    entrou_na_fila_em precisam ser limpos (False/None) no payload de update
+    pra uma task que já estava na fila."""
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": True},
+        tasks=[
+            {"id": "t2", "coluna_kanban": "planejado", "operacional_id": None, "titulo": "Y", "pontos": 2, "descricao": None, "checklist": [], "bloqueado": False, "rascunho": True, "motivo_rascunho": "sem_descricao", "entrou_na_fila_em": "2026-09-01T00:00:00+00:00"},
+        ],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "ATRIBUICAO"})
+
+    assert resp.status_code == 200
+    assert len(tasks_update) == 1
+    assert tasks_update[0]["rascunho"] is False
+    assert tasks_update[0]["motivo_rascunho"] is None
+    assert tasks_update[0]["entrou_na_fila_em"] is None
+    assert migracoes_insert[0]["de_modo"] == "PULL"
+    assert migracoes_insert[0]["para_modo"] == "ATRIBUICAO"
+    assert migracoes_insert[0]["contagem"]["sem_alteracao"] == 1
+    assert projects_update[0]["modo_trabalho"] == "ATRIBUICAO"

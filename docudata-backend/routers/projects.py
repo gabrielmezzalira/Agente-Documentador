@@ -431,6 +431,8 @@ async def aplicar_migrar_modo(
         raise HTTPException(status_code=404, detail="Project not found")
     de_modo = proj.data[0].get("modo_trabalho") or "ATRIBUICAO"
 
+    client.table("projects").update({"modo_trabalho": data.para}).eq("id", project_id).execute()
+
     tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
 
     contagem = {"entrando_na_fila": 0, "vira_rascunho": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
