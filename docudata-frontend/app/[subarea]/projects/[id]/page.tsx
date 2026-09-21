@@ -1853,6 +1853,7 @@ export default function ProjectDashboard() {
         <AvaliacaoSemanalModal
           sprintId={avaliacaoModal.sprintId}
           sprintNumero={avaliacaoModal.sprintNumero}
+          modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"}
           onClose={() => setAvaliacaoModal(null)}
           onCompleted={() => {
             setSprints((prev) =>

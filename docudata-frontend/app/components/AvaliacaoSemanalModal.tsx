@@ -8,19 +8,24 @@ import {
   type PendenciaAvaliacao,
 } from "../lib/api";
 
-const PERGUNTAS = [
-  "Entregou o que se comprometeu dentro do combinado nesta sprint?",
-  "A qualidade da entrega precisou de pouca ou nenhuma correção?",
-  "A pessoa destravou sozinha antes de te escalar?",
-  "A comunicação da entrega foi clara a ponto de você não precisar perguntar?",
-  "Ajudou, desbloqueou ou ensinou outro membro nesta sprint?",
-  "Evoluiu em relação a onde estava no começo do ciclo?",
-  "Trouxe algo além do que foi pedido?",
-];
+function perguntas(modoTrabalho: "ATRIBUICAO" | "PULL"): string[] {
+  return [
+    modoTrabalho === "PULL"
+      ? "Puxou e entregou num ritmo consistente?"
+      : "Entregou o que se comprometeu dentro do combinado nesta sprint?",
+    "A qualidade da entrega precisou de pouca ou nenhuma correção?",
+    "A pessoa destravou sozinha antes de te escalar?",
+    "A comunicação da entrega foi clara a ponto de você não precisar perguntar?",
+    "Ajudou, desbloqueou ou ensinou outro membro nesta sprint?",
+    "Evoluiu em relação a onde estava no começo do ciclo?",
+    "Trouxe algo além do que foi pedido?",
+  ];
+}
 
 interface Props {
   sprintId: string;
   sprintNumero: number;
+  modoTrabalho: "ATRIBUICAO" | "PULL";
   onClose: () => void;
   onCompleted: () => void;
 }
@@ -28,7 +33,7 @@ interface Props {
 type Respostas = [number, number, number, number, number, number, number];
 const RESPOSTAS_VAZIAS: Respostas = [-1, -1, -1, -1, -1, -1, -1];
 
-export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, onClose, onCompleted }: Props) {
+export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrabalho, onClose, onCompleted }: Props) {
   const [pendencias, setPendencias] = useState<PendenciaAvaliacao[] | null>(null);
   const [avaliando, setAvaliando] = useState<PendenciaAvaliacao | null>(null);
   const [respostas, setRespostas] = useState<Respostas>(RESPOSTAS_VAZIAS);
@@ -159,7 +164,7 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, onClose,
               </div>
             )}
 
-            {PERGUNTAS.map((pergunta, i) => (
+            {perguntas(modoTrabalho).map((pergunta, i) => (
               <div key={i}>
                 <label style={{ fontSize: 13, fontWeight: 500 }}>{pergunta}</label>
                 <div style={chipRow}>

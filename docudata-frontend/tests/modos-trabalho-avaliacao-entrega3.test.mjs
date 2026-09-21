@@ -10,3 +10,12 @@ test("MetricasTab explica SPI nulo com sprints avaliadas em vez de deixar traves
   assert.match(src, /sprints_avaliadas > 0/);
   assert.match(src, /Sem task alocada nesta sprint/);
 });
+
+test("pergunta 1 da Avaliação Semanal muda de texto conforme o modo de trabalho", () => {
+  const src = readFileSync(
+    new URL("../app/components/AvaliacaoSemanalModal.tsx", import.meta.url),
+    "utf-8"
+  );
+  assert.match(src, /modoTrabalho/);
+  assert.match(src, /Puxou e entregou num ritmo consistente\?/);
+});
