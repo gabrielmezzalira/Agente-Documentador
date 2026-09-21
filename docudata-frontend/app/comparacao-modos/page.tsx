@@ -40,6 +40,7 @@ export default function ComparacaoModosPage() {
   const [resultado, setResultado] = useState<ComparacaoModoPonto[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [buscou, setBuscou] = useState(false);
 
   useEffect(() => {
     if (!auth || (auth.cargo !== "lider" && auth.cargo !== "owner")) return;
@@ -52,6 +53,8 @@ export default function ComparacaoModosPage() {
     setSelecionados((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
+    setBuscou(false);
+    setResultado([]);
   }
 
   function buscar() {
@@ -62,7 +65,10 @@ export default function ComparacaoModosPage() {
     setLoading(true);
     setErro(null);
     getComparacaoModosEntreProjetos(selecionados)
-      .then(setResultado)
+      .then((r) => {
+        setResultado(r);
+        setBuscou(true);
+      })
       .catch((err) => setErro(err instanceof Error ? err.message : "Erro ao comparar"))
       .finally(() => setLoading(false));
   }
@@ -116,6 +122,14 @@ export default function ComparacaoModosPage() {
         </button>
         {erro && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 8 }}>{erro}</p>}
       </div>
+
+      {buscou && resultado.length === 0 && !erro && (
+        <div style={card}>
+          <p style={{ fontSize: 13, color: "#9696a0" }}>
+            Nenhuma sprint fechada encontrada pros projetos selecionados.
+          </p>
+        </div>
+      )}
 
       {resultado.length > 0 && (
         <div style={card}>
