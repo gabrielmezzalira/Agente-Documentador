@@ -19,3 +19,10 @@ test("PainelTab mostra a seção de elegibilidade da sprint", () => {
   assert.ok(PAINEL.includes("getElegiveis("));
   assert.ok(PAINEL.includes("<ElegibilidadeCard"));
 });
+
+const METRICAS = readFileSync(new URL("../app/components/MetricasTab.tsx", import.meta.url), "utf8");
+
+test("MetricasTab mostra a comparação de modos dentro do projeto", () => {
+  assert.ok(METRICAS.includes("getComparacaoModos("));
+  assert.ok(METRICAS.includes("Comparação de modos"));
+});

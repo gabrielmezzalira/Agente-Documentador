@@ -25,6 +25,7 @@ import {
   getMetricasPerformanceOperacional,
   getSpiEvolucaoProjeto,
   getMetricasCycleTimeStats,
+  getComparacaoModos,
   type SpiPoint,
   type ThroughputPoint,
   type CycleTimePoint,
@@ -32,6 +33,7 @@ import {
   type PerformanceOperacionalPoint,
   type SpiEvolucaoOperacional,
   type CycleTimeStats,
+  type ComparacaoModoPonto,
 } from "../lib/api";
 
 interface Props {
@@ -115,6 +117,7 @@ export default function MetricasTab({ projectId }: Props) {
   const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
   const [spiEvolucao, setSpiEvolucao] = useState<SpiEvolucaoOperacional[]>([]);
   const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
+  const [comparacaoModos, setComparacaoModos] = useState<ComparacaoModoPonto[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -141,6 +144,10 @@ export default function MetricasTab({ projectId }: Props) {
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar métricas"))
       .finally(() => setLoading(false));
+  }, [projectId]);
+
+  useEffect(() => {
+    getComparacaoModos(projectId).then(setComparacaoModos).catch(() => setComparacaoModos([]));
   }, [projectId]);
 
   if (loading) return <p style={{ color: "#9696a0", fontSize: 13 }}>Carregando métricas...</p>;
@@ -353,6 +360,34 @@ export default function MetricasTab({ projectId }: Props) {
           </div>
         )}
       </div>
+
+      {/* Comparação de modos (Entrega 2) */}
+      {comparacaoModos.length >= 2 && (
+        <div style={section}>
+          <p style={title}>Comparação de modos</p>
+          <p style={subtitle}>
+            Sprints fechadas agrupadas pelo modo vigente no momento do fechamento de cada uma.
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={comparacaoModos.map((c) => ({
+                modo: `${c.modo_trabalho}/${c.modo_avaliacao}`,
+                spi_medio: c.spi_medio,
+                entrega_media: c.entrega_media,
+              }))}
+              margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="modo" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Legend formatter={(v) => v === "spi_medio" ? "SPI médio" : "Entrega média"} />
+              <Bar dataKey="spi_medio" fill="#64748b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="entrega_media" fill="#166534" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
