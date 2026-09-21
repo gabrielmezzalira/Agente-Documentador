@@ -474,3 +474,20 @@ async def aplicar_migrar_modo(
         client.table("sprints").update({"hibrida": True}).eq("id", sprint_ativa_id).execute()
 
     return {"de_modo": de_modo, "para_modo": data.para, "contagem": contagem}
+
+
+@router.post("/{project_id}/desvincular-planejado")
+async def desvincular_planejado(project_id: str, _pessoa: dict = Depends(require_not_operacional)):
+    """RF-M7 (Entrega 3): ação em massa independente de troca de modo — abre
+    a fila numa sprint em andamento sem migrar o projeto inteiro."""
+    client = get_client()
+    sprint_id = get_current_sprint_id(client, project_id)
+    if not sprint_id:
+        return {"desvinculadas": 0}
+
+    tasks = client.table("tasks").select("id, coluna_kanban, sprint_id").eq("project_id", project_id).eq("sprint_id", sprint_id).execute().data or []
+    planejadas = [t for t in tasks if t.get("coluna_kanban") == "planejado" and t.get("sprint_id") == sprint_id]
+    for task in planejadas:
+        client.table("tasks").update({"operacional_id": None}).eq("id", task["id"]).execute()
+
+    return {"desvinculadas": len(planejadas)}

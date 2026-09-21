@@ -224,3 +224,21 @@ def test_aplicar_migracao_planejado_para_atribuicao_limpa_campos_de_fila(make_cl
     assert migracoes_insert[0]["para_modo"] == "ATRIBUICAO"
     assert migracoes_insert[0]["contagem"]["sem_alteracao"] == 1
     assert projects_update[0]["modo_trabalho"] == "ATRIBUICAO"
+
+
+def test_desvincular_planejado_limpa_responsavel_so_de_tasks_planejadas(make_client_completo, monkeypatch):
+    tc, tasks_update, _, _, _ = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": False},
+        tasks=[
+            {"id": "t1", "coluna_kanban": "planejado", "operacional_id": "op-a", "sprint_id": "sprint-1", "titulo": "X", "pontos": 3, "descricao": "d", "checklist": [], "bloqueado": False},
+            {"id": "t2", "coluna_kanban": "em_andamento", "operacional_id": "op-b", "sprint_id": "sprint-1", "titulo": "Y", "pontos": 2, "descricao": "d", "checklist": [], "bloqueado": False},
+        ],
+    )
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
+
+    resp = tc.post("/projects/proj-1/desvincular-planejado")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"desvinculadas": 1}
+    assert tasks_update[0]["operacional_id"] is None
