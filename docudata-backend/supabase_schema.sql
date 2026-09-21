@@ -793,3 +793,49 @@ ALTER TABLE solicitacoes_task ADD COLUMN IF NOT EXISTS sugestao text;
 --   redundante, mas remover índice não faz parte desta spec.
 -- CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_fim
 --     ON pontuacao_operacional_sprint (operacional_id, sprint_fim DESC);
+
+-- ═══════════════════════════════════════════════════════════════
+-- Modos de Trabalho e de Avaliação — Entrega 1: Base (spec
+-- docs/superpowers/specs/2026-09-20-modos-trabalho-avaliacao-design.md)
+-- Só schema desta entrega: config de modo por projeto, histórico de
+-- mudança de modo, congelamento de modo por sprint, e o extrato de
+-- pontos (ledger). Nenhuma coluna de fila/pull/elegibilidade (Entrega 2).
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS modo_trabalho text NOT NULL DEFAULT 'ATRIBUICAO'
+    CHECK (modo_trabalho IN ('ATRIBUICAO','PULL'));
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS modo_avaliacao text NOT NULL DEFAULT 'PONTOS_ATRIBUIDOS'
+    CHECK (modo_avaliacao IN ('PONTOS_ATRIBUIDOS','PONTOS_RELATIVO'));
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pull_exigir_hidratacao boolean NOT NULL DEFAULT true;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pull_piso_pontos numeric(6,2) NOT NULL DEFAULT 1;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pull_teto numeric(4,2) NOT NULL DEFAULT 1.5;
+
+CREATE TABLE IF NOT EXISTS configuracao_historico (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    campo           text NOT NULL CHECK (campo IN ('modo_trabalho','modo_avaliacao')),
+    valor_anterior  text,
+    valor_novo      text NOT NULL,
+    usuario_email   text NOT NULL,
+    criado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_configuracao_historico_project ON configuracao_historico(project_id, criado_em DESC);
+
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS modo_trabalho text;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS modo_avaliacao text;
+ALTER TABLE sprints ADD COLUMN IF NOT EXISTS hibrida boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS pontuacao_eventos (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    operacional_id  uuid NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+    sprint_id       uuid NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    projeto_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    task_id         uuid REFERENCES tasks(id) ON DELETE SET NULL,
+    tipo            text NOT NULL CHECK (tipo IN
+        ('entrega_concluida','travamento_penalidade','devolucao_penalidade','bonus_extra','reabertura')),
+    pontos          int NOT NULL DEFAULT 0,
+    descricao       text,
+    criado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pontuacao_eventos_operacional ON pontuacao_eventos(operacional_id, sprint_id);
+CREATE INDEX IF NOT EXISTS idx_pontuacao_eventos_sprint ON pontuacao_eventos(sprint_id);
