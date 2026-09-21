@@ -1350,14 +1350,18 @@ def make_client(monkeypatch, autenticar):
         from main import app
         mock_sb = _mock_client(task, operacional_da_pessoa, wip_config, update_rowcount)
         monkeypatch.setattr(tasks_router, "get_client", lambda: mock_sb)
-        tc = autenticar(TestClient(app), cargo=cargo, email=operacional_da_pessoa["email"] if operacional_da_pessoa else "gerente@citi.org.br")
+        # A fixture `autenticar` (tests/conftest.py) sempre autentica como
+        # "pessoa@citi.org.br", sem parâmetro de e-mail — por isso o
+        # `operacional_da_pessoa` de cada teste usa esse mesmo e-mail (é
+        # como o mock resolve "qual operacional é o usuário logado").
+        tc = autenticar(TestClient(app), cargo=cargo)
         return tc
     return _make
 
 
 def test_puxar_task_disponivel_atribui_a_quem_puxou(make_client):
     task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False}
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "a@citi.org.br", "project_id": "proj-1"})
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
 
     resp = tc.post("/tasks/t1/puxar")
 
@@ -1367,7 +1371,7 @@ def test_puxar_task_disponivel_atribui_a_quem_puxou(make_client):
 
 def test_puxar_task_ja_puxada_da_409(make_client):
     task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False}
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "a@citi.org.br", "project_id": "proj-1"}, update_rowcount=0)
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"}, update_rowcount=0)
 
     resp = tc.post("/tasks/t1/puxar")
 
@@ -1376,7 +1380,7 @@ def test_puxar_task_ja_puxada_da_409(make_client):
 
 def test_puxar_task_rascunho_da_403(make_client):
     task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": True, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False}
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "a@citi.org.br", "project_id": "proj-1"})
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
 
     resp = tc.post("/tasks/t1/puxar")
 
@@ -1476,7 +1480,7 @@ def test_devolver_task_limpa_responsavel_e_volta_pra_fila(make_client):
         "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
         "travado_automatico": False,
     }
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "a@citi.org.br", "project_id": "proj-1"})
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
 
     resp = tc.post("/tasks/t1/devolver")
 
@@ -1492,7 +1496,9 @@ def test_devolver_task_de_outra_pessoa_da_403_para_operacional(make_client):
         "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
         "travado_automatico": False,
     }
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "a@citi.org.br", "project_id": "proj-1"})
+    # operacional_da_pessoa resolve pra "op-a" (via e-mail pessoa@citi.org.br),
+    # mas a task pertence a "op-b" — RBAC deve barrar.
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
 
     resp = tc.post("/tasks/t1/devolver")
 
