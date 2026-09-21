@@ -538,6 +538,13 @@ class TaskResponse(BaseModel):
     extra: bool = False
     created_at: datetime
     updated_at: datetime
+    entrou_na_fila_em: Optional[datetime] = None
+    pull_em: Optional[datetime] = None
+    atribuida_manualmente: bool = False
+    motivo_atribuicao_manual: Optional[str] = None
+    rascunho: bool = False
+    motivo_rascunho: Optional[str] = None
+    ordem_fila: Optional[int] = None
 
 
 class TaskReordenarItem(BaseModel):
