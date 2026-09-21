@@ -11,3 +11,11 @@ test("api.ts tem os tipos e funções de elegibilidade e comparação de modos",
   assert.ok(API.includes("export async function getComparacaoModos("));
   assert.ok(API.includes("export async function getComparacaoModosEntreProjetos("));
 });
+
+const PAINEL = readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8");
+
+test("PainelTab mostra a seção de elegibilidade da sprint", () => {
+  assert.ok(PAINEL.includes("function ElegibilidadeCard("));
+  assert.ok(PAINEL.includes("getElegiveis("));
+  assert.ok(PAINEL.includes("<ElegibilidadeCard"));
+});

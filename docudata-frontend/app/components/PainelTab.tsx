@@ -12,7 +12,9 @@ import {
   updateContrato,
   listTasksKanban,
   getExtratoPontos,
+  getElegiveis,
   type BlocoD,
+  type ElegivelPonto,
   type FuncionalidadeResponse,
   type OperacionalResponse,
   type PainelData,
@@ -548,6 +550,69 @@ function ExtratoPontosCard({
   );
 }
 
+function ElegibilidadeCard({ sprints }: { sprints: SprintWithStatus[] }) {
+  const [sprintId, setSprintId] = useState<string>(sprints[0]?.id ?? "");
+  const [elegiveis, setElegiveis] = useState<ElegivelPonto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sprintId) return;
+    setLoading(true);
+    setErro(null);
+    getElegiveis(sprintId)
+      .then(setElegiveis)
+      .catch((err) => setErro(err instanceof Error ? err.message : "Erro ao carregar"))
+      .finally(() => setLoading(false));
+  }, [sprintId]);
+
+  return (
+    <div style={cardStyle}>
+      <p style={cardTitleStyle}>Elegibilidade da sprint</p>
+      <select
+        value={sprintId}
+        onChange={(e) => setSprintId(e.target.value)}
+        style={{ ...inputSmStyle, marginBottom: 12 }}
+      >
+        {sprints.map((s) => (
+          <option key={s.id} value={s.id}>Sprint {s.numero}</option>
+        ))}
+      </select>
+
+      {loading ? (
+        <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+      ) : erro ? (
+        <p style={{ fontSize: 12, color: "#dc2626" }}>{erro}</p>
+      ) : elegiveis.length === 0 ? (
+        <p style={{ fontSize: 12, color: "#9696a0" }}>Ninguém vinculado a este projeto nesta consulta.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={thSt} scope="col">Nome</th>
+                <th style={thSt} scope="col">Tasks na sprint</th>
+                <th style={thSt} scope="col">Avaliado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {elegiveis.map((e) => (
+                <tr key={e.operacional_id}>
+                  <td style={tdSt}>{e.nome}</td>
+                  <td style={tdSt}>{e.tasks_na_sprint}</td>
+                  <td style={{ ...tdSt, color: e.avaliado ? "#16a34a" : "#dc2626" }}>
+                    {e.avaliado ? "Sim" : "Não"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false);
   return (
@@ -1022,6 +1087,9 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
       </div>
 
       <ExtratoPontosCard operacionais={operacionais} sprints={sprints} />
+      <div style={{ marginTop: 14 }}>
+        <ElegibilidadeCard sprints={sprints} />
+      </div>
     </div>
   );
 }
