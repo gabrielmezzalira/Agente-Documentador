@@ -726,6 +726,11 @@ CREATE TABLE IF NOT EXISTS pontuacao_eventos (
 CREATE INDEX IF NOT EXISTS idx_pontuacao_eventos_operacional ON pontuacao_eventos(operacional_id, sprint_id);
 CREATE INDEX IF NOT EXISTS idx_pontuacao_eventos_sprint ON pontuacao_eventos(sprint_id);
 
+-- Congela o modo de avaliação vigente em cada linha travada (mesma lógica de
+-- congelamento de services/pontuacao.py::calcular_e_travar_pontuacao), pra
+-- comparar ATRIBUICAO x PULL mesmo que o projeto troque de modo depois.
+ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_modo text;
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (

@@ -37,3 +37,8 @@ def test_pontuacao_eventos_existe():
     schema = _texto_schema()
     assert "CREATE TABLE IF NOT EXISTS pontuacao_eventos (" in schema
     assert "'entrega_concluida','travamento_penalidade','devolucao_penalidade','bonus_extra','reabertura'" in schema
+
+
+def test_pontuacao_operacional_sprint_ganha_coluna_entrega_modo():
+    schema = _texto_schema()
+    assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_modo text;" in schema
