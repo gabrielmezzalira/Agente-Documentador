@@ -758,6 +758,31 @@ ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_pontos
 ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_denominador numeric(10,2);
 ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_nota_relativa numeric(6,2);
 
+-- ═══════════════════════════════════════════════════════════════
+-- Modos de Trabalho e de Avaliação — Entrega 3, Ondas B/C: fila
+-- real (hidratação, pull, devolução) e migração estruturada de modo
+-- (spec docs/superpowers/specs/2026-09-21-modos-trabalho-avaliacao-entrega3-design.md §3/§4)
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS entrou_na_fila_em timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pull_em timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS atribuida_manualmente boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS motivo_atribuicao_manual text;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rascunho boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS motivo_rascunho text;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ordem_fila int;
+
+CREATE TABLE IF NOT EXISTS migracoes_modo (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    de_modo         text NOT NULL,
+    para_modo       text NOT NULL,
+    contagem        jsonb NOT NULL,
+    aplicado_por    uuid REFERENCES pessoa(id),
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_migracoes_modo_project ON migracoes_modo(project_id, created_at DESC);
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (

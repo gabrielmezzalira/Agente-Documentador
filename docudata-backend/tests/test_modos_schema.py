@@ -49,3 +49,17 @@ def test_schema_tem_colunas_da_formula_pontos_relativo():
     assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_pontos_pessoa numeric(10,2);" in schema
     assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_denominador numeric(10,2);" in schema
     assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_nota_relativa numeric(6,2);" in schema
+
+
+def test_schema_tem_colunas_de_fila_em_tasks():
+    schema = _texto_schema()
+    assert "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS entrou_na_fila_em timestamptz;" in schema
+    assert "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pull_em timestamptz;" in schema
+    assert "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS atribuida_manualmente boolean NOT NULL DEFAULT false;" in schema
+    assert "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rascunho boolean NOT NULL DEFAULT false;" in schema
+    assert "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ordem_fila int;" in schema
+
+
+def test_schema_tem_tabela_migracoes_modo():
+    schema = _texto_schema()
+    assert "CREATE TABLE IF NOT EXISTS migracoes_modo (" in schema
