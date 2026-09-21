@@ -354,6 +354,22 @@ def _somar_travamentos(client, task_ids: list[str], cutoff: str | None = None) -
     return total
 
 
+def pontos_travamento_ativo(client, task_id: str) -> int:
+    """Pontos que um travamento automático não dispensado desta task
+    representaria — mesma query que _somar_travamentos já faz por trás,
+    mas para uma única task (usada pela devolução, routers/tasks.py, pra
+    registrar o evento no extrato sem duplicar a regra de cálculo)."""
+    rows = (
+        client.table("task_travamentos")
+        .select("pontos")
+        .eq("task_id", task_id)
+        .eq("dispensado", False)
+        .execute()
+        .data or []
+    )
+    return sum(r.get("pontos") or 0 for r in rows)
+
+
 def _eventos_travamento(client, task_ids: list[str], cutoff: str | None = None) -> list[dict]:
     """Linhas cruas de travamento não dispensado, com task_id — usadas só
     pelo extrato de pontos (pontuacao_eventos). Consulta separada de

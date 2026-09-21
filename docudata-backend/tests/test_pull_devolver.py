@@ -113,3 +113,34 @@ def test_puxar_task_rascunho_da_403(make_client):
     resp = tc.post("/tasks/t1/puxar")
 
     assert resp.status_code == 403
+
+
+def test_devolver_task_limpa_responsavel_e_volta_pra_fila(make_client):
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-a", "rascunho": False,
+        "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
+        "travado_automatico": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operacional_id"] is None
+    assert body["coluna_kanban"] == "planejado"
+
+
+def test_devolver_task_de_outra_pessoa_da_403_para_operacional(make_client):
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-b", "rascunho": False,
+        "coluna_kanban": "em_andamento", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
+        "travado_automatico": False,
+    }
+    # operacional_da_pessoa resolve pra "op-a" (via e-mail pessoa@citi.org.br),
+    # mas a task pertence a "op-b" — RBAC deve barrar.
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 403

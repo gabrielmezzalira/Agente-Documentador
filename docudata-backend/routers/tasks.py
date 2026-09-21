@@ -20,7 +20,7 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
-from services.pontuacao import rotear_evento_pos_fechamento
+from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
 from services.hidratacao import calcular_hidratacao
 
 _LOG = logging.getLogger("docudata.tasks")
@@ -484,6 +484,53 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not result.data:
         raise HTTPException(status_code=409, detail="Esta task já foi puxada.")
 
+    return result.data[0]
+
+
+@router.post("/{task_id}/devolver", response_model=TaskResponse)
+async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
+    """D5/D6 (Entrega 3): o operacional dono da task ou gerente/líder pode
+    devolver. Se a task já estava travado_automatico, registra a mesma
+    penalidade que um travamento normal geraria — sem punir devolução antes
+    de travar (incentivaria segurar a task)."""
+    client = get_client()
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+
+    if pessoa["cargo"] not in ("owner", "lider", "gerente"):
+        meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
+        if meu_operacional_id != task.get("operacional_id"):
+            raise HTTPException(status_code=403, detail="Só quem está com a task (ou gerente/líder) pode devolvê-la.")
+
+    if task.get("travado_automatico"):
+        pontos = pontos_travamento_ativo(client, task_id)
+        if pontos > 0:
+            client.table("pontuacao_eventos").insert({
+                "operacional_id": task["operacional_id"],
+                "sprint_id": task.get("sprint_id"),
+                "projeto_id": task["project_id"],
+                "task_id": task_id,
+                "tipo": "devolucao_penalidade",
+                "pontos": -pontos,
+                "descricao": "Devolução após travamento automático",
+            }).execute()
+
+    agora = datetime.now(timezone.utc).isoformat()
+    fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
+    max_ordem = max((t.get("ordem_fila") or 0) for t in fila) if fila else 0
+
+    updates = {
+        "operacional_id": None,
+        "coluna_kanban": "planejado",
+        "pull_em": None,
+        "entrou_em_andamento_em": None,
+        "travado_automatico": False,
+        "ordem_fila": max_ordem + 1,
+        "updated_at": agora,
+    }
+    result = client.table("tasks").update(updates).eq("id", task_id).execute()
     return result.data[0]
 
 
