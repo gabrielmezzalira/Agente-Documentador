@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
 from services.supabase_client import get_client
+from services.metricas_comparacao import comparar_modos_do_projeto, comparar_modos_entre_projetos
 
 router = APIRouter(prefix="/metricas", tags=["metricas"])
 
@@ -317,3 +318,27 @@ async def get_cycle_time_stats(project_id: str):
         cycle_times_horas.append(round(duracao_s / 3600, 1))
 
     return _percentiles(cycle_times_horas)
+
+
+@router.get("/{project_id}/comparacao-modos")
+async def get_comparacao_modos(project_id: str):
+    """Entrega 2 — compara métricas entre os modos que este projeto já usou
+    (sprints agrupadas pelo modo congelado no fechamento de cada uma)."""
+    client = get_client()
+    proj = client.table("projects").select("id").eq("id", project_id).execute()
+    if not proj.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return comparar_modos_do_projeto(client, project_id)
+
+
+@router.get("/comparacao-modos")
+async def get_comparacao_modos_entre_projetos(
+    projeto_ids: str = Query(..., description="IDs de projeto separados por vírgula, mínimo 2"),
+):
+    """Entrega 2 — compara métricas entre os modos usados por 2+ projetos
+    escolhidos, agrupando pelo modo congelado de cada sprint deles."""
+    ids = [p.strip() for p in projeto_ids.split(",") if p.strip()]
+    if len(ids) < 2:
+        raise HTTPException(status_code=422, detail="Informe ao menos 2 projeto_ids")
+    client = get_client()
+    return comparar_modos_entre_projetos(client, ids)
