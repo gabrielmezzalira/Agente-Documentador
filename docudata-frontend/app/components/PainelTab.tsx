@@ -519,18 +519,29 @@ function ExtratoPontosCard({
       ) : eventos.length === 0 ? (
         <p style={{ fontSize: 12, color: "#9696a0" }}>Nenhum evento de pontuação registrado ainda.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
-          {eventos.map((ev) => (
-            <div key={ev.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, borderBottom: "1px solid #f0f0f4", padding: "6px 0" }}>
-              <span style={{ color: "#374151" }}>
-                {rotuloTipo[ev.tipo]}
-                {ev.descricao ? ` — ${ev.descricao}` : ""}
-              </span>
-              <span style={{ fontWeight: 700, color: ev.pontos > 0 ? "#16a34a" : ev.pontos < 0 ? "#dc2626" : "#9696a0", whiteSpace: "nowrap" }}>
-                {ev.pontos > 0 ? `+${ev.pontos}` : ev.pontos}
-              </span>
-            </div>
-          ))}
+        <div style={{ overflowX: "auto", marginTop: 12 }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={thSt} scope="col">Data</th>
+                <th style={thSt} scope="col">Tipo</th>
+                <th style={thSt} scope="col">Descrição</th>
+                <th style={thSt} scope="col">Pontos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventos.map((ev) => (
+                <tr key={ev.id}>
+                  <td style={tdSt}>{new Date(ev.criado_em).toLocaleDateString("pt-BR")}</td>
+                  <td style={tdSt}>{rotuloTipo[ev.tipo]}</td>
+                  <td style={tdSt}>{ev.descricao ?? "—"}</td>
+                  <td style={{ ...tdSt, fontWeight: 700, color: ev.pontos > 0 ? "#16a34a" : ev.pontos < 0 ? "#dc2626" : "#9696a0", whiteSpace: "nowrap" }}>
+                    {ev.pontos > 0 ? `+${ev.pontos}` : ev.pontos}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1014,3 +1025,20 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
     </div>
   );
 }
+
+const thSt: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 12px",
+  borderBottom: "1px solid #e8e8ed",
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#9696a0",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
+};
+
+const tdSt: React.CSSProperties = {
+  padding: "9px 12px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#374151",
+};
