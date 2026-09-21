@@ -5,12 +5,24 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 
-def _make_mock_client(sprints_data=None, tasks_data=None, avaliacoes_data=None):
+def _make_mock_client(sprints_data=None, tasks_data=None, avaliacoes_data=None, operacionais_data=None):
     client = MagicMock()
 
     def table_side_effect(name):
         tbl = MagicMock()
-        if name == "projects":
+        if name == "operacionais":
+            # services.elegibilidade.listar_vinculados_no_projeto (Entrega 2)
+            # — usado por services.avaliacoes.contar_avaliacao_por_sprint no
+            # lugar de derivar elegibilidade de `tasks`.
+            def select_side_effect(cols):
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                resp = MagicMock()
+                resp.data = list(operacionais_data) if operacionais_data is not None else []
+                q.execute = MagicMock(return_value=resp)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+        elif name == "projects":
             def select_side_effect(cols):
                 q = MagicMock()
                 q.eq = MagicMock(return_value=q)
@@ -88,6 +100,10 @@ def test_contador_avaliacao_reflete_elegiveis_e_avaliados(monkeypatch):
             {"sprint_id": "sprint-1", "pontos": 3, "operacional_id": "op-2"},
         ],
         avaliacoes_data=[{"sprint_id": "sprint-1", "operacional_id": "op-1"}],
+        operacionais_data=[
+            {"id": "op-1", "data_entrada": "2020-01-01T00:00:00+00:00", "data_saida": None},
+            {"id": "op-2", "data_entrada": "2020-01-01T00:00:00+00:00", "data_saida": None},
+        ],
     )
     tc = _patch_and_client(monkeypatch, mock_sb)
 
@@ -99,8 +115,8 @@ def test_contador_avaliacao_reflete_elegiveis_e_avaliados(monkeypatch):
     assert data["avaliados_count"] == 1
 
 
-def test_contador_zero_a_zero_sem_ninguem_com_task(monkeypatch):
-    mock_sb = _make_mock_client(sprints_data=[_SPRINT_ROW], tasks_data=[], avaliacoes_data=[])
+def test_contador_zero_a_zero_sem_ninguem_vinculado(monkeypatch):
+    mock_sb = _make_mock_client(sprints_data=[_SPRINT_ROW], tasks_data=[], avaliacoes_data=[], operacionais_data=[])
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.get("/projects/proj-1/sprints")

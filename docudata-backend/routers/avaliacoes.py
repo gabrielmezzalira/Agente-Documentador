@@ -10,6 +10,7 @@ from models.schemas import (
     PendenciaAvaliacaoResponse,
 )
 from services.auth import get_current_pessoa, require_role
+from services.elegibilidade import listar_vinculados_no_projeto
 from services.pontuacao import calcular_e_travar_pontuacao
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.supabase_client import get_client
@@ -19,20 +20,17 @@ router = APIRouter(prefix="/avaliacoes", tags=["avaliacoes"])
 _EDITAVEL_HORAS = 48
 
 
-def _operacionais_com_task_na_sprint(client, sprint_id: str) -> list[dict]:
-    task_rows = (
-        client.table("tasks").select("operacional_id").eq("sprint_id", sprint_id).execute().data or []
-    )
-    operacional_ids = {t["operacional_id"] for t in task_rows if t.get("operacional_id")}
-    if not operacional_ids:
+def _operacionais_elegiveis(client, sprint_id: str) -> list[dict]:
+    """Elegível = vinculado ao projeto (Entrega 2), não mais "tem task na
+    sprint" — corrige o bug de PULL onde quem não puxava nada nunca aparecia
+    como pendente nem era avaliado. Ver
+    docs/superpowers/specs/2026-09-21-modos-trabalho-avaliacao-entrega2-design.md §2.4."""
+    sprint_resp = client.table("sprints").select("project_id").eq("id", sprint_id).execute()
+    if not sprint_resp.data:
         return []
-    return (
-        client.table("operacionais")
-        .select("id, nome, email, project_id")
-        .in_("id", list(operacional_ids))
-        .execute()
-        .data or []
-    )
+    project_id = sprint_resp.data[0]["project_id"]
+    momento = datetime.now(timezone.utc).isoformat()
+    return listar_vinculados_no_projeto(client, project_id, momento)
 
 
 def _buscar_ultima_avaliacao_outro_projeto(client, operacional: dict) -> Optional[dict]:
@@ -83,7 +81,7 @@ def _buscar_ultima_avaliacao_outro_projeto(client, operacional: dict) -> Optiona
 @router.get("/{sprint_id}/pendencias", response_model=list[PendenciaAvaliacaoResponse])
 async def listar_pendencias(sprint_id: str):
     client = get_client()
-    operacionais = _operacionais_com_task_na_sprint(client, sprint_id)
+    operacionais = _operacionais_elegiveis(client, sprint_id)
     if not operacionais:
         return []
 

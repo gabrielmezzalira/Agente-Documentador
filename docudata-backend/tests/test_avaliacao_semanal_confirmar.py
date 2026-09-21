@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from services.auth import criar_jwt
 
 
-def _mock_client(tasks=None, operacionais=None, avaliacoes=None, sprint_update_ok=True):
+def _mock_client(tasks=None, operacionais=None, avaliacoes=None, sprint_update_ok=True, sprint_project_id="proj-1"):
     tasks = tasks or []
     operacionais = operacionais or []
     avaliacoes = avaliacoes or []
@@ -22,8 +22,20 @@ def _mock_client(tasks=None, operacionais=None, avaliacoes=None, sprint_update_o
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
         elif name == "operacionais":
+            # services.elegibilidade.listar_vinculados_no_projeto (Entrega 2)
+            # chama .eq("project_id", project_id).execute() — não mais
+            # .in_("id", ids).
             def select_side_effect(cols):
                 q = MagicMock()
+
+                def eq_side_effect(field, value):
+                    inner = MagicMock()
+                    resp = MagicMock()
+                    resp.data = [o for o in operacionais if o.get(field) == value]
+                    inner.execute = MagicMock(return_value=resp)
+                    return inner
+
+                q.eq = MagicMock(side_effect=eq_side_effect)
                 q.in_ = MagicMock(return_value=q)
                 resp = MagicMock()
                 resp.data = operacionais
@@ -40,6 +52,23 @@ def _mock_client(tasks=None, operacionais=None, avaliacoes=None, sprint_update_o
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
         elif name == "sprints":
+            # Precisa suportar tanto o select() usado por
+            # routers.avaliacoes._operacionais_elegiveis (resolve project_id
+            # da sprint) quanto o update() do fechamento em si.
+            def select_side_effect(cols):
+                q = MagicMock()
+
+                def eq_side_effect(field, value):
+                    inner = MagicMock()
+                    resp = MagicMock()
+                    resp.data = [{"project_id": sprint_project_id}]
+                    inner.execute = MagicMock(return_value=resp)
+                    return inner
+
+                q.eq = MagicMock(side_effect=eq_side_effect)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
             def update_side_effect(payload):
                 calls["sprint_update"].append(payload)
                 q = MagicMock()

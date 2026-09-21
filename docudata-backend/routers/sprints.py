@@ -121,7 +121,7 @@ async def list_sprints(project_id: str):
         .execute()
     )
 
-    contagem_avaliacao = contar_avaliacao_por_sprint(client, [s["id"] for s in sprints])
+    contagem_avaliacao = contar_avaliacao_por_sprint(client, project_id, [s["id"] for s in sprints])
 
     # Agrega ingestões por (sprint_number, tipo)
     ing_by_sprint: defaultdict = defaultdict(

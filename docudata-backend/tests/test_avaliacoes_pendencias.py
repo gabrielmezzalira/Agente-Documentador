@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from services.auth import criar_jwt
 
 
-def _mock_client(tasks=None, operacionais=None, avaliacoes=None, outras_operacionais=None, projects=None):
+def _mock_client(tasks=None, operacionais=None, avaliacoes=None, outras_operacionais=None, projects=None, sprint_project_id="proj-1"):
     tasks = tasks or []
     operacionais = operacionais or []
     avaliacoes = avaliacoes or []
@@ -26,6 +26,23 @@ def _mock_client(tasks=None, operacionais=None, avaliacoes=None, outras_operacio
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
 
+        elif name == "sprints":
+            # Usado por routers.avaliacoes._operacionais_elegiveis (Entrega 2)
+            # para resolver o project_id da sprint antes de buscar vinculados.
+            def select_side_effect(cols):
+                q = MagicMock()
+
+                def eq_side_effect(field, value):
+                    inner = MagicMock()
+                    resp = MagicMock()
+                    resp.data = [{"project_id": sprint_project_id}]
+                    inner.execute = MagicMock(return_value=resp)
+                    return inner
+
+                q.eq = MagicMock(side_effect=eq_side_effect)
+                return q
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
         elif name == "operacionais":
             def select_side_effect(cols):
                 q = MagicMock()
@@ -39,6 +56,14 @@ def _mock_client(tasks=None, operacionais=None, avaliacoes=None, outras_operacio
 
                 def eq_side_effect(field, value):
                     inner = MagicMock()
+
+                    # services.elegibilidade.listar_vinculados_no_projeto chama
+                    # .eq("project_id", project_id).execute() diretamente — sem
+                    # .neq() encadeado. _buscar_ultima_avaliacao_outro_projeto
+                    # chama .eq("email", ...).neq("project_id", ...).execute().
+                    resp_direto = MagicMock()
+                    resp_direto.data = [o for o in operacionais if o.get(field) == value]
+                    inner.execute = MagicMock(return_value=resp_direto)
 
                     def neq_side_effect(f2, v2):
                         inner2 = MagicMock()
