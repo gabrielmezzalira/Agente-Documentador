@@ -182,7 +182,7 @@ def test_projects_router_has_current_routes():
     """Projects router deve expor todas as rotas atuais do domínio."""
     from routers.projects import router
     routes = router.routes
-    assert len(routes) == 13, f"Expected 13 routes, got {len(routes)}: {[r.path for r in routes]}"
+    assert len(routes) == 14, f"Expected 14 routes, got {len(routes)}: {[r.path for r in routes]}"
     assert any(
         route.path == "/projects/{project_id}/subarea" and "PATCH" in route.methods
         for route in routes

@@ -86,6 +86,11 @@ class ModosProjetoUpdate(BaseModel):
     pull_teto: Optional[float] = Field(default=None, gt=0)
 
 
+class MigrarModoRequest(BaseModel):
+    """POST /projects/{id}/migrar-modo — RF-M1..M8 (Entrega 3)."""
+    para: ModoTrabalho
+
+
 class ConfiguracaoHistoricoResponse(BaseModel):
     id: str
     project_id: str

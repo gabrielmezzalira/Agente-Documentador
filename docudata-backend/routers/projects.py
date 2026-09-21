@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Literal
 from models.schemas import (
@@ -10,12 +11,14 @@ from models.schemas import (
     ModosProjetoUpdate,
     ConfiguracaoHistoricoResponse,
     WipConfigUpdate,
+    MigrarModoRequest,
 )
 from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 from services.hidratacao import calcular_hidratacao
+from services.sprints import get_current_sprint_id
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -411,3 +414,61 @@ async def preview_migrar_modo(
             contagem["sem_alteracao"] += 1
 
     return contagem
+
+
+@router.post("/{project_id}/migrar-modo")
+async def aplicar_migrar_modo(
+    project_id: str,
+    data: MigrarModoRequest,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    """RF-M1..M8 (Entrega 3): aplica a migração de modo. Nunca escreve em
+    task_transicoes/task_reaberturas (RF-M3) — reclassificação estrutural,
+    não movimento de Kanban."""
+    client = get_client()
+    proj = client.table("projects").select("id, modo_trabalho").eq("id", project_id).execute()
+    if not proj.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    de_modo = proj.data[0].get("modo_trabalho") or "ATRIBUICAO"
+
+    tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
+
+    contagem = {"entrando_na_fila": 0, "vira_rascunho": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
+    for task in tasks:
+        coluna = task.get("coluna_kanban")
+        if task.get("bloqueado"):
+            # Mantém responsável e estado de bloqueio — nunca reclassifica.
+            contagem["mantem_responsavel"] += 1
+        elif coluna == "planejado" and data.para == "PULL":
+            rascunho, motivo = calcular_hidratacao(task)
+            updates = {
+                "operacional_id": None,
+                "rascunho": rascunho,
+                "motivo_rascunho": motivo,
+                "entrou_na_fila_em": datetime.now(timezone.utc).isoformat(),
+            }
+            client.table("tasks").update(updates).eq("id", task["id"]).execute()
+            contagem["vira_rascunho" if rascunho else "entrando_na_fila"] += 1
+        elif coluna == "planejado" and data.para == "ATRIBUICAO":
+            client.table("tasks").update({"rascunho": False, "motivo_rascunho": None, "entrou_na_fila_em": None}).eq("id", task["id"]).execute()
+            contagem["sem_alteracao"] += 1
+        elif coluna == "em_andamento":
+            if data.para == "PULL":
+                client.table("tasks").update({"pull_em": datetime.now(timezone.utc).isoformat()}).eq("id", task["id"]).execute()
+            contagem["mantem_responsavel"] += 1
+        else:
+            contagem["sem_alteracao"] += 1
+
+    client.table("migracoes_modo").insert({
+        "project_id": project_id,
+        "de_modo": de_modo,
+        "para_modo": data.para,
+        "contagem": contagem,
+        "aplicado_por": pessoa["id"],
+    }).execute()
+
+    sprint_ativa_id = get_current_sprint_id(client, project_id)
+    if sprint_ativa_id:
+        client.table("sprints").update({"hibrida": True}).eq("id", sprint_ativa_id).execute()
+
+    return {"de_modo": de_modo, "para_modo": data.para, "contagem": contagem}
