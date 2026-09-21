@@ -926,3 +926,29 @@ def test_formula_pontos_atribuidos_nao_grava_colunas_relativas():
     assert resultado[0]["entrega_pontos_pessoa"] is None
     assert resultado[0]["entrega_denominador"] is None
     assert resultado[0]["entrega_nota_relativa"] is None
+
+
+def test_golden_regression_atribuicao_nao_muda_apos_entrega_3():
+    """Mesmo cenário de teste pré-existente do motor de score, sem nenhum
+    campo de PONTOS_RELATIVO no projeto — reafirma que a Entrega 3 é
+    estritamente aditiva para projetos em ATRIBUICAO."""
+    tasks = [
+        {"id": "t1", "operacional_id": "op-a", "pontos": 5, "coluna_kanban": "concluida", "extra": False, "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None},
+        {"id": "t2", "operacional_id": "op-a", "pontos": 3, "coluna_kanban": "planejado", "extra": False, "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None},
+    ]
+    client = _mock_client(
+        sprint={"id": "sprint-1", "project_id": "proj-1"},
+        tasks=tasks,
+        operacionais=[{"id": "op-a", "nome": "A", "email": "a@x.com", "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": None}],
+        projeto={"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS", "pull_piso_pontos": 1, "pull_teto": 1.5},
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    linha = resultado[0]
+    assert linha["entrega_pontos_concluidos"] == 5
+    assert linha["entrega_pontos_alocados"] == 8
+    assert linha["entrega_modo"] == "PONTOS_ATRIBUIDOS"
+    assert linha["entrega_pontos_pessoa"] is None
+    assert linha["entrega_denominador"] is None
+    assert linha["entrega_nota_relativa"] is None
