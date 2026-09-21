@@ -731,6 +731,20 @@ CREATE INDEX IF NOT EXISTS idx_pontuacao_eventos_sprint ON pontuacao_eventos(spr
 -- comparar ATRIBUICAO x PULL mesmo que o projeto troque de modo depois.
 ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_modo text;
 
+-- ═══════════════════════════════════════════════════════════════
+-- Modos de Trabalho e de Avaliação — Entrega 2: Elegibilidade
+-- temporal e métricas comparativas (spec
+-- docs/superpowers/specs/2026-09-21-modos-trabalho-avaliacao-entrega2-design.md)
+-- Colunas simples (sem tabela de histórico) — 1 vínculo mais recente por
+-- pessoa, sem suporte a múltiplos ciclos de entrada/saída no mesmo projeto.
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS data_entrada timestamptz NOT NULL DEFAULT now();
+ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS data_saida timestamptz;
+
+-- Backfill: quem já existia recebe a mesma data de criação como entrada.
+UPDATE operacionais SET data_entrada = created_at WHERE data_entrada IS NULL;
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (
