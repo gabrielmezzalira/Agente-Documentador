@@ -55,3 +55,21 @@ def test_inclui_quem_saiu_depois_do_momento():
     client = _mock_client([op])
     result = listar_vinculados_no_projeto(client, "p1", "2026-06-01T00:00:00+00:00")
     assert [r["id"] for r in result] == ["op-1"]
+
+
+def test_data_entrada_igual_ao_momento_inclui():
+    """"Já passou" é inclusivo — entrada exatamente igual ao momento conta."""
+    op = {"id": "op-1", "nome": "Ana", "email": None, "project_id": "p1",
+          "data_entrada": "2026-06-01T00:00:00+00:00", "data_saida": None}
+    client = _mock_client([op])
+    result = listar_vinculados_no_projeto(client, "p1", "2026-06-01T00:00:00+00:00")
+    assert [r["id"] for r in result] == ["op-1"]
+
+
+def test_data_saida_igual_ao_momento_exclui():
+    """"Posterior" é estrito — saida exatamente igual ao momento NÃO conta."""
+    op = {"id": "op-1", "nome": "Ana", "email": None, "project_id": "p1",
+          "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": "2026-06-01T00:00:00+00:00"}
+    client = _mock_client([op])
+    result = listar_vinculados_no_projeto(client, "p1", "2026-06-01T00:00:00+00:00")
+    assert result == []
