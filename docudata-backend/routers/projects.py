@@ -15,6 +15,7 @@ from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
+from services.hidratacao import calcular_hidratacao
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -365,3 +366,48 @@ async def update_wip_config(
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update wip_config")
     return _sanitize(response.data[0])
+
+
+@router.get("/{project_id}/migrar-modo/preview")
+async def preview_migrar_modo(
+    project_id: str,
+    para: str = Query(...),
+    _pessoa: dict = Depends(require_not_operacional),
+):
+    """RF-M1/M2 (Entrega 3): dry-run — conta quantas tasks cairiam em cada
+    categoria se a migração fosse aplicada agora, sem gravar nada."""
+    if para not in ("ATRIBUICAO", "PULL"):
+        raise HTTPException(status_code=422, detail="para deve ser ATRIBUICAO ou PULL")
+    client = get_client()
+    check = client.table("projects").select("id").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
+
+    contagem = {"entrando_na_fila": 0, "vira_rascunho": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
+    for task in tasks:
+        coluna = task.get("coluna_kanban")
+        # "Bloqueada" no spec original é um estado lógico (RF-M2), mas neste
+        # schema bloqueio é o booleano tasks.bloqueado, ortogonal à coluna —
+        # checa primeiro, antes de dispachar por coluna, e nunca reclassifica
+        # (mantém responsável e estado de bloqueio, igual o spec pede).
+        if task.get("bloqueado"):
+            contagem["mantem_responsavel"] += 1
+        elif coluna == "concluida":
+            contagem["sem_alteracao"] += 1
+        elif coluna == "planejado":
+            if para == "PULL":
+                rascunho, _ = calcular_hidratacao(task)
+                if rascunho:
+                    contagem["vira_rascunho"] += 1
+                else:
+                    contagem["entrando_na_fila"] += 1
+            else:
+                contagem["sem_alteracao"] += 1
+        elif coluna == "em_andamento":
+            contagem["mantem_responsavel"] += 1
+        else:
+            contagem["sem_alteracao"] += 1
+
+    return contagem
