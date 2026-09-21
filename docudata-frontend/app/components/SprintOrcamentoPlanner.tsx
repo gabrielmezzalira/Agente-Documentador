@@ -34,6 +34,8 @@ export default function SprintOrcamentoPlanner({ projectId, sprints, onSprintUpd
         pontos_usados: 0,
         faturamento_previsto: null,
         avaliacao_completa_em: null,
+        avaliados_count: 0,
+        elegiveis_avaliacao_count: 0,
       });
     } catch (err) {
       setCreateErr(err instanceof Error ? err.message : "Erro ao criar sprint.");

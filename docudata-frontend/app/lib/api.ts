@@ -169,6 +169,12 @@ export interface Project {
   periodo_garantia_dias?: number | null;
   arquetipo?: "padrao" | "consultoria_discovery";
   gerente_email?: string | null;
+  modo_trabalho: "ATRIBUICAO" | "PULL";
+  modo_avaliacao: "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
+  pull_exigir_hidratacao: boolean;
+  pull_piso_pontos: number;
+  pull_teto: number;
+  wip_config?: { por_pessoa?: number | null; por_coluna_em_andamento?: number | null } | null;
 }
 
 export type Subarea = "dados" | "dev";
@@ -300,6 +306,8 @@ export interface SprintWithStatus extends Sprint {
   pontos_usados: number;
   faturamento_previsto: number | null;
   avaliacao_completa_em?: string | null;
+  avaliados_count: number;
+  elegiveis_avaliacao_count: number;
 }
 
 export interface AvaliacaoAnterior {
@@ -417,6 +425,81 @@ export async function updateProjectSubarea(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao alterar subárea do projeto");
+  }
+  return res.json();
+}
+
+export interface ConfiguracaoHistoricoEntry {
+  id: string;
+  project_id: string;
+  campo: "modo_trabalho" | "modo_avaliacao";
+  valor_anterior: string | null;
+  valor_novo: string;
+  usuario_email: string;
+  criado_em: string;
+}
+
+export interface ModosProjetoInput {
+  modo_trabalho?: "ATRIBUICAO" | "PULL";
+  modo_avaliacao?: "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
+  pull_exigir_hidratacao?: boolean;
+  pull_piso_pontos?: number;
+  pull_teto?: number;
+}
+
+export async function updateProjectModos(projectId: string, data: ModosProjetoInput): Promise<Project> {
+  const res = await apiFetch(`${API}/projects/${projectId}/modos`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao atualizar modos do projeto");
+  }
+  return res.json();
+}
+
+export async function getModosHistorico(projectId: string): Promise<ConfiguracaoHistoricoEntry[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/modos-historico`);
+  if (!res.ok) throw new Error("Erro ao buscar histórico de configuração");
+  return res.json();
+}
+
+export async function updateWipConfig(
+  projectId: string,
+  data: { por_pessoa?: number; por_coluna_em_andamento?: number }
+): Promise<Project> {
+  const res = await apiFetch(`${API}/projects/${projectId}/wip-config`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao atualizar limite de WIP");
+  }
+  return res.json();
+}
+
+export interface PontuacaoEvento {
+  id: string;
+  operacional_id: string;
+  sprint_id: string;
+  projeto_id: string;
+  task_id: string | null;
+  tipo: "entrega_concluida" | "travamento_penalidade" | "devolucao_penalidade" | "bonus_extra" | "reabertura";
+  pontos: number;
+  descricao: string | null;
+  criado_em: string;
+}
+
+export async function getExtratoPontos(operacionalId: string, sprintId?: string): Promise<PontuacaoEvento[]> {
+  const qs = sprintId ? `?sprint_id=${sprintId}` : "";
+  const res = await apiFetch(`${API}/operacionais/${operacionalId}/extrato${qs}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao buscar extrato de pontos");
   }
   return res.json();
 }
