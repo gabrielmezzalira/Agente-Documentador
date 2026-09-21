@@ -463,7 +463,7 @@ export default function SprintCard({
           {temRetro ? "1/1" : "0/1"} Retrospectiva
           <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
-        {sprint.elegiveis_avaliacao_count > 0 && (
+        {cargo !== "operacional" && sprint.elegiveis_avaliacao_count > 0 && (
           <button
             type="button"
             style={statusChip(!avaliacaoPendente)}
