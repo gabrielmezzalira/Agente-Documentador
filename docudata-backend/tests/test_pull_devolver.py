@@ -6,6 +6,11 @@ from fastapi.testclient import TestClient
 
 def _mock_client(task, operacional_da_pessoa=None, wip_config=None, update_rowcount=1):
     client = MagicMock()
+    # Tracks calls to `.is_(...)` on the atomic update's query chain — used
+    # to assert the code guards the pull with `IS NULL` (via `.is_`), not
+    # `.eq("operacional_id", None)` (which serializes to the literal string
+    # "None" against postgrest and breaks the `uuid` column comparison).
+    is_mock = MagicMock(name="tasks_update_is_")
 
     def table_side_effect(name):
         tbl = MagicMock()
@@ -33,6 +38,8 @@ def _mock_client(task, operacional_da_pessoa=None, wip_config=None, update_rowco
                     return resp
 
                 q.eq = MagicMock(side_effect=eq_effect)
+                is_mock.return_value = q
+                q.is_ = is_mock
                 q.execute = MagicMock(side_effect=execute_effect)
                 return q
 
@@ -55,6 +62,7 @@ def _mock_client(task, operacional_da_pessoa=None, wip_config=None, update_rowco
         return tbl
 
     client.table = MagicMock(side_effect=table_side_effect)
+    client._tasks_update_is_ = is_mock
     return client
 
 
@@ -70,6 +78,7 @@ def make_client(monkeypatch, autenticar):
         # `operacional_da_pessoa` de cada teste usa esse mesmo e-mail (é
         # como o mock resolve "qual operacional é o usuário logado").
         tc = autenticar(TestClient(app), cargo=cargo)
+        tc._mock_sb = mock_sb
         return tc
     return _make
 
@@ -91,6 +100,10 @@ def test_puxar_task_ja_puxada_da_409(make_client):
     resp = tc.post("/tasks/t1/puxar")
 
     assert resp.status_code == 409
+    # A guarda atômica precisa usar IS NULL (via `.is_`), não `.eq("operacional_id", None)`
+    # — este último serializa para a string literal "None" no postgrest e quebra a
+    # comparação contra a coluna `uuid`, falhando em produção mesmo no caso sem disputa.
+    tc._mock_sb._tasks_update_is_.assert_called_once_with("operacional_id", "null")
 
 
 def test_puxar_task_rascunho_da_403(make_client):

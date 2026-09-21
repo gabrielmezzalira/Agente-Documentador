@@ -478,7 +478,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
         client.table("tasks")
         .update(updates)
         .eq("id", task_id)
-        .eq("operacional_id", None)
+        .is_("operacional_id", "null")
         .execute()
     )
     if not result.data:
