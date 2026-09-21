@@ -2078,3 +2078,42 @@ export async function removerOperacionalDoProjeto(id: string): Promise<Operacion
   }
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Elegibilidade e comparação de modos (Entrega 2)
+// ---------------------------------------------------------------------------
+
+export interface ElegivelPonto {
+  operacional_id: string;
+  nome: string;
+  tasks_na_sprint: number;
+  avaliado: boolean;
+}
+
+export async function getElegiveis(sprintId: string): Promise<ElegivelPonto[]> {
+  const res = await apiFetch(`${API}/avaliacoes/${sprintId}/elegiveis`);
+  if (!res.ok) throw new Error("Erro ao buscar elegíveis da sprint");
+  return res.json();
+}
+
+export interface ComparacaoModoPonto {
+  modo_trabalho: string;
+  modo_avaliacao: string;
+  sprints_count: number;
+  pontos_previstos_total: number | null;
+  pontos_realizados_total: number;
+  spi_medio: number | null;
+  entrega_media: number | null;
+}
+
+export async function getComparacaoModos(projectId: string): Promise<ComparacaoModoPonto[]> {
+  const res = await apiFetch(`${API}/metricas/${projectId}/comparacao-modos`);
+  if (!res.ok) throw new Error("Erro ao buscar comparação de modos");
+  return res.json();
+}
+
+export async function getComparacaoModosEntreProjetos(projetoIds: string[]): Promise<ComparacaoModoPonto[]> {
+  const res = await apiFetch(`${API}/metricas/comparacao-modos?projeto_ids=${projetoIds.join(",")}`);
+  if (!res.ok) throw new Error("Erro ao buscar comparação entre projetos");
+  return res.json();
+}
