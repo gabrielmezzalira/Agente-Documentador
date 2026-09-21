@@ -33,6 +33,19 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         return []
     project_id = sprint_resp.data[0]["project_id"]
 
+    projeto_resp = client.table("projects").select("modo_trabalho, modo_avaliacao").eq("id", project_id).execute()
+    projeto_row = projeto_resp.data[0] if projeto_resp.data else {}
+    modo_trabalho = projeto_row.get("modo_trabalho") or "ATRIBUICAO"
+    modo_avaliacao = projeto_row.get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
+
+    # Congela o modo vigente na sprint no momento do fechamento (RF-E1) — os
+    # dois períodos do experimento (ATRIBUICAO x PULL) precisam ficar
+    # comparáveis mesmo que o projeto troque de modo depois.
+    client.table("sprints").update({
+        "modo_trabalho": modo_trabalho,
+        "modo_avaliacao": modo_avaliacao,
+    }).eq("id", sprint_id).execute()
+
     cutoff_resp = (
         client.table("pontuacao_operacional_sprint")
         .select("finalizado_em")
@@ -165,6 +178,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "gerente_media": gerente_media,
             "gerente_pergunta6": gerente_pergunta6,
             "gerente_pergunta3": gerente_pergunta3,
+            "entrega_modo": modo_avaliacao,
             "entrega_pontos_concluidos": pontos_concluidos.get(operacional_id, 0),
             "entrega_pontos_alocados": pontos_alocados.get(operacional_id, 0),
             "entrega_pontos_penalizados": pontos_penalizados.get(operacional_id, 0),

@@ -23,6 +23,8 @@ def _mock_client(
     avaliacoes=None,
     commit_qualidade=None,
     insert_capture=None,
+    projeto=None,
+    sprint_update_capture=None,
 ):
     pontuacao_existente = pontuacao_existente or []
     cutoff_existente = cutoff_existente or []
@@ -34,6 +36,8 @@ def _mock_client(
     avaliacoes = avaliacoes or []
     commit_qualidade = commit_qualidade or []
     insert_capture = insert_capture if insert_capture is not None else []
+    projeto = projeto or {"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS"}
+    sprint_update_capture = sprint_update_capture if sprint_update_capture is not None else []
 
     client = MagicMock()
 
@@ -87,6 +91,27 @@ def _mock_client(
                 q.eq = MagicMock(return_value=q)
                 resp = MagicMock()
                 resp.data = [sprint] if sprint else []
+                q.execute = MagicMock(return_value=resp)
+                return q
+
+            def update_side_effect(payload):
+                sprint_update_capture.append(payload)
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                resp = MagicMock()
+                resp.data = [dict(sprint or {}, **payload)]
+                q.execute = MagicMock(return_value=resp)
+                return q
+
+            tbl.select = MagicMock(side_effect=select_side_effect)
+            tbl.update = MagicMock(side_effect=update_side_effect)
+
+        elif name == "projects":
+            def select_side_effect(cols):
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                resp = MagicMock()
+                resp.data = [projeto]
                 q.execute = MagicMock(return_value=resp)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
@@ -220,6 +245,90 @@ _AVALIACAO_OP1 = {
     "resposta_1": 5, "resposta_2": 4, "resposta_3": 3, "resposta_4": 4, "resposta_5": 5,
     "resposta_6": 2, "resposta_7": 3,
 }
+
+
+def test_golden_fixture_multidimensional_trava_de_regressao(monkeypatch):
+    """Sprint de referência com dado fixo cobrindo as 5 dimensões numa
+    passada só (entrega, qualidade, autonomia, gerente, bônus). Serve de
+    trava de regressão para a spec de Modos de Trabalho e de Avaliação
+    (docs/superpowers/specs/2026-09-20-modos-trabalho-avaliacao-design.md):
+    depois que services/pontuacao.py ganhar os campos da Entrega 1, este
+    teste tem que continuar passando com os MESMOS valores — prova que
+    projeto em ATRIBUICAO + PONTOS_ATRIBUIDOS não muda de comportamento
+    (SDD original, risco §11). Escrito e confirmado passando ANTES de
+    qualquer mudança em calcular_e_travar_pontuacao."""
+    insert_capture = []
+    aval = {
+        "operacional_id": "op-1",
+        "resposta_1": 4, "resposta_2": 4, "resposta_3": 3, "resposta_4": 4,
+        "resposta_5": 4, "resposta_6": 5, "resposta_7": 4,
+    }
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[
+            {
+                "id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida",
+                "bloqueado_resolvido_por": "operacional", "bloqueado_resolvido_em": "2026-09-01T00:00:00Z",
+            },
+            {"id": "task-2", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"},
+            {"id": "task-3", "operacional_id": "op-1", "pontos": 2, "coluna_kanban": "concluida", "extra": True},
+        ],
+        task_transicoes=[
+            {"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"},
+            {"task_id": "task-3", "operacional_id": "op-1", "timestamp": "2026-09-03T00:00:00Z"},
+        ],
+        task_reaberturas=[{"operacional_id": "op-1"}],
+        task_travamentos=[{"task_id": "task-1", "operacional_id": "op-1", "pontos": 5, "dispensado": False, "timestamp": "2026-09-01T12:00:00Z"}],
+        avaliacoes=[aval],
+        commit_qualidade=[{"operacional_id": "op-1", "nota": 8}, {"operacional_id": "op-1", "nota": 6}],
+        insert_capture=insert_capture,
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert len(resultado) == 1
+    linha = resultado[0]
+    assert linha["operacional_id"] == "op-1"
+    assert linha["sprint_id"] == "sprint-1"
+    assert linha["projeto_id"] == "proj-1"
+    assert linha["gerente_media"] == 3.83
+    assert linha["gerente_pergunta6"] == 5
+    assert linha["gerente_pergunta3"] == 3
+    assert linha["entrega_pontos_concluidos"] == 5
+    assert linha["entrega_pontos_alocados"] == 8
+    assert linha["entrega_pontos_penalizados"] == 5
+    assert linha["bonus_pontos_extra"] == 2
+    assert linha["qualidade_reaberturas"] == 1
+    assert linha["qualidade_tasks_concluidas"] == 2
+    assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
+    assert linha["autonomia_bloqueios_totais"] == 1
+    assert linha["qualidade_commit_media"] == 7.0
+    assert linha["arquetipo"] is None
+
+
+def test_congela_modo_trabalho_e_avaliacao_da_sprint_no_fechamento():
+    sprint_update_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        projeto={"modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_RELATIVO"},
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        sprint_update_capture=sprint_update_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert sprint_update_capture == [{"modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_RELATIVO"}]
+
+
+def test_entrega_modo_default_pontos_atribuidos_quando_projeto_nao_configurado():
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+    )
+
+    linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
+
+    assert linha["entrega_modo"] == "PONTOS_ATRIBUIDOS"
 
 
 def test_calcula_entrega_qualidade_autonomia_gerente_para_task_simples(monkeypatch):
