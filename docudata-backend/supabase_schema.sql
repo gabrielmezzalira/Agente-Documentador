@@ -739,11 +739,14 @@ ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_modo t
 -- pessoa, sem suporte a múltiplos ciclos de entrada/saída no mesmo projeto.
 -- ═══════════════════════════════════════════════════════════════
 
-ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS data_entrada timestamptz NOT NULL DEFAULT now();
+ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS data_entrada timestamptz;
 ALTER TABLE operacionais ADD COLUMN IF NOT EXISTS data_saida timestamptz;
 
 -- Backfill: quem já existia recebe a mesma data de criação como entrada.
 UPDATE operacionais SET data_entrada = created_at WHERE data_entrada IS NULL;
+
+ALTER TABLE operacionais ALTER COLUMN data_entrada SET NOT NULL;
+ALTER TABLE operacionais ALTER COLUMN data_entrada SET DEFAULT now();
 
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
