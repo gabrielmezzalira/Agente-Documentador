@@ -276,7 +276,7 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
     return _sanitize(response.data[0])
 
 
-@router.patch("/{project_id}/modos", response_model=ProjectResponse, response_model_exclude_none=True)
+@router.patch("/{project_id}/modos", response_model=ProjectResponse)
 async def update_modos(
     project_id: str,
     data: ModosProjetoUpdate,
@@ -337,7 +337,7 @@ async def get_modos_historico(project_id: str, _pessoa: dict = Depends(require_n
     return resp.data or []
 
 
-@router.patch("/{project_id}/wip-config", response_model=ProjectResponse, response_model_exclude_none=True)
+@router.patch("/{project_id}/wip-config", response_model=ProjectResponse)
 async def update_wip_config(
     project_id: str,
     data: WipConfigUpdate,

@@ -178,7 +178,8 @@ def test_patch_wip_config_forca_por_pessoa_1_em_pull(make_client):
     resp = tc.patch("/projects/proj-1/wip-config", json={"por_pessoa": 3})
 
     assert resp.status_code == 200
-    assert resp.json()["wip_config"] == {"por_pessoa": 1}
+    assert resp.json()["wip_config"]["por_pessoa"] == 1
+    assert resp.json()["wip_config"].get("por_coluna_em_andamento") is None
 
 
 def test_patch_wip_config_edita_livre_em_atribuicao(make_client):
