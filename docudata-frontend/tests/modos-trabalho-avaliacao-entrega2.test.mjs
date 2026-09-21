@@ -26,3 +26,19 @@ test("MetricasTab mostra a comparação de modos dentro do projeto", () => {
   assert.ok(METRICAS.includes("getComparacaoModos("));
   assert.ok(METRICAS.includes("Comparação de modos"));
 });
+
+const PAGE_ENTRE_PROJETOS = readFileSync(
+  new URL("../app/comparacao-modos/page.tsx", import.meta.url),
+  "utf8"
+);
+
+test("página de comparação entre projetos existe e usa a função certa", () => {
+  assert.ok(PAGE_ENTRE_PROJETOS.includes("getComparacaoModosEntreProjetos("));
+  assert.ok(PAGE_ENTRE_PROJETOS.includes("export default function"));
+});
+
+const HOME = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+test("home tem link de navegação pra comparação entre projetos", () => {
+  assert.ok(HOME.includes("/comparacao-modos"));
+});
