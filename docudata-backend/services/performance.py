@@ -30,13 +30,17 @@ def listar_pessoas_ativas(client) -> list[dict]:
 
 
 def _sequencia_pessoal(client, operacional_ids: list[str]) -> list[dict]:
+    """Entrega 2: NÃO filtra mais por entrega_pontos_alocados > 0 — antes
+    disso, quem estava vinculado mas não tinha alocado nada (ex.: PULL, não
+    puxou nenhuma task) sumia da própria sequência em vez de aparecer com 0.
+    A Task 6 (services/pontuacao.py) garante que toda linha zerada
+    relevante já existe em pontuacao_operacional_sprint."""
     if not operacional_ids:
         return []
     return (
         client.table("pontuacao_operacional_sprint")
         .select("*")
         .in_("operacional_id", operacional_ids)
-        .gt("entrega_pontos_alocados", 0)
         .order("sprint_fim", desc=True)
         .execute()
         .data or []
