@@ -360,6 +360,8 @@ export default function SprintCard({
 
   const pendingMeta = pendingGen ? DOC_TYPES[pendingGen] : null;
   const temRetro = docs.some((d) => d.doc_type === "retrospectiva");
+  const avaliacaoPendente =
+    sprint.elegiveis_avaliacao_count > 0 && sprint.avaliados_count < sprint.elegiveis_avaliacao_count;
 
   type ExtractedContent = NonNullable<Ingestion["extracted_content"]>;
 
@@ -461,6 +463,16 @@ export default function SprintCard({
           {temRetro ? "1/1" : "0/1"} Retrospectiva
           <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
         </button>
+        {sprint.elegiveis_avaliacao_count > 0 && (
+          <button
+            type="button"
+            style={statusChip(!avaliacaoPendente)}
+            onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
+            title="Avaliação Semanal"
+          >
+            {sprint.avaliados_count}/{sprint.elegiveis_avaliacao_count} Avaliação
+          </button>
+        )}
         <button
           type="button"
           style={dailyChip(sprint.dailys_count)}

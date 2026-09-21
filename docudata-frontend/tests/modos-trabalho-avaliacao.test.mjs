@@ -21,3 +21,11 @@ test("Project e SprintWithStatus ganham os campos novos", () => {
   assert.ok(API.includes("avaliados_count: number;"));
   assert.ok(API.includes("elegiveis_avaliacao_count: number;"));
 });
+
+const SPRINT_CARD = readFileSync(new URL("../app/components/SprintCard.tsx", import.meta.url), "utf8");
+
+test("SprintCard mostra o contador N/M de avaliação semanal", () => {
+  assert.ok(SPRINT_CARD.includes("const avaliacaoPendente ="));
+  assert.ok(SPRINT_CARD.includes("sprint.elegiveis_avaliacao_count > 0"));
+  assert.ok(SPRINT_CARD.includes("{sprint.avaliados_count}/{sprint.elegiveis_avaliacao_count} Avaliação"));
+});
