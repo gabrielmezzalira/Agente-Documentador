@@ -15,6 +15,7 @@ from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.spi_health import auto_update_sprint_health
 from services.sprints import iniciar_sprint_e_ancorar_tasks
+from services.avaliacoes import contar_avaliacao_por_sprint
 
 router = APIRouter(tags=["sprints"])
 
@@ -120,6 +121,8 @@ async def list_sprints(project_id: str):
         .execute()
     )
 
+    contagem_avaliacao = contar_avaliacao_por_sprint(client, [s["id"] for s in sprints])
+
     # Agrega ingestões por (sprint_number, tipo)
     ing_by_sprint: defaultdict = defaultdict(
         lambda: {"planning": 0, "daily": 0, "review": 0, "total": 0}
@@ -157,6 +160,8 @@ async def list_sprints(project_id: str):
             "ingestions_count": agg["total"],
             "docs_gerados_count": docs_by_sprint[n],
             "pendencias": pendencias,
+            "avaliados_count": contagem_avaliacao.get(sprint["id"], {}).get("avaliados", 0),
+            "elegiveis_avaliacao_count": contagem_avaliacao.get(sprint["id"], {}).get("elegiveis", 0),
             "pontos_usados": pontos_usados_por_sprint.get(sprint["id"], 0),
             "faturamento_previsto": (
                 round(sprint["pontos_orcamento"] * valor_por_ponto, 2)
