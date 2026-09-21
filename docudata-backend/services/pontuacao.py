@@ -9,9 +9,12 @@ incremental mantido ao longo da sprint. Por isso reatribuição mid-sprint não
 precisa de tratamento especial: o cálculo simplesmente lê o estado atual (e o
 histórico de transições, pra "quem completou") quando roda.
 """
+import logging
 from datetime import datetime, timezone
 
 from services.sprints import get_current_sprint_id
+
+log = logging.getLogger("pontuacao")
 
 
 def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
@@ -224,19 +227,27 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     resp = client.table("pontuacao_operacional_sprint").insert(linhas).execute()
 
+    # Extrato (pontuacao_eventos) é best-effort: a pontuação acima já foi
+    # travada e não pode ser desfeita por uma falha aqui. Como o fechamento é
+    # idempotente (guarda no topo desta função), um erro não tratado neste
+    # insert faria um retry pular direto pro "já existe" e nunca mais escrever
+    # o ledger dessa sprint — silenciosa e permanentemente.
     if eventos:
-        client.table("pontuacao_eventos").insert([
-            {
-                "operacional_id": e["operacional_id"],
-                "sprint_id": sprint_id,
-                "projeto_id": project_id,
-                "task_id": e.get("task_id"),
-                "tipo": e["tipo"],
-                "pontos": e["pontos"],
-                "descricao": e.get("descricao"),
-            }
-            for e in eventos
-        ]).execute()
+        try:
+            client.table("pontuacao_eventos").insert([
+                {
+                    "operacional_id": e["operacional_id"],
+                    "sprint_id": sprint_id,
+                    "projeto_id": project_id,
+                    "task_id": e.get("task_id"),
+                    "tipo": e["tipo"],
+                    "pontos": e["pontos"],
+                    "descricao": e.get("descricao"),
+                }
+                for e in eventos
+            ]).execute()
+        except Exception:
+            log.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da sprint %s", sprint_id)
 
     return resp.data or []
 

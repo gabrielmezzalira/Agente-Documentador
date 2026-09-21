@@ -26,6 +26,7 @@ def _mock_client(
     projeto=None,
     sprint_update_capture=None,
     eventos_insert_capture=None,
+    eventos_insert_raises=False,
 ):
     pontuacao_existente = pontuacao_existente or []
     cutoff_existente = cutoff_existente or []
@@ -122,9 +123,14 @@ def _mock_client(
             def insert_side_effect(payload):
                 eventos_insert_capture.extend(payload)
                 q = MagicMock()
-                resp = MagicMock()
-                resp.data = [dict(row, id=f"evt-{i}") for i, row in enumerate(payload)]
-                q.execute = MagicMock(return_value=resp)
+                if eventos_insert_raises:
+                    def execute_effect():
+                        raise RuntimeError("falha simulada no insert de pontuacao_eventos")
+                    q.execute = MagicMock(side_effect=execute_effect)
+                else:
+                    resp = MagicMock()
+                    resp.data = [dict(row, id=f"evt-{i}") for i, row in enumerate(payload)]
+                    q.execute = MagicMock(return_value=resp)
                 return q
             tbl.insert = MagicMock(side_effect=insert_side_effect)
 
@@ -754,6 +760,31 @@ def test_extrato_registra_reabertura_sem_pontos():
     reaberturas = [e for e in eventos_insert_capture if e["tipo"] == "reabertura"]
     assert len(reaberturas) == 1
     assert reaberturas[0]["pontos"] == 0
+
+
+def test_falha_no_insert_do_extrato_nao_derruba_o_fechamento():
+    """Finding 2 do review final: pontuacao_eventos é best-effort — se o
+    insert do ledger falhar, a pontuação já travada (pontuacao_operacional_sprint)
+    tem que ser retornada normalmente, sem propagar a exceção."""
+    eventos_insert_capture = []
+    insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        eventos_insert_capture=eventos_insert_capture,
+        eventos_insert_raises=True,
+        insert_capture=insert_capture,
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert len(resultado) == 1
+    assert resultado[0]["operacional_id"] == "op-1"
+    assert resultado[0]["entrega_pontos_concluidos"] == 5
+    # O insert foi tentado (e capturado antes de estourar) — prova que a
+    # tentativa aconteceu, não que ela foi pulada.
+    assert eventos_insert_capture
 
 
 def test_extrato_nao_insere_nada_quando_nao_ha_eventos():
