@@ -438,6 +438,55 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve, pes
     )
 
 
+def _resolver_operacional_id_da_pessoa(client, project_id: str, pessoa_email: str) -> Optional[str]:
+    """pessoa (login) e operacionais (registro por projeto) são tabelas
+    diferentes, reconciliadas por e-mail — nunca pelo mesmo id (mesmo padrão
+    de services/auth.py::require_project_access)."""
+    resp = client.table("operacionais").select("id").eq("project_id", project_id).eq("email", pessoa_email).execute()
+    return resp.data[0]["id"] if resp.data else None
+
+
+@router.post("/{task_id}/puxar", response_model=TaskResponse)
+async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
+    client = get_client()
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+
+    if task.get("rascunho") or task.get("operacional_id") is not None:
+        raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
+
+    operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
+    if not operacional_id:
+        raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
+
+    ok, motivo = check_wip(client, task["project_id"], operacional_id, "em_andamento")
+    if not ok:
+        raise HTTPException(status_code=409, detail=motivo)
+
+    agora = datetime.now(timezone.utc).isoformat()
+    updates = {
+        "operacional_id": operacional_id,
+        "coluna_kanban": "em_andamento",
+        "entrou_em_andamento_em": agora,
+        "pull_em": agora,
+        "ordem_fila": None,
+        "updated_at": agora,
+    }
+    result = (
+        client.table("tasks")
+        .update(updates)
+        .eq("id", task_id)
+        .eq("operacional_id", None)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=409, detail="Esta task já foi puxada.")
+
+    return result.data[0]
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
     client = get_client()
