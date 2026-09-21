@@ -37,7 +37,9 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         return []
     project_id = sprint_resp.data[0]["project_id"]
 
-    projeto_resp = client.table("projects").select("modo_trabalho, modo_avaliacao").eq("id", project_id).execute()
+    projeto_resp = client.table("projects").select(
+        "modo_trabalho, modo_avaliacao, pull_piso_pontos, pull_teto"
+    ).eq("id", project_id).execute()
     projeto_row = projeto_resp.data[0] if projeto_resp.data else {}
     modo_trabalho = projeto_row.get("modo_trabalho") or "ATRIBUICAO"
     modo_avaliacao = projeto_row.get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
@@ -198,6 +200,13 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     if not operacional_ids:
         return []
 
+    denominador_relativo = None
+    if modo_avaliacao == "PONTOS_RELATIVO":
+        valores_concluidos = [pontos_concluidos.get(op, 0) for op in vinculados_ids] or [0]
+        denominador_bruto = sum(valores_concluidos) / len(valores_concluidos)
+        piso = float(projeto_row.get("pull_piso_pontos") or 1)
+        denominador_relativo = max(denominador_bruto, piso)
+
     agora = momento_fechamento
     linhas = []
     for operacional_id in operacional_ids:
@@ -214,6 +223,16 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             gerente_media = round(sum(notas) / len(notas), 2)
             gerente_pergunta6 = aval["resposta_6"]
             gerente_pergunta3 = aval["resposta_3"]
+
+        entrega_pontos_pessoa = None
+        entrega_denominador = None
+        entrega_nota_relativa = None
+        if modo_avaliacao == "PONTOS_RELATIVO":
+            teto = float(projeto_row.get("pull_teto") or 1.5)
+            entrega_pontos_pessoa = pontos_concluidos.get(operacional_id, 0)
+            entrega_denominador = round(denominador_relativo, 2)
+            entrega_bruta = entrega_pontos_pessoa / denominador_relativo if denominador_relativo else 0
+            entrega_nota_relativa = round(min(entrega_bruta, teto) * 100 / teto, 2)
 
         linhas.append({
             "operacional_id": operacional_id,
@@ -235,6 +254,9 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "qualidade_commit_media": qualidade_commit.get(operacional_id),
             "arquetipo": None,
             "finalizado_em": agora,
+            "entrega_pontos_pessoa": entrega_pontos_pessoa,
+            "entrega_denominador": entrega_denominador,
+            "entrega_nota_relativa": entrega_nota_relativa,
         })
 
     resp = client.table("pontuacao_operacional_sprint").insert(linhas).execute()

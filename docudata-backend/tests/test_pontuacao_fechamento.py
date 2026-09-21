@@ -872,3 +872,57 @@ def test_sprint_sem_nenhuma_task_ainda_cria_linhas_zeradas_pra_vinculados():
 def test_sprint_sem_task_e_sem_vinculado_continua_retornando_vazio():
     client = _mock_client(sprint={"id": "sprint-1", "project_id": "proj-1"}, tasks=[], operacionais=[])
     assert calcular_e_travar_pontuacao(client, "sprint-1") == []
+
+
+def test_formula_pontos_relativo_usa_piso_e_teto_do_projeto():
+    """3 vinculados: A concluiu 6 pontos, B concluiu 2, C não concluiu nada.
+    denominador_bruto = (6+2+0)/3 = 2.667; piso=1 não altera (2.667 > 1);
+    teto=1.5.
+    A: bruta = 6/2.667=2.25 -> min(2.25,1.5)=1.5 -> nota=100
+    B: bruta = 2/2.667=0.75 -> min(0.75,1.5)=0.75 -> nota=50.0
+    C: bruta = 0/2.667=0 -> nota=0
+    """
+    operacionais = [
+        {"id": "op-a", "nome": "A", "email": "a@x.com", "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": None},
+        {"id": "op-b", "nome": "B", "email": "b@x.com", "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": None},
+        {"id": "op-c", "nome": "C", "email": "c@x.com", "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": None},
+    ]
+    tasks = [
+        {"id": "t1", "operacional_id": "op-a", "pontos": 6, "coluna_kanban": "concluida", "extra": False, "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None},
+        {"id": "t2", "operacional_id": "op-b", "pontos": 2, "coluna_kanban": "concluida", "extra": False, "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None},
+    ]
+    capture = []
+    client = _mock_client(
+        sprint={"id": "sprint-1", "project_id": "proj-1"},
+        tasks=tasks,
+        operacionais=operacionais,
+        projeto={"modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_RELATIVO", "pull_piso_pontos": 1, "pull_teto": 1.5},
+        insert_capture=capture,
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    por_op = {r["operacional_id"]: r for r in resultado}
+    assert por_op["op-a"]["entrega_nota_relativa"] == 100.0
+    assert por_op["op-b"]["entrega_nota_relativa"] == 50.0
+    assert por_op["op-c"]["entrega_nota_relativa"] == 0.0
+    assert por_op["op-a"]["entrega_pontos_pessoa"] == 6
+    assert por_op["op-a"]["entrega_denominador"] == round(8 / 3, 2)
+
+
+def test_formula_pontos_atribuidos_nao_grava_colunas_relativas():
+    tasks = [
+        {"id": "t1", "operacional_id": "op-a", "pontos": 6, "coluna_kanban": "concluida", "extra": False, "bloqueado_resolvido_por": None, "bloqueado_resolvido_em": None},
+    ]
+    client = _mock_client(
+        sprint={"id": "sprint-1", "project_id": "proj-1"},
+        tasks=tasks,
+        operacionais=[{"id": "op-a", "nome": "A", "email": "a@x.com", "data_entrada": "2026-01-01T00:00:00+00:00", "data_saida": None}],
+        projeto={"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS", "pull_piso_pontos": 1, "pull_teto": 1.5},
+    )
+
+    resultado = calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert resultado[0]["entrega_pontos_pessoa"] is None
+    assert resultado[0]["entrega_denominador"] is None
+    assert resultado[0]["entrega_nota_relativa"] is None
