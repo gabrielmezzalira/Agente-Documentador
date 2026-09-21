@@ -76,6 +76,8 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     bloqueios_proprio: dict[str, int] = {}
     bonus_extra: dict[str, int] = {}
 
+    eventos: list[dict] = []
+
     for task in tasks:
         pontos = task.get("pontos") or 0
         concluida = task.get("coluna_kanban") == "concluida"
@@ -90,12 +92,22 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
                 if operacional_id:
                     bonus_extra[operacional_id] = bonus_extra.get(operacional_id, 0) + pontos
                     tasks_concluidas[operacional_id] = tasks_concluidas.get(operacional_id, 0) + 1
+                    eventos.append({
+                        "operacional_id": operacional_id, "task_id": task["id"],
+                        "tipo": "bonus_extra", "pontos": pontos,
+                        "descricao": "Task extra concluída",
+                    })
         elif concluida:
             operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
             if operacional_id:
                 pontos_concluidos[operacional_id] = pontos_concluidos.get(operacional_id, 0) + pontos
                 pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
                 tasks_concluidas[operacional_id] = tasks_concluidas.get(operacional_id, 0) + 1
+                eventos.append({
+                    "operacional_id": operacional_id, "task_id": task["id"],
+                    "tipo": "entrega_concluida", "pontos": pontos,
+                    "descricao": "Task concluída",
+                })
         else:
             operacional_id = task.get("operacional_id")
             if operacional_id:
@@ -115,6 +127,24 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     # alerta: se ela nunca foi concluída, os pontos dela já não estão nos
     # concluídos, e descontar de novo puniria as OUTRAS entregas da pessoa.
     pontos_penalizados = _somar_travamentos(client, task_ids_concluidas, cutoff)
+
+    for row in _eventos_travamento(client, task_ids_concluidas, cutoff):
+        op = row.get("operacional_id")
+        if op:
+            eventos.append({
+                "operacional_id": op, "task_id": row.get("task_id"),
+                "tipo": "travamento_penalidade", "pontos": -(row.get("pontos") or 0),
+                "descricao": "Travamento automático não dispensado",
+            })
+
+    for row in _eventos_reabertura(client, [t["id"] for t in tasks], cutoff):
+        op = row.get("operacional_id")
+        if op:
+            eventos.append({
+                "operacional_id": op, "task_id": row.get("task_id"),
+                "tipo": "reabertura", "pontos": 0,
+                "descricao": "Reabertura registrada",
+            })
 
     eventos_tardios = (
         client.table("eventos_pontuacao_tardios")
@@ -193,6 +223,21 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         })
 
     resp = client.table("pontuacao_operacional_sprint").insert(linhas).execute()
+
+    if eventos:
+        client.table("pontuacao_eventos").insert([
+            {
+                "operacional_id": e["operacional_id"],
+                "sprint_id": sprint_id,
+                "projeto_id": project_id,
+                "task_id": e.get("task_id"),
+                "tipo": e["tipo"],
+                "pontos": e["pontos"],
+                "descricao": e.get("descricao"),
+            }
+            for e in eventos
+        ]).execute()
+
     return resp.data or []
 
 
@@ -262,6 +307,39 @@ def _somar_travamentos(client, task_ids: list[str], cutoff: str | None = None) -
         if op:
             total[op] = total.get(op, 0) + (row.get("pontos") or 0)
     return total
+
+
+def _eventos_travamento(client, task_ids: list[str], cutoff: str | None = None) -> list[dict]:
+    """Linhas cruas de travamento não dispensado, com task_id — usadas só
+    pelo extrato de pontos (pontuacao_eventos). Consulta separada de
+    _somar_travamentos para não alterar uma função já coberta pelo teste de
+    regressão do motor de score."""
+    if not task_ids:
+        return []
+    query = (
+        client.table("task_travamentos")
+        .select("task_id, operacional_id, pontos, timestamp")
+        .in_("task_id", task_ids)
+        .eq("dispensado", False)
+    )
+    if cutoff is not None:
+        query = query.gt("timestamp", cutoff)
+    return query.execute().data or []
+
+
+def _eventos_reabertura(client, task_ids: list[str], cutoff: str | None = None) -> list[dict]:
+    """Espelha _contar_reaberturas preservando task_id, para o extrato de
+    pontos."""
+    if not task_ids:
+        return []
+    query = (
+        client.table("task_reaberturas")
+        .select("task_id, operacional_id, timestamp")
+        .in_("task_id", task_ids)
+    )
+    if cutoff is not None:
+        query = query.gt("timestamp", cutoff)
+    return query.execute().data or []
 
 
 def _calcular_qualidade_commit(client, projeto_id: str, cutoff: str | None) -> dict[str, float]:

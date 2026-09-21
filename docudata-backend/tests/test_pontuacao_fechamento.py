@@ -25,6 +25,7 @@ def _mock_client(
     insert_capture=None,
     projeto=None,
     sprint_update_capture=None,
+    eventos_insert_capture=None,
 ):
     pontuacao_existente = pontuacao_existente or []
     cutoff_existente = cutoff_existente or []
@@ -38,6 +39,7 @@ def _mock_client(
     insert_capture = insert_capture if insert_capture is not None else []
     projeto = projeto or {"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS"}
     sprint_update_capture = sprint_update_capture if sprint_update_capture is not None else []
+    eventos_insert_capture = eventos_insert_capture if eventos_insert_capture is not None else []
 
     client = MagicMock()
 
@@ -115,6 +117,16 @@ def _mock_client(
                 q.execute = MagicMock(return_value=resp)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
+
+        elif name == "pontuacao_eventos":
+            def insert_side_effect(payload):
+                eventos_insert_capture.extend(payload)
+                q = MagicMock()
+                resp = MagicMock()
+                resp.data = [dict(row, id=f"evt-{i}") for i, row in enumerate(payload)]
+                q.execute = MagicMock(return_value=resp)
+                return q
+            tbl.insert = MagicMock(side_effect=insert_side_effect)
 
         elif name == "tasks":
             def select_side_effect(cols):
@@ -667,3 +679,91 @@ def test_pergunta_3_fica_guardada_para_autonomia():
     linha = calcular_e_travar_pontuacao(client, "sprint-1")[0]
 
     assert linha["gerente_pergunta3"] == _AVALIACAO_OP1["resposta_3"]
+
+
+def test_extrato_registra_entrega_concluida_e_bonus_extra():
+    eventos_insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[
+            {"id": "task-1", "operacional_id": "op-1", "pontos": 5, "coluna_kanban": "concluida"},
+            {"id": "task-2", "operacional_id": "op-1", "pontos": 2, "coluna_kanban": "concluida", "extra": True},
+        ],
+        task_transicoes=[
+            {"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"},
+            {"task_id": "task-2", "operacional_id": "op-1", "timestamp": "2026-09-03T00:00:00Z"},
+        ],
+        eventos_insert_capture=eventos_insert_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    tipos = {(e["tipo"], e["task_id"], e["pontos"]) for e in eventos_insert_capture}
+    assert ("entrega_concluida", "task-1", 5) in tipos
+    assert ("bonus_extra", "task-2", 2) in tipos
+    for evento in eventos_insert_capture:
+        assert evento["sprint_id"] == "sprint-1"
+        assert evento["projeto_id"] == "proj-1"
+        assert evento["operacional_id"] == "op-1"
+
+
+def test_extrato_registra_travamento_como_penalidade_negativa():
+    eventos_insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 8, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        task_travamentos=[{"task_id": "task-1", "operacional_id": "op-1", "pontos": 8, "dispensado": False, "timestamp": "2026-09-01T00:00:00Z"}],
+        eventos_insert_capture=eventos_insert_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    penalidades = [e for e in eventos_insert_capture if e["tipo"] == "travamento_penalidade"]
+    assert len(penalidades) == 1
+    assert penalidades[0]["pontos"] == -8
+    assert penalidades[0]["task_id"] == "task-1"
+
+
+def test_extrato_travamento_dispensado_nao_gera_evento():
+    eventos_insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 8, "coluna_kanban": "concluida"}],
+        task_transicoes=[{"task_id": "task-1", "operacional_id": "op-1", "timestamp": "2026-09-02T00:00:00Z"}],
+        task_travamentos=[{"task_id": "task-1", "operacional_id": "op-1", "pontos": 8, "dispensado": True, "timestamp": "2026-09-01T00:00:00Z"}],
+        eventos_insert_capture=eventos_insert_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert not any(e["tipo"] == "travamento_penalidade" for e in eventos_insert_capture)
+
+
+def test_extrato_registra_reabertura_sem_pontos():
+    eventos_insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        task_reaberturas=[{"operacional_id": "op-1"}],
+        eventos_insert_capture=eventos_insert_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    reaberturas = [e for e in eventos_insert_capture if e["tipo"] == "reabertura"]
+    assert len(reaberturas) == 1
+    assert reaberturas[0]["pontos"] == 0
+
+
+def test_extrato_nao_insere_nada_quando_nao_ha_eventos():
+    eventos_insert_capture = []
+    client = _mock_client(
+        sprint=_SPRINT,
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        eventos_insert_capture=eventos_insert_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert eventos_insert_capture == []
