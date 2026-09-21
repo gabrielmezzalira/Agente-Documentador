@@ -554,16 +554,22 @@ function ModosTrabalhoSection({
             Fixo em <strong>1</strong> — o modo pull opera com uma task em andamento por pessoa. O limite de WIP da coluna inteira continua editável na aba Tasks.
           </p>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input
-              type="number"
-              min={1}
-              value={wipPorPessoaInput}
-              onChange={(e) => { setWipPorPessoaInput(e.target.value); setWipMsg(null); }}
-              disabled={savingWip}
-              placeholder="Sem limite"
-              style={{ ...inputStyle, width: 100 }}
-            />
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+            <div>
+              <label htmlFor="project-wip-por-pessoa" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+                Limite de WIP por pessoa
+              </label>
+              <input
+                id="project-wip-por-pessoa"
+                type="number"
+                min={1}
+                value={wipPorPessoaInput}
+                onChange={(e) => { setWipPorPessoaInput(e.target.value); setWipMsg(null); }}
+                disabled={savingWip}
+                placeholder="Sem limite"
+                style={{ ...inputStyle, width: 100 }}
+              />
+            </div>
             <button
               type="button"
               onClick={handleSalvarWip}
