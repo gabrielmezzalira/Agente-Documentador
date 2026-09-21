@@ -292,3 +292,32 @@ def test_bonus_de_task_extra_respeita_o_teto():
     assert _bonus_extra([{"bonus_pontos_extra": 4}, {"bonus_pontos_extra": 9}]) == 5.0
     assert _bonus_extra([{"bonus_pontos_extra": 0}]) == 0.0
     assert _bonus_extra([{}]) == 0.0
+
+
+# ── Entrega 3 — Modos de trabalho (PONTOS_RELATIVO) ──────────────────────────
+
+def test_entrega_por_projeto_usa_nota_relativa_quando_modo_e_relativo():
+    from services.performance import _entrega_por_projeto
+    linhas = [{"entrega_modo": "PONTOS_RELATIVO", "entrega_nota_relativa": 80.0}]
+    assert _entrega_por_projeto(linhas) == 80.0
+
+
+def test_entrega_por_projeto_media_relativa_entre_sprints_da_janela():
+    from services.performance import _entrega_por_projeto
+    linhas = [
+        {"entrega_modo": "PONTOS_RELATIVO", "entrega_nota_relativa": 80.0},
+        {"entrega_modo": "PONTOS_RELATIVO", "entrega_nota_relativa": 40.0},
+    ]
+    assert _entrega_por_projeto(linhas) == 60.0
+
+
+def test_entrega_por_projeto_janela_mista_pondera_por_quantidade_de_sprints():
+    from services.performance import _entrega_por_projeto
+    # 2 sprints ATRIBUICAO (rate agregado 50%) + 1 sprint PULL (nota 80) —
+    # média ponderada por contagem: (50*2 + 80*1) / 3 = 60.0
+    linhas = [
+        {"entrega_modo": "PONTOS_ATRIBUIDOS", "entrega_pontos_concluidos": 5, "entrega_pontos_alocados": 10, "entrega_pontos_penalizados": 0},
+        {"entrega_modo": "PONTOS_ATRIBUIDOS", "entrega_pontos_concluidos": 5, "entrega_pontos_alocados": 10, "entrega_pontos_penalizados": 0},
+        {"entrega_modo": "PONTOS_RELATIVO", "entrega_nota_relativa": 80.0},
+    ]
+    assert _entrega_por_projeto(linhas) == 60.0

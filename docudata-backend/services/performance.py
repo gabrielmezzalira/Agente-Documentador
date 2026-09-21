@@ -116,10 +116,37 @@ def _media_cross_projeto(por_projeto: dict[str, list[dict]], calc_por_projeto) -
 
 
 def _entrega_por_projeto(linhas: list[dict]) -> float | None:
+    """Combina os dois modos de avaliação de Entrega dentro de uma janela.
+    Na prática o caso comum é homogêneo (projeto nunca trocou de modo); o
+    caso misto só acontece se o projeto migrou de ATRIBUICAO<->PULL no meio
+    do período coberto pela janela (Onda B desta entrega)."""
+    atribuidas = [l for l in linhas if l.get("entrega_modo") != "PONTOS_RELATIVO"]
+    relativas = [l for l in linhas if l.get("entrega_modo") == "PONTOS_RELATIVO"]
+
+    score_atribuicao = _entrega_atribuicao(atribuidas)
+    score_relativo = _entrega_relativa(relativas)
+
+    if score_atribuicao is None:
+        return score_relativo
+    if score_relativo is None:
+        return score_atribuicao
+    # Janela mista: as duas fórmulas não são comensuráveis em pontos brutos
+    # (uma soma pontos, a outra já é nota 0-100 por sprint), então pondera
+    # pela quantidade de sprints de cada regime em vez de tentar somar pontos
+    # de bases diferentes. Decisão de plano (Entrega 3, Task 3) — não coberta
+    # explicitamente pelo spec original, que não previa migração mid-window.
+    peso_atrib = len(atribuidas)
+    peso_rel = len(relativas)
+    return round((score_atribuicao * peso_atrib + score_relativo * peso_rel) / (peso_atrib + peso_rel), 2)
+
+
+def _entrega_atribuicao(linhas: list[dict]) -> float | None:
     """Entrega desconta os pontos penalizados por travamento automático: uma task
     que ficou parada muito além do tempo esperado não conta como entrega cheia
     (decisão do Líder, 2026-09-07). O gerente pode dispensar o travamento no
     alerta da task, e aí ele não penaliza."""
+    if not linhas:
+        return None
     concluidos = sum(l["entrega_pontos_concluidos"] for l in linhas)
     penalizados = sum(l.get("entrega_pontos_penalizados") or 0 for l in linhas)
     alocados = sum(l["entrega_pontos_alocados"] for l in linhas)
@@ -127,6 +154,19 @@ def _entrega_por_projeto(linhas: list[dict]) -> float | None:
         return None
     efetivos = max(concluidos - penalizados, 0)
     return round(min(efetivos / alocados * 100, 100), 2)
+
+
+def _entrega_relativa(linhas: list[dict]) -> float | None:
+    """PONTOS_RELATIVO: a nota já vem normalizada (0-100) por sprint,
+    congelada no fechamento (services/pontuacao.py::calcular_e_travar_pontuacao)
+    — aqui só faz a média simples entre as sprints da janela, sem reprocessar
+    piso/teto (esses já foram aplicados na hora do congelamento)."""
+    if not linhas:
+        return None
+    valores = [l["entrega_nota_relativa"] for l in linhas if l.get("entrega_nota_relativa") is not None]
+    if not valores:
+        return None
+    return round(sum(valores) / len(valores), 2)
 
 
 def _gerente_por_projeto(linhas: list[dict]) -> float | None:
