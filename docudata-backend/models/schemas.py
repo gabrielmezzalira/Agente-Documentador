@@ -30,6 +30,15 @@ class RevisaoEstruturada(BaseModel):
     relatorio_tecnico: str
 
 
+ModoTrabalho = Literal["ATRIBUICAO", "PULL"]
+ModoAvaliacao = Literal["PONTOS_ATRIBUIDOS", "PONTOS_RELATIVO"]
+
+
+class WipConfigResponse(BaseModel):
+    por_pessoa: Optional[int] = None
+    por_coluna_em_andamento: Optional[int] = None
+
+
 class ProjectCreate(BaseModel):
     name: str
     client: str
@@ -59,6 +68,55 @@ class ProjectResponse(BaseModel):
     has_github_config: bool = False
     gerente_email: Optional[str] = None
     arquetipo: str = "padrao"
+    modo_trabalho: ModoTrabalho = "ATRIBUICAO"
+    modo_avaliacao: ModoAvaliacao = "PONTOS_ATRIBUIDOS"
+    pull_exigir_hidratacao: bool = True
+    pull_piso_pontos: float = 1
+    pull_teto: float = 1.5
+    wip_config: Optional[WipConfigResponse] = None
+
+
+class ModosProjetoUpdate(BaseModel):
+    """PATCH /projects/{id}/modos — RF-A1..A4. Todos os campos são opcionais;
+    só o que vier preenchido é alterado (mesmo padrão de ContratoUpdate)."""
+    modo_trabalho: Optional[ModoTrabalho] = None
+    modo_avaliacao: Optional[ModoAvaliacao] = None
+    pull_exigir_hidratacao: Optional[bool] = None
+    pull_piso_pontos: Optional[float] = Field(default=None, gt=0)
+    pull_teto: Optional[float] = Field(default=None, gt=0)
+
+
+class ConfiguracaoHistoricoResponse(BaseModel):
+    id: str
+    project_id: str
+    campo: Literal["modo_trabalho", "modo_avaliacao"]
+    valor_anterior: Optional[str] = None
+    valor_novo: str
+    usuario_email: str
+    criado_em: datetime
+
+
+class WipConfigUpdate(BaseModel):
+    """PATCH /projects/{id}/wip-config. Em projeto PULL, por_pessoa é
+    ignorado e forçado a 1 no servidor (RF-A5) — nunca confiar no valor que o
+    cliente mandou nesse modo."""
+    por_pessoa: Optional[int] = Field(default=None, ge=1)
+    por_coluna_em_andamento: Optional[int] = Field(default=None, ge=1)
+
+
+class PontuacaoEventoResponse(BaseModel):
+    id: str
+    operacional_id: str
+    sprint_id: str
+    projeto_id: str
+    task_id: Optional[str] = None
+    tipo: Literal[
+        "entrega_concluida", "travamento_penalidade", "devolucao_penalidade",
+        "bonus_extra", "reabertura",
+    ]
+    pontos: int
+    descricao: Optional[str] = None
+    criado_em: datetime
 
 
 class ProjectSubareaUpdate(BaseModel):
@@ -189,6 +247,9 @@ class SprintResponse(BaseModel):
     iniciada: bool = True
     created_at: datetime
     updated_at: datetime
+    modo_trabalho: Optional[str] = None
+    modo_avaliacao: Optional[str] = None
+    hibrida: bool = False
 
 
 class SprintStatusResponse(SprintResponse):
@@ -201,6 +262,8 @@ class SprintStatusResponse(SprintResponse):
     pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
     pontos_usados: int = 0
     faturamento_previsto: Optional[float] = None
+    avaliados_count: int = 0
+    elegiveis_avaliacao_count: int = 0
 
 
 class SprintDocResponse(BaseModel):
