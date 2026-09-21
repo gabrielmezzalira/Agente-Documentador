@@ -503,7 +503,11 @@ export default function SprintCard({
             style={sprint.avaliacao_completa_em ? btnAction : btnPrimary}
             onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
           >
-            {sprint.avaliacao_completa_em ? "✓ Avaliação Semanal" : "Avaliação Semanal"}
+            {sprint.avaliacao_completa_em
+              ? "✓ Avaliação Semanal"
+              : sprint.elegiveis_avaliacao_count > 0
+                ? `Avaliação Semanal (${sprint.avaliados_count}/${sprint.elegiveis_avaliacao_count})`
+                : "Avaliação Semanal"}
           </button>
         )}
         {(cargo === "lider" || cargo === "owner") && sprint.avaliacao_completa_em && (
