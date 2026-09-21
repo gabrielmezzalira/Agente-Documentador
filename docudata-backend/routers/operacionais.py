@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
@@ -191,6 +193,11 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
         if val is not None:
             updates[field] = val
 
+    # Entrega 2: alternar ativo grava/limpa data_saida — colunas simples,
+    # sem histórico de múltiplos ciclos (decisão de design registrada no spec).
+    if "ativo" in updates:
+        updates["data_saida"] = None if updates["ativo"] else datetime.now(timezone.utc).isoformat()
+
     if not updates:
         return client.table("operacionais").select("*").eq("id", operacional_id).execute().data[0]
 
@@ -229,7 +236,10 @@ async def remover_do_projeto(operacional_id: str):
         .neq("coluna_kanban", "concluida")
         .execute()
     )
-    resp = client.table("operacionais").update({"ativo": False}).eq("id", operacional_id).execute()
+    resp = client.table("operacionais").update({
+        "ativo": False,
+        "data_saida": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", operacional_id).execute()
     return resp.data[0]
 
 
