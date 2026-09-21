@@ -490,3 +490,18 @@ def calcular_spi_operacional(client, operacional_id: str) -> dict:
     spi_operacional = round(sum(validos) / len(validos), 2) if validos else None
 
     return {"operacional_id": operacional_id, "spi": spi_operacional, "por_projeto": por_projeto}
+
+
+def listar_extrato_pontos(client, operacional_id: str, sprint_id: str | None = None) -> list[dict]:
+    """Extrato auditável de todo ponto ganho/descontado (extra do usuário —
+    não faz parte do SDD original). RBAC (Gerente/Líder apenas) é do router,
+    não desta função."""
+    query = (
+        client.table("pontuacao_eventos")
+        .select("*")
+        .eq("operacional_id", operacional_id)
+    )
+    if sprint_id:
+        query = query.eq("sprint_id", sprint_id)
+    resp = query.order("criado_em", desc=True).execute()
+    return resp.data or []
