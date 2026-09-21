@@ -343,7 +343,10 @@ export default function MetricasTab({ projectId }: Props) {
                 {spiEvolucao.map((op) => (
                   <tr key={op.operacional_id}>
                     <td style={tdSt}>{op.nome}</td>
-                    <td style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#94a3b8" : spiColor(op.spi / 100) }}>
+                    <td
+                      style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#94a3b8" : spiColor(op.spi / 100) }}
+                      title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint — score calculado com o restante das dimensões (avaliação do gerente, evolução, autonomia)" : undefined}
+                    >
                       {op.spi === null ? "—" : op.spi}
                     </td>
                     <td style={{ ...tdSt, fontWeight: 700, color: op.evolucao === null ? "#94a3b8" : "#0f172a" }}>
