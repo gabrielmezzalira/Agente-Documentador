@@ -1367,6 +1367,7 @@ export default function ProjectDashboard() {
           projectId={id}
           sprints={sprints}
           project={project}
+          operacionais={operacionais}
           onProjectUpdated={(updated) => setProject(updated)}
         />
       )}

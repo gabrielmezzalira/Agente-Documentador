@@ -11,9 +11,12 @@ import {
   updateFuncionalidade,
   updateContrato,
   listTasksKanban,
+  getExtratoPontos,
   type BlocoD,
   type FuncionalidadeResponse,
+  type OperacionalResponse,
   type PainelData,
+  type PontuacaoEvento,
   type Project,
   type SprintFuncionalidade,
   type SprintWithStatus,
@@ -23,6 +26,7 @@ interface Props {
   projectId: string;
   sprints: SprintWithStatus[];
   project: Project;
+  operacionais: OperacionalResponse[];
   onProjectUpdated?: (updated: Project) => void;
 }
 
@@ -446,6 +450,93 @@ function BlocoDCard({
   );
 }
 
+function ExtratoPontosCard({
+  operacionais,
+  sprints,
+}: {
+  operacionais: OperacionalResponse[];
+  sprints: SprintWithStatus[];
+}) {
+  const [operacionalId, setOperacionalId] = useState("");
+  const [sprintId, setSprintId] = useState("");
+  const [eventos, setEventos] = useState<PontuacaoEvento[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!operacionalId) {
+      setEventos([]);
+      return;
+    }
+    setLoading(true);
+    setErro(null);
+    getExtratoPontos(operacionalId, sprintId || undefined)
+      .then(setEventos)
+      .catch((err) => setErro(err instanceof Error ? err.message : "Erro ao buscar extrato"))
+      .finally(() => setLoading(false));
+  }, [operacionalId, sprintId]);
+
+  const rotuloTipo: Record<PontuacaoEvento["tipo"], string> = {
+    entrega_concluida: "Entrega concluída",
+    travamento_penalidade: "Travamento (penalidade)",
+    devolucao_penalidade: "Devolução após travamento (penalidade)",
+    bonus_extra: "Bônus de task extra",
+    reabertura: "Reabertura",
+  };
+
+  return (
+    <div style={cardStyle}>
+      <span style={cardTitleStyle}>Extrato de pontos</span>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <select
+          value={operacionalId}
+          onChange={(e) => setOperacionalId(e.target.value)}
+          style={{ padding: "6px 10px", border: "1px solid #e4e4ea", borderRadius: 7, fontSize: 13 }}
+        >
+          <option value="">Selecione um operacional...</option>
+          {operacionais.map((op) => (
+            <option key={op.id} value={op.id}>{op.nome}</option>
+          ))}
+        </select>
+        <select
+          value={sprintId}
+          onChange={(e) => setSprintId(e.target.value)}
+          style={{ padding: "6px 10px", border: "1px solid #e4e4ea", borderRadius: 7, fontSize: 13 }}
+        >
+          <option value="">Todas as sprints</option>
+          {sprints.map((s) => (
+            <option key={s.id} value={s.id}>Sprint {s.numero}</option>
+          ))}
+        </select>
+      </div>
+
+      {!operacionalId ? (
+        <p style={{ fontSize: 12, color: "#9696a0" }}>Selecione um operacional para ver o extrato.</p>
+      ) : loading ? (
+        <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+      ) : erro ? (
+        <p style={{ fontSize: 12, color: "#dc2626" }}>{erro}</p>
+      ) : eventos.length === 0 ? (
+        <p style={{ fontSize: 12, color: "#9696a0" }}>Nenhum evento de pontuação registrado ainda.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+          {eventos.map((ev) => (
+            <div key={ev.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, borderBottom: "1px solid #f0f0f4", padding: "6px 0" }}>
+              <span style={{ color: "#374151" }}>
+                {rotuloTipo[ev.tipo]}
+                {ev.descricao ? ` — ${ev.descricao}` : ""}
+              </span>
+              <span style={{ fontWeight: 700, color: ev.pontos > 0 ? "#16a34a" : ev.pontos < 0 ? "#dc2626" : "#9696a0", whiteSpace: "nowrap" }}>
+                {ev.pontos > 0 ? `+${ev.pontos}` : ev.pontos}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false);
   return (
@@ -540,7 +631,7 @@ function KanbanCard({
   );
 }
 
-export default function PainelTab({ projectId, sprints, project, onProjectUpdated }: Props) {
+export default function PainelTab({ projectId, sprints, project, operacionais, onProjectUpdated }: Props) {
   const [data, setData] = useState<PainelData | null>(null);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -918,6 +1009,8 @@ export default function PainelTab({ projectId, sprints, project, onProjectUpdate
           </div>
         )}
       </div>
+
+      <ExtratoPontosCard operacionais={operacionais} sprints={sprints} />
     </div>
   );
 }

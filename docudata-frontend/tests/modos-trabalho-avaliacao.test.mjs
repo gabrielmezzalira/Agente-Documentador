@@ -43,3 +43,14 @@ test("Configurações mostram os selects de modo com campos condicionais e WIP f
   assert.ok(PROJECT_PAGE.includes("getModosHistorico(projectId)"));
   assert.ok(PROJECT_PAGE.includes("<ModosTrabalhoSection"));
 });
+
+const PAINEL = readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8");
+
+test("Painel recebe operacionais e mostra o extrato de pontos", () => {
+  assert.ok(PAINEL.includes("function ExtratoPontosCard("));
+  assert.ok(PAINEL.includes("getExtratoPontos("));
+  assert.ok(PAINEL.includes("operacionais: OperacionalResponse[];"));
+  assert.ok(PAINEL.includes("<ExtratoPontosCard"));
+  assert.ok(PROJECT_PAGE.includes("<PainelTab"));
+  assert.ok(PROJECT_PAGE.match(/<PainelTab[\s\S]*?operacionais=\{operacionais\}/));
+});
