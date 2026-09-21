@@ -7,6 +7,9 @@ from models.schemas import (
     ContratoUpdate,
     GerenteEmailUpdate,
     ProjectSubareaUpdate,
+    ModosProjetoUpdate,
+    ConfiguracaoHistoricoResponse,
+    WipConfigUpdate,
 )
 from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
@@ -24,7 +27,8 @@ _CAMPOS_PROJETO = (
     "id, name, client, subarea, description, squad, valor_projeto, valor_por_ponto, "
     "is_delivered, created_at, data_inicio, data_fim_contratada, "
     "tolerancia_desvio_pontos, periodo_garantia_dias, gerente_email, arquetipo, "
-    "github_token, github_repo"
+    "github_token, github_repo, "
+    "modo_trabalho, modo_avaliacao, pull_exigir_hidratacao, pull_piso_pontos, pull_teto, wip_config"
 )
 
 
@@ -269,4 +273,95 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
 
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update contract fields")
+    return _sanitize(response.data[0])
+
+
+@router.patch("/{project_id}/modos", response_model=ProjectResponse, response_model_exclude_none=True)
+async def update_modos(
+    project_id: str,
+    data: ModosProjetoUpdate,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    """RF-A1..A4/A6: troca modo de trabalho e/ou modo de avaliação do
+    projeto, com parâmetros de PULL. Toda mudança de modo_trabalho ou
+    modo_avaliacao grava um registro imutável em configuracao_historico."""
+    client = get_client()
+    atual_resp = client.table("projects").select(
+        "modo_trabalho, modo_avaliacao"
+    ).eq("id", project_id).execute()
+    if not atual_resp.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    atual = atual_resp.data[0]
+
+    payload = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not payload:
+        response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
+        return _sanitize(response.data[0])
+
+    for campo in ("modo_trabalho", "modo_avaliacao"):
+        novo = payload.get(campo)
+        if novo is not None and novo != atual.get(campo):
+            client.table("configuracao_historico").insert({
+                "project_id": project_id,
+                "campo": campo,
+                "valor_anterior": atual.get(campo),
+                "valor_novo": novo,
+                "usuario_email": pessoa["email"],
+            }).execute()
+
+    response = client.table("projects").update(payload).eq("id", project_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update project modos")
+
+    # RF-A5: entrar em PULL força WIP por pessoa = 1, mesmo que o gerente não
+    # tenha mexido no campo agora — sem isso um projeto migrado ficaria em
+    # modo pull com WIP de atribuição, incoerente com a regra do modo.
+    if payload.get("modo_trabalho") == "PULL":
+        wip_atual = response.data[0].get("wip_config") or {}
+        novo_wip = {**wip_atual, "por_pessoa": 1}
+        response = client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
+
+    return _sanitize(response.data[0])
+
+
+@router.get("/{project_id}/modos-historico", response_model=list[ConfiguracaoHistoricoResponse])
+async def get_modos_historico(project_id: str, _pessoa: dict = Depends(require_not_operacional)):
+    client = get_client()
+    resp = (
+        client.table("configuracao_historico")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("criado_em", desc=True)
+        .execute()
+    )
+    return resp.data or []
+
+
+@router.patch("/{project_id}/wip-config", response_model=ProjectResponse, response_model_exclude_none=True)
+async def update_wip_config(
+    project_id: str,
+    data: WipConfigUpdate,
+    _pessoa: dict = Depends(require_not_operacional),
+):
+    """Atualiza projects.wip_config. Em projeto PULL, por_pessoa é sempre
+    forçado a 1 no servidor (RF-A5) — o valor que o cliente mandar para esse
+    campo é ignorado nesse modo, nunca confiado."""
+    client = get_client()
+    check = client.table("projects").select("modo_trabalho, wip_config").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    projeto = check.data[0]
+
+    wip_atual = projeto.get("wip_config") or {}
+    novo_wip = dict(wip_atual)
+    if data.por_coluna_em_andamento is not None:
+        novo_wip["por_coluna_em_andamento"] = data.por_coluna_em_andamento
+    if data.por_pessoa is not None:
+        novo_wip["por_pessoa"] = data.por_pessoa
+    if projeto.get("modo_trabalho") == "PULL":
+        novo_wip["por_pessoa"] = 1
+
+    response = client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update wip_config")
     return _sanitize(response.data[0])
