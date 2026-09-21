@@ -42,3 +42,10 @@ def test_pontuacao_eventos_existe():
 def test_pontuacao_operacional_sprint_ganha_coluna_entrega_modo():
     schema = _texto_schema()
     assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_modo text;" in schema
+
+
+def test_schema_tem_colunas_da_formula_pontos_relativo():
+    schema = _texto_schema()
+    assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_pontos_pessoa numeric(10,2);" in schema
+    assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_denominador numeric(10,2);" in schema
+    assert "ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_nota_relativa numeric(6,2);" in schema

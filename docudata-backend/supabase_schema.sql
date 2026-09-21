@@ -748,6 +748,16 @@ UPDATE operacionais SET data_entrada = created_at WHERE data_entrada IS NULL;
 ALTER TABLE operacionais ALTER COLUMN data_entrada SET NOT NULL;
 ALTER TABLE operacionais ALTER COLUMN data_entrada SET DEFAULT now();
 
+-- ═══════════════════════════════════════════════════════════════
+-- Modos de Trabalho e de Avaliação — Entrega 3, Onda A: fórmula
+-- PONTOS_RELATIVO (spec
+-- docs/superpowers/specs/2026-09-21-modos-trabalho-avaliacao-entrega3-design.md §2)
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_pontos_pessoa numeric(10,2);
+ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_denominador numeric(10,2);
+ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS entrega_nota_relativa numeric(6,2);
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (
