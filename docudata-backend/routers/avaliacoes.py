@@ -7,9 +7,10 @@ from models.schemas import (
     AvaliacaoGerenteCreate,
     AvaliacaoGerenteResponse,
     ConfirmarAvaliacaoResponse,
+    ElegivelResponse,
     PendenciaAvaliacaoResponse,
 )
-from services.auth import get_current_pessoa, require_role
+from services.auth import get_current_pessoa, require_not_operacional, require_role
 from services.elegibilidade import listar_vinculados_no_projeto
 from services.pontuacao import calcular_e_travar_pontuacao
 from services.sprints import iniciar_sprint_e_ancorar_tasks
@@ -98,6 +99,40 @@ async def listar_pendencias(sprint_id: str):
             "ultima_avaliacao_outro_projeto": _buscar_ultima_avaliacao_outro_projeto(client, op),
         }
         for op in pendentes
+    ]
+
+
+@router.get("/{sprint_id}/elegiveis", response_model=list[ElegivelResponse], dependencies=[Depends(require_not_operacional)])
+async def listar_elegiveis(sprint_id: str):
+    """RF-C7 (Entrega 2): todo operacional vinculado ao projeto no momento da
+    consulta, com contagem de tasks na sprint (0 é válido) e se já tem
+    avaliação registrada — audita quem entra no denominador da Avaliação
+    Semanal mesmo sem ter puxado nenhuma task."""
+    client = get_client()
+    sprint_resp = client.table("sprints").select("project_id").eq("id", sprint_id).execute()
+    if not sprint_resp.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+
+    operacionais = _operacionais_elegiveis(client, sprint_id)
+
+    task_rows = client.table("tasks").select("operacional_id").eq("sprint_id", sprint_id).execute().data or []
+    tasks_por_operacional: dict[str, int] = {}
+    for t in task_rows:
+        op = t.get("operacional_id")
+        if op:
+            tasks_por_operacional[op] = tasks_por_operacional.get(op, 0) + 1
+
+    aval_rows = client.table("avaliacoes_gerente").select("operacional_id").eq("sprint_id", sprint_id).execute().data or []
+    avaliados_ids = {a["operacional_id"] for a in aval_rows}
+
+    return [
+        {
+            "operacional_id": op["id"],
+            "nome": op["nome"],
+            "tasks_na_sprint": tasks_por_operacional.get(op["id"], 0),
+            "avaliado": op["id"] in avaliados_ids,
+        }
+        for op in operacionais
     ]
 
 
