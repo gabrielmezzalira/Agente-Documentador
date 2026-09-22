@@ -422,7 +422,6 @@ function MigrarModoModal({
         ) : preview ? (
           <ul style={{ fontSize: 13, color: "#374151", lineHeight: 1.8, margin: "0 0 20px", paddingLeft: 20 }}>
             <li>{preview.entrando_na_fila} task(s) entrando na fila de puxar</li>
-            <li>{preview.vira_rascunho} task(s) virando rascunho (faltam dados)</li>
             <li>{preview.mantem_responsavel} task(s) mantêm o responsável atual</li>
             <li>{preview.sem_alteracao} task(s) sem alteração</li>
           </ul>
@@ -457,7 +456,6 @@ function ModosTrabalhoSection({
   project: Project;
   onProjectUpdated: (updated: Project) => void;
 }) {
-  const [hidratacaoDestino, setHidratacaoDestino] = useState<boolean | null>(null);
   const [pisoDestino, setPisoDestino] = useState<string | null>(null);
   const [tetoDestino, setTetoDestino] = useState<string | null>(null);
   const [savingModos, setSavingModos] = useState(false);
@@ -480,12 +478,10 @@ function ModosTrabalhoSection({
 
   const modoTrabalho = project.modo_trabalho;
   const modoAvaliacao = project.modo_avaliacao;
-  const hidratacao = hidratacaoDestino ?? project.pull_exigir_hidratacao;
   const piso = pisoDestino ?? String(project.pull_piso_pontos);
   const teto = tetoDestino ?? String(project.pull_teto);
 
   const configMudou =
-    hidratacao !== project.pull_exigir_hidratacao ||
     piso !== String(project.pull_piso_pontos) ||
     teto !== String(project.pull_teto);
 
@@ -494,7 +490,6 @@ function ModosTrabalhoSection({
     setModosMsg(null);
     try {
       const updated = await updateProjectModos(projectId, {
-        pull_exigir_hidratacao: hidratacao,
         pull_piso_pontos: Number(piso),
         pull_teto: Number(teto),
       });
@@ -573,20 +568,6 @@ function ModosTrabalhoSection({
             getModosHistorico(projectId).then(setHistorico).catch(() => {});
           }}
         />
-      )}
-
-      {modoTrabalho === "PULL" && (
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", marginBottom: 16, padding: "12px 14px", background: "#f7f7fa", borderRadius: 10 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-            <input
-              type="checkbox"
-              checked={hidratacao}
-              onChange={(e) => { setHidratacaoDestino(e.target.checked); setModosMsg(null); }}
-              disabled={savingModos}
-            />
-            Exigir hidratação para entrar na fila
-          </label>
-        </div>
       )}
 
       {modoAvaliacao === "PONTOS_RELATIVO" && (

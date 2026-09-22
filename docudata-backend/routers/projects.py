@@ -17,7 +17,6 @@ from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
-from services.hidratacao import calcular_hidratacao
 from services.sprints import get_current_sprint_id
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -32,7 +31,7 @@ _CAMPOS_PROJETO = (
     "is_delivered, created_at, data_inicio, data_fim_contratada, "
     "tolerancia_desvio_pontos, periodo_garantia_dias, gerente_email, arquetipo, "
     "github_token, github_repo, "
-    "modo_trabalho, modo_avaliacao, pull_exigir_hidratacao, pull_piso_pontos, pull_teto, wip_config"
+    "modo_trabalho, modo_avaliacao, pull_piso_pontos, pull_teto, wip_config"
 )
 
 
@@ -410,7 +409,7 @@ async def preview_migrar_modo(
 
     tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
 
-    contagem = {"entrando_na_fila": 0, "vira_rascunho": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
+    contagem = {"entrando_na_fila": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
     for task in tasks:
         coluna = task.get("coluna_kanban")
         # "Bloqueada" no spec original é um estado lógico (RF-M2), mas neste
@@ -423,11 +422,7 @@ async def preview_migrar_modo(
             contagem["sem_alteracao"] += 1
         elif coluna == "planejado":
             if para == "PULL":
-                rascunho, _ = calcular_hidratacao(task)
-                if rascunho:
-                    contagem["vira_rascunho"] += 1
-                else:
-                    contagem["entrando_na_fila"] += 1
+                contagem["entrando_na_fila"] += 1
             else:
                 contagem["sem_alteracao"] += 1
         elif coluna == "em_andamento":
@@ -448,11 +443,10 @@ async def aplicar_migrar_modo(
     task_transicoes/task_reaberturas (RF-M3) — reclassificação estrutural,
     não movimento de Kanban."""
     client = get_client()
-    proj = client.table("projects").select("id, modo_trabalho, pull_exigir_hidratacao").eq("id", project_id).execute()
+    proj = client.table("projects").select("id, modo_trabalho").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
     de_modo = proj.data[0].get("modo_trabalho") or "ATRIBUICAO"
-    pull_exigir_hidratacao = proj.data[0].get("pull_exigir_hidratacao")
 
     # Toda mudança de modo_trabalho grava um registro imutável em
     # configuracao_historico — mesmo formato que update_modos já usa para
@@ -482,27 +476,21 @@ async def aplicar_migrar_modo(
 
     tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
 
-    contagem = {"entrando_na_fila": 0, "vira_rascunho": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
+    contagem = {"entrando_na_fila": 0, "mantem_responsavel": 0, "sem_alteracao": 0}
     for task in tasks:
         coluna = task.get("coluna_kanban")
         if task.get("bloqueado"):
             # Mantém responsável e estado de bloqueio — nunca reclassifica.
             contagem["mantem_responsavel"] += 1
         elif coluna == "planejado" and data.para == "PULL":
-            if pull_exigir_hidratacao:
-                rascunho, motivo = calcular_hidratacao(task)
-            else:
-                rascunho, motivo = False, None
             updates = {
                 "operacional_id": None,
-                "rascunho": rascunho,
-                "motivo_rascunho": motivo,
                 "entrou_na_fila_em": datetime.now(timezone.utc).isoformat(),
             }
             client.table("tasks").update(updates).eq("id", task["id"]).execute()
-            contagem["vira_rascunho" if rascunho else "entrando_na_fila"] += 1
+            contagem["entrando_na_fila"] += 1
         elif coluna == "planejado" and data.para == "ATRIBUICAO":
-            client.table("tasks").update({"rascunho": False, "motivo_rascunho": None, "entrou_na_fila_em": None}).eq("id", task["id"]).execute()
+            client.table("tasks").update({"entrou_na_fila_em": None}).eq("id", task["id"]).execute()
             contagem["sem_alteracao"] += 1
         elif coluna == "em_andamento":
             if data.para == "PULL":

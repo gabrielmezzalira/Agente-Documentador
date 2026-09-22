@@ -1,7 +1,7 @@
 """Entrega 4 (fechamento de lacunas): gerente não pode mais atribuir
-operacional_id manualmente — nem criando (test_tasks_hidratacao.py) nem
-editando task — quando o projeto está em modo PULL. Ver
-.planning/feature-flow-state.md, Design aprovado, item 3."""
+operacional_id manualmente — nem criando nem editando task — quando o
+projeto está em modo PULL. Ver .planning/feature-flow-state.md, Design
+aprovado, item 3."""
 from unittest.mock import MagicMock
 
 import pytest
@@ -127,3 +127,72 @@ def test_patch_task_sem_operacional_id_nao_consulta_modo_do_projeto(make_client)
     resp = tc.patch("/tasks/task-1", json={"pontos": 5})
 
     assert resp.status_code == 200
+
+
+def _mock_client_create(projeto):
+    tasks_insert_capture: list = []
+    client = MagicMock()
+
+    def table_side_effect(name):
+        tbl = MagicMock()
+        if name == "projects":
+            q = MagicMock()
+            q.eq = MagicMock(return_value=q)
+            resp = MagicMock()
+            resp.data = [projeto]
+            q.execute = MagicMock(return_value=resp)
+            tbl.select = MagicMock(return_value=q)
+        elif name == "tasks":
+            def insert_side_effect(payload):
+                tasks_insert_capture.append(payload)
+                q = MagicMock()
+                resp = MagicMock()
+                resp.data = [dict(payload, id="t-novo")]
+                q.execute = MagicMock(return_value=resp)
+                return q
+
+            tbl.insert = MagicMock(side_effect=insert_side_effect)
+        else:
+            q = MagicMock()
+            q.eq = MagicMock(return_value=q)
+            resp = MagicMock()
+            resp.data = []
+            q.execute = MagicMock(return_value=resp)
+            tbl.select = MagicMock(return_value=q)
+        return tbl
+
+    client.table = MagicMock(side_effect=table_side_effect)
+    return client, tasks_insert_capture
+
+
+@pytest.fixture
+def make_client_create(monkeypatch, autenticar):
+    def _make(projeto):
+        import routers.tasks as tasks_router
+        from main import app
+        mock_sb, ins = _mock_client_create(projeto)
+        monkeypatch.setattr(tasks_router, "get_client", lambda: mock_sb)
+        tc = autenticar(TestClient(app), cargo="gerente")
+        return tc, ins
+    return _make
+
+
+def test_create_task_rejeita_operacional_id_em_projeto_pull(make_client_create):
+    tc, ins = make_client_create(projeto={"id": "proj-1", "modo_trabalho": "PULL"})
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+
+    assert resp.status_code == 422
+    assert "Pull" in resp.json()["detail"]
+    assert ins == []
+
+
+def test_create_task_em_atribuicao_nao_rejeita_por_causa_do_modo(make_client_create):
+    tc, ins = make_client_create(projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO"})
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+
+    # 422 aqui vem da validação de "operacional_id não pertence a este
+    # projeto" (fixture não cadastra operacionais) — a prova de que o gate
+    # de PULL não é o motivo é a mensagem, não o status code.
+    assert "Pull" not in resp.json()["detail"]

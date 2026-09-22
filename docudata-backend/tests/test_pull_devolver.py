@@ -176,15 +176,6 @@ def test_puxar_task_projeto_em_atribuicao_da_403(make_client):
     assert "Pull" in resp.json()["detail"]
 
 
-def test_puxar_task_rascunho_da_403(make_client):
-    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": True, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
-    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
-
-    resp = tc.post("/tasks/t1/puxar")
-
-    assert resp.status_code == 403
-
-
 def test_devolver_task_limpa_responsavel_e_volta_pra_fila(make_client):
     task = {
         "id": "t1", "project_id": "proj-1", "operacional_id": "op-a", "rascunho": False,

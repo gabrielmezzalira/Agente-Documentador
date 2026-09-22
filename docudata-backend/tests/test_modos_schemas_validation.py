@@ -17,7 +17,6 @@ def test_project_response_tem_defaults_de_modo():
     )
     assert resp.modo_trabalho == "ATRIBUICAO"
     assert resp.modo_avaliacao == "PONTOS_ATRIBUIDOS"
-    assert resp.pull_exigir_hidratacao is True
     assert resp.pull_piso_pontos == 1
     assert resp.pull_teto == 1.5
     assert resp.wip_config is None

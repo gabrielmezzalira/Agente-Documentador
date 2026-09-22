@@ -663,7 +663,7 @@ function TaskViewModal({
 
         {err && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 10 }}>{err}</p>}
 
-        {modoTrabalho === "PULL" && !task.operacional_id && !task.rascunho && (
+        {modoTrabalho === "PULL" && !task.operacional_id && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button
               type="button"
@@ -839,12 +839,6 @@ function TaskCard({
 
         {task.travado_automatico && !task.travado_override && (
           <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }}>⏱ Travada</span>
-        )}
-
-        {task.rascunho && (
-          <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }} title={task.motivo_rascunho ?? undefined}>
-            📝 Rascunho
-          </span>
         )}
 
         {total > 0 && (

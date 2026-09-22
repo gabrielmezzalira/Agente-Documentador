@@ -171,7 +171,6 @@ export interface Project {
   gerente_email?: string | null;
   modo_trabalho: "ATRIBUICAO" | "PULL";
   modo_avaliacao: "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
-  pull_exigir_hidratacao: boolean;
   pull_piso_pontos: number;
   pull_teto: number;
   wip_config?: { por_pessoa?: number | null; por_coluna_em_andamento?: number | null } | null;
@@ -440,7 +439,6 @@ export interface ConfiguracaoHistoricoEntry {
 }
 
 export interface ModosProjetoInput {
-  pull_exigir_hidratacao?: boolean;
   pull_piso_pontos?: number;
   pull_teto?: number;
 }
@@ -460,7 +458,6 @@ export async function updateProjectModos(projectId: string, data: ModosProjetoIn
 
 export interface MigracaoPreview {
   entrando_na_fila: number;
-  vira_rascunho: number;
   mantem_responsavel: number;
   sem_alteracao: number;
 }
@@ -1665,8 +1662,6 @@ export interface TaskKanbanResponse {
   pull_em?: string | null;
   atribuida_manualmente: boolean;
   motivo_atribuicao_manual?: string | null;
-  rascunho: boolean;
-  motivo_rascunho?: string | null;
   ordem_fila?: number | null;
   created_at: string;
   updated_at: string;

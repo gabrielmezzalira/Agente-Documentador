@@ -70,7 +70,6 @@ class ProjectResponse(BaseModel):
     arquetipo: str = "padrao"
     modo_trabalho: ModoTrabalho = "ATRIBUICAO"
     modo_avaliacao: ModoAvaliacao = "PONTOS_ATRIBUIDOS"
-    pull_exigir_hidratacao: bool = True
     pull_piso_pontos: float = 1
     pull_teto: float = 1.5
     wip_config: Optional[WipConfigResponse] = None
@@ -82,7 +81,6 @@ class ModosProjetoUpdate(BaseModel):
     modo_avaliacao não é aceito aqui: é sempre derivado de modo_trabalho
     (ver _derivar_modo_avaliacao em routers/projects.py)."""
     modo_trabalho: Optional[ModoTrabalho] = None
-    pull_exigir_hidratacao: Optional[bool] = None
     pull_piso_pontos: Optional[float] = Field(default=None, gt=0)
     pull_teto: Optional[float] = Field(default=None, gt=0)
 
@@ -548,8 +546,6 @@ class TaskResponse(BaseModel):
     pull_em: Optional[datetime] = None
     atribuida_manualmente: bool = False
     motivo_atribuicao_manual: Optional[str] = None
-    rascunho: bool = False
-    motivo_rascunho: Optional[str] = None
     ordem_fila: Optional[int] = None
 
 

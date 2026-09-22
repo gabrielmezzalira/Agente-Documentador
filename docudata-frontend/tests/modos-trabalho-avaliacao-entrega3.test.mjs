@@ -26,12 +26,11 @@ test("api.ts expõe puxarTask e devolverTask", () => {
   assert.match(src, /export async function devolverTask/);
 });
 
-test("Kanban mostra badge de rascunho e ações de puxar/devolver conforme o modo", () => {
+test("Kanban mostra ações de puxar/devolver conforme o modo", () => {
   const src = readFileSync(
     new URL("../app/components/TasksKanbanTab.tsx", import.meta.url),
     "utf-8"
   );
-  assert.match(src, /rascunho/);
   assert.match(src, /puxarTask/);
   assert.match(src, /devolverTask/);
 });

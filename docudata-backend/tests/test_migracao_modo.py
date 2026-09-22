@@ -50,14 +50,13 @@ def test_preview_migracao_conta_tasks_por_categoria(make_client):
         {"id": "t4", "coluna_kanban": "concluida", "operacional_id": "op-a", "titulo": "W", "pontos": 4, "descricao": "d", "checklist": [], "bloqueado": False},
         {"id": "t5", "coluna_kanban": "planejado", "operacional_id": "op-c", "titulo": "V", "pontos": 1, "descricao": "d", "checklist": [], "bloqueado": True},
     ]
-    tc = make_client(projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True}, tasks=tasks)
+    tc = make_client(projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO"}, tasks=tasks)
 
     resp = tc.get("/projects/proj-1/migrar-modo/preview?para=PULL")
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["entrando_na_fila"] == 1  # t1: planejado com responsável, hidratada
-    assert body["vira_rascunho"] == 1  # t2: planejado sem descrição/checklist
+    assert body["entrando_na_fila"] == 2  # t1 e t2: planejado, não bloqueadas
     assert body["mantem_responsavel"] == 2  # t3: em_andamento; t5: bloqueada (mantém responsável mesmo planejada)
     assert body["sem_alteracao"] == 1  # t4: concluida
 
@@ -201,15 +200,14 @@ def test_aplicar_migracao_em_andamento_para_pull_mantem_operacional_e_marca_pull
 
 
 def test_aplicar_migracao_planejado_para_atribuicao_limpa_campos_de_fila(make_client_completo, monkeypatch):
-    """(b) planejado + ATRIBUICAO (reversão): rascunho, motivo_rascunho e
-    entrou_na_fila_em precisam ser limpos (False/None) no payload de update
-    pra uma task que já estava na fila."""
+    """(b) planejado + ATRIBUICAO (reversão): entrou_na_fila_em precisa ser
+    limpo (None) no payload de update pra uma task que já estava na fila."""
     import routers.projects as projects_router
     monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
     tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
-        projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": True},
+        projeto={"id": "proj-1", "modo_trabalho": "PULL"},
         tasks=[
-            {"id": "t2", "coluna_kanban": "planejado", "operacional_id": None, "titulo": "Y", "pontos": 2, "descricao": None, "checklist": [], "bloqueado": False, "rascunho": True, "motivo_rascunho": "sem_descricao", "entrou_na_fila_em": "2026-09-01T00:00:00+00:00"},
+            {"id": "t2", "coluna_kanban": "planejado", "operacional_id": None, "titulo": "Y", "pontos": 2, "descricao": None, "checklist": [], "bloqueado": False, "entrou_na_fila_em": "2026-09-01T00:00:00+00:00"},
         ],
     )
 
@@ -217,8 +215,6 @@ def test_aplicar_migracao_planejado_para_atribuicao_limpa_campos_de_fila(make_cl
 
     assert resp.status_code == 200
     assert len(tasks_update) == 1
-    assert tasks_update[0]["rascunho"] is False
-    assert tasks_update[0]["motivo_rascunho"] is None
     assert tasks_update[0]["entrou_na_fila_em"] is None
     assert migracoes_insert[0]["de_modo"] == "PULL"
     assert migracoes_insert[0]["para_modo"] == "ATRIBUICAO"

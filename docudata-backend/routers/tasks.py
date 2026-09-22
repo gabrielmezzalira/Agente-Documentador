@@ -21,7 +21,6 @@ from services.wip_check import check_wip
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
-from services.hidratacao import calcular_hidratacao
 
 _LOG = logging.getLogger("docudata.tasks")
 
@@ -256,7 +255,7 @@ async def redistribuir_pontos(data: RedistribuirPontosRequest):
 async def create_task(data: TaskCreate):
     client = get_client()
 
-    check = client.table("projects").select("id, modo_trabalho, pull_exigir_hidratacao").eq("id", data.project_id).execute()
+    check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
     projeto_row = check.data[0]
@@ -334,11 +333,6 @@ async def create_task(data: TaskCreate):
         sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
         if sprint_iniciada:
             payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
-
-    if projeto_row.get("modo_trabalho") == "PULL" and projeto_row.get("pull_exigir_hidratacao"):
-        rascunho, motivo = calcular_hidratacao(payload)
-        payload["rascunho"] = rascunho
-        payload["motivo_rascunho"] = motivo
 
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
@@ -476,7 +470,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
 
-    if task.get("rascunho") or task.get("operacional_id") is not None:
+    if task.get("operacional_id") is not None:
         raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
 
     # Auto-atribuição só existe em modo PULL — em ATRIBUICAO, patch_task já
@@ -778,14 +772,6 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             updates["bloqueado_resolvido_por"] = data.bloqueado_resolvido_por
             updates["bloqueado_resolvido_em"] = agora.isoformat()
             houve_bloqueio_resolvido = True
-
-    proj_modo = client.table("projects").select("modo_trabalho, pull_exigir_hidratacao").eq("id", project_id).execute()
-    projeto_row = proj_modo.data[0] if proj_modo.data else {}
-    if projeto_row.get("modo_trabalho") == "PULL" and projeto_row.get("pull_exigir_hidratacao"):
-        task_apos_update = {**task, **updates}
-        rascunho, motivo = calcular_hidratacao(task_apos_update)
-        updates["rascunho"] = rascunho
-        updates["motivo_rascunho"] = motivo
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 
