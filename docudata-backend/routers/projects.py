@@ -280,15 +280,28 @@ async def update_contrato(project_id: str, data: ContratoUpdate):
     return _sanitize(response.data[0])
 
 
+def _derivar_modo_avaliacao(modo_trabalho: str) -> str:
+    """modo_avaliacao deixou de ser escolha livre do gerente (Entrega 4):
+    PULL sempre avalia por PONTOS_RELATIVO, ATRIBUICAO sempre por
+    PONTOS_ATRIBUIDOS. Ver .planning/feature-flow-state.md (Design
+    aprovado, item 1)."""
+    return "PONTOS_RELATIVO" if modo_trabalho == "PULL" else "PONTOS_ATRIBUIDOS"
+
+
 @router.patch("/{project_id}/modos", response_model=ProjectResponse)
 async def update_modos(
     project_id: str,
     data: ModosProjetoUpdate,
     pessoa: dict = Depends(require_not_operacional),
 ):
-    """RF-A1..A4/A6: troca modo de trabalho e/ou modo de avaliação do
-    projeto, com parâmetros de PULL. Toda mudança de modo_trabalho ou
-    modo_avaliacao grava um registro imutável em configuracao_historico."""
+    """RF-A1..A4/A6: ajusta parâmetros de PULL do projeto. modo_trabalho só
+    pode ser trocado aqui quando igual ao valor atual (no-op) — a troca real
+    exige POST /migrar-modo, que também reclassifica as tasks existentes
+    (Entrega 4: fecha a brecha que deixava tasks com responsável desatualizado
+    quando o modo mudava sem migração). modo_avaliacao nunca é aceito no
+    payload — é sempre derivado de modo_trabalho. Toda mudança efetiva de
+    modo_trabalho ou modo_avaliacao grava um registro imutável em
+    configuracao_historico."""
     client = get_client()
     atual_resp = client.table("projects").select(
         "modo_trabalho, modo_avaliacao"
@@ -301,6 +314,15 @@ async def update_modos(
     if not payload:
         response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
         return _sanitize(response.data[0])
+
+    if "modo_trabalho" in payload and payload["modo_trabalho"] != atual.get("modo_trabalho"):
+        raise HTTPException(
+            status_code=422,
+            detail="Para trocar o modo de trabalho, use POST /projects/{id}/migrar-modo — essa rota também reclassifica as tasks existentes.",
+        )
+
+    modo_trabalho_efetivo = payload.get("modo_trabalho", atual.get("modo_trabalho"))
+    payload["modo_avaliacao"] = _derivar_modo_avaliacao(modo_trabalho_efetivo)
 
     for campo in ("modo_trabalho", "modo_avaliacao"):
         novo = payload.get(campo)

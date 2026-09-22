@@ -78,9 +78,10 @@ class ProjectResponse(BaseModel):
 
 class ModosProjetoUpdate(BaseModel):
     """PATCH /projects/{id}/modos — RF-A1..A4. Todos os campos são opcionais;
-    só o que vier preenchido é alterado (mesmo padrão de ContratoUpdate)."""
+    só o que vier preenchido é alterado (mesmo padrão de ContratoUpdate).
+    modo_avaliacao não é aceito aqui: é sempre derivado de modo_trabalho
+    (ver _derivar_modo_avaliacao em routers/projects.py)."""
     modo_trabalho: Optional[ModoTrabalho] = None
-    modo_avaliacao: Optional[ModoAvaliacao] = None
     pull_exigir_hidratacao: Optional[bool] = None
     pull_piso_pontos: Optional[float] = Field(default=None, gt=0)
     pull_teto: Optional[float] = Field(default=None, gt=0)

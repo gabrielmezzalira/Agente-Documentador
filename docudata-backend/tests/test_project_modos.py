@@ -75,28 +75,43 @@ def make_client(monkeypatch, autenticar):
     return _make
 
 
-def test_patch_modos_troca_modo_trabalho_e_grava_historico(make_client):
+def test_patch_modos_rejeita_tentativa_de_mudar_modo_trabalho(make_client):
     historico = []
     tc, estado = make_client(historico_insert_capture=historico)
 
     resp = tc.patch("/projects/proj-1/modos", json={"modo_trabalho": "PULL"})
 
-    assert resp.status_code == 200
-    assert resp.json()["modo_trabalho"] == "PULL"
-    assert historico == [{
-        "project_id": "proj-1", "campo": "modo_trabalho",
-        "valor_anterior": "ATRIBUICAO", "valor_novo": "PULL",
-        "usuario_email": "pessoa@citi.org.br",
-    }]
+    assert resp.status_code == 422
+    assert "migrar-modo" in resp.json()["detail"]
+    assert historico == []
 
 
-def test_patch_modos_forca_wip_por_pessoa_1_ao_entrar_em_pull(make_client):
-    tc, estado = make_client(projeto={**_PROJETO_BASE, "wip_config": {"por_coluna_em_andamento": 8}})
+def test_patch_modos_aceita_mandar_o_mesmo_modo_trabalho_atual(make_client):
+    """Reenviar o valor que já está salvo não é 'trocar' — não deve ser
+    rejeitado, é o caso usado por telas que sempre mandam o objeto inteiro."""
+    tc, estado = make_client()
 
-    resp = tc.patch("/projects/proj-1/modos", json={"modo_trabalho": "PULL"})
+    resp = tc.patch("/projects/proj-1/modos", json={"modo_trabalho": "ATRIBUICAO", "pull_piso_pontos": 2})
 
     assert resp.status_code == 200
-    assert resp.json()["wip_config"] == {"por_coluna_em_andamento": 8, "por_pessoa": 1}
+
+
+def test_patch_modos_ignora_modo_avaliacao_recebido_e_deriva_de_pull(make_client):
+    tc, estado = make_client(projeto={**_PROJETO_BASE, "modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_ATRIBUIDOS"})
+
+    resp = tc.patch("/projects/proj-1/modos", json={"modo_avaliacao": "PONTOS_ATRIBUIDOS", "pull_piso_pontos": 2})
+
+    assert resp.status_code == 200
+    assert resp.json()["modo_avaliacao"] == "PONTOS_RELATIVO"
+
+
+def test_patch_modos_deriva_pontos_atribuidos_quando_atribuicao(make_client):
+    tc, estado = make_client(projeto={**_PROJETO_BASE, "modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_RELATIVO"})
+
+    resp = tc.patch("/projects/proj-1/modos", json={"pull_piso_pontos": 2})
+
+    assert resp.status_code == 200
+    assert resp.json()["modo_avaliacao"] == "PONTOS_ATRIBUIDOS"
 
 
 def test_patch_modos_sem_mudanca_nao_grava_historico(make_client):
