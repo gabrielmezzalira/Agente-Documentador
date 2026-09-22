@@ -32,10 +32,14 @@ test("SprintCard mostra o contador N/M de avaliação semanal", () => {
 
 const PROJECT_PAGE = readFileSync(new URL("../app/[subarea]/projects/[id]/page.tsx", import.meta.url), "utf8");
 
-test("Configurações mostram os selects de modo com campos condicionais e WIP forçado", () => {
+test("Configurações mostram o select de modo de trabalho, o modo de avaliação derivado e os campos condicionais de WIP", () => {
   assert.ok(PROJECT_PAGE.includes("function ModosTrabalhoSection("));
   assert.ok(PROJECT_PAGE.includes('id="project-modo-trabalho"'));
-  assert.ok(PROJECT_PAGE.includes('id="project-modo-avaliacao"'));
+  // modo_avaliacao deixou de ser select editável (Entrega 4) — é sempre
+  // derivado de modo_trabalho, sem input próprio no formulário.
+  assert.ok(!PROJECT_PAGE.includes('id="project-modo-avaliacao"'));
+  assert.ok(PROJECT_PAGE.includes("function derivarModoAvaliacaoLabel("));
+  assert.ok(PROJECT_PAGE.includes("<MigrarModoModal"));
   assert.ok(PROJECT_PAGE.includes("updateProjectModos(projectId,"));
   assert.ok(PROJECT_PAGE.includes('modoTrabalho === "PULL"'));
   assert.ok(PROJECT_PAGE.includes('modoAvaliacao === "PONTOS_RELATIVO"'));
