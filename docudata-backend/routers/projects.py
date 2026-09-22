@@ -15,6 +15,7 @@ from models.schemas import (
 )
 from core.observability import falha_externa
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
+from services.email_service import email_modo_pull_ativado, send_email
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 from services.sprints import get_current_sprint_id
@@ -433,6 +434,34 @@ async def preview_migrar_modo(
     return contagem
 
 
+def _avisar_mudanca_para_pull(client, project_id: str, projeto_nome: str) -> None:
+    """Best-effort: avisa operacionais ativos do projeto e gerentes/líderes
+    que o modo de trabalho mudou para Pull. Mesmo racional de
+    _avisar_gerente_task_concluida (routers/tasks.py) — a migração vale
+    mesmo que o e-mail falhe."""
+    try:
+        subject, html = email_modo_pull_ativado(projeto_nome)
+
+        operacionais = (
+            client.table("operacionais")
+            .select("email")
+            .eq("project_id", project_id)
+            .eq("ativo", True)
+            .execute()
+            .data or []
+        )
+        gerentes = (
+            client.table("pessoa").select("email").in_("cargo", ["gerente", "lider"]).execute().data or []
+        )
+
+        destinatarios = {p["email"] for p in operacionais if p.get("email")}
+        destinatarios |= {p["email"] for p in gerentes if p.get("email")}
+        for email in destinatarios:
+            send_email(email, subject, html)
+    except Exception as exc:
+        print(f"[projects] Aviso: falha ao notificar mudança para Pull ({exc}) — migração salva mesmo assim")
+
+
 @router.post("/{project_id}/migrar-modo")
 async def aplicar_migrar_modo(
     project_id: str,
@@ -443,10 +472,11 @@ async def aplicar_migrar_modo(
     task_transicoes/task_reaberturas (RF-M3) — reclassificação estrutural,
     não movimento de Kanban."""
     client = get_client()
-    proj = client.table("projects").select("id, modo_trabalho").eq("id", project_id).execute()
+    proj = client.table("projects").select("id, name, modo_trabalho").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
     de_modo = proj.data[0].get("modo_trabalho") or "ATRIBUICAO"
+    projeto_nome = proj.data[0].get("name") or "projeto"
 
     # Toda mudança de modo_trabalho grava um registro imutável em
     # configuracao_historico — mesmo formato que update_modos já usa para
@@ -510,6 +540,9 @@ async def aplicar_migrar_modo(
     sprint_ativa_id = get_current_sprint_id(client, project_id)
     if sprint_ativa_id:
         client.table("sprints").update({"hibrida": True}).eq("id", sprint_ativa_id).execute()
+
+    if de_modo != data.para and data.para == "PULL":
+        _avisar_mudanca_para_pull(client, project_id, projeto_nome)
 
     return {"de_modo": de_modo, "para_modo": data.para, "contagem": contagem}
 

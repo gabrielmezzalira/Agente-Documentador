@@ -114,6 +114,21 @@ def email_task_concluida(projeto_nome: str, operacional_nome: str, task_titulo: 
     return subject, _base_template("Task concluída", corpo)
 
 
+def email_modo_pull_ativado(projeto_nome: str) -> tuple[str, str]:
+    """Retorna (subject, html) para o aviso de que um projeto migrou para o
+    modo de trabalho Pull (Entrega 4). Enviado pra operacionais ativos do
+    projeto e gerentes/líderes — mesmo destinatário de email_task_concluida
+    pro lado gerencial."""
+    subject = f"[DocuData] {projeto_nome} agora está em modo Pull"
+    corpo = f"""
+    <p>O projeto <strong>{projeto_nome}</strong> mudou o modo de trabalho para <strong>Puxada (Pull)</strong>.</p>
+    <p>A partir de agora, qualquer task da coluna <strong>Planejado</strong> pode ser puxada diretamente pelo Kanban — não é mais o gerente quem atribui.</p>
+    <p>Só um limite: <strong>1 task em andamento por vez</strong> (WIP por pessoa). Conclua ou devolva a task atual antes de puxar a próxima.</p>
+    <p>Acesse o DocuData para ver as tasks disponíveis na fila.</p>
+    """
+    return subject, _base_template("Modo de trabalho mudou para Pull", corpo, badge="Mudança de modo")
+
+
 def email_esqueci_senha(nome: str, link_redefinicao: str) -> tuple[str, str]:
     """Retorna (subject, html) para o email de redefinição de senha. O link
     expira em 30min (ver services.auth.criar_jwt_reset_senha)."""
