@@ -613,6 +613,14 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     project_id = task["project_id"]
 
     if data.operacional_id is not None:
+        proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
+        if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
+            raise HTTPException(
+                status_code=422,
+                detail="Em modo Pull, tasks não podem ter responsável definido manualmente. Use a fila de puxar.",
+            )
+
+    if data.operacional_id is not None:
         op_check = (
             client.table("operacionais")
             .select("id")
