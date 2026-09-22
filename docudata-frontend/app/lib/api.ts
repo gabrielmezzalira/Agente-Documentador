@@ -440,8 +440,6 @@ export interface ConfiguracaoHistoricoEntry {
 }
 
 export interface ModosProjetoInput {
-  modo_trabalho?: "ATRIBUICAO" | "PULL";
-  modo_avaliacao?: "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
   pull_exigir_hidratacao?: boolean;
   pull_piso_pontos?: number;
   pull_teto?: number;
@@ -456,6 +454,41 @@ export async function updateProjectModos(projectId: string, data: ModosProjetoIn
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao atualizar modos do projeto");
+  }
+  return res.json();
+}
+
+export interface MigracaoPreview {
+  entrando_na_fila: number;
+  vira_rascunho: number;
+  mantem_responsavel: number;
+  sem_alteracao: number;
+}
+
+export async function previewMigrarModo(
+  projectId: string,
+  para: "ATRIBUICAO" | "PULL"
+): Promise<MigracaoPreview> {
+  const res = await apiFetch(`${API}/projects/${projectId}/migrar-modo/preview?para=${para}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao calcular preview da migração");
+  }
+  return res.json();
+}
+
+export async function aplicarMigrarModo(
+  projectId: string,
+  para: "ATRIBUICAO" | "PULL"
+): Promise<{ de_modo: string; para_modo: string; contagem: MigracaoPreview }> {
+  const res = await apiFetch(`${API}/projects/${projectId}/migrar-modo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ para }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao aplicar migração de modo");
   }
   return res.json();
 }
