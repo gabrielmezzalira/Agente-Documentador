@@ -52,6 +52,9 @@ import {
   type GitHubRepositoryCandidate,
   type ProjectRepository,
   updateProjectModos,
+  previewMigrarModo,
+  aplicarMigrarModo,
+  type MigracaoPreview,
   getModosHistorico,
   updateWipConfig,
   type ConfiguracaoHistoricoEntry,
@@ -354,7 +357,96 @@ function OperacionaisSection({
 }
 
 type ModoTrabalho = "ATRIBUICAO" | "PULL";
-type ModoAvaliacao = "PONTOS_ATRIBUIDOS" | "PONTOS_RELATIVO";
+
+function derivarModoAvaliacaoLabel(modoTrabalho: ModoTrabalho): string {
+  return modoTrabalho === "PULL" ? "Pontos relativo ao squad" : "Pontos atribuídos";
+}
+
+function MigrarModoModal({
+  projectId,
+  para,
+  onClose,
+  onMigrado,
+}: {
+  projectId: string;
+  para: ModoTrabalho;
+  onClose: () => void;
+  onMigrado: () => void;
+}) {
+  const [preview, setPreview] = useState<MigracaoPreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(true);
+  const [confirmando, setConfirmando] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let cancelado = false;
+    setLoadingPreview(true);
+    previewMigrarModo(projectId, para)
+      .then((p) => { if (!cancelado) setPreview(p); })
+      .catch((e) => { if (!cancelado) setErr(e instanceof Error ? e.message : "Erro ao calcular preview"); })
+      .finally(() => { if (!cancelado) setLoadingPreview(false); });
+    return () => { cancelado = true; };
+  }, [projectId, para]);
+
+  async function handleConfirmar() {
+    setConfirmando(true);
+    setErr("");
+    try {
+      await aplicarMigrarModo(projectId, para);
+      onMigrado();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao aplicar migração");
+      setConfirmando(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        width: "100%", maxWidth: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+      }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>
+          Migrar para {para === "PULL" ? "Puxada (pull)" : "Atribuição"}
+        </h3>
+        <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 16px", lineHeight: 1.5 }}>
+          O modo de avaliação da Entrega também muda junto, para{" "}
+          <strong>{derivarModoAvaliacaoLabel(para)}</strong>.
+        </p>
+
+        {loadingPreview ? (
+          <p style={{ fontSize: 13, color: "#9696a0" }}>Calculando impacto...</p>
+        ) : preview ? (
+          <ul style={{ fontSize: 13, color: "#374151", lineHeight: 1.8, margin: "0 0 20px", paddingLeft: 20 }}>
+            <li>{preview.entrando_na_fila} task(s) entrando na fila de puxar</li>
+            <li>{preview.vira_rascunho} task(s) virando rascunho (faltam dados)</li>
+            <li>{preview.mantem_responsavel} task(s) mantêm o responsável atual</li>
+            <li>{preview.sem_alteracao} task(s) sem alteração</li>
+          </ul>
+        ) : null}
+
+        {err && <p style={{ fontSize: 12, color: "#dc2626", marginBottom: 12 }}>{err}</p>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onClose} disabled={confirmando} style={btnSecondary}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmar}
+            disabled={loadingPreview || confirmando || !preview}
+            style={{ ...btnPrimary, opacity: confirmando ? 0.6 : 1 }}
+          >
+            {confirmando ? "Migrando..." : "Confirmar migração"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ModosTrabalhoSection({
   projectId,
@@ -365,13 +457,12 @@ function ModosTrabalhoSection({
   project: Project;
   onProjectUpdated: (updated: Project) => void;
 }) {
-  const [modoTrabalhoDestino, setModoTrabalhoDestino] = useState<ModoTrabalho | null>(null);
-  const [modoAvaliacaoDestino, setModoAvaliacaoDestino] = useState<ModoAvaliacao | null>(null);
   const [hidratacaoDestino, setHidratacaoDestino] = useState<boolean | null>(null);
   const [pisoDestino, setPisoDestino] = useState<string | null>(null);
   const [tetoDestino, setTetoDestino] = useState<string | null>(null);
   const [savingModos, setSavingModos] = useState(false);
   const [modosMsg, setModosMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [migrandoPara, setMigrandoPara] = useState<ModoTrabalho | null>(null);
 
   const [wipPorPessoaInput, setWipPorPessoaInput] = useState(String(project.wip_config?.por_pessoa ?? ""));
   const [savingWip, setSavingWip] = useState(false);
@@ -387,15 +478,13 @@ function ModosTrabalhoSection({
       .finally(() => setLoadingHistorico(false));
   }, [projectId]);
 
-  const modoTrabalho = modoTrabalhoDestino ?? project.modo_trabalho;
-  const modoAvaliacao = modoAvaliacaoDestino ?? project.modo_avaliacao;
+  const modoTrabalho = project.modo_trabalho;
+  const modoAvaliacao = project.modo_avaliacao;
   const hidratacao = hidratacaoDestino ?? project.pull_exigir_hidratacao;
   const piso = pisoDestino ?? String(project.pull_piso_pontos);
   const teto = tetoDestino ?? String(project.pull_teto);
 
-  const modosMudou =
-    modoTrabalho !== project.modo_trabalho ||
-    modoAvaliacao !== project.modo_avaliacao ||
+  const configMudou =
     hidratacao !== project.pull_exigir_hidratacao ||
     piso !== String(project.pull_piso_pontos) ||
     teto !== String(project.pull_teto);
@@ -405,8 +494,6 @@ function ModosTrabalhoSection({
     setModosMsg(null);
     try {
       const updated = await updateProjectModos(projectId, {
-        modo_trabalho: modoTrabalho,
-        modo_avaliacao: modoAvaliacao,
         pull_exigir_hidratacao: hidratacao,
         pull_piso_pontos: Number(piso),
         pull_teto: Number(teto),
@@ -443,8 +530,8 @@ function ModosTrabalhoSection({
       <h2 style={sectionTitle}>Modos de Trabalho e de Avaliação</h2>
       <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
         Define como as tasks chegam ao operacional (atribuição direta ou fila de puxada) e
-        qual fórmula calcula a dimensão Entrega da pontuação. Pode ser trocado a qualquer
-        momento, inclusive no meio de uma sprint em andamento.
+        qual fórmula calcula a dimensão Entrega da pontuação. Trocar o modo de trabalho migra
+        as tasks existentes — veja o impacto antes de confirmar.
       </p>
 
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
@@ -455,7 +542,7 @@ function ModosTrabalhoSection({
           <select
             id="project-modo-trabalho"
             value={modoTrabalho}
-            onChange={(e) => { setModoTrabalhoDestino(e.target.value as ModoTrabalho); setModosMsg(null); }}
+            onChange={(e) => setMigrandoPara(e.target.value as ModoTrabalho)}
             disabled={savingModos}
             style={{ ...inputStyle, width: 180, minHeight: 38, background: "#fff", cursor: "pointer" }}
           >
@@ -465,21 +552,28 @@ function ModosTrabalhoSection({
         </div>
 
         <div>
-          <label htmlFor="project-modo-avaliacao" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+          <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
             Modo de avaliação da Entrega
-          </label>
-          <select
-            id="project-modo-avaliacao"
-            value={modoAvaliacao}
-            onChange={(e) => { setModoAvaliacaoDestino(e.target.value as ModoAvaliacao); setModosMsg(null); }}
-            disabled={savingModos}
-            style={{ ...inputStyle, width: 200, minHeight: 38, background: "#fff", cursor: "pointer" }}
-          >
-            <option value="PONTOS_ATRIBUIDOS">Pontos atribuídos</option>
-            <option value="PONTOS_RELATIVO">Pontos relativo ao squad</option>
-          </select>
+          </span>
+          <div style={{ ...inputStyle, width: 200, minHeight: 38, display: "flex", alignItems: "center", background: "#f7f7fa", color: "#374151" }}>
+            {derivarModoAvaliacaoLabel(modoTrabalho)}
+          </div>
         </div>
       </div>
+
+      {migrandoPara && migrandoPara !== modoTrabalho && (
+        <MigrarModoModal
+          projectId={projectId}
+          para={migrandoPara}
+          onClose={() => setMigrandoPara(null)}
+          onMigrado={() => {
+            setMigrandoPara(null);
+            const modoAvaliacaoNovo = migrandoPara === "PULL" ? "PONTOS_RELATIVO" : "PONTOS_ATRIBUIDOS";
+            onProjectUpdated({ ...project, modo_trabalho: migrandoPara, modo_avaliacao: modoAvaliacaoNovo });
+            getModosHistorico(projectId).then(setHistorico).catch(() => {});
+          }}
+        />
+      )}
 
       {modoTrabalho === "PULL" && (
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", marginBottom: 16, padding: "12px 14px", background: "#f7f7fa", borderRadius: 10 }}>
@@ -537,8 +631,8 @@ function ModosTrabalhoSection({
         <button
           type="button"
           onClick={handleSalvarModos}
-          disabled={savingModos || !modosMudou}
-          style={{ ...btnSecondary, opacity: savingModos || !modosMudou ? 0.5 : 1, cursor: savingModos || !modosMudou ? "not-allowed" : "pointer" }}
+          disabled={savingModos || !configMudou}
+          style={{ ...btnSecondary, opacity: savingModos || !configMudou ? 0.5 : 1, cursor: savingModos || !configMudou ? "not-allowed" : "pointer" }}
         >
           {savingModos ? "Salvando..." : "Salvar"}
         </button>
