@@ -264,6 +264,36 @@ def test_aplicar_migracao_para_atribuicao_nao_mexe_no_wip(make_client_completo, 
     assert "wip_config" not in projects_update[0]
 
 
+def test_aplicar_migracao_para_pull_seta_modo_avaliacao_derivado(make_client_completo, monkeypatch):
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: None)
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": True},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
+
+    assert resp.status_code == 200
+    assert projects_update[0]["modo_trabalho"] == "PULL"
+    assert projects_update[0]["modo_avaliacao"] == "PONTOS_RELATIVO"
+
+
+def test_aplicar_migracao_para_atribuicao_seta_modo_avaliacao_derivado(make_client_completo, monkeypatch):
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: None)
+    tc, tasks_update, migracoes_insert, sprints_update, projects_update = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": True},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "ATRIBUICAO"})
+
+    assert resp.status_code == 200
+    assert projects_update[0]["modo_trabalho"] == "ATRIBUICAO"
+    assert projects_update[0]["modo_avaliacao"] == "PONTOS_ATRIBUIDOS"
+
+
 def _mock_client_com_historico(projeto, tasks):
     """Fix 3 (revisão final): estende _mock_client_completo capturando
     também os inserts em configuracao_historico, sem alterar o helper

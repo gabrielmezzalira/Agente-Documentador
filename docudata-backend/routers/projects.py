@@ -467,7 +467,10 @@ async def aplicar_migrar_modo(
             "usuario_email": pessoa["email"],
         }).execute()
 
-    proj_update = client.table("projects").update({"modo_trabalho": data.para}).eq("id", project_id).execute()
+    proj_update = client.table("projects").update({
+        "modo_trabalho": data.para,
+        "modo_avaliacao": _derivar_modo_avaliacao(data.para),
+    }).eq("id", project_id).execute()
 
     # RF-A5: entrar em PULL força WIP por pessoa = 1, mesmo vindo de uma
     # migração (não só de PATCH /modos) — sem isso um projeto migrado ficaria
