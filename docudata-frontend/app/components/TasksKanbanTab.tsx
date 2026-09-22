@@ -110,6 +110,7 @@ interface TaskModalProps {
   operacionais: OperacionalResponse[];
   funcionalidades: FuncionalidadeResponse[];
   defaultSprintId?: string;
+  modoTrabalho: "ATRIBUICAO" | "PULL";
   onClose: () => void;
   onSaved: (t: TaskKanbanResponse) => void;
   onDeleted?: (id: string) => void;
@@ -117,7 +118,7 @@ interface TaskModalProps {
 
 function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
-  defaultSprintId, onClose, onSaved, onDeleted,
+  defaultSprintId, modoTrabalho, onClose, onSaved, onDeleted,
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
@@ -302,15 +303,26 @@ function TaskModal({
             </div>
           </div>
 
-          <div>
-            <label style={labelSt}>Operacional</label>
-            <select value={operacionalId} onChange={(e) => setOperacionalId(e.target.value)} style={inputSt}>
-              <option value="">Sem operacional</option>
-              {operacionais.filter((o) => o.ativo).map((o) => (
-                <option key={o.id} value={o.id}>{o.nome}{o.papel ? ` — ${o.papel}` : ""}</option>
-              ))}
-            </select>
-          </div>
+          {modoTrabalho === "PULL" ? (
+            <div>
+              <label style={labelSt}>Operacional</label>
+              <p style={{ fontSize: 12, color: "#6a6a7a", margin: "4px 0 0", padding: "8px 10px", background: "#f7f7fa", borderRadius: 8 }}>
+                {mode === "create" || !task?.operacional_id
+                  ? "Atribuição via fila de puxar — não é definida manualmente em modo Pull."
+                  : `Responsável atual: ${operacionais.find((o) => o.id === task.operacional_id)?.nome ?? "—"} (somente leitura em modo Pull).`}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label style={labelSt}>Operacional</label>
+              <select value={operacionalId} onChange={(e) => setOperacionalId(e.target.value)} style={inputSt}>
+                <option value="">Sem operacional</option>
+                {operacionais.filter((o) => o.ativo).map((o) => (
+                  <option key={o.id} value={o.id}>{o.nome}{o.papel ? ` — ${o.papel}` : ""}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ background: extra ? "#f0fdf4" : "#f8fafc", border: `1px solid ${extra ? "#bbf7d0" : "#e8e8ed"}`, borderRadius: 8, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -1307,6 +1319,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           operacionais={operacionais}
           funcionalidades={funcionalidades}
           defaultSprintId={createModal.defaultSprintId}
+          modoTrabalho={modoTrabalho}
           onClose={() => setCreateModal(null)}
           onSaved={(t) => { upsertTask(t); setCreateModal(null); }}
         />
@@ -1331,6 +1344,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             sprints={sprints}
             operacionais={operacionais}
             funcionalidades={funcionalidades}
+            modoTrabalho={modoTrabalho}
             onClose={() => setEditModal(null)}
             onSaved={(t) => { upsertTask(t); setEditModal(null); }}
             onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
