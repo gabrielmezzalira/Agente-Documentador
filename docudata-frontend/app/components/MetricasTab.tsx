@@ -38,6 +38,7 @@ import {
 
 interface Props {
   projectId: string;
+  modoTrabalho?: "ATRIBUICAO" | "PULL";
 }
 
 const section: React.CSSProperties = {
@@ -109,7 +110,8 @@ function spiColor(spi: number | null): string {
   return "#dc2626";
 }
 
-export default function MetricasTab({ projectId }: Props) {
+export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: Props) {
+  const labelPontosVinculados = modoTrabalho === "PULL" ? "Puxados" : "Atribuídos";
   const [spi, setSpi] = useState<SpiPoint[]>([]);
   const [throughput, setThroughput] = useState<ThroughputPoint[]>([]);
   const [cycleTime, setCycleTime] = useState<CycleTimePoint[]>([]);
@@ -160,7 +162,7 @@ export default function MetricasTab({ projectId }: Props) {
     { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
-    { title: "SPI por operacional (estimado)", body: "Proxy calculado ao vivo sobre todas as tasks atribuídas a cada pessoa, em qualquer coluna. Serve para ver quem está sobrecarregado agora; não é o número que alimenta o acompanhamento de performance." },
+    { title: "SPI por operacional (estimado)", body: "Proxy calculado ao vivo sobre todas as tasks vinculadas a cada pessoa (atribuídas ou puxadas), em qualquer coluna. Serve para ver quem está sobrecarregado agora; não é o número que alimenta o acompanhamento de performance." },
     { title: "Entrega e evolução por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Mostra a entrega de cada pessoa (já descontando o que foi penalizado por task travada), a nota de evolução dada por você, quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
   ];
 
@@ -298,7 +300,7 @@ export default function MetricasTab({ projectId }: Props) {
       <div style={section}>
         <p style={title}>SPI por operacional (estimado) <InfoTooltip id="perfop" /></p>
         {perfOp.length === 0 ? (
-          <p style={empty}>Nenhum operacional com tasks atribuídas ainda.</p>
+          <p style={empty}>Nenhum operacional com tasks {modoTrabalho === "PULL" ? "puxadas" : "atribuídas"} ainda.</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={perfOp} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
@@ -308,10 +310,10 @@ export default function MetricasTab({ projectId }: Props) {
               <Tooltip
                 formatter={(v, name) => [
                   v,
-                  name === "pontos_atribuidos" ? "Atribuídos" : name === "pontos_realizados" ? "Realizados" : name,
+                  name === "pontos_atribuidos" ? labelPontosVinculados : name === "pontos_realizados" ? "Realizados" : name,
                 ]}
               />
-              <Legend formatter={(v) => v === "pontos_atribuidos" ? "Atribuídos" : "Realizados"} />
+              <Legend formatter={(v) => v === "pontos_atribuidos" ? labelPontosVinculados : "Realizados"} />
               <Bar dataKey="pontos_atribuidos" fill="#64748b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
             </BarChart>
