@@ -261,6 +261,12 @@ async def create_task(data: TaskCreate):
         raise HTTPException(status_code=404, detail="Project not found")
     projeto_row = check.data[0]
 
+    if data.operacional_id and projeto_row.get("modo_trabalho") == "PULL":
+        raise HTTPException(
+            status_code=422,
+            detail="Em modo Pull, tasks não podem ter responsável definido manualmente. Use a fila de puxar.",
+        )
+
     if data.operacional_id:
         op_check = (
             client.table("operacionais")

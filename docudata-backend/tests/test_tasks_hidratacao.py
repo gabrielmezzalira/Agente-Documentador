@@ -98,3 +98,24 @@ def test_create_task_nao_marca_rascunho_em_projeto_atribuicao(make_client):
 
     assert resp.status_code == 201
     assert "rascunho" not in ins[0]
+
+
+def test_create_task_rejeita_operacional_id_em_projeto_pull(make_client):
+    tc, ins, _ = make_client(projeto={"id": "proj-1", "modo_trabalho": "PULL", "pull_exigir_hidratacao": False})
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+
+    assert resp.status_code == 422
+    assert "Pull" in resp.json()["detail"]
+    assert ins == []
+
+
+def test_create_task_em_atribuicao_nao_rejeita_por_causa_do_modo(make_client):
+    tc, ins, _ = make_client(projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO", "pull_exigir_hidratacao": False})
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+
+    # 422 aqui vem da validação de "operacional_id não pertence a este
+    # projeto" (fixture não cadastra operacionais) — a prova de que o gate
+    # de PULL não é o motivo é a mensagem, não o status code.
+    assert "Pull" not in resp.json()["detail"]
