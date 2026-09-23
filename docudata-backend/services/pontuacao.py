@@ -64,7 +64,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     tasks = (
         client.table("tasks")
-        .select("id, operacional_id, pontos, coluna_kanban, extra, bloqueado_resolvido_por, bloqueado_resolvido_em")
+        .select("id, operacional_id, pontos, coluna_kanban, extra, bloqueado_resolvido_por, bloqueado_resolvido_em, bloqueado_manual, bloqueio_tipo")
         .eq("sprint_id", sprint_id)
         .execute()
         .data or []
@@ -91,6 +91,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     bloqueios_totais: dict[str, int] = {}
     bloqueios_proprio: dict[str, int] = {}
     bonus_extra: dict[str, int] = {}
+    aguardando_cliente_por_op: set[str] = set()
 
     eventos: list[dict] = []
 
@@ -127,7 +128,10 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         else:
             operacional_id = task.get("operacional_id")
             if operacional_id:
-                pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
+                if _aguardando_cliente(task):
+                    aguardando_cliente_por_op.add(operacional_id)
+                else:
+                    pontos_alocados[operacional_id] = pontos_alocados.get(operacional_id, 0) + pontos
 
         if task.get("bloqueado_resolvido_em") and task.get("operacional_id"):
             resolvido_em = task["bloqueado_resolvido_em"]
@@ -201,11 +205,22 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         return []
 
     denominador_relativo = None
+    isentos_relativo: set[str] = set()
+    entrega_relativa_medivel = False
     if modo_avaliacao == "PONTOS_RELATIVO":
-        valores_concluidos = [pontos_concluidos.get(op, 0) for op in vinculados_ids] or [0]
-        denominador_bruto = sum(valores_concluidos) / len(valores_concluidos)
-        piso = float(projeto_row.get("pull_piso_pontos") or 1)
-        denominador_relativo = max(denominador_bruto, piso)
+        # Sem nenhuma task regular disponível (só extra, só esperando o
+        # cliente, ou sprint vazia) não havia o que entregar: Entrega fica sem
+        # dado pra todos, não 0. Quem só tinha task esperando o cliente e não
+        # concluiu nada também fica sem dado e sai da média do time.
+        tem_o_que_puxar = any(not t.get("extra") and not _aguardando_cliente(t) for t in tasks)
+        isentos_relativo = {op for op in aguardando_cliente_por_op if pontos_concluidos.get(op, 0) == 0}
+        base_media = vinculados_ids - isentos_relativo
+        if tem_o_que_puxar:
+            valores_concluidos = [pontos_concluidos.get(op, 0) for op in base_media] or [0]
+            denominador_bruto = sum(valores_concluidos) / len(valores_concluidos)
+            piso = float(projeto_row.get("pull_piso_pontos") or 1)
+            denominador_relativo = max(denominador_bruto, piso)
+            entrega_relativa_medivel = True
 
     agora = momento_fechamento
     linhas = []
@@ -228,11 +243,12 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         entrega_denominador = None
         entrega_nota_relativa = None
         if modo_avaliacao == "PONTOS_RELATIVO":
-            teto = float(projeto_row.get("pull_teto") or 1.5)
             entrega_pontos_pessoa = pontos_concluidos.get(operacional_id, 0)
-            entrega_denominador = round(denominador_relativo, 2)
-            entrega_bruta = entrega_pontos_pessoa / denominador_relativo if denominador_relativo else 0
-            entrega_nota_relativa = round(min(entrega_bruta, teto) * 100 / teto, 2)
+            if entrega_relativa_medivel and operacional_id not in isentos_relativo:
+                teto = float(projeto_row.get("pull_teto") or 1.5)
+                entrega_denominador = round(denominador_relativo, 2)
+                entrega_bruta = entrega_pontos_pessoa / denominador_relativo if denominador_relativo else 0
+                entrega_nota_relativa = round(min(entrega_bruta, teto) * 100 / teto, 2)
 
         linhas.append({
             "operacional_id": operacional_id,
@@ -284,6 +300,18 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             log.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da sprint %s", sprint_id)
 
     return resp.data or []
+
+
+def _aguardando_cliente(task: dict) -> bool:
+    """Task parada esperando o cliente no momento do fechamento: não conta
+    como pontos alocados de ninguém — atraso do cliente não pode zerar a
+    Entrega do operacional (design 2026-09-23). Se o cliente destravou e a
+    task foi concluída, ela conta normalmente."""
+    return (
+        bool(task.get("bloqueado_manual"))
+        and task.get("bloqueio_tipo") == "cliente"
+        and task.get("coluna_kanban") != "concluida"
+    )
 
 
 def _resolver_quem_completou(client, task_ids: list[str]) -> dict[str, str]:
