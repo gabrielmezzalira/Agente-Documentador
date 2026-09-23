@@ -469,9 +469,9 @@ def rotear_evento_pos_fechamento(client, task: dict, dimensao: str) -> None:
     }).execute()
 
 
-def listar_spi_evolucao_do_projeto(client, projeto_id: str) -> list[dict]:
-    """SPI travado + Evolução por operacional do projeto, para a leitura do
-    gerente (a tela do Líder é cross-projeto; esta é do projeto dele).
+def listar_spi_do_projeto(client, projeto_id: str) -> list[dict]:
+    """SPI travado por operacional do projeto, para a leitura do gerente (a
+    tela do Líder é cross-projeto; esta é do projeto dele).
 
     Diferente do proxy ao vivo da aba Métricas: aqui só entra o que já foi
     travado pela Avaliação Semanal, que é o mesmo dado que alimenta o ranking."""
@@ -489,7 +489,7 @@ def listar_spi_evolucao_do_projeto(client, projeto_id: str) -> list[dict]:
 
     linhas = (
         client.table("pontuacao_operacional_sprint")
-        .select("operacional_id, entrega_pontos_concluidos, entrega_pontos_alocados, entrega_pontos_penalizados, gerente_pergunta6")
+        .select("operacional_id, entrega_pontos_concluidos, entrega_pontos_alocados, entrega_pontos_penalizados")
         .eq("projeto_id", projeto_id)
         .execute()
         .data or []
@@ -508,14 +508,10 @@ def listar_spi_evolucao_do_projeto(client, projeto_id: str) -> list[dict]:
         if alocados > 0:
             spi = round(min(max(concluidos - penalizados, 0) / alocados * 100, 100), 2)
 
-        notas6 = [l["gerente_pergunta6"] for l in minhas if l.get("gerente_pergunta6") is not None]
-        evolucao = round(min(sum(notas6) / len(notas6) * 20, 100), 2) if notas6 else None
-
         resultado.append({
             "operacional_id": op["id"],
             "nome": op["nome"],
             "spi": spi,
-            "evolucao": evolucao,
             "sprints_avaliadas": len(minhas),
             "pontos_penalizados": penalizados,
         })

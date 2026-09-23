@@ -743,21 +743,6 @@ class ConfirmarAvaliacaoResponse(BaseModel):
     pontuacao_travada_count: int = 0
 
 
-class BaselineEvolucaoCreate(BaseModel):
-    operacional_id: str
-    ciclo: str
-    observacoes: Optional[str] = None
-
-
-class BaselineEvolucaoResponse(BaseModel):
-    id: str
-    operacional_id: str
-    ciclo: str
-    data_snapshot: datetime
-    nota_inicial: Optional[float] = None
-    observacoes: Optional[str] = None
-
-
 class SpiPorProjetoResponse(BaseModel):
     projeto_id: str
     spi: Optional[float] = None
@@ -811,11 +796,10 @@ class MetodologiaItem(BaseModel):
     resumo: str
 
 
-class SpiEvolucaoOperacionalResponse(BaseModel):
+class SpiPorOperacionalDoProjetoResponse(BaseModel):
     operacional_id: str
     nome: str
     spi: Optional[float] = None
-    evolucao: Optional[float] = None
     sprints_avaliadas: int
     pontos_penalizados: int
 
