@@ -17,9 +17,9 @@ Subárea de Dados · CITi · Gestão 26.2
 2. [Princípio central: direção pública, cálculo oculto](#2-princípio-central-direção-pública-cálculo-oculto)
 3. [Fundamentação](#3-fundamentação)
 4. [Como o sistema funciona, em quatro etapas](#4-como-o-sistema-funciona-em-quatro-etapas)
-5. [As cinco dimensões](#5-as-cinco-dimensões)
+5. [As quatro dimensões](#5-as-quatro-dimensões)
 6. [Pesos e tipos de projeto](#6-pesos-e-tipos-de-projeto)
-7. [O questionário de sete perguntas](#7-o-questionário-de-sete-perguntas)
+7. [O questionário de seis perguntas](#7-o-questionário-de-seis-perguntas)
 8. [Como o dado é produzido no dia a dia](#8-como-o-dado-é-produzido-no-dia-a-dia)
 9. [O fechamento da sprint](#9-o-fechamento-da-sprint)
 10. [Janelas e ranking](#10-janelas-e-ranking)
@@ -59,7 +59,7 @@ sprints fechadas.
 ## 2. Princípio central: direção pública, cálculo oculto
 
 A **camada pública** é a direção. Os operacionais sabem quais comportamentos
-contam, que são entregar com qualidade, ajudar o time, ser autônomo, evoluir e
+contam, que são entregar com qualidade, ajudar o time, ser autônomo e
 documentar. E sabem que existe reconhecimento periódico para quem mais contribui.
 
 A **camada oculta** é o cálculo: pesos, fórmulas, normalização, notas cruas dos
@@ -75,7 +75,7 @@ Esse princípio não é só um acordo social, ele é imposto pelo próprio siste
 | O que | Quem enxerga |
 |---|---|
 | Ranking e score final | Owner e Líder |
-| Entrega consolidada e evolução de cada operacional | Owner, Líder e Gerente |
+| Entrega consolidada de cada operacional | Owner, Líder e Gerente |
 | Notas cruas do questionário e métricas do projeto | Owner, Líder e Gerente |
 | Esta metodologia | Owner, Líder e Gerente |
 | A versão pública deste documento e o guia do sistema | Todo mundo |
@@ -93,7 +93,7 @@ O desenho segue o consenso de mercado sobre medição de performance em tecnolog
 multidimensional e não é capturada por uma métrica única. Métricas de output de
 código, como commits, linhas e PRs, medem volume e não valor, e viraram
 ativamente enganosas quando a IA gera parte relevante do código. Por isso este
-sistema mede em cinco dimensões e nunca usa contagem de código como moeda.
+sistema mede em quatro dimensões e nunca usa contagem de código como moeda.
 
 **DX Core 4** (Noda e Tacho, 2024) organiza a medição em dimensões oposicionais,
 onde cada uma segura o exagero da outra. Esse é o princípio anti-gaming central:
@@ -101,7 +101,7 @@ uma métrica de volume só entra quando outra dimensão a pune ao ser gameada.
 
 **O Google** amarra peso alto no gerente à calibração, que Laszlo Bock chama de
 "a alma da avaliação", porque força cada gerente a justificar a nota para os
-outros e alinha padrões diferentes. Por isso os 35% no gerente aqui são
+outros e alinha padrões diferentes. Por isso os 50% no gerente aqui são
 inseparáveis da rotina de calibração da seção 14.
 
 **A Microsoft**, ao sair do stack ranking, passou a avaliar a pessoa também pela
@@ -133,7 +133,7 @@ Nada disso é "nota" ainda. É dado bruto vivo, que muda o tempo todo.
 
 ### Etapa 2. Fechamento, no fim da sprint
 
-O gerente responde as sete perguntas sobre cada operacional e confirma a Avaliação
+O gerente responde as seis perguntas sobre cada operacional e confirma a Avaliação
 Semanal. Nesse instante o sistema tira uma fotografia do estado da sprint e
 **trava** uma linha de dado bruto por operacional. A partir daí aquela sprint não
 muda mais.
@@ -141,12 +141,12 @@ muda mais.
 ### Etapa 3. Agregação, quando alguém abre a tela
 
 O sistema pega as linhas travadas mais recentes da pessoa, monta a janela de
-comparação (1, 2 ou 4 sprints) e calcula as cinco dimensões, cada uma numa escala
+comparação (1, 2 ou 4 sprints) e calcula as quatro dimensões, cada uma numa escala
 de 0 a 100.
 
 ### Etapa 4. Ranking
 
-As cinco dimensões viram um número só, o score final, através dos pesos. As
+As quatro dimensões viram um número só, o score final, através dos pesos. As
 pessoas são ordenadas por esse número, dentro de cada janela.
 
 ### O que essa separação implica
@@ -162,7 +162,7 @@ pessoas são ordenadas por esse número, dentro de cada janela.
 
 ---
 
-## 5. As cinco dimensões
+## 5. As quatro dimensões
 
 Cada dimensão vira um número de **0 a 100** antes de ser multiplicada pelo peso.
 As fórmulas são fixas e absolutas: nenhuma depende de comparar a pessoa com as
@@ -184,7 +184,7 @@ projeto.
 - Somam-se todas as sprints da janela dentro do mesmo projeto.
 - **Teto de 100.** Entregar além do que pegou não pontua acima do máximo. Isso
   existe para que puxar task extra no fim da semana não vire alavanca de score.
-  O reconhecimento por trabalho extra vem pelo bônus da seção 5.6.
+  O reconhecimento por trabalho extra vem pelo bônus da seção 5.5.
 - Se a pessoa não pegou nenhum ponto na janela, a dimensão fica **indisponível**,
   e não vira zero.
 
@@ -213,9 +213,8 @@ sinal de colaboração.
 > **Avaliação do Gerente** = média das seis perguntas do questionário, convertida
 > da escala 0 a 5 para 0 a 100.
 
-A pergunta de evolução fica **fora** desta média de propósito: ela é a fonte
-exclusiva da dimensão Evolução, e contá-la duas vezes daria peso desproporcional
-a uma única pergunta.
+Isso é a média simples das seis perguntas do questionário — o questionário
+não tem mais uma sétima pergunta de evolução (removida em 2026-09-23).
 
 Se nenhuma sprint da janela tem avaliação, a dimensão fica indisponível.
 
@@ -293,17 +292,7 @@ Task parada tempo demais **não** entra aqui. Atraso penaliza Entrega, não
 Autonomia, porque são coisas diferentes: uma é sobre demora, a outra é sobre
 depender dos outros.
 
-### 5.5 Evolução
-
-**O que mede:** quanto a pessoa cresceu em relação a onde estava.
-
-> **Evolução** = a pergunta de evolução do questionário, convertida da escala 0 a
-> 5 para 0 a 100.
-
-É a única dimensão que compara a pessoa com ela mesma, e não com um padrão
-absoluto. É o que dá chance real a quem entrou mais júnior.
-
-### 5.6 Bônus de task extra
+### 5.5 Bônus de task extra
 
 Não é uma dimensão, é um acréscimo direto no score final.
 
@@ -338,13 +327,15 @@ Cada projeto é classificado como:
 
 | Dimensão | Projeto padrão | Consultoria ou discovery |
 |---|---|---|
-| Avaliação do Gerente | **35%** | **50%** |
-| Entrega e Confiabilidade | **20%** | **20%** |
-| Qualidade Técnica | **20%** | **10%** |
-| Autonomia | **15%** | **12%** |
-| Evolução | **10%** | **8%** |
+| Avaliação do Gerente | **50%** | **50%** |
+| Entrega e Confiabilidade | **18%** | **24%** |
+| Qualidade Técnica | **18%** | **12%** |
+| Autonomia | **14%** | **14%** |
 
-Cada coluna soma 100%.
+Cada coluna soma 100%. (Atualizado em 2026-09-23: a dimensão Evolução foi
+removida e o peso do gerente subiu para 50% nos dois tipos de projeto — o
+que sobrou de Entrega/Qualidade/Autonomia foi redistribuído mantendo a
+proporção relativa que já existia entre as três.)
 
 **Por que consultoria pesa mais no gerente.** Em projeto sem código, metade dos
 sinais objetivos simplesmente não existe: não há commit para avaliar, e Qualidade
@@ -367,10 +358,10 @@ Uma janela pode cobrir mais de um projeto, inclusive de tipos diferentes. Os
 pesos aplicados são os do projeto com mais sprints dentro daquela janela; em
 empate, vale o projeto da sprint mais recente.
 
-## 7. O questionário de sete perguntas
+## 7. O questionário de seis perguntas
 
 O gerente responde **por operacional, por sprint**, ou seja, toda semana, numa
-escala de **0 a 5**. Todas as sete são obrigatórias, não existe "não sei".
+escala de **0 a 5**. Todas as seis são obrigatórias, não existe "não sei".
 
 | # | Pergunta | Âncora 0 | Âncora 5 |
 |---|---|---|---|
@@ -379,31 +370,27 @@ escala de **0 a 5**. Todas as sete são obrigatórias, não existe "não sei".
 | 3 | A pessoa destravou sozinha antes de te escalar? | dependeu de mim o tempo todo | resolveu sozinha |
 | 4 | A comunicação da entrega foi clara a ponto de você não precisar perguntar? | tive que decifrar | entendi de primeira |
 | 5 | Ajudou, desbloqueou ou ensinou outro membro nesta sprint? | não interagiu | foi peça de apoio do squad |
-| 6 | Evoluiu em relação a onde estava no começo do ciclo? | estagnou | salto claro |
-| 7 | Trouxe algo além do que foi pedido? | fez o mínimo | antecipou problema ou propôs melhoria |
+| 6 | Trouxe algo além do que foi pedido? | fez o mínimo | antecipou problema ou propôs melhoria |
 
 ### 7.1 Para onde vai cada pergunta
 
 | Pergunta | Alimenta | Peso no score, em projeto padrão |
 |---|---|---|
-| 1, 2, 4, 5, 7 | Avaliação do Gerente | cerca de 5,8% cada |
-| 3 | Avaliação do Gerente **e** metade de Autonomia | cerca de 5,8% mais 7,5% |
-| 6 | Evolução, sozinha | 10% |
-
-A pergunta 6 não entra na média das outras seis: ela é a dimensão Evolução
-inteira.
+| 1, 2, 4, 5, 6 | Avaliação do Gerente | cerca de 8,3% cada |
+| 3 | Avaliação do Gerente **e** metade de Autonomia | cerca de 8,3% mais 7% |
 
 A pergunta 3 é a única que alimenta duas coisas, e de propósito. Ela entra na
 média do gerente como qualquer outra, e ao mesmo tempo sustenta metade de
 Autonomia nas semanas em que ninguém registrou bloqueio, que são a maioria.
 
-A pergunta 5, sobre colaboração, vale por volta de 5,8% do score. É um sinal real,
-mas não é uma dimensão própria. Se o acompanhamento mostrar queda de colaboração,
-o caminho de correção é aumentar o peso da avaliação do gerente ou promover a
-colaboração a dimensão separada.
+A pergunta 5, sobre colaboração, vale por volta de 8,3% do score. É um sinal
+real, mas não é uma dimensão própria. Se o acompanhamento mostrar queda de
+colaboração, o caminho de correção é aumentar o peso da avaliação do gerente
+ou promover a colaboração a dimensão separada.
 
-Em projeto de consultoria todos esses pesos sobem, porque a avaliação do gerente
-vale 50% em vez de 35%.
+Em consultoria e em projeto padrão a avaliação do gerente pesa igual, 50% —
+a diferença entre os dois tipos de projeto está só na divisão do resto entre
+Entrega, Qualidade e Autonomia (seção 6.2).
 
 ### 7.2 Como responder bem
 
@@ -412,9 +399,9 @@ vale 50% em vez de 35%.
 - **Use a escala inteira.** Um gerente que só dá 4 e 5 destrói a comparação para
   todos os operacionais dele. A calibração da seção 14 existe justamente para isso.
 - **3 é "fez o combinado".** 5 é excepcional, e não "não tenho reclamação".
-- **Cuidado redobrado com a pergunta 3.** Ela é a que mais pesa depois da 6, e na
-  maioria das semanas é a única fonte de Autonomia. Responda pensando em quantas
-  vezes você precisou entrar para destravar a pessoa, não na impressão geral.
+- **Cuidado redobrado com a pergunta 3.** Na maioria das semanas ela é a única
+  fonte de Autonomia. Responda pensando em quantas vezes você precisou entrar
+  para destravar a pessoa, não na impressão geral.
 
 ### 7.3 Janela de correção de 48 horas
 
@@ -427,7 +414,7 @@ que o prazo conta da criação, e não da última edição.
 ### 7.4 Reaproveitar avaliação de outro projeto
 
 Se a mesma pessoa já foi avaliada recentemente em outro projeto, o sistema oferece
-"usar essas respostas" e preenche as sete notas a partir da última avaliação
+"usar essas respostas" e preenche as seis notas a partir da última avaliação
 encontrada.
 
 Use com cuidado. É um atalho para quem acompanha a mesma pessoa em dois projetos e
@@ -689,7 +676,7 @@ Como funciona:
    a task não consome o orçamento de pontos da sprint, e os pontos dela não entram
    em Entrega.
 5. Se a pessoa concluir a task extra antes do fechamento, ela ganha o bônus da
-   seção 5.6.
+   seção 5.5.
 
 O botão só aparece com a fila zerada, então não dá para pedir task nova enquanto
 há trabalho parado. E um pedido em aberto não vira dez: enquanto o gerente não
@@ -719,7 +706,6 @@ Para cada operacional com dado na sprint, fica registrado:
 | O que | De onde vem |
 |---|---|
 | Média das seis perguntas do gerente | Questionário |
-| Nota de evolução | Pergunta 6 do questionário |
 | Nota de autonomia percebida | Pergunta 3 do questionário |
 | Pontos que a pessoa pegou | Soma das tasks dela na sprint, concluídas ou não |
 | Pontos que a pessoa entregou | Soma das tasks concluídas por ela |
@@ -774,7 +760,7 @@ o gerente corrigir o Kanban e confirmar de novo.
 Três coisas importantes sobre reabrir:
 
 - **As respostas do questionário não são apagadas.** O gerente não precisa
-  responder as sete perguntas de todo mundo outra vez, e a janela de 48 horas de
+  responder as seis perguntas de todo mundo outra vez, e a janela de 48 horas de
   edição continua valendo como antes.
 - **O marco de tempo se ajusta sozinho.** Aquele marco que evita contar o mesmo
   bloqueio duas vezes (seção 9.4) é derivado do fechamento mais recente do
@@ -797,23 +783,20 @@ sprint aberta, o evento fica só no histórico e não afeta pontuação nenhuma.
 
 ## 10. Janelas e ranking
 
-### 10.1 Uma pessoa é uma pessoa, mesmo em vários projetos
+### 10.1 O ranking é por projeto
 
-Cada projeto tem sua própria lista de operacionais. Quem trabalha em dois projetos
-aparece nas duas listas.
+Cada projeto tem sua própria lista de operacionais e seu próprio ranking.
+Quem trabalha em dois projetos aparece **separadamente** em cada um, com a
+nota calculada só com os dados daquele projeto — não existe mais nenhuma
+média entre projetos (mudança de 2026-09-23; antes disso o sistema juntava
+as aparições de uma pessoa pelo e-mail e tirava a média entre os projetos).
 
-**No ranking essas aparições viram uma pessoa só.** O sistema junta tudo pelo
-**e-mail** cadastrado, calcula cada dimensão dentro de cada projeto e depois tira
-a **média simples** entre os projetos. Quem está em dois projetos é avaliado pela
-média dos dois, não pela soma nem pelo melhor deles.
-
-A consequência prática é dura mas necessária: **se o e-mail estiver diferente ou
-em branco nos dois cadastros, o sistema não tem como saber que é a mesma pessoa**,
-e ela aparece duas vezes no ranking, com metade do histórico cada. Por isso, ao
-adicionar um operacional que já existe em outro projeto, use o atalho **"Já
-trabalha em outro projeto?"** no formulário: ele preenche nome, e-mail, papel e
-usuário do GitHub a partir do cadastro que já existe, e evita o erro de digitação
-que parte a pessoa em duas.
+Dentro de um mesmo projeto, se a mesma pessoa tiver mais de um cadastro
+`operacionais` (raro — normalmente é um cadastro por pessoa por projeto), o
+sistema ainda junta essas linhas pelo **e-mail**, do jeito que sempre fez.
+Cadastros sem e-mail nesse cenário raro viram entradas separadas dentro do
+mesmo projeto — bem menos custoso do que era antes, já que hoje o e-mail só
+importa dentro de um projeto, nunca mais entre projetos.
 
 Operacional desativado sai do ranking na hora.
 
@@ -847,26 +830,20 @@ nota cheia, trate como indicativa.
 
 ### 11.1 O caminho
 
-1. **Junta a pessoa.** Todas as aparições dela, em todos os projetos, viram uma
-   pessoa só, casadas pelo e-mail.
-2. **Monta a janela.** Pega as sprints fechadas mais recentes em que ela pegou
-   pontos: 1, 2 ou 4, conforme a janela escolhida na tela.
-3. **Calcula cada dimensão dentro de cada projeto.** As cinco fórmulas da seção 5,
-   aplicadas só às sprints daquela janela, projeto por projeto.
-4. **Tira a média entre projetos.** Se a janela cobre mais de um projeto, cada
-   dimensão vira a média simples dos valores por projeto. Projeto onde a dimensão
-   não existe é ignorado, e não entra como zero.
-5. **Aplica os pesos.** Multiplica cada dimensão pelo peso dela e soma. Os
+1. **Escolhe o projeto.** O ranking é calculado um projeto de cada vez — não
+   existe mais o passo de juntar as aparições de uma pessoa entre projetos
+   (seção 10.1).
+2. **Monta a janela.** Pega as sprints fechadas mais recentes daquele projeto
+   em que a pessoa pegou pontos: 1, 2 ou 4, conforme a janela escolhida na
+   tela.
+3. **Calcula cada dimensão.** As quatro fórmulas da seção 5, aplicadas só às
+   sprints daquela janela, dentro daquele projeto.
+4. **Aplica os pesos.** Multiplica cada dimensão pelo peso dela e soma. Os
    pesos dependem do tipo de projeto (seção 6).
-6. **Soma o bônus de task extra**, se houver, respeitando o teto de 5 pontos. O
+5. **Soma o bônus de task extra**, se houver, respeitando o teto de 5 pontos. O
    resultado é o score final, de 0 a 100.
-7. **Ordena.** As pessoas são listadas da maior nota para a menor, dentro de cada
-   janela.
-
-A média entre projetos é simples, e não ponderada por volume: um projeto pequeno
-pesa igual a um grande. Isso protege quem foi alocado parcialmente em algo pequeno
-de ver aquele projeto diluído a zero, mas também significa que uma semana ruim num
-projeto pequeno machuca tanto quanto num grande.
+6. **Ordena.** Dentro de cada projeto, as pessoas são listadas da maior nota
+   para a menor, dentro de cada janela.
 
 ### 11.2 Um exemplo do começo ao fim
 
@@ -878,7 +855,6 @@ A Maria, na janela de duas sprints, nos dois casos no mesmo projeto padrão.
 | Pontos que ela entregou | 12 | 10 |
 | Pontos descontados por atraso | 0 | 2 |
 | Média das seis perguntas do gerente | 4,17 | 4,50 |
-| Nota de evolução, pergunta 6 | 4 | 5 |
 | Nota de autonomia percebida, pergunta 3 | 4 | 5 |
 | Tasks concluídas | 6 | 4 |
 | Tasks reabertas | 1 | 0 |
@@ -886,7 +862,7 @@ A Maria, na janela de duas sprints, nos dois casos no mesmo projeto padrão.
 | Bloqueios que resolveu sozinha | 2 | 1 |
 | Nota média dos commits | 7,5 | 8,5 |
 
-**As cinco dimensões:**
+**As quatro dimensões:**
 
 | Dimensão | Conta | Resultado |
 |---|---|---|
@@ -894,7 +870,6 @@ A Maria, na janela de duas sprints, nos dois casos no mesmo projeto padrão.
 | Avaliação do Gerente | média de 4,17 e 4,50, vezes 20 | **86,70** |
 | Qualidade | retrabalho 90,00 e commits 80,00, meio a meio | **85,00** |
 | Autonomia | bloqueios 75,00 e pergunta 3 em 90,00, meio a meio | **82,50** |
-| Evolução | média de 4 e 5, vezes 20 | **90,00** |
 
 O retrabalho saiu de 1 task reaberta em 10 concluídas, que dá 90. A nota de
 commits foi a média de 7,5 e 8,5, que dá 8,0, convertida para 80. O sinal de
@@ -904,26 +879,25 @@ bloqueio foi 3 resolvidos sozinha em 4 bloqueios, que dá 75.
 
 | Dimensão | Nota | Peso | Contribuição |
 |---|---|---|---|
-| Avaliação do Gerente | 86,70 | 35% | 30,35 |
-| Entrega | 83,33 | 20% | 16,67 |
-| Qualidade | 85,00 | 20% | 17,00 |
-| Autonomia | 82,50 | 15% | 12,38 |
-| Evolução | 90,00 | 10% | 9,00 |
-| | | | **85,39** |
+| Avaliação do Gerente | 86,70 | 50% | 43,35 |
+| Entrega | 83,33 | 18% | 15,00 |
+| Qualidade | 85,00 | 18% | 15,30 |
+| Autonomia | 82,50 | 14% | 11,55 |
+| | | | **85,20** |
 
 Três coisas para reparar neste exemplo:
 
 **O atraso custou caro.** Sem os 2 pontos descontados na sprint 13, a Entrega
-teria sido 91,67 e o score subiria para 87,06. Uma task entregue fora do prazo
-custou 1,67 ponto de score.
+teria sido 91,67 e o score subiria para 86,70. Uma task entregue fora do prazo
+custou 1,50 ponto de score.
 
 **A task extra teria compensado.** Se a Maria tivesse pedido e concluído uma task
-extra de 3 pontos, o bônus levaria o score de 85,39 para **88,39**.
+extra de 3 pontos, o bônus levaria o score de 85,20 para **88,20**.
 
-**Em consultoria a mesma pessoa daria 85,62.** Com os pesos de consultoria, a
-leitura do gerente (86,70) puxa mais e a Qualidade pesa menos. A diferença é
-pequena aqui porque as notas dela são parecidas entre si; quanto mais desigual o
-perfil da pessoa, mais os dois tipos de projeto divergem.
+**Em consultoria a mesma pessoa daria 85,10.** Com os pesos de consultoria a
+diferença ficou pequena: a avaliação do gerente pesa igual nos dois tipos de
+projeto agora (50%), e Autonomia também (14%) — a única diferença real está em
+como Entrega e Qualidade dividem o resto (seção 6.2).
 
 ### 11.3 O que acontece quando falta uma dimensão
 
@@ -931,13 +905,13 @@ Se uma dimensão não pode ser calculada, ela **não vira zero**. Ela sai da con
 o resultado é dividido pela soma dos pesos que sobraram.
 
 Voltando à Maria: se ela não tivesse sido avaliada pelo gerente em nenhuma das duas
-sprints, sumiriam a Avaliação do Gerente e a Evolução, e a Autonomia cairia para
-75,00, porque perderia a fonte da pergunta 3 e sobraria só o sinal de bloqueio.
-Restariam Entrega, Qualidade e Autonomia, que somam 55% de peso. A conta seria
-16,67 mais 17,00 mais 11,25, dividido por 0,55, dando **81,67**.
+sprints, sumiria a Avaliação do Gerente, e a Autonomia cairia para 75,00, porque
+perderia a fonte da pergunta 3 e sobraria só o sinal de bloqueio. Restariam
+Entrega, Qualidade e Autonomia, que somam 50% de peso. A conta seria 15,00 mais
+15,30 mais 10,50, dividido por 0,50, dando **81,60**.
 
 Isso é matematicamente correto e comportamentalmente perigoso, porque coloca na
-mesma tabela alguém medido por cinco dimensões e alguém medido por três. A defesa
+mesma tabela alguém medido por quatro dimensões e alguém medido por três. A defesa
 contra isso é a trava da seção 9.1, que impede fechar a semana com avaliação
 faltando. Enquanto essa trava for respeitada, o caso não acontece.
 
@@ -958,7 +932,7 @@ ser gameada.**
 > Contagem de task, de commit e de linha é guard-rail, nunca moeda.
 
 Sob IA, commit e linha são quase de graça. Servem para cruzar com qualidade, jamais
-para pontuar sozinhos. Nenhuma dessas contagens aparece em nenhuma das cinco
+para pontuar sozinhos. Nenhuma dessas contagens aparece em nenhuma das quatro
 fórmulas.
 
 ### 12.2 Como cada tentativa de gaming se anula
@@ -979,8 +953,8 @@ fórmulas.
 
 ### 12.3 Onde o sistema ainda é frágil
 
-**A calibração é a única defesa contra inflação de nota.** Em projeto padrão o
-gerente responde por 35% do score, e em consultoria por 50%. Nada no sistema
+**A calibração é a única defesa contra inflação de nota.** O gerente responde
+por 50% do score, tanto em projeto padrão quanto em consultoria. Nada no sistema
 detecta um gerente que dá 5 para todo mundo. Só outro gerente, olhando os mesmos
 casos, consegue.
 
@@ -1008,7 +982,7 @@ do gerente.
 | Ver quem tem acesso ao sistema | ✅ | ✅ | ❌ | ❌ |
 | Ranking e score final | ✅ | ✅ | ❌ | ❌ |
 | Reabrir um fechamento de sprint | ✅ | ✅ | ❌ | ❌ |
-| Entrega consolidada e evolução por pessoa | ✅ | ✅ | ✅ | ❌ |
+| Entrega consolidada por pessoa | ✅ | ✅ | ✅ | ❌ |
 | Preencher e ler o questionário | ✅ | ✅ | ✅ | ❌ |
 | Métricas e painel do projeto | ✅ | ✅ | ✅ | ❌ |
 | Esta metodologia | ✅ | ✅ | ✅ | ❌ |
@@ -1021,15 +995,14 @@ mudar o próprio cargo: para sair, precisa promover outra pessoa a Owner antes.
 Toda troca de cargo fica registrada.
 
 O gerente **não** enxerga o score final nem a posição de ninguém no ranking. Ele
-produz o insumo, que são as sete notas, e enxerga a entrega consolidada e a
-evolução de cada pessoa do projeto dele, que é o que sustenta a conversa de
-feedback. O resultado do cálculo é do Líder.
+produz o insumo, que são as seis notas, e enxerga a entrega consolidada de cada
+pessoa do projeto dele, que é o que sustenta a conversa de feedback. O resultado
+do cálculo é do Líder.
 
-**Onde o gerente vê isso:** aba **Métricas** do projeto, no bloco "Entrega e
-evolução por pessoa". Ele mostra, para cada operacional, a entrega consolidada dos
-fechamentos, a nota de evolução, quantas sprints já foram avaliadas e quantos
-pontos a pessoa perdeu por atraso. É o mesmo dado que alimenta o ranking, sem
-mostrar o ranking.
+**Onde o gerente vê isso:** aba **Métricas** do projeto, no bloco "Entrega por
+pessoa". Ele mostra, para cada operacional, a entrega consolidada dos
+fechamentos, quantas sprints já foram avaliadas e quantos pontos a pessoa perdeu
+por atraso. É o mesmo dado que alimenta o ranking, sem mostrar o ranking.
 
 Qualquer conta de gerente acessa os dados de gestão de qualquer projeto, e não só
 dos que ela gerencia. A única restrição por projeto é a do operacional, que só
@@ -1044,8 +1017,8 @@ Leitura de score deixa rastro.
 
 **Pode e deve ser dito ao time:**
 
-- Que a contribuição é acompanhada em entrega, qualidade, autonomia, ajuda ao time
-  e evolução.
+- Que a contribuição é acompanhada em entrega, qualidade, autonomia e ajuda ao
+  time.
 - Que existe reconhecimento periódico para quem mais contribui no conjunto.
 - Que **ajudar os outros conta a favor**, e não contra.
 - Que nenhuma métrica isolada define a posição de ninguém.
@@ -1053,7 +1026,7 @@ Leitura de score deixa rastro.
 
 Isso tudo está escrito no documento **"Como sua contribuição é acompanhada"**,
 que qualquer pessoa logada consegue abrir na tela de Documentos. Ele é a versão
-pública desta metodologia: traz as cinco direções, o que não conta, o que se
+pública desta metodologia: traz as quatro direções, o que não conta, o que se
 espera do operacional no dia a dia e como funciona o reconhecimento, sem nenhum
 peso, fórmula ou nota. Aponte o time para lá em vez de explicar de boca, porque
 explicação de boca é onde os pesos vazam.
@@ -1121,7 +1094,7 @@ No card da sprint, botão **"Avaliação Semanal"**:
 
 1. O sistema lista todos os operacionais **pendentes**, que são todos os que
    tiveram pelo menos uma task na sprint.
-2. Clique num nome e responda as **sete perguntas**, de 0 a 5. Todas obrigatórias.
+2. Clique num nome e responda as **seis perguntas**, de 0 a 5. Todas obrigatórias.
    Se a pessoa foi avaliada recentemente em outro projeto, aparece a opção de
    reaproveitar aquelas respostas. Use só se a leitura for de fato a mesma.
 3. **Salve.** A pessoa sai da lista de pendentes.
@@ -1148,8 +1121,8 @@ não.
 
 ### 14.5 Calibração entre gerentes
 
-Não é negociável, porque o gerente pesa 35% em projeto padrão e 50% em
-consultoria.
+Não é negociável, porque o gerente pesa 50% do score, tanto em projeto padrão
+quanto em consultoria.
 
 **Uma vez por ciclo**, os gerentes se reúnem, olham casos reais de operacionais e
 combinam o que é um 3 e o que é um 5. Cada gerente justifica a própria nota para os
@@ -1157,7 +1130,7 @@ outros.
 
 Sem calibração, peso alto no gerente faz o ranking medir **de qual gerente a pessoa
 é**, e não como ela performou. A calibração tira a pressão de inflar nota, alinha
-padrões diferentes e reduz viés. É a peça que torna os 35% justos em vez de ruído.
+padrões diferentes e reduz viés. É a peça que torna os 50% justos em vez de ruído.
 
 O sistema não força nem acompanha a calibração. É rotina humana, e é a única defesa
 contra o último item da tabela da seção 12.
@@ -1183,14 +1156,17 @@ responsável atual.
 
 ### 15.2 Pessoa em dois ou mais projetos
 
-Cada projeto gera seu próprio registro por sprint. A janela junta as sprints mais
-recentes independentemente do projeto, e cada dimensão vira a média simples entre
-os projetos. Ver seção 10.1.
+Cada projeto gera seu próprio registro por sprint e seu próprio ranking. A pessoa
+aparece separadamente em cada projeto em que atua, com a nota calculada só com os
+dados daquele projeto — sem nenhuma média entre projetos. Ver seção 10.1.
 
 ### 15.3 Pessoa cadastrada sem e-mail
 
-Vira duas pessoas diferentes no ranking, uma por projeto, cada uma com metade do
-histórico. Não aparece nenhum aviso. É o erro de cadastro mais caro do sistema.
+Como o ranking já é por projeto (seção 10.1), o e-mail só importa quando a mesma
+pessoa tem mais de um cadastro `operacionais` **dentro do mesmo projeto** — cenário
+raro. Nesse caso, cadastros sem e-mail em comum viram entradas separadas dentro
+daquele projeto em vez de se juntarem. Não há mais o risco antigo de dividir o
+histórico de alguém entre dois projetos diferentes por falta de e-mail.
 
 ### 15.4 Pessoa que sai do projeto no meio da execução
 
@@ -1231,8 +1207,8 @@ primeiro.
 
 ### 15.9 Projeto de consultoria
 
-Sem nota de commit, Qualidade vira só o retrabalho, e o peso dela cai de 20% para
-10% justamente por isso. Projeto de consultoria com pouca movimentação de Kanban
+Sem nota de commit, Qualidade vira só o retrabalho, e o peso dela cai de 18% para
+12% justamente por isso. Projeto de consultoria com pouca movimentação de Kanban
 tende a ter Qualidade indisponível para várias pessoas, e nesse caso o score delas
 é redistribuído entre as outras dimensões (seção 11.3), com a leitura do gerente
 pesando ainda mais do que os 50% nominais.
