@@ -666,7 +666,7 @@ class AvaliacaoGerenteCreate(BaseModel):
     resposta_3: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
     resposta_4: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
     resposta_5: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
-    resposta_6: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_6: Optional[int] = Field(default=None, ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
     resposta_7: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
     reaproveitada_de: Optional[str] = None
 
@@ -681,7 +681,7 @@ class AvaliacaoGerenteResponse(BaseModel):
     resposta_3: int
     resposta_4: int
     resposta_5: int
-    resposta_6: int
+    resposta_6: Optional[int] = None
     resposta_7: int
     reaproveitada_de: Optional[str] = None
     criado_em: datetime
@@ -697,7 +697,7 @@ class AvaliacaoAnteriorResponse(BaseModel):
     resposta_3: int
     resposta_4: int
     resposta_5: int
-    resposta_6: int
+    resposta_6: Optional[int] = None
     resposta_7: int
 
 
