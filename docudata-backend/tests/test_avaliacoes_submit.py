@@ -114,3 +114,14 @@ def test_resposta_fora_de_0_5_retorna_422(monkeypatch):
 
     assert resp.status_code == 422
     assert len(calls["insert"]) == 0
+
+
+def test_cria_avaliacao_sem_resposta_6(monkeypatch):
+    mock_sb, calls = _mock_client()
+    tc = _patch_and_client(monkeypatch, mock_sb)
+    body_sem_resposta_6 = {k: v for k, v in _BODY_VALIDO.items() if k != "resposta_6"}
+
+    resp = tc.post("/avaliacoes", json=body_sem_resposta_6)
+
+    assert resp.status_code == 201
+    assert calls["insert"][0]["resposta_6"] is None
