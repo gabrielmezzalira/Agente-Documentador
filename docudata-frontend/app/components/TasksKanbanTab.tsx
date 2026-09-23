@@ -20,6 +20,8 @@ import {
   resolverSolicitacaoTask,
   puxarTask,
   devolverTask,
+  aprovarTask,
+  rejeitarTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
@@ -259,6 +261,40 @@ function TaskModal({
     }
   }
 
+  const [rejeitando, setRejeitando] = useState(false);
+  const [motivoRejeicao, setMotivoRejeicao] = useState("");
+  const [aprovando, setAprovando] = useState(false);
+
+  async function handleAprovar() {
+    if (!task) return;
+    setAprovando(true);
+    setErr("");
+    try {
+      const updated = await aprovarTask(task.id);
+      onSaved(updated);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao aprovar");
+    } finally {
+      setAprovando(false);
+    }
+  }
+
+  async function handleRejeitar() {
+    if (!task || !motivoRejeicao.trim()) { setErr("Informe o motivo da rejeição."); return; }
+    setAprovando(true);
+    setErr("");
+    try {
+      const updated = await rejeitarTask(task.id, motivoRejeicao.trim());
+      onSaved(updated);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao rejeitar");
+    } finally {
+      setAprovando(false);
+    }
+  }
+
   function addChecklistItem() {
     if (!novoItem.trim()) return;
     setChecklist((prev) => [...prev, { texto: novoItem.trim(), done: false }]);
@@ -485,6 +521,58 @@ function TaskModal({
                       {overridingTravamento ? "Suprimindo..." : "Suprimir alerta"}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {task?.coluna_kanban === "pendente_aprovacao" && (
+                <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 12, color: "#5b21b6", margin: "0 0 10px", fontWeight: 600 }}>
+                    Esta task está esperando aprovação.
+                  </p>
+                  {!rejeitando ? (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={handleAprovar}
+                        disabled={aprovando}
+                        style={{ ...btnPrimary, opacity: aprovando ? 0.6 : 1 }}
+                      >
+                        {aprovando ? "Aprovando..." : "Aprovar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRejeitando(true)}
+                        disabled={aprovando}
+                        style={btnGhost}
+                      >
+                        Rejeitar
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label style={labelSt}>Motivo da rejeição *</label>
+                      <textarea
+                        value={motivoRejeicao}
+                        onChange={(e) => setMotivoRejeicao(e.target.value)}
+                        rows={2}
+                        placeholder="Por que esta task está voltando pra fila?"
+                        style={{ ...inputSt, resize: "vertical", marginBottom: 8 }}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={handleRejeitar}
+                          disabled={aprovando}
+                          style={{ ...btnPrimary, background: "#dc2626", opacity: aprovando ? 0.6 : 1 }}
+                        >
+                          {aprovando ? "Rejeitando..." : "Confirmar rejeição"}
+                        </button>
+                        <button type="button" onClick={() => setRejeitando(false)} disabled={aprovando} style={btnGhost}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
