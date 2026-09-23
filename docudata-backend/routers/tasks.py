@@ -16,7 +16,13 @@ from models.schemas import (
     _COLUNAS_VALIDAS,
 )
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
-from services.email_service import email_task_atribuida, email_task_concluida, send_email
+from services.email_service import (
+    email_task_atribuida,
+    email_task_concluida,
+    email_task_pendente_aprovacao,
+    email_task_rejeitada,
+    send_email,
+)
 from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.task_events import on_task_transition
@@ -145,6 +151,52 @@ def _avisar_gerente_task_concluida(client, task: dict) -> None:
             send_email(g["email"], subject, html)
     except Exception as exc:
         print(f"[tasks] Aviso: falha ao notificar gerente sobre conclusão ({exc}) — task salva mesmo assim")
+
+
+def _avisar_gerente_pendente_aprovacao(client, task: dict) -> None:
+    """Best-effort: avisa gerente/líder que uma task está esperando
+    aprovação. A transição vale mesmo que o e-mail falhe."""
+    try:
+        proj = client.table("projects").select("name").eq("id", task["project_id"]).execute().data
+        projeto_nome = proj[0]["name"] if proj else "projeto"
+
+        operacional_nome = "Alguém"
+        op_id = task.get("operacional_id")
+        if op_id:
+            op = client.table("operacionais").select("nome").eq("id", op_id).execute().data
+            if op:
+                operacional_nome = op[0]["nome"]
+
+        gerentes = (
+            client.table("pessoa").select("email").in_("cargo", ["gerente", "lider"]).execute().data or []
+        )
+        if not gerentes:
+            return
+
+        subject, html = email_task_pendente_aprovacao(projeto_nome, operacional_nome, task["titulo"])
+        for g in gerentes:
+            send_email(g["email"], subject, html)
+    except Exception as exc:
+        _LOG.warning("notificacao_pendente_aprovacao_falhou exc=%s", type(exc).__name__)
+
+
+def _avisar_operacional_rejeicao(client, task: dict, motivo: str) -> None:
+    """Best-effort: avisa o operacional que estava na task que ela foi
+    rejeitada. A rejeição vale mesmo que o e-mail falhe."""
+    try:
+        operacional_id = task.get("operacional_id")
+        if not operacional_id:
+            return
+        op = client.table("operacionais").select("nome, email").eq("id", operacional_id).execute().data
+        if not op or not op[0].get("email"):
+            return
+        proj = client.table("projects").select("name").eq("id", task["project_id"]).execute().data
+        projeto_nome = proj[0]["name"] if proj else "projeto"
+
+        subject, html = email_task_rejeitada(projeto_nome, task["titulo"], motivo)
+        send_email(op[0]["email"], subject, html)
+    except Exception as exc:
+        _LOG.warning("notificacao_rejeicao_falhou exc=%s", type(exc).__name__)
 
 
 def _registrar_reabertura(
@@ -819,6 +871,8 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
                     pass  # best-effort
             if pessoa["cargo"] == "operacional":
                 _avisar_gerente_task_concluida(client, result.data[0])
+        elif coluna_nova == "pendente_aprovacao":
+            _avisar_gerente_pendente_aprovacao(client, result.data[0])
 
     return result.data[0]
 

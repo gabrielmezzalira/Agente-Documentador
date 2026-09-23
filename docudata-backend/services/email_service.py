@@ -129,6 +129,28 @@ def email_modo_pull_ativado(projeto_nome: str) -> tuple[str, str]:
     return subject, _base_template("Modo de trabalho mudou para Pull", corpo, badge="Mudança de modo")
 
 
+def email_task_pendente_aprovacao(projeto_nome: str, operacional_nome: str, task_titulo: str) -> tuple[str, str]:
+    """Retorna (subject, html) pro aviso de que uma task está esperando
+    aprovação do gerente (Entrega Pendente de aprovação)."""
+    subject = f"[DocuData] Task aguardando aprovação: {task_titulo}"
+    corpo = f"""
+    <p><strong>{operacional_nome}</strong> marcou a task <strong>{task_titulo}</strong> como pronta no projeto <strong>{projeto_nome}</strong> — ela está esperando sua aprovação.</p>
+    <p>Acesse o DocuData e aprove ou rejeite na coluna "Pendente de aprovação".</p>
+    """
+    return subject, _base_template("Task aguardando aprovação", corpo, badge="Aprovação pendente")
+
+
+def email_task_rejeitada(projeto_nome: str, task_titulo: str, motivo: str) -> tuple[str, str]:
+    """Retorna (subject, html) pro aviso de que uma task foi rejeitada e
+    voltou para a fila (Entrega Pendente de aprovação)."""
+    subject = f"[DocuData] Task rejeitada: {task_titulo}"
+    corpo = f"""
+    <p>Sua task <strong>{task_titulo}</strong> no projeto <strong>{projeto_nome}</strong> foi rejeitada e voltou para a fila.</p>
+    <p style="background:#fef2f2;border-radius:8px;padding:10px 14px;"><strong>Motivo:</strong><br>{motivo}</p>
+    """
+    return subject, _base_template("Task rejeitada", corpo, badge="Rejeitada")
+
+
 def email_esqueci_senha(nome: str, link_redefinicao: str) -> tuple[str, str]:
     """Retorna (subject, html) para o email de redefinição de senha. O link
     expira em 30min (ver services.auth.criar_jwt_reset_senha)."""
