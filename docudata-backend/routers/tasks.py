@@ -619,6 +619,42 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
     return result.data[0]
 
 
+@router.post("/{task_id}/aprovar", response_model=TaskResponse)
+async def aprovar_task(
+    task_id: str,
+    autor: Optional[str] = None,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    """Só gerente/líder — aprova uma task em Pendente de aprovação, movendo
+    pra Concluída. Único jeito de sair de pendente_aprovacao pra concluida
+    (patch_task bloqueia a saída genérica — ver o gate em patch_task)."""
+    client = get_client()
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+    if task.get("coluna_kanban") != "pendente_aprovacao":
+        raise HTTPException(status_code=409, detail="Task não está em Pendente de aprovação.")
+
+    agora = datetime.now(timezone.utc)
+    _registrar_task_transicao(client, task_id, task, "coluna_kanban", "concluida", autor, None, agora)
+
+    result = client.table("tasks").update({
+        "coluna_kanban": "concluida",
+        "updated_at": agora.isoformat(),
+    }).eq("id", task_id).execute()
+
+    on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "concluida")
+    sprint_id_atual = task.get("sprint_id")
+    if sprint_id_atual:
+        try:
+            auto_update_sprint_health(client, sprint_id_atual)
+        except Exception:
+            pass  # best-effort
+
+    return result.data[0]
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
     client = get_client()
