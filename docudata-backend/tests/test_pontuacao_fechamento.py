@@ -388,7 +388,8 @@ def test_calcula_entrega_qualidade_autonomia_gerente_para_task_simples(monkeypat
     assert linha["qualidade_reaberturas"] == 1
     assert linha["autonomia_bloqueios_totais"] == 1
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
-    # Média das 6 perguntas: a resposta_6 (evolução) fica fora, é exclusiva de Evolução.
+    # Média das seis perguntas do questionário; resposta_6 (campo legado, a
+    # antiga pergunta de evolução) não entra nessa média.
     assert linha["gerente_media"] == round((5 + 4 + 3 + 4 + 5 + 3) / 6, 2)
     assert linha["gerente_pergunta6"] == 2
     assert linha["arquetipo"] is None
@@ -529,7 +530,7 @@ def test_bloqueio_resolvido_antes_do_cutoff_nao_e_recontado_mas_novo_e_contado(m
     assert linha["autonomia_bloqueios_resolvidos_proprio"] == 1
 
 
-def test_gerente_media_exclui_a_pergunta_de_evolucao(monkeypatch):
+def test_gerente_media_exclui_a_resposta_6(monkeypatch):
     aval = {
         "operacional_id": "op-1",
         "resposta_1": 5, "resposta_2": 5, "resposta_3": 5, "resposta_4": 5,
@@ -544,8 +545,9 @@ def test_gerente_media_exclui_a_pergunta_de_evolucao(monkeypatch):
     resultado = calcular_e_travar_pontuacao(client, "sprint-1")
 
     linha = next(l for l in resultado if l["operacional_id"] == "op-1")
-    # resposta_6=0 NÃO derruba a média do gerente: ela vive só na dimensão
-    # Evolução, via gerente_pergunta6 (decisão do Líder, 2026-09-07).
+    # resposta_6=0 NÃO derruba a média do gerente — mesmo que alguém ainda
+    # mande esse campo legado (via reaproveitar de uma avaliação antiga, por
+    # exemplo), ele nunca entrou nessa média e continua não entrando.
     assert linha["gerente_media"] == round((5 + 5 + 5 + 5 + 5 + 5) / 6, 2)
     assert linha["gerente_pergunta6"] == 0
 

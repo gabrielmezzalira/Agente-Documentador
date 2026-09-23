@@ -215,10 +215,10 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         gerente_pergunta6 = None
         gerente_pergunta3 = None
         if aval:
-            # A resposta 6 (evolução) fica FORA desta média de propósito: ela é a
-            # fonte exclusiva da dimensão Evolução (gerente_pergunta6 abaixo).
-            # Contá-la aqui também daria peso triplo a uma única pergunta —
-            # revertido por decisão do Líder em 2026-09-07.
+            # A resposta 6 fica FORA desta média de propósito. Historicamente
+            # era a fonte exclusiva da dimensão Evolução (removida em
+            # 2026-09-23) — o campo continua existindo por compat com dado
+            # antigo, mas não alimenta mais nenhuma dimensão de score.
             notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
             gerente_media = round(sum(notas) / len(notas), 2)
             gerente_pergunta6 = aval["resposta_6"]
