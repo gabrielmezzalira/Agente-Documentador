@@ -42,7 +42,7 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
     "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
-    "requer_aprovacao",
+    "bloqueio_tipo", "requer_aprovacao",
 }
 
 
@@ -849,12 +849,15 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             raise HTTPException(status_code=409, detail=motivo)
 
     # TRANS-05: desmarcar bloqueado_manual exige informar quem resolveu — gate roda
-    # independentemente de mudança de coluna, antes de qualquer escrita.
+    # independentemente de mudança de coluna, antes de qualquer escrita. Bloqueio
+    # de cliente é exceção: quem destrava é o cliente e ele não conta em Autonomia.
+    era_bloqueio_cliente = bool(task.get("bloqueado_manual")) and task.get("bloqueio_tipo") == "cliente"
     if (
         data.bloqueado_manual is not None
         and data.bloqueado_manual != task.get("bloqueado_manual", False)
         and data.bloqueado_manual is False
         and data.bloqueado_resolvido_por not in ("operacional", "gerente")
+        and not era_bloqueio_cliente
     ):
         raise HTTPException(
             status_code=422,
@@ -931,18 +934,53 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
 
     # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
-    # desmarcar, bloqueado_resolvido_por veio válido)
+    # desmarcar um bloqueio interno, bloqueado_resolvido_por veio válido).
+    # Bloqueio de cliente (2026-09-23): não conta em Autonomia — ao destravar
+    # não grava resolvido_por/_em (o fechamento só conta bloqueado_resolvido_em)
+    # e reinicia o prazo do relógio de travamento, que ficou pausado.
+    virou_cliente = False
     if data.bloqueado_manual is not None and data.bloqueado_manual != task.get("bloqueado_manual", False):
         updates["bloqueado_manual"] = data.bloqueado_manual
         if data.bloqueado_manual is True:
             updates["bloqueado_em"] = agora.isoformat()
             updates["bloqueado_por"] = data.bloqueado_por
+            updates["bloqueio_tipo"] = data.bloqueio_tipo or "interno"
+            virou_cliente = updates["bloqueio_tipo"] == "cliente"
+        elif era_bloqueio_cliente:
+            updates["bloqueio_tipo"] = None
+            if task.get("entrou_em_andamento_em"):
+                updates["entrou_em_andamento_em"] = agora.isoformat()
+                updates["travado_automatico"] = False
         else:
             updates["bloqueado_resolvido_por"] = data.bloqueado_resolvido_por
             updates["bloqueado_resolvido_em"] = agora.isoformat()
             houve_bloqueio_resolvido = True
+    elif (
+        data.bloqueio_tipo is not None
+        and task.get("bloqueado_manual")
+        and data.bloqueio_tipo != task.get("bloqueio_tipo")
+    ):
+        updates["bloqueio_tipo"] = data.bloqueio_tipo
+        virou_cliente = data.bloqueio_tipo == "cliente"
+
+    if virou_cliente:
+        updates["travado_automatico"] = False
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if virou_cliente:
+        # Mesma válvula do override de travamento: atraso por espera do
+        # cliente não é culpa do operacional e não pode penalizar Entrega.
+        try:
+            (
+                client.table("task_travamentos")
+                .update({"dispensado": True})
+                .eq("task_id", task_id)
+                .eq("dispensado", False)
+                .execute()
+            )
+        except Exception:
+            pass  # best-effort
 
     if houve_atribuicao_operacional:
         _avisar_operacional_atribuicao(client, result.data[0])
