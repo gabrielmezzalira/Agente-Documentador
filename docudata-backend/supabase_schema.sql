@@ -279,7 +279,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     descricao           text,
     pontos              int         NOT NULL CHECK (pontos > 0),
     coluna_kanban       text        NOT NULL DEFAULT 'planejado'
-                            CHECK (coluna_kanban IN ('planejado','em_andamento','concluida')),
+                            CHECK (coluna_kanban IN ('planejado','em_andamento','pendente_aprovacao','concluida')),
+    requer_aprovacao    boolean     NOT NULL DEFAULT false,
     bloqueado           boolean     NOT NULL DEFAULT false,
     motivo_bloqueio     text,
     checklist           jsonb       NOT NULL DEFAULT '[]',
@@ -771,6 +772,14 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS motivo_atribuicao_manual text;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rascunho boolean NOT NULL DEFAULT false;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS motivo_rascunho text;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ordem_fila int;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS requer_aprovacao boolean NOT NULL DEFAULT false;
+
+-- Entrega "Pendente de aprovação": coluna_kanban ganha um 4º valor válido.
+-- DROP + ADD porque é um CHECK sem nome próprio — Postgres nomeou
+-- automaticamente como <tabela>_<coluna>_check na criação da tabela.
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_coluna_kanban_check;
+ALTER TABLE tasks ADD CONSTRAINT tasks_coluna_kanban_check
+    CHECK (coluna_kanban IN ('planejado','em_andamento','pendente_aprovacao','concluida'));
 
 CREATE TABLE IF NOT EXISTS migracoes_modo (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
