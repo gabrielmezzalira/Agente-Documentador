@@ -318,7 +318,7 @@ export interface AvaliacaoAnterior {
   resposta_3: number;
   resposta_4: number;
   resposta_5: number;
-  resposta_6: number;
+  resposta_6: number | null;
   resposta_7: number;
 }
 
@@ -338,7 +338,7 @@ export interface AvaliacaoGerente {
   resposta_3: number;
   resposta_4: number;
   resposta_5: number;
-  resposta_6: number;
+  resposta_6: number | null;
   resposta_7: number;
   reaproveitada_de: string | null;
   criado_em: string;
@@ -718,7 +718,7 @@ export async function submitAvaliacao(data: {
   resposta_3: number;
   resposta_4: number;
   resposta_5: number;
-  resposta_6: number;
+  resposta_6?: number;
   resposta_7: number;
   reaproveitada_de?: string;
 }): Promise<AvaliacaoGerente> {
@@ -1959,15 +1959,20 @@ export interface PerformanceOperacional {
   gerente?: number | null;
   qualidade?: number | null;
   autonomia?: number | null;
-  evolucao?: number | null;
   janela_parcial: boolean;
   arquetipo_usado: string;
 }
 
-export interface PerformanceResponse {
+export interface PerformanceProjeto {
+  projeto_id: string;
+  projeto_nome: string;
   sprint: PerformanceOperacional[];
   quinzenal: PerformanceOperacional[];
   mensal: PerformanceOperacional[];
+}
+
+export interface PerformanceResponse {
+  projetos: PerformanceProjeto[];
 }
 
 export async function getPerformance(): Promise<PerformanceResponse> {
@@ -2034,20 +2039,19 @@ export async function alterarCargoPessoa(id: string, cargo: Cargo): Promise<Pess
   return res.json();
 }
 
-// SPI travado + Evolução por operacional do projeto (Líder e Gerente)
+// SPI travado por operacional do projeto (Líder e Gerente)
 
-export interface SpiEvolucaoOperacional {
+export interface SpiPorOperacionalDoProjeto {
   operacional_id: string;
   nome: string;
   spi: number | null;
-  evolucao: number | null;
   sprints_avaliadas: number;
   pontos_penalizados: number;
 }
 
-export async function getSpiEvolucaoProjeto(projectId: string): Promise<SpiEvolucaoOperacional[]> {
-  const res = await apiFetch(`${API}/projects/${projectId}/spi-evolucao`);
-  if (!res.ok) throw new Error("Erro ao buscar SPI e evolução por operacional");
+export async function getSpiDoProjeto(projectId: string): Promise<SpiPorOperacionalDoProjeto[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/spi`);
+  if (!res.ok) throw new Error("Erro ao buscar SPI por operacional");
   return res.json();
 }
 
