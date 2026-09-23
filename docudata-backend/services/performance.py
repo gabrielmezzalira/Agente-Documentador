@@ -75,7 +75,6 @@ def _calcular_janela(client, linhas: list[dict], tamanho_esperado: int, pesos_po
     sub_scores = {
         "entrega": _media_cross_projeto(por_projeto, _entrega_por_projeto),
         "gerente": _media_cross_projeto(por_projeto, _gerente_por_projeto),
-        "evolucao": _media_cross_projeto(por_projeto, _evolucao_por_projeto),
         "autonomia": _media_cross_projeto(
             por_projeto,
             lambda ls: _autonomia_por_projeto(ls, float(pesos.get("peso_pergunta3_autonomia") or 0.5)),
@@ -176,13 +175,6 @@ def _gerente_por_projeto(linhas: list[dict]) -> float | None:
     return round(min(sum(valores) / len(valores) * 20, 100), 2)
 
 
-def _evolucao_por_projeto(linhas: list[dict]) -> float | None:
-    valores = [l["gerente_pergunta6"] for l in linhas if l.get("gerente_pergunta6") is not None]
-    if not valores:
-        return None
-    return round(min(sum(valores) / len(valores) * 20, 100), 2)
-
-
 def _autonomia_por_projeto(linhas: list[dict], peso_pergunta3: float) -> float | None:
     """Combina dois sinais: os bloqueios que a pessoa resolveu sozinha e a leitura
     do gerente na pergunta 3 ("destravou sozinha antes de te escalar?").
@@ -252,7 +244,6 @@ def _score_final(sub_scores: dict[str, float | None], pesos: dict) -> float | No
         "gerente": float(pesos["peso_gerente"]),
         "qualidade": float(pesos["peso_qualidade"]),
         "autonomia": float(pesos["peso_autonomia"]),
-        "evolucao": float(pesos["peso_evolucao"]),
     }
     disponiveis = {k: v for k, v in sub_scores.items() if v is not None}
     if not disponiveis:

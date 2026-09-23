@@ -323,24 +323,35 @@ def test_entrega_por_projeto_janela_mista_pondera_por_quantidade_de_sprints():
     assert _entrega_por_projeto(linhas) == 60.0
 
 
+def test_calcular_janela_nao_tem_mais_a_chave_evolucao():
+    linhas = [_linha("2026-09-05T00:00:00+00:00", gerente_media=5.0)]
+    client = _mock_client(pontuacao=linhas, projetos=[{"id": "proj-1", "arquetipo": "padrao", "name": "Projeto 1"}])
+    pessoa = {"email": "ana@citi.com", "nome": "Ana", "operacional_ids": ["op-1"]}
+
+    ranking = calcular_ranking_pessoa(client, pessoa, _PESOS)
+
+    assert "evolucao" not in ranking["sprint"]
+
+
 def test_score_final_so_com_avaliacao_do_gerente_quando_zero_tasks():
     """Operacional vinculado ao projeto, zero tasks na sprint, avaliação do
     gerente completa. Entrega fica indisponível (alocados=0), Qualidade fica
     indisponível (sem task concluída nem commit), Autonomia só tem a
-    pergunta 3 (sem bloqueio nenhum) — mas Gerente e Evolução estão
-    disponíveis, então score_final não pode ser None."""
+    pergunta 3 (sem bloqueio nenhum) — mas Gerente está disponível, então
+    score_final não pode ser None (Evolução não existe mais como dimensão,
+    ver Task 2 do plano de 2026-09-23)."""
     linha = {
         "projeto_id": "proj-1", "sprint_fim": "2026-09-01T00:00:00Z",
         "entrega_modo": "PONTOS_ATRIBUIDOS",
         "entrega_pontos_concluidos": 0, "entrega_pontos_alocados": 0, "entrega_pontos_penalizados": 0,
         "entrega_pontos_pessoa": None, "entrega_denominador": None, "entrega_nota_relativa": None,
         "bonus_pontos_extra": 0,
-        "gerente_media": 4.0, "gerente_pergunta6": 5, "gerente_pergunta3": 4,
+        "gerente_media": 4.0, "gerente_pergunta3": 4,
         "qualidade_reaberturas": 0, "qualidade_tasks_concluidas": 0, "qualidade_commit_media": None,
         "autonomia_bloqueios_resolvidos_proprio": 0, "autonomia_bloqueios_totais": 0,
     }
-    operacionais = [{"id": "op-a", "nome": "A", "email": "a@x.com", "ativo": True}]
-    client = _mock_client(operacionais=operacionais, pontuacao=[dict(linha, operacional_id="op-a")], projetos=[{"id": "proj-1", "arquetipo": "padrao"}])
+    operacionais = [{"id": "op-a", "nome": "A", "email": "a@x.com", "ativo": True, "project_id": "proj-1"}]
+    client = _mock_client(operacionais=operacionais, pontuacao=[dict(linha, operacional_id="op-a")], projetos=[{"id": "proj-1", "arquetipo": "padrao", "name": "Projeto 1"}])
 
     pessoa = listar_pessoas_ativas(client)[0]
     resultado = calcular_ranking_pessoa(client, pessoa, _PESOS)
@@ -350,9 +361,9 @@ def test_score_final_so_com_avaliacao_do_gerente_quando_zero_tasks():
     assert resultado["sprint"]["entrega"] is None
     assert resultado["sprint"]["qualidade"] is None
     assert resultado["sprint"]["gerente"] == 80.0  # 4.0 * 20
-    assert resultado["sprint"]["evolucao"] == 100.0  # 5 * 20
-    # score_final = (peso_gerente*80 + peso_evolucao*100 + peso_autonomia*autonomia) / (peso_gerente+peso_evolucao+peso_autonomia)
+    assert "evolucao" not in resultado["sprint"]
+    # score_final = (peso_gerente*80 + peso_autonomia*autonomia) / (peso_gerente+peso_autonomia)
     # autonomia (só pergunta3, sem bloqueio) = min(4*20,100) = 80
-    peso_disponivel = 0.35 + 0.10 + 0.15
-    esperado = round((0.35 * 80.0 + 0.10 * 100.0 + 0.15 * 80.0) / peso_disponivel, 2)
+    peso_disponivel = 0.35 + 0.15
+    esperado = round((0.35 * 80.0 + 0.15 * 80.0) / peso_disponivel, 2)
     assert resultado["sprint"]["score_final"] == esperado
