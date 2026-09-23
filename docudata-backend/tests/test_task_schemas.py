@@ -21,3 +21,22 @@ def test_task_response_campos_de_fila_tem_default_seguro():
     )
     assert resp.atribuida_manualmente is False
     assert resp.ordem_fila is None
+
+
+def test_task_response_aceita_requer_aprovacao():
+    resp = TaskResponse(
+        id="t1", project_id="p1", titulo="X", pontos=3, coluna_kanban="pendente_aprovacao",
+        bloqueado=False, checklist=[], ordem=0,
+        created_at="2026-09-01T00:00:00Z", updated_at="2026-09-01T00:00:00Z",
+        requer_aprovacao=True,
+    )
+    assert resp.requer_aprovacao is True
+
+
+def test_task_response_requer_aprovacao_default_false():
+    resp = TaskResponse(
+        id="t1", project_id="p1", titulo="X", pontos=3, coluna_kanban="planejado",
+        bloqueado=False, checklist=[], ordem=0,
+        created_at="2026-09-01T00:00:00Z", updated_at="2026-09-01T00:00:00Z",
+    )
+    assert resp.requer_aprovacao is False

@@ -34,6 +34,7 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
     "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
+    "requer_aprovacao",
 }
 
 

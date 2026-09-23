@@ -8,6 +8,8 @@ from models.schemas import (
     SprintStatusResponse,
     WipConfigUpdate,
     PontuacaoEventoResponse,
+    RejeitarTaskRequest,
+    TaskCreate,
 )
 
 
@@ -60,3 +62,24 @@ def test_pontuacao_evento_response_rejeita_tipo_invalido():
             id="e1", operacional_id="op-1", sprint_id="s1", projeto_id="p1",
             tipo="tipo_inventado", pontos=5, criado_em="2026-09-01T00:00:00Z",
         )
+
+
+def test_task_create_aceita_coluna_pendente_aprovacao():
+    t = TaskCreate(project_id="p1", titulo="X", pontos=1, coluna_kanban="pendente_aprovacao")
+    assert t.coluna_kanban == "pendente_aprovacao"
+
+
+def test_task_create_rejeita_coluna_invalida():
+    with pytest.raises(ValidationError):
+        TaskCreate(project_id="p1", titulo="X", pontos=1, coluna_kanban="arquivada")
+
+
+def test_rejeitar_task_request_exige_motivo():
+    with pytest.raises(ValidationError):
+        RejeitarTaskRequest(motivo="")
+
+
+def test_rejeitar_task_request_aceita_motivo_valido():
+    r = RejeitarTaskRequest(motivo="Falta cobertura de teste")
+    assert r.motivo == "Falta cobertura de teste"
+    assert r.autor is None

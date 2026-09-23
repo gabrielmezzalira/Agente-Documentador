@@ -453,7 +453,7 @@ class OperacionalResponse(BaseModel):
 
 # ── Tasks ────────────────────────────────────────────────────────────────────
 
-_COLUNAS_VALIDAS = {"planejado", "em_andamento", "concluida"}
+_COLUNAS_VALIDAS = {"planejado", "em_andamento", "pendente_aprovacao", "concluida"}
 
 
 class TaskCreate(BaseModel):
@@ -468,6 +468,7 @@ class TaskCreate(BaseModel):
     checklist: Optional[list[dict]] = None  # [{texto, done}]
     ordem: int = 0
     extra: bool = False  # task concedida além do que a pessoa tinha; não consome orçamento
+    requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -498,6 +499,7 @@ class TaskUpdate(BaseModel):
     bloqueado_por: Optional[str] = None
     bloqueado_resolvido_por: Optional[str] = None
     extra: Optional[bool] = None
+    requer_aprovacao: Optional[bool] = None
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -547,6 +549,14 @@ class TaskResponse(BaseModel):
     atribuida_manualmente: bool = False
     motivo_atribuicao_manual: Optional[str] = None
     ordem_fila: Optional[int] = None
+    requer_aprovacao: bool = False
+
+
+class RejeitarTaskRequest(BaseModel):
+    """POST /tasks/{id}/rejeitar — devolve uma task de pendente_aprovacao
+    pra planejado, sem responsável. Ver spec, §4."""
+    motivo: str = Field(..., min_length=1)
+    autor: Optional[str] = None
 
 
 class TaskReordenarItem(BaseModel):
