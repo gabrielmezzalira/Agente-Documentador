@@ -37,11 +37,12 @@ interface Props {
   modoTrabalho: "ATRIBUICAO" | "PULL";
 }
 
-type Coluna = "planejado" | "em_andamento" | "concluida";
+type Coluna = "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
 
 const COLUNAS: { id: Coluna; label: string; color: string; bg: string }[] = [
   { id: "planejado", label: "Planejado", color: "#374151", bg: "#f1f5f9" },
   { id: "em_andamento", label: "Em andamento", color: "#a16207", bg: "#fef9c3" },
+  { id: "pendente_aprovacao", label: "Pendente de aprovação", color: "#7c3aed", bg: "#ede9fe" },
   { id: "concluida", label: "Concluída", color: "#166534", bg: "#dcfce7" },
 ];
 
@@ -132,6 +133,7 @@ function TaskModal({
   const [bloqueadoResolvidoPor, setBloqueadoResolvidoPor] = useState("");
   const jaEstavaBloqueadoManual = task?.bloqueado_manual ?? false;
   const [extra, setExtra] = useState(task?.extra ?? false);
+  const [requerAprovacao, setRequerAprovacao] = useState(task?.requer_aprovacao ?? false);
   const [orcamentoEstourado, setOrcamentoEstourado] = useState(false);
   const [redistribuindo, setRedistribuindo] = useState(false);
   const [travadoOverridePor, setTravadoOverridePor] = useState("");
@@ -178,6 +180,7 @@ function TaskModal({
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
           extra,
+          requer_aprovacao: requerAprovacao,
           checklist,
         });
       } else {
@@ -195,6 +198,7 @@ function TaskModal({
           bloqueado_por: (bloqueado && !jaEstavaBloqueadoManual) ? (bloqueadoPor.trim() || undefined) : undefined,
           bloqueado_resolvido_por: (!bloqueado && jaEstavaBloqueadoManual) ? bloqueadoResolvidoPor : undefined,
           extra,
+          requer_aprovacao: requerAprovacao,
         });
       }
       onSaved(saved);
@@ -332,6 +336,17 @@ function TaskModal({
             <p style={{ fontSize: 11, color: "#64748b", margin: "6px 0 0" }}>
               Trabalho concedido além do que a pessoa já tinha. Não consome o orçamento
               de pontos da sprint e, se concluída antes do fechamento, vira bônus.
+            </p>
+          </div>
+
+          <div style={{ background: requerAprovacao ? "#f5f3ff" : "#f8fafc", border: `1px solid ${requerAprovacao ? "#ddd6fe" : "#e8e8ed"}`, borderRadius: 8, padding: "10px 12px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={requerAprovacao} onChange={(e) => setRequerAprovacao(e.target.checked)} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Requer aprovação do gerente</span>
+            </label>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "6px 0 0" }}>
+              A task não pode ir direto de Em andamento pra Concluída — precisa passar por
+              Pendente de aprovação primeiro.
             </p>
           </div>
 
@@ -1244,7 +1259,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           borderRadius: 14,
           padding: 16,
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
+          gridTemplateColumns: "1fr 1fr 1fr 1fr",
           gap: 12,
         }}>
           {COLUNAS.map((col) => {
