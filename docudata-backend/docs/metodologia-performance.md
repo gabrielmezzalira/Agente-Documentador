@@ -352,11 +352,18 @@ Os pesos são configuráveis pela liderança, e mudar um peso muda o ranking na
 leitura seguinte, sem precisar reprocessar nada. Isso é de propósito: recalibrar
 depois de rodar um ciclo tem que ser barato.
 
-### 6.3 Quando a janela mistura projetos
+### 6.3 Uma janela nunca cobre mais de um projeto
 
-Uma janela pode cobrir mais de um projeto, inclusive de tipos diferentes. Os
-pesos aplicados são os do projeto com mais sprints dentro daquela janela; em
-empate, vale o projeto da sprint mais recente.
+Até 2026-09-23 existia aqui uma regra para quando a janela de comparação cobria
+sprints de mais de um projeto ao mesmo tempo: os pesos aplicados eram os do
+projeto com mais sprints dentro daquela janela, e em empate valia o projeto da
+sprint mais recente.
+
+Essa situação não existe mais. O ranking é calculado por projeto (seção 10.1),
+então a janela de alguém é sempre as sprints mais recentes **daquele projeto**,
+nunca uma mistura de sprints de projetos diferentes. Os pesos aplicados são
+sempre os do próprio projeto (seção 6.2), sem ambiguidade nenhuma para
+resolver.
 
 ## 7. O questionário de seis perguntas
 
@@ -1056,12 +1063,17 @@ O anúncio é feito pela liderança, fora do sistema.
    datas e, se houver, o valor em reais. Lembre que o valor congela assim que a
    primeira sprint receber orçamento de pontos.
 2. **Cadastre os operacionais com e-mail e usuário do GitHub.** Os dois são
-   obrigatórios na prática, mesmo que o formulário aceite em branco. Sem e-mail a
-   pessoa não é reconhecida entre projetos. Sem usuário do GitHub os commits dela
-   não pontuam.
+   obrigatórios na prática, mesmo que o formulário aceite em branco. Sem usuário
+   do GitHub os commits dela não pontuam de primeira: o e-mail é o segundo
+   critério que o sistema tenta para achar a dona do commit (seção 8.7), então
+   deixar o e-mail em branco também arrisca commit sem dono. O e-mail não afeta
+   mais o ranking entre projetos — isso já é calculado por projeto (seção 10.1)
+   — mas continua importando dentro do próprio projeto, para não virar dois
+   cadastros `operacionais` diferentes para a mesma pessoa.
    Se a pessoa já está em outro projeto, use o atalho **"Já trabalha em outro
-   projeto?"** e selecione o nome dela: o cadastro vem preenchido e o e-mail sai
-   igual, que é o que mantém ela como uma pessoa só.
+   projeto?"** e selecione o nome dela: o cadastro vem preenchido com o mesmo
+   e-mail, nome, papel e usuário do GitHub, o que evita erro de digitação e
+   mantém o cadastro dela consistente entre os projetos em que atua.
 3. **Distribua os 100 pontos entre as sprints,** na aba Escopo. Pode ser aos
    poucos, sprint sem orçamento não trava nada.
 4. **Configure os limites de tasks simultâneas** se o squad tende a começar muita
