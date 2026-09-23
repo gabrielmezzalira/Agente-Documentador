@@ -23,7 +23,7 @@ import {
   getMetricasCycleTime,
   getMetricasCfd,
   getMetricasPerformanceOperacional,
-  getSpiEvolucaoProjeto,
+  getSpiDoProjeto,
   getMetricasCycleTimeStats,
   getComparacaoModos,
   type SpiPoint,
@@ -31,7 +31,7 @@ import {
   type CycleTimePoint,
   type CfdPoint,
   type PerformanceOperacionalPoint,
-  type SpiEvolucaoOperacional,
+  type SpiPorOperacionalDoProjeto,
   type CycleTimeStats,
   type ComparacaoModoPonto,
 } from "../lib/api";
@@ -74,7 +74,7 @@ const TOOLTIPS: Record<string, string> = {
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
-  spievol: "Só entra o que já foi travado pelo fechamento da Avaliação Semanal — é o mesmo dado que alimenta o acompanhamento de performance. SPI = pontos entregues sobre pontos que a pessoa pegou, já descontando o que foi penalizado por task parada tempo demais. Evolução = leitura do gerente sobre o quanto a pessoa cresceu, na escala 0 a 100.",
+  spievol: "Só entra o que já foi travado pelo fechamento da Avaliação Semanal — é o mesmo dado que alimenta o acompanhamento de performance. SPI = pontos entregues sobre pontos que a pessoa pegou, já descontando o que foi penalizado por task parada tempo demais.",
   perfop: "SPI estimado por operacional — soma de todos os pontos já atribuídos ao operacional (qualquer coluna) dividida pelos pontos realizados. É um proxy interino, recomputado ao vivo, não um baseline travado por operacional.",
 };
 
@@ -124,7 +124,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
   const [cycleTime, setCycleTime] = useState<CycleTimePoint[]>([]);
   const [cfd, setCfd] = useState<CfdPoint[]>([]);
   const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
-  const [spiEvolucao, setSpiEvolucao] = useState<SpiEvolucaoOperacional[]>([]);
+  const [spiPorPessoa, setSpiPorPessoa] = useState<SpiPorOperacionalDoProjeto[]>([]);
   const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
   const [comparacaoModos, setComparacaoModos] = useState<ComparacaoModoPonto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +139,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
       getMetricasCfd(projectId),
       getMetricasPerformanceOperacional(projectId),
       getMetricasCycleTimeStats(projectId),
-      getSpiEvolucaoProjeto(projectId).catch(() => [] as SpiEvolucaoOperacional[]),
+      getSpiDoProjeto(projectId).catch(() => [] as SpiPorOperacionalDoProjeto[]),
     ])
       .then(([s, t, ct, c, po, cts, se]) => {
         setSpi(s);
@@ -148,7 +148,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
         setCfd(c);
         setPerfOp(po);
         setCtStats(cts);
-        setSpiEvolucao(se);
+        setSpiPorPessoa(se);
         setErr("");
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar métricas"))
@@ -170,7 +170,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
     { title: "SPI por operacional (estimado)", body: "Proxy calculado ao vivo sobre todas as tasks vinculadas a cada pessoa (atribuídas ou puxadas), em qualquer coluna. Serve para ver quem está sobrecarregado agora; não é o número que alimenta o acompanhamento de performance." },
-    { title: "Entrega e evolução por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Mostra a entrega de cada pessoa (já descontando o que foi penalizado por task travada), a nota de evolução dada por você, quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
+    { title: "Entrega por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Mostra a entrega de cada pessoa (já descontando o que foi penalizado por task travada), quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
   ];
 
   // Cycle-time — distribuição por faixas de horas
@@ -329,13 +329,13 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
         )}
       </div>
 
-      {/* SPI travado e Evolução por operacional */}
+      {/* SPI travado por operacional */}
       <div style={section}>
-        <p style={title}>Entrega e evolução por pessoa <InfoTooltip id="spievol" /></p>
+        <p style={title}>Entrega por pessoa <InfoTooltip id="spievol" /></p>
         <p style={subtitle}>
           Dado consolidado nos fechamentos de sprint. Use na conversa de feedback.
         </p>
-        {spiEvolucao.length === 0 ? (
+        {spiPorPessoa.length === 0 ? (
           <p style={empty}>Nenhum operacional cadastrado neste projeto.</p>
         ) : (
           <div style={{ overflowX: "auto", marginTop: 12 }}>
@@ -344,23 +344,19 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
                 <tr>
                   <th style={thSt}>Pessoa</th>
                   <th style={thSt}>Entrega</th>
-                  <th style={thSt}>Evolução</th>
                   <th style={thSt}>Sprints avaliadas</th>
                   <th style={thSt}>Pontos perdidos por atraso</th>
                 </tr>
               </thead>
               <tbody>
-                {spiEvolucao.map((op) => (
+                {spiPorPessoa.map((op) => (
                   <tr key={op.operacional_id}>
                     <td style={tdSt}>{op.nome}</td>
                     <td
                       style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#94a3b8" : spiColor(op.spi / 100) }}
-                      title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint — score calculado com o restante das dimensões (avaliação do gerente, evolução, autonomia)" : undefined}
+                      title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint — score calculado com o restante das dimensões (avaliação do gerente, autonomia)" : undefined}
                     >
                       {op.spi === null ? "—" : op.spi}
-                    </td>
-                    <td style={{ ...tdSt, fontWeight: 700, color: op.evolucao === null ? "#94a3b8" : "#0f172a" }}>
-                      {op.evolucao === null ? "—" : op.evolucao}
                     </td>
                     <td style={tdSt}>{op.sprints_avaliadas}</td>
                     <td style={{ ...tdSt, color: op.pontos_penalizados > 0 ? "#dc2626" : "#94a3b8" }}>
