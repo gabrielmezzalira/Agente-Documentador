@@ -110,6 +110,13 @@ function spiColor(spi: number | null): string {
   return "#dc2626";
 }
 
+function _cfdLabel(v: string): string {
+  if (v === "concluida") return "Concluída";
+  if (v === "pendente_aprovacao") return "Pendente de aprovação";
+  if (v === "em_andamento") return "Em andamento";
+  return "Planejado";
+}
+
 export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: Props) {
   const labelPontosVinculados = modoTrabalho === "PULL" ? "Puxados" : "Atribuídos";
   const [spi, setSpi] = useState<SpiPoint[]>([]);
@@ -286,9 +293,10 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="sprint_numero" tickFormatter={(v) => `S${v}`} tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip labelFormatter={(l) => `Sprint ${l}`} formatter={(v, n) => [v, n === "concluida" ? "Concluída" : n === "em_andamento" ? "Em andamento" : "Planejado"]} />
-              <Legend formatter={(v) => v === "concluida" ? "Concluída" : v === "em_andamento" ? "Em andamento" : "Planejado"} />
+              <Tooltip labelFormatter={(l) => `Sprint ${l}`} formatter={(v, n) => [v, _cfdLabel(String(n))]} />
+              <Legend formatter={(v) => _cfdLabel(v)} />
               <Area type="monotone" dataKey="concluida" stackId="1" stroke="#166534" fill="#dcfce7" />
+              <Area type="monotone" dataKey="pendente_aprovacao" stackId="1" stroke="#5b21b6" fill="#ede9fe" />
               <Area type="monotone" dataKey="em_andamento" stackId="1" stroke="#92400e" fill="#fef9c3" />
               <Area type="monotone" dataKey="planejado" stackId="1" stroke="#374151" fill="#f1f5f9" />
             </AreaChart>
