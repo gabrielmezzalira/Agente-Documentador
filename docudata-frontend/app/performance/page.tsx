@@ -16,7 +16,6 @@ const DIMENSAO_LABEL: Record<string, string> = {
   gerente: "Gerente",
   qualidade: "Qualidade",
   autonomia: "Autonomia",
-  evolucao: "Evolução",
 };
 
 const card: React.CSSProperties = {
@@ -25,6 +24,13 @@ const card: React.CSSProperties = {
   borderRadius: 12,
   padding: "20px 24px",
   marginBottom: 20,
+};
+
+const projetoHeading: React.CSSProperties = {
+  fontSize: 20,
+  fontWeight: 800,
+  color: "#111116",
+  margin: "32px 0 12px",
 };
 
 export default function PerformancePage() {
@@ -49,7 +55,7 @@ export default function PerformancePage() {
     );
   }
 
-  const lista: PerformanceOperacional[] = dados ? dados[janela] : [];
+  const projetos = dados?.projetos ?? [];
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "52px 24px" }}>
@@ -81,33 +87,46 @@ export default function PerformancePage() {
 
       {!dados && !erro && <p style={{ color: "#9696a0" }}>Carregando...</p>}
 
-      {dados && lista.length === 0 && (
-        <p style={{ color: "#9696a0" }}>Nenhum operacional com dado suficiente nesta janela.</p>
+      {dados && projetos.length === 0 && (
+        <p style={{ color: "#9696a0" }}>Nenhum projeto com dado suficiente nesta janela.</p>
       )}
 
-      {lista.map((op, i) => (
-        <div key={op.email} style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#111116" }}>
-              {i + 1}. {op.nome}
-            </span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: "#16a34a" }}>{op.score_final}</span>
-          </div>
-          {op.janela_parcial && (
-            <p style={{ fontSize: 12, color: "#d97706", marginBottom: 8 }}>Janela parcial — dado insuficiente ainda</p>
-          )}
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {(["entrega", "gerente", "qualidade", "autonomia", "evolucao"] as const).map((dim) => (
-              <div key={dim}>
-                <p style={{ fontSize: 11, color: "#9696a0", textTransform: "uppercase", marginBottom: 2 }}>
-                  {DIMENSAO_LABEL[dim]}
-                </p>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#111116" }}>{op[dim] ?? "—"}</p>
+      {projetos.map((projeto) => {
+        const lista: PerformanceOperacional[] = projeto[janela];
+        return (
+          <section key={projeto.projeto_id}>
+            <h2 style={projetoHeading}>{projeto.projeto_nome}</h2>
+
+            {lista.length === 0 && (
+              <p style={{ color: "#9696a0" }}>Nenhum operacional com dado suficiente nesta janela.</p>
+            )}
+
+            {lista.map((op, i) => (
+              <div key={op.email} style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "#111116" }}>
+                    {i + 1}. {op.nome}
+                  </span>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: "#16a34a" }}>{op.score_final}</span>
+                </div>
+                {op.janela_parcial && (
+                  <p style={{ fontSize: 12, color: "#d97706", marginBottom: 8 }}>Janela parcial — dado insuficiente ainda</p>
+                )}
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  {(["entrega", "gerente", "qualidade", "autonomia"] as const).map((dim) => (
+                    <div key={dim}>
+                      <p style={{ fontSize: 11, color: "#9696a0", textTransform: "uppercase", marginBottom: 2 }}>
+                        {DIMENSAO_LABEL[dim]}
+                      </p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "#111116" }}>{op[dim] ?? "—"}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
-          </div>
-        </div>
-      ))}
+          </section>
+        );
+      })}
     </main>
   );
 }
