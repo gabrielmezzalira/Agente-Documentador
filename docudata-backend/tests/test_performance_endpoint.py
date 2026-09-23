@@ -124,14 +124,14 @@ _LINHA = {
 def test_ranking_ordenado_por_score_desc(monkeypatch):
     client = _mock_client(
         operacionais=[
-            {"id": "op-1", "nome": "Ana", "email": "ana@citi.com", "ativo": True},
-            {"id": "op-2", "nome": "Bia", "email": "bia@citi.com", "ativo": True},
+            {"id": "op-1", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-1"},
+            {"id": "op-2", "nome": "Bia", "email": "bia@citi.com", "ativo": True, "project_id": "proj-1"},
         ],
         pontuacao=[
             dict(_LINHA, operacional_id="op-1", entrega_pontos_concluidos=10, entrega_pontos_alocados=10),
             dict(_LINHA, operacional_id="op-2", entrega_pontos_concluidos=2, entrega_pontos_alocados=10),
         ],
-        projetos=[{"id": "proj-1", "arquetipo": "padrao"}],
+        projetos=[{"id": "proj-1", "arquetipo": "padrao", "name": "Projeto 1"}],
     )
     tc = _client_as(monkeypatch, client, "lider")
 
@@ -139,7 +139,10 @@ def test_ranking_ordenado_por_score_desc(monkeypatch):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert [p["nome"] for p in body["sprint"]] == ["Ana", "Bia"]
+    assert len(body["projetos"]) == 1
+    assert body["projetos"][0]["projeto_id"] == "proj-1"
+    assert body["projetos"][0]["projeto_nome"] == "Projeto 1"
+    assert [p["nome"] for p in body["projetos"][0]["sprint"]] == ["Ana", "Bia"]
 
     # registrar_auditoria precisa gravar exatamente 1 linha de audit_log pro
     # acesso do líder — regressão coberta aqui após a remoção do teste

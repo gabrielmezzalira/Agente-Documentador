@@ -776,10 +776,16 @@ class PerformanceOperacionalResponse(BaseModel):
     arquetipo_usado: str
 
 
-class PerformanceResponse(BaseModel):
+class PerformanceProjetoResponse(BaseModel):
+    projeto_id: str
+    projeto_nome: str
     sprint: list[PerformanceOperacionalResponse] = []
     quinzenal: list[PerformanceOperacionalResponse] = []
     mensal: list[PerformanceOperacionalResponse] = []
+
+
+class PerformanceResponse(BaseModel):
+    projetos: list[PerformanceProjetoResponse] = []
 
 
 # ── Metodologia (documento interno, Líder/Gerente) ───────────────────────────

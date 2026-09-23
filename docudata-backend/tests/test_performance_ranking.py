@@ -8,7 +8,7 @@ ponderada re-normalizada pelos pesos disponíveis.
 """
 from unittest.mock import MagicMock
 
-from services.performance import listar_pessoas_ativas, calcular_ranking_pessoa, JANELAS
+from services.performance import listar_pessoas_ativas_por_projeto, calcular_ranking_pessoa, JANELAS
 
 
 _PESOS = {
@@ -45,12 +45,24 @@ def _mock_client(operacionais=None, pontuacao=None, projetos=None):
         elif name == "pontuacao_operacional_sprint":
             def select_side_effect(cols):
                 q = MagicMock()
-                q.in_ = MagicMock(return_value=q)
+                state = {"ids": None}
+
+                def in_side_effect(field, values):
+                    state["ids"] = set(values)
+                    return q
+
+                def execute_side_effect():
+                    resp = MagicMock()
+                    if state["ids"] is None:
+                        resp.data = pontuacao
+                    else:
+                        resp.data = [p for p in pontuacao if p["operacional_id"] in state["ids"]]
+                    return resp
+
+                q.in_ = MagicMock(side_effect=in_side_effect)
                 q.gt = MagicMock(return_value=q)
                 q.order = MagicMock(return_value=q)
-                resp = MagicMock()
-                resp.data = pontuacao
-                q.execute = MagicMock(return_value=resp)
+                q.execute = MagicMock(side_effect=execute_side_effect)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)
         elif name == "projects":
@@ -81,19 +93,64 @@ def _linha(sprint_fim, projeto_id="proj-1", **overrides):
     return base
 
 
-def test_listar_pessoas_ativas_agrupa_por_email():
-    client = _mock_client(operacionais=[
-        {"id": "op-1", "nome": "Ana", "email": "ana@citi.com", "ativo": True},
-        {"id": "op-2", "nome": "Ana", "email": "ana@citi.com", "ativo": True},
-        {"id": "op-3", "nome": "Bia", "email": None, "ativo": True},
-    ])
+def test_listar_pessoas_ativas_por_projeto_agrupa_por_projeto_e_email():
+    client = _mock_client(
+        operacionais=[
+            {"id": "op-1", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-1"},
+            {"id": "op-2", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-1"},
+            {"id": "op-3", "nome": "Bia", "email": None, "ativo": True, "project_id": "proj-1"},
+            {"id": "op-4", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-2"},
+        ],
+        projetos=[{"id": "proj-1", "name": "Projeto 1"}, {"id": "proj-2", "name": "Projeto 2"}],
+    )
 
-    pessoas = listar_pessoas_ativas(client)
+    por_projeto = listar_pessoas_ativas_por_projeto(client)
 
-    ana = next(p for p in pessoas if p["email"] == "ana@citi.com")
-    assert sorted(ana["operacional_ids"]) == ["op-1", "op-2"]
-    bia = next(p for p in pessoas if p["nome"] == "Bia")
-    assert bia["operacional_ids"] == ["op-3"]
+    assert set(por_projeto.keys()) == {"proj-1", "proj-2"}
+    assert por_projeto["proj-1"]["projeto_nome"] == "Projeto 1"
+    assert por_projeto["proj-2"]["projeto_nome"] == "Projeto 2"
+
+    pessoas_proj1 = por_projeto["proj-1"]["pessoas"]
+    ana_proj1 = next(p for p in pessoas_proj1 if p["email"] == "ana@citi.com")
+    assert sorted(ana_proj1["operacional_ids"]) == ["op-1", "op-2"]
+    bia_proj1 = next(p for p in pessoas_proj1 if p["nome"] == "Bia")
+    assert bia_proj1["operacional_ids"] == ["op-3"]
+
+    # Ana em proj-1 (op-1/op-2) e Ana em proj-2 (op-4) NÃO se juntam — a
+    # mesma pessoa aparece separadamente em cada projeto (decisão de
+    # 2026-09-23: o ranking deixou de juntar pessoas entre projetos).
+    pessoas_proj2 = por_projeto["proj-2"]["pessoas"]
+    ana_proj2 = next(p for p in pessoas_proj2 if p["email"] == "ana@citi.com")
+    assert ana_proj2["operacional_ids"] == ["op-4"]
+
+
+def test_pessoa_em_dois_projetos_aparece_separada_com_notas_diferentes():
+    linhas = [
+        _linha("2026-09-05T00:00:00+00:00", projeto_id="proj-1", operacional_id="op-1", entrega_pontos_concluidos=10, entrega_pontos_alocados=10),
+        _linha("2026-09-05T00:00:00+00:00", projeto_id="proj-2", operacional_id="op-2", entrega_pontos_concluidos=2, entrega_pontos_alocados=10),
+    ]
+    client = _mock_client(
+        operacionais=[
+            {"id": "op-1", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-1"},
+            {"id": "op-2", "nome": "Ana", "email": "ana@citi.com", "ativo": True, "project_id": "proj-2"},
+        ],
+        pontuacao=linhas,
+        projetos=[
+            {"id": "proj-1", "arquetipo": "padrao", "name": "Projeto 1"},
+            {"id": "proj-2", "arquetipo": "padrao", "name": "Projeto 2"},
+        ],
+    )
+
+    por_projeto = listar_pessoas_ativas_por_projeto(client)
+    ranking_proj1 = calcular_ranking_pessoa(client, por_projeto["proj-1"]["pessoas"][0], _PESOS)
+    ranking_proj2 = calcular_ranking_pessoa(client, por_projeto["proj-2"]["pessoas"][0], _PESOS)
+
+    # proj-1: Ana entregou 10/10 = 100; proj-2: Ana entregou 2/10 = 20 — notas
+    # diferentes por projeto, sem nenhuma média cross-projeto. Antes desta
+    # mudança essas duas linhas teriam virado UMA pessoa só, com entrega
+    # média (100+20)/2 = 60.0.
+    assert ranking_proj1["sprint"]["entrega"] == 100.0
+    assert ranking_proj2["sprint"]["entrega"] == 20.0
 
 
 def test_janela_sprint_usa_so_a_ultima_linha():
@@ -353,7 +410,7 @@ def test_score_final_so_com_avaliacao_do_gerente_quando_zero_tasks():
     operacionais = [{"id": "op-a", "nome": "A", "email": "a@x.com", "ativo": True, "project_id": "proj-1"}]
     client = _mock_client(operacionais=operacionais, pontuacao=[dict(linha, operacional_id="op-a")], projetos=[{"id": "proj-1", "arquetipo": "padrao", "name": "Projeto 1"}])
 
-    pessoa = listar_pessoas_ativas(client)[0]
+    pessoa = list(listar_pessoas_ativas_por_projeto(client)["proj-1"]["pessoas"])[0]
     resultado = calcular_ranking_pessoa(client, pessoa, _PESOS)
 
     assert resultado["sprint"] is not None

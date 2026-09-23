@@ -16,17 +16,38 @@ BONUS_EXTRA_POR_PONTO = 1.0
 BONUS_EXTRA_TETO = 5.0
 
 
-def listar_pessoas_ativas(client) -> list[dict]:
-    """Agrupa operacionais ativos por e-mail — uma pessoa pode ter uma linha
-    `operacionais` por projeto. Sem e-mail, cada linha vira sua própria pessoa
-    (não dá pra casar identidade cross-projeto sem um identificador comum)."""
-    rows = client.table("operacionais").select("id, nome, email, ativo").eq("ativo", True).execute().data or []
-    por_chave: dict[str, dict] = {}
+def listar_pessoas_ativas_por_projeto(client) -> dict[str, dict]:
+    """Agrupa operacionais ativos por projeto e, dentro de cada projeto, por
+    e-mail — o ranking passa a ser por projeto, não mais cross-projeto
+    (decisão do usuário, 2026-09-23: "eu quero que o ranking seja dividido
+    por projeto, nao geral"). Retorna {projeto_id: {"projeto_nome": str,
+    "pessoas": [...]}}. Sem e-mail, cada linha vira sua própria pessoa (mesmo
+    racional da função anterior)."""
+    rows = (
+        client.table("operacionais")
+        .select("id, nome, email, ativo, project_id")
+        .eq("ativo", True)
+        .execute()
+        .data or []
+    )
+    if not rows:
+        return {}
+    projeto_ids = list({r["project_id"] for r in rows})
+    projetos_rows = client.table("projects").select("id, name").in_("id", projeto_ids).execute().data or []
+    nomes_projeto = {p["id"]: p["name"] for p in projetos_rows}
+
+    por_projeto: dict[str, dict] = {}
     for row in rows:
+        pid = row["project_id"]
+        projeto = por_projeto.setdefault(pid, {"projeto_nome": nomes_projeto.get(pid, "Projeto"), "pessoas": {}})
         chave = row.get("email") or row["id"]
-        pessoa = por_chave.setdefault(chave, {"email": chave, "nome": row["nome"], "operacional_ids": []})
+        pessoa = projeto["pessoas"].setdefault(chave, {"email": chave, "nome": row["nome"], "operacional_ids": []})
         pessoa["operacional_ids"].append(row["id"])
-    return list(por_chave.values())
+
+    return {
+        pid: {"projeto_nome": info["projeto_nome"], "pessoas": list(info["pessoas"].values())}
+        for pid, info in por_projeto.items()
+    }
 
 
 def _sequencia_pessoal(client, operacional_ids: list[str]) -> list[dict]:

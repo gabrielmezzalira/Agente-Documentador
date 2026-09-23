@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from models.schemas import PerformanceResponse
 from services.audit import registrar_auditoria
 from services.auth import get_current_pessoa, require_role
-from services.performance import listar_pessoas_ativas, calcular_ranking_pessoa
+from services.performance import listar_pessoas_ativas_por_projeto, calcular_ranking_pessoa
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["performance"])
@@ -19,19 +19,27 @@ async def performance(pessoa: dict = Depends(get_current_pessoa)):
     if not pesos_por_arquetipo:
         raise HTTPException(status_code=500, detail="pesos_arquetipo não configurado")
 
-    janelas: dict[str, list[dict]] = {"sprint": [], "quinzenal": [], "mensal": []}
-    for pessoa_ranking in listar_pessoas_ativas(client):
-        ranking = calcular_ranking_pessoa(client, pessoa_ranking, pesos_por_arquetipo)
-        for nome_janela, dados in ranking.items():
-            if dados is None or dados.get("score_final") is None:
-                continue
-            janelas[nome_janela].append({
-                "email": pessoa_ranking["email"],
-                "nome": pessoa_ranking["nome"],
-                **dados,
+    projetos_resultado = []
+    for projeto_id, info in listar_pessoas_ativas_por_projeto(client).items():
+        janelas: dict[str, list[dict]] = {"sprint": [], "quinzenal": [], "mensal": []}
+        for pessoa_ranking in info["pessoas"]:
+            ranking = calcular_ranking_pessoa(client, pessoa_ranking, pesos_por_arquetipo)
+            for nome_janela, dados in ranking.items():
+                if dados is None or dados.get("score_final") is None:
+                    continue
+                janelas[nome_janela].append({
+                    "email": pessoa_ranking["email"],
+                    "nome": pessoa_ranking["nome"],
+                    **dados,
+                })
+        for nome_janela in janelas:
+            janelas[nome_janela].sort(key=lambda r: r["score_final"], reverse=True)
+        if any(janelas.values()):
+            projetos_resultado.append({
+                "projeto_id": projeto_id,
+                "projeto_nome": info["projeto_nome"],
+                **janelas,
             })
 
-    for nome_janela in janelas:
-        janelas[nome_janela].sort(key=lambda r: r["score_final"], reverse=True)
-
-    return janelas
+    projetos_resultado.sort(key=lambda p: p["projeto_nome"])
+    return {"projetos": projetos_resultado}
