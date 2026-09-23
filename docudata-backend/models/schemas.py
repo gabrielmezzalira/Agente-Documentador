@@ -771,7 +771,6 @@ class PerformanceOperacionalResponse(BaseModel):
     gerente: Optional[float] = None
     qualidade: Optional[float] = None
     autonomia: Optional[float] = None
-    evolucao: Optional[float] = None
     janela_parcial: bool
     arquetipo_usado: str
 
