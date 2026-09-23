@@ -1652,6 +1652,7 @@ export interface TaskKanbanResponse {
   bloqueado_por?: string | null;
   bloqueado_resolvido_por?: string | null;
   bloqueado_resolvido_em?: string | null;
+  bloqueio_tipo?: "interno" | "cliente" | null;
   entrou_em_andamento_em?: string | null;
   travado_automatico: boolean;
   travado_override: boolean;
@@ -1740,6 +1741,7 @@ export async function patchTaskKanban(
     bloqueado_manual?: boolean;
     bloqueado_por?: string;
     bloqueado_resolvido_por?: string;
+    bloqueio_tipo?: "interno" | "cliente";
     extra?: boolean;
     requer_aprovacao?: boolean;
   }

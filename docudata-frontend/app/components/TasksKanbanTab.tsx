@@ -134,6 +134,10 @@ function TaskModal({
   const [bloqueadoPor, setBloqueadoPor] = useState(task?.bloqueado_por ?? "");
   const [bloqueadoResolvidoPor, setBloqueadoResolvidoPor] = useState("");
   const jaEstavaBloqueadoManual = task?.bloqueado_manual ?? false;
+  const eraBloqueioCliente = jaEstavaBloqueadoManual && task?.bloqueio_tipo === "cliente";
+  const [bloqueioTipo, setBloqueioTipo] = useState<"interno" | "cliente">(
+    task?.bloqueio_tipo === "cliente" ? "cliente" : "interno"
+  );
   const [extra, setExtra] = useState(task?.extra ?? false);
   const [requerAprovacao, setRequerAprovacao] = useState(task?.requer_aprovacao ?? false);
   const [orcamentoEstourado, setOrcamentoEstourado] = useState(false);
@@ -164,7 +168,7 @@ function TaskModal({
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
     if (pontos < 1) { setErr("Pontos deve ser ≥ 1."); return; }
-    if (jaEstavaBloqueadoManual && !bloqueado && !bloqueadoResolvidoPor) {
+    if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
     }
@@ -197,8 +201,9 @@ function TaskModal({
           motivo_bloqueio: bloqueado ? motivoBloqueio.trim() || undefined : undefined,
           checklist,
           bloqueado_manual: bloqueado,
+          bloqueio_tipo: bloqueado ? bloqueioTipo : undefined,
           bloqueado_por: (bloqueado && !jaEstavaBloqueadoManual) ? (bloqueadoPor.trim() || undefined) : undefined,
-          bloqueado_resolvido_por: (!bloqueado && jaEstavaBloqueadoManual) ? bloqueadoResolvidoPor : undefined,
+          bloqueado_resolvido_por: (!bloqueado && jaEstavaBloqueadoManual && !eraBloqueioCliente) ? bloqueadoResolvidoPor : undefined,
           extra,
           requer_aprovacao: requerAprovacao,
         });
@@ -459,6 +464,24 @@ function TaskModal({
                 </label>
               </div>
               {bloqueado && (
+                <>
+                <div>
+                  <label htmlFor="bloqueio-tipo" style={labelSt}>Tipo do bloqueio</label>
+                  <select
+                    id="bloqueio-tipo"
+                    value={bloqueioTipo}
+                    onChange={(e) => setBloqueioTipo(e.target.value as "interno" | "cliente")}
+                    style={inputSt}
+                  >
+                    <option value="interno">Interno (equipe, acesso, outra task)</option>
+                    <option value="cliente">Dependência do cliente</option>
+                  </select>
+                  {bloqueioTipo === "cliente" && (
+                    <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+                      Se a sprint fechar com a task ainda esperando o cliente, ela não conta na Entrega de ninguém e o relógio de atraso fica pausado.
+                    </p>
+                  )}
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: jaEstavaBloqueadoManual ? "1fr" : "1fr 1fr", gap: 10 }}>
                   <div>
                     <label style={labelSt}>Motivo do bloqueio</label>
@@ -481,8 +504,9 @@ function TaskModal({
                     </div>
                   )}
                 </div>
+                </>
               )}
-              {jaEstavaBloqueadoManual && !bloqueado && (
+              {jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && (
                 <div>
                   <label style={labelSt}>Quem resolveu? *</label>
                   <select
@@ -730,7 +754,7 @@ function TaskViewModal({
           {task.extra && <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>}
           {task.bloqueado && (
             <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>
-              Bloqueada{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
+              {task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
             </span>
           )}
         </div>
@@ -940,7 +964,7 @@ function TaskCard({
         )}
 
         {task.bloqueado && (
-          <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>Bloqueada</span>
+          <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
         )}
 
         {task.travado_automatico && !task.travado_override && (
@@ -1151,7 +1175,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     { title: "Checklist e Definition of Done", body: "Dentro da task você monta uma lista de itens e vai marcando conforme fica pronto. O card mostra o progresso no formato '3/5'. Se sobrar item aberto, o sistema recusa mover a task para Concluída. Task sem checklist não trava nada: a regra só vale se você criou a lista." },
     { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
     { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo, e o projeto também. Se o limite for atingido, o sistema bloqueia novos movimentos. Configure em Configurações." },
-    { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia." },
+    { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia. Se o motivo for o cliente, o gerente escolhe 'Dependência do cliente': se a sprint fechar com a task ainda esperando, ela sai da conta de Entrega de todo mundo, não conta na Autonomia e o relógio de atraso fica pausado." },
     { title: "Task travada por tempo", body: "O relógio conta desde que a task está ativa — Planejado ou Em andamento, tanto faz — e a sprint dela já começou. Se passar de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. Mover a task pra uma sprint futura pausa o relógio; o gerente também pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
     { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não consome o orçamento de pontos da sprint e, se for concluída antes do fechamento, rende um bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
     { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint — cada task com coluna, pontos e se está bloqueada entra automaticamente no contexto. O que você vê aqui é exatamente o que a IA usa para escrever os documentos." },
