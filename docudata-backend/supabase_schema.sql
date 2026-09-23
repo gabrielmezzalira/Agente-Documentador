@@ -821,6 +821,14 @@ WHERE arquetipo = 'consultoria_discovery';
 -- permite NULL, não precisa recriar a constraint.
 ALTER TABLE avaliacoes_gerente ALTER COLUMN resposta_6 DROP NOT NULL;
 
+-- Entrega "Dependência do cliente" (2026-09-23): bloqueio manual ganha tipo.
+-- 'cliente' = task parada esperando o cliente — no fechamento da sprint ela
+-- sai dos pontos alocados (não zera a Entrega de ninguém), não conta em
+-- Autonomia e pausa o relógio de travamento. NULL/'interno' = comportamento
+-- de sempre. Só o gerente marca (operacional já não mexe em bloqueio).
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueio_tipo text
+    CHECK (bloqueio_tipo IN ('interno','cliente'));
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (

@@ -479,6 +479,7 @@ class TaskCreate(BaseModel):
 
 
 _BLOQUEADO_RESOLVIDO_POR_VALIDOS = {"operacional", "gerente"}
+_BLOQUEIO_TIPOS_VALIDOS = {"interno", "cliente"}
 
 
 class TaskUpdate(BaseModel):
@@ -498,6 +499,7 @@ class TaskUpdate(BaseModel):
     bloqueado_manual: Optional[bool] = None
     bloqueado_por: Optional[str] = None
     bloqueado_resolvido_por: Optional[str] = None
+    bloqueio_tipo: Optional[str] = None
     extra: Optional[bool] = None
     requer_aprovacao: Optional[bool] = None
 
@@ -513,6 +515,13 @@ class TaskUpdate(BaseModel):
     def bloqueado_resolvido_por_valido(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in _BLOQUEADO_RESOLVIDO_POR_VALIDOS:
             raise ValueError("bloqueado_resolvido_por deve ser operacional | gerente")
+        return v
+
+    @field_validator("bloqueio_tipo")
+    @classmethod
+    def bloqueio_tipo_valido(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _BLOQUEIO_TIPOS_VALIDOS:
+            raise ValueError("bloqueio_tipo deve ser interno | cliente")
         return v
 
 
@@ -536,6 +545,7 @@ class TaskResponse(BaseModel):
     bloqueado_por: Optional[str] = None
     bloqueado_resolvido_por: Optional[str] = None
     bloqueado_resolvido_em: Optional[datetime] = None
+    bloqueio_tipo: Optional[str] = None
     entrou_em_andamento_em: Optional[datetime] = None
     travado_automatico: bool = False
     travado_override: bool = False
