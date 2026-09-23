@@ -13,6 +13,7 @@ from models.schemas import (
     TaskTransicaoResponse,
     TaskSugestaoResponse,
     TaskSugestaoResolve,
+    _COLUNAS_VALIDAS,
 )
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.email_service import email_task_atribuida, email_task_concluida, send_email
@@ -831,7 +832,7 @@ async def mover_task(
     pessoa: dict = Depends(get_current_pessoa),
 ):
     """Endpoint semântico para drag-and-drop entre colunas."""
-    if coluna_destino not in {"planejado", "em_andamento", "concluida"}:
+    if coluna_destino not in _COLUNAS_VALIDAS:
         raise HTTPException(status_code=422, detail="coluna_destino inválida")
     return await patch_task(task_id, TaskUpdate(coluna_kanban=coluna_destino, autor=autor, motivo=motivo), pessoa=pessoa)
 
