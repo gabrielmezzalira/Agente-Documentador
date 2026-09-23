@@ -17,7 +17,6 @@ function perguntas(modoTrabalho: "ATRIBUICAO" | "PULL"): string[] {
     "A pessoa destravou sozinha antes de te escalar?",
     "A comunicação da entrega foi clara a ponto de você não precisar perguntar?",
     "Ajudou, desbloqueou ou ensinou outro membro nesta sprint?",
-    "Evoluiu em relação a onde estava no começo do ciclo?",
     "Trouxe algo além do que foi pedido?",
   ];
 }
@@ -30,8 +29,8 @@ interface Props {
   onCompleted: () => void;
 }
 
-type Respostas = [number, number, number, number, number, number, number];
-const RESPOSTAS_VAZIAS: Respostas = [-1, -1, -1, -1, -1, -1, -1];
+type Respostas = [number, number, number, number, number, number];
+const RESPOSTAS_VAZIAS: Respostas = [-1, -1, -1, -1, -1, -1];
 
 export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrabalho, onClose, onCompleted }: Props) {
   const [pendencias, setPendencias] = useState<PendenciaAvaliacao[] | null>(null);
@@ -66,13 +65,13 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
   function reaproveitar(p: PendenciaAvaliacao) {
     if (!p.ultima_avaliacao_outro_projeto) return;
     const a = p.ultima_avaliacao_outro_projeto;
-    setRespostas([a.resposta_1, a.resposta_2, a.resposta_3, a.resposta_4, a.resposta_5, a.resposta_6, a.resposta_7]);
+    setRespostas([a.resposta_1, a.resposta_2, a.resposta_3, a.resposta_4, a.resposta_5, a.resposta_7]);
     setReaproveitadaDe(a.avaliacao_id);
   }
 
   async function salvar() {
     if (!avaliando || respostas.includes(-1)) {
-      setErr("Responda todas as 7 perguntas antes de salvar.");
+      setErr("Responda todas as 6 perguntas antes de salvar.");
       return;
     }
     setSaving(true);
@@ -86,8 +85,7 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
         resposta_3: respostas[2],
         resposta_4: respostas[3],
         resposta_5: respostas[4],
-        resposta_6: respostas[5],
-        resposta_7: respostas[6],
+        resposta_7: respostas[5],
         reaproveitada_de: reaproveitadaDe,
       });
       setAvaliando(null);
