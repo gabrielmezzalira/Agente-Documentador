@@ -657,6 +657,14 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     coluna_nova = data.coluna_kanban
     coluna_atual = task.get("coluna_kanban")
     if coluna_nova is not None and coluna_nova != coluna_atual:
+        # Pendente de aprovação só sai via /aprovar ou /rejeitar (endpoints
+        # dedicados, gerente/líder-only) — fecha a saída na origem, mesmo
+        # princípio já aplicado a modo_trabalho na Entrega 4.
+        if coluna_atual == "pendente_aprovacao":
+            raise HTTPException(
+                status_code=422,
+                detail="Task em Pendente de aprovação só sai via POST /tasks/{id}/aprovar ou /tasks/{id}/rejeitar.",
+            )
         # DoR: task sem sprint não pode ir para em_andamento
         sprint_efetivo = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
         if coluna_nova == "em_andamento" and not sprint_efetivo:
@@ -664,10 +672,19 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
                 status_code=409,
                 detail="DoR: associe a task a uma sprint antes de movê-la para Em Andamento.",
             )
-        # DoD: checklist deve estar completo (ou vazio) antes de ir para Concluída.
+        # requer_aprovacao=true bloqueia o caminho rápido em_andamento -> concluida
+        # — a task tem que passar por pendente_aprovacao primeiro.
+        if coluna_nova == "concluida" and task.get("requer_aprovacao"):
+            raise HTTPException(
+                status_code=422,
+                detail="Esta task requer aprovação do gerente — mova para Pendente de aprovação em vez de Concluída direto.",
+            )
+        # DoD: checklist deve estar completo (ou vazio) antes de ir para Concluída
+        # ou Pendente de aprovação — a entrada em pendente_aprovacao é quando o
+        # operacional declara o trabalho pronto, mesmo gate redirecionado.
         # MET-07 (ganchos daily/commit/retrospectiva -> sinais de saúde) é explicitamente
         # NÃO implementado nesta task — deferido, não silenciosamente descartado.
-        if coluna_nova == "concluida":
+        if coluna_nova in ("concluida", "pendente_aprovacao"):
             checklist_efetivo = data.checklist if data.checklist is not None else task.get("checklist", [])
             pendentes = [item for item in (checklist_efetivo or []) if not item.get("done")]
             if pendentes:
@@ -728,7 +745,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         sprint_efetivo_id = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
         anchor_atual = task.get("entrou_em_andamento_em")
 
-        if coluna_efetiva == "concluida" or not sprint_efetivo_id:
+        if coluna_efetiva in ("concluida", "pendente_aprovacao") or not sprint_efetivo_id:
             sprint_iniciada = False
         else:
             sp_iniciada_resp = client.table("sprints").select("iniciada").eq("id", sprint_efetivo_id).execute()
