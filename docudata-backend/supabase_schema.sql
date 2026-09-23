@@ -829,6 +829,56 @@ ALTER TABLE avaliacoes_gerente ALTER COLUMN resposta_6 DROP NOT NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bloqueio_tipo text
     CHECK (bloqueio_tipo IN ('interno','cliente'));
 
+-- Correção retroativa (2026-09-23): sprint PULL já fechada sem nenhuma task
+-- regular (só extra, ou vazia) gravou Entrega 0 pra todo mundo. Passa a ser
+-- "sem dado" — o ranking recalcula ao vivo no próximo GET /performance.
+-- Idempotente: rodar de novo não muda nada.
+UPDATE pontuacao_operacional_sprint p
+SET entrega_nota_relativa = NULL,
+    entrega_denominador = NULL
+WHERE p.entrega_modo = 'PONTOS_RELATIVO'
+  AND NOT EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.sprint_id = p.sprint_id
+        AND COALESCE(t.extra, false) = false
+  );
+
+-- Correção retroativa de task que esperava o cliente numa sprint JÁ FECHADA
+-- (rodar à mão, uma task por vez). 1) Achar candidatas:
+--
+-- SELECT pr.name AS projeto, s.numero AS sprint, o.nome AS operacional,
+--        t.id AS task_id, t.titulo, t.pontos, t.coluna_kanban, t.motivo_bloqueio,
+--        p.entrega_modo, p.entrega_pontos_concluidos, p.entrega_pontos_alocados,
+--        p.entrega_nota_relativa
+-- FROM pontuacao_operacional_sprint p
+-- JOIN tasks t        ON t.sprint_id = p.sprint_id AND t.operacional_id = p.operacional_id
+-- JOIN sprints s      ON s.id = p.sprint_id
+-- JOIN projects pr    ON pr.id = p.projeto_id
+-- JOIN operacionais o ON o.id = p.operacional_id
+-- WHERE t.coluna_kanban <> 'concluida'
+--   AND COALESCE(t.extra, false) = false
+-- ORDER BY pr.name, s.numero, o.nome;
+--
+-- 2) Aplicar pra uma task (troque <TASK_ID>). Idempotente: só desconta se a
+--    task ainda não estiver marcada como cliente.
+--
+-- WITH alvo AS (
+--     SELECT id, sprint_id, operacional_id, pontos FROM tasks
+--     WHERE id = '<TASK_ID>' AND bloqueio_tipo IS DISTINCT FROM 'cliente'
+-- )
+-- UPDATE pontuacao_operacional_sprint p
+-- SET entrega_pontos_alocados = GREATEST(p.entrega_pontos_alocados - alvo.pontos, 0),
+--     entrega_nota_relativa = CASE
+--         WHEN p.entrega_modo = 'PONTOS_RELATIVO' AND p.entrega_pontos_concluidos = 0 THEN NULL
+--         ELSE p.entrega_nota_relativa END,
+--     entrega_denominador = CASE
+--         WHEN p.entrega_modo = 'PONTOS_RELATIVO' AND p.entrega_pontos_concluidos = 0 THEN NULL
+--         ELSE p.entrega_denominador END
+-- FROM alvo
+-- WHERE p.sprint_id = alvo.sprint_id AND p.operacional_id = alvo.operacional_id;
+--
+-- UPDATE tasks SET bloqueio_tipo = 'cliente' WHERE id = '<TASK_ID>';
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (

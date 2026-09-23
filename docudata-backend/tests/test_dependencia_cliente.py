@@ -146,3 +146,21 @@ def test_job_de_travamento_continua_travando_bloqueio_interno(monkeypatch):
     checker.check_travamento_automatico()
 
     assert len(calls["tasks_update"]) == 1
+
+
+# ── Ponta a ponta no ranking + SQL retroativo ────────────────────────────────
+
+def test_performance_trata_alocados_zero_como_sem_dado_e_renormaliza():
+    """Prova que a linha gravada pelo fechamento (alocados=0 porque a única
+    task esperava o cliente) vira Entrega None — não 0 — e a nota final usa
+    só as dimensões com dado."""
+    from services.performance import _entrega_atribuicao, _score_final
+    linha = {"entrega_pontos_concluidos": 0, "entrega_pontos_alocados": 0, "entrega_pontos_penalizados": 0}
+    assert _entrega_atribuicao([linha]) is None
+    pesos = {"peso_entrega": 0.18, "peso_gerente": 0.50, "peso_qualidade": 0.18, "peso_autonomia": 0.14}
+    assert _score_final({"entrega": None, "gerente": 80.0, "qualidade": None, "autonomia": None}, pesos) == 80.0
+
+
+def test_schema_traz_sql_retroativo_da_pull_vazia():
+    assert "UPDATE pontuacao_operacional_sprint p" in SCHEMA
+    assert "entrega_modo = 'PONTOS_RELATIVO'" in SCHEMA
