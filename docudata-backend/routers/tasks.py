@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
     RedistribuirPontosRequest,
+    RejeitarTaskRequest,
     TaskCreate,
     TaskUpdate,
     TaskResponse,
@@ -651,6 +652,45 @@ async def aprovar_task(
             auto_update_sprint_health(client, sprint_id_atual)
         except Exception:
             pass  # best-effort
+
+    return result.data[0]
+
+
+@router.post("/{task_id}/rejeitar", response_model=TaskResponse)
+async def rejeitar_task(
+    task_id: str,
+    data: RejeitarTaskRequest,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    """Só gerente/líder — rejeita uma task em Pendente de aprovação: limpa o
+    responsável e volta pra planejado (fila), sem penalidade de travamento
+    (o relógio já estava pausado desde a entrada em pendente_aprovacao)."""
+    client = get_client()
+    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = resp.data[0]
+    if task.get("coluna_kanban") != "pendente_aprovacao":
+        raise HTTPException(status_code=409, detail="Task não está em Pendente de aprovação.")
+
+    agora = datetime.now(timezone.utc)
+    _registrar_task_transicao(client, task_id, task, "coluna_kanban", "planejado", data.autor, data.motivo, agora)
+
+    fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
+    max_ordem = max((t.get("ordem_fila") or 0) for t in fila) if fila else 0
+
+    result = client.table("tasks").update({
+        "operacional_id": None,
+        "coluna_kanban": "planejado",
+        "pull_em": None,
+        "entrou_em_andamento_em": None,
+        "travado_automatico": False,
+        "ordem_fila": max_ordem + 1,
+        "updated_at": agora.isoformat(),
+    }).eq("id", task_id).execute()
+
+    on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "planejado")
+    _avisar_operacional_rejeicao(client, task, data.motivo)
 
     return result.data[0]
 
