@@ -792,6 +792,35 @@ CREATE TABLE IF NOT EXISTS migracoes_modo (
 );
 CREATE INDEX IF NOT EXISTS idx_migracoes_modo_project ON migracoes_modo(project_id, created_at DESC);
 
+-- Entrega "Peso do gerente 50% + remoção da Evolução" (2026-09-23): sobe
+-- peso_gerente pra 0.50 nos dois arquétipos, zera peso_evolucao (a dimensão
+-- deixa de existir no motor de cálculo — services/performance.py), e
+-- redistribui o que sobrou de Entrega/Qualidade/Autonomia mantendo a
+-- proporção relativa que já existia entre elas. Ver
+-- docs/superpowers/specs/2026-09-23-avaliacao-peso-gerente-evolucao-ranking-design.md §2.1.
+UPDATE pesos_arquetipo SET
+    peso_gerente = 0.50,
+    peso_entrega = 0.18,
+    peso_qualidade = 0.18,
+    peso_autonomia = 0.14,
+    peso_evolucao = 0.00
+WHERE arquetipo = 'padrao';
+
+UPDATE pesos_arquetipo SET
+    peso_gerente = 0.50,
+    peso_entrega = 0.24,
+    peso_qualidade = 0.12,
+    peso_autonomia = 0.14,
+    peso_evolucao = 0.00
+WHERE arquetipo = 'consultoria_discovery';
+
+-- A pergunta 6 do questionário semanal ("Evoluiu em relação a onde estava no
+-- começo do ciclo?") sai do formulário — resposta_6 deixa de ser exigida.
+-- Coluna não é removida (dado histórico continua legível, mesma convenção
+-- não-destrutiva de toda migração deste projeto). O CHECK existente já
+-- permite NULL, não precisa recriar a constraint.
+ALTER TABLE avaliacoes_gerente ALTER COLUMN resposta_6 DROP NOT NULL;
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (
