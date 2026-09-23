@@ -62,8 +62,8 @@ def _make_mock_client(
                 orig_eq = query.eq
 
                 def eq_side_effect(field, value, *a, **kw):
-                    if field == "task_id":
-                        captured["task_id"] = value
+                    if field in ("task_id", "para"):
+                        captured[field] = value
                     return query
 
                 query.eq = MagicMock(side_effect=eq_side_effect)
@@ -72,6 +72,15 @@ def _make_mock_client(
                     resp = MagicMock()
                     task_id = captured.get("task_id")
                     rows = transicoes_by_task.get(task_id, [])
+                    # O handler filtra por `para` (uma query pra "concluida",
+                    # outra pra "em_andamento"): linhas sem "para" explícito
+                    # valem como transição -> concluida, que é o que as fixtures
+                    # antigas descrevem.
+                    para = captured.get("para")
+                    if para is not None:
+                        rows = [r for r in rows if r.get("para", "concluida") == para]
+                    # .order("timestamp", desc=True).limit(1) — mais recente primeiro
+                    rows = sorted(rows, key=lambda r: r.get("timestamp", ""), reverse=True)
                     resp.data = rows[:1] if rows else []
                     return resp
 
@@ -260,3 +269,51 @@ def test_cycle_time_stats_existing_cycle_time_endpoint_unchanged(monkeypatch):
     assert len(data) == 1
     assert data[0]["cycle_time_horas"] == 15.0
     assert data[0]["task_titulo"] == "Task 1"
+
+
+def test_cycle_time_conta_trabalho_inteiro_mesmo_passando_por_pendente_aprovacao(monkeypatch):
+    """Revisão final, achado #4: numa task que passou por pendente_aprovacao
+    (em_andamento -> pendente_aprovacao -> concluida), `duracao_fase_anterior_
+    segundos` da transição -> concluida mede só a espera pela aprovação. O
+    cycle-time tem que ser o intervalo inteiro em_andamento -> concluida
+    (aqui 50h), não a perna final (40h).
+
+    Escalas em horas (e não em segundos) porque o endpoint arredonda pra 1 casa
+    decimal em horas — 500s e 400s virariam o mesmo 0.1 e o teste não provaria
+    nada."""
+    tasks = [{"id": "t1", "sprint_id": None, "operacional_id": None, "coluna_kanban": "concluida", "titulo": "Task 1"}]
+    transicoes_by_task = {
+        "t1": [
+            {"para": "em_andamento", "duracao_fase_anterior_segundos": 3600, "timestamp": "2026-01-01T00:00:00+00:00"},
+            # 10h de trabalho até declarar pronto
+            {"para": "pendente_aprovacao", "duracao_fase_anterior_segundos": 10 * 3600, "timestamp": "2026-01-01T10:00:00+00:00"},
+            # + 40h esperando o gerente aprovar
+            {"para": "concluida", "duracao_fase_anterior_segundos": 40 * 3600, "timestamp": "2026-01-03T02:00:00+00:00"},
+        ],
+    }
+    mock_sb = _make_mock_client(tasks_data=tasks, transicoes_by_task=transicoes_by_task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/metricas/test-project-id/cycle-time")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["cycle_time_horas"] == 50.0
+    # a perna final sozinha (40h) é o que o código antigo reportava — o bug
+    assert data[0]["cycle_time_horas"] != 40.0
+
+
+def test_cycle_time_sem_transicao_de_entrada_usa_duracao_da_transicao_final(monkeypatch):
+    """Task puxada via /puxar nunca ganha transição -> em_andamento (é operação
+    estrutural da fila, ver comentário em routers/tasks.py::puxar_task). Nesse
+    caso o fallback antigo continua valendo — a task não some do relatório."""
+    tasks = [{"id": "t1", "sprint_id": None, "operacional_id": None, "coluna_kanban": "concluida", "titulo": "Task 1"}]
+    transicoes_by_task = {
+        "t1": [{"para": "concluida", "duracao_fase_anterior_segundos": 7200, "timestamp": "2026-01-01T02:00:00+00:00"}],
+    }
+    mock_sb = _make_mock_client(tasks_data=tasks, transicoes_by_task=transicoes_by_task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/metricas/test-project-id/cycle-time")
+    assert resp.status_code == 200
+    assert resp.json()[0]["cycle_time_horas"] == 2.0

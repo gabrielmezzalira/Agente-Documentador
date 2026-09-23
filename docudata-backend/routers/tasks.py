@@ -373,6 +373,10 @@ async def create_task(data: TaskCreate):
         "ordem": data.ordem,
         "checklist": data.checklist or [],
         "extra": data.extra,
+        # requer_aprovacao é bool com default (nunca None), então entra direto
+        # no payload — se dependesse do loop de Optional abaixo, `False` seria
+        # indistinguível de "não enviado" e a flag nunca chegaria ao banco.
+        "requer_aprovacao": data.requer_aprovacao,
     }
     for field in ("funcionalidade_id", "sprint_id", "operacional_id", "descricao"):
         val = getattr(data, field, None)
@@ -528,6 +532,14 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if task.get("operacional_id") is not None:
         raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
 
+    # Só se puxa da fila (planejado). Defesa em profundidade: hoje nenhuma task
+    # em pendente_aprovacao fica sem operacional_id (só /rejeitar limpa o
+    # responsável, e ele já move pra planejado no mesmo update), mas sem esta
+    # checagem /puxar seria mais uma saída não auditada de pendente_aprovacao —
+    # mesma classe de bug fechada em /devolver logo abaixo.
+    if task.get("coluna_kanban") != "planejado":
+        raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
+
     # Auto-atribuição só existe em modo PULL — em ATRIBUICAO, patch_task já
     # bloqueia o operacional de setar operacional_id (_CAMPOS_BLOQUEADOS_
     # PARA_OPERACIONAL); sem esta checagem, /puxar seria um desvio dessa regra.
@@ -576,6 +588,16 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+
+    # Pendente de aprovação só sai via /aprovar ou /rejeitar — mesmo gate que
+    # patch_task aplica. Sem isto, o próprio dono da task devolvia ela pra fila
+    # sem transição registrada, sem e-mail e sem motivo (e ainda podia levar a
+    # penalidade de travamento do bloco abaixo), furando a regra na origem.
+    if task.get("coluna_kanban") == "pendente_aprovacao":
+        raise HTTPException(
+            status_code=409,
+            detail="Task está em Pendente de aprovação — use /aprovar ou /rejeitar.",
+        )
 
     if pessoa["cargo"] not in ("owner", "lider", "gerente"):
         meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
@@ -895,7 +917,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     for field in (
         "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
         "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
-        "checklist", "ordem",
+        "checklist", "ordem", "requer_aprovacao",
     ):
         val = getattr(data, field, None)
         if val is not None:

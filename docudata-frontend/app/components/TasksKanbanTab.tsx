@@ -780,7 +780,10 @@ function TaskViewModal({
             </button>
           </div>
         )}
-        {modoTrabalho === "PULL" && task.operacional_id && (meuOperacionalId === task.operacional_id) && (
+        {/* Task em Pendente de aprovação só sai via Aprovar/Rejeitar (o backend
+            devolve 409 em /devolver) — esconder o botão evita oferecer uma ação
+            que só pode dar erro. */}
+        {modoTrabalho === "PULL" && task.coluna_kanban !== "pendente_aprovacao" && task.operacional_id && (meuOperacionalId === task.operacional_id) && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button
               type="button"

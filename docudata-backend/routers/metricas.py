@@ -1,4 +1,5 @@
 import statistics
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
@@ -7,6 +8,57 @@ from services.supabase_client import get_client
 from services.metricas_comparacao import comparar_modos_do_projeto, comparar_modos_entre_projetos
 
 router = APIRouter(prefix="/metricas", tags=["metricas"])
+
+
+def _ultima_transicao_para(client, task_id: str, para: str) -> Optional[dict]:
+    resp = (
+        client.table("task_transicoes")
+        .select("duracao_fase_anterior_segundos, timestamp")
+        .eq("task_id", task_id)
+        .eq("campo", "coluna_kanban")
+        .eq("para", para)
+        .order("timestamp", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return resp.data[0] if resp.data else None
+
+
+def _parse_ts(valor) -> Optional[datetime]:
+    if not valor:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _cycle_time_segundos(client, task_id: str) -> Optional[int]:
+    """Segundos entre a entrada em em_andamento e a saída pra concluida.
+
+    NÃO usa `duracao_fase_anterior_segundos` da transição -> concluida: esse
+    campo mede só a fase imediatamente anterior, então numa task que passou por
+    pendente_aprovacao (em_andamento -> pendente_aprovacao -> concluida) ele
+    contaria apenas a espera pela aprovação do gerente — cycle-time
+    artificialmente baixo justo nas tasks com mais cerimônia. Diferença de
+    timestamps é robusta a quantas idas e vindas a task tenha tido.
+
+    Fallback (task sem transição registrada pra em_andamento — ex.: puxada via
+    /puxar, que é estrutural e não grava transição): volta ao comportamento
+    antigo em vez de sumir com a task do relatório.
+    """
+    concluida = _ultima_transicao_para(client, task_id, "concluida")
+    if not concluida:
+        return None
+
+    em_andamento = _ultima_transicao_para(client, task_id, "em_andamento")
+    ts_fim = _parse_ts(concluida.get("timestamp"))
+    ts_inicio = _parse_ts(em_andamento.get("timestamp")) if em_andamento else None
+    if ts_inicio and ts_fim and ts_fim >= ts_inicio:
+        return int((ts_fim - ts_inicio).total_seconds())
+
+    return concluida.get("duracao_fase_anterior_segundos")
 
 
 def _percentiles(cycle_times_horas: list[float]) -> dict:
@@ -103,7 +155,9 @@ async def get_cycle_time(
 ):
     """
     Cycle-time por task: tempo (em horas) entre entrada em em_andamento e saída para concluida.
-    Usa task_transicoes com campo=coluna_kanban e duracao_fase_anterior_segundos da transição → concluida.
+    Usa task_transicoes (campo=coluna_kanban): diferença entre o timestamp da
+    transição → concluida e o da transição → em_andamento, então uma parada em
+    pendente_aprovacao no meio não encolhe o número (ver _cycle_time_segundos).
     """
     client = get_client()
     proj = client.table("projects").select("id").eq("id", project_id).execute()
@@ -135,20 +189,9 @@ async def get_cycle_time(
 
     result = []
     for task in tasks:
-        # duracao da fase em_andamento antes de ir para concluida
-        trans = (
-            client.table("task_transicoes")
-            .select("duracao_fase_anterior_segundos, timestamp")
-            .eq("task_id", task["id"])
-            .eq("campo", "coluna_kanban")
-            .eq("para", "concluida")
-            .order("timestamp", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if not trans.data:
-            continue
-        duracao_s = trans.data[0].get("duracao_fase_anterior_segundos")
+        # Tempo de em_andamento até concluida (robusto ao pulo por
+        # pendente_aprovacao — ver _cycle_time_segundos).
+        duracao_s = _cycle_time_segundos(client, task["id"])
         if not duracao_s:
             continue
 

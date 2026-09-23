@@ -12,10 +12,14 @@ def _mock_client(
     task_travamentos=None,
     pontuacao_eventos_capture=None,
     modo_trabalho="PULL",
+    tasks_update_capture=None,
 ):
     task_travamentos = task_travamentos or []
     pontuacao_eventos_capture = (
         pontuacao_eventos_capture if pontuacao_eventos_capture is not None else []
+    )
+    tasks_update_capture = (
+        tasks_update_capture if tasks_update_capture is not None else []
     )
     client = MagicMock()
     # Tracks calls to `.is_(...)` on the atomic update's query chain — used
@@ -36,6 +40,7 @@ def _mock_client(
                 return q
 
             def update_side_effect(payload):
+                tasks_update_capture.append(payload)
                 q = MagicMock()
 
                 def eq_effect(*a, **kw):
@@ -98,6 +103,7 @@ def _mock_client(
     client.table = MagicMock(side_effect=table_side_effect)
     client._tasks_update_is_ = is_mock
     client._pontuacao_eventos_capture = pontuacao_eventos_capture
+    client._tasks_update_capture = tasks_update_capture
     return client
 
 
@@ -346,3 +352,69 @@ def test_devolver_task_por_gerente_de_task_de_outra_pessoa_permite(make_client):
     body = resp.json()
     assert body["operacional_id"] is None
     assert body["coluna_kanban"] == "planejado"
+
+
+# ─── Revisão final, achado crítico #2: pendente_aprovacao só sai via
+#     /aprovar ou /rejeitar — /devolver e /puxar não podem ser desvios ──────
+
+def test_devolver_task_em_pendente_aprovacao_da_409_e_nao_escreve(make_client):
+    """Sem esta guarda, o próprio dono da task devolvia ela de
+    pendente_aprovacao pra planejado: sem linha em task_transicoes, sem
+    e-mail, sem motivo — e ainda podia levar a penalidade de travamento —
+    furando a regra "só /aprovar ou /rejeitar tiram a task de pendente_
+    aprovacao" que patch_task já aplicava."""
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-a", "rascunho": False,
+        "coluna_kanban": "pendente_aprovacao", "titulo": "X", "pontos": 3, "checklist": [],
+        "bloqueado": False, "travado_automatico": True, "sprint_id": "sprint-1",
+        "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 409
+    assert "aprovar" in resp.json()["detail"]
+    # nenhuma escrita: nem a devolução em si, nem a penalidade de travamento
+    assert tc._mock_sb._tasks_update_capture == []
+    assert tc._mock_sb._pontuacao_eventos_capture == []
+
+
+def test_devolver_task_em_pendente_aprovacao_da_409_tambem_para_gerente(make_client):
+    """O gate é do estado, não do cargo — gerente também usa /rejeitar
+    (que exige motivo e avisa o operacional), não /devolver."""
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": "op-b", "rascunho": False,
+        "coluna_kanban": "pendente_aprovacao", "titulo": "X", "pontos": 3, "checklist": [],
+        "bloqueado": False, "travado_automatico": False, "ordem": 0,
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(
+        task,
+        operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"},
+        cargo="gerente",
+    )
+
+    resp = tc.post("/tasks/t1/devolver")
+
+    assert resp.status_code == 409
+    assert tc._mock_sb._tasks_update_capture == []
+
+
+def test_puxar_task_fora_de_planejado_da_403_e_nao_escreve(make_client):
+    """Defesa em profundidade da mesma classe: hoje nenhuma task em
+    pendente_aprovacao fica com operacional_id nulo (só /rejeitar limpa o
+    responsável, e ele move pra planejado no mesmo update), então o cenário é
+    improvável — mas a guarda impede que /puxar vire outra saída não
+    auditada de pendente_aprovacao se isso mudar."""
+    task = {
+        "id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False,
+        "coluna_kanban": "pendente_aprovacao", "titulo": "X", "pontos": 3, "checklist": [],
+        "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
+
+    resp = tc.post("/tasks/t1/puxar")
+
+    assert resp.status_code == 403
+    assert tc._mock_sb._tasks_update_capture == []

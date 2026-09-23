@@ -1771,7 +1771,14 @@ export async function moverTaskKanban(
     const err = await res.json().catch(() => ({}));
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
   }
-  if (!res.ok) throw new Error("Erro ao mover task");
+  if (!res.ok) {
+    // Arrastar o card é o caminho principal pros gates de pendente_aprovacao
+    // (422: "requer aprovação do gerente" / "só sai via /aprovar ou
+    // /rejeitar"). Antes só o 409 tinha a mensagem do backend lida — todo o
+    // resto virava "Erro ao mover task" e a explicação se perdia.
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "Erro ao mover task"), { status: res.status });
+  }
   return res.json();
 }
 
