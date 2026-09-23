@@ -212,12 +212,14 @@ async def get_cfd(project_id: str):
         )
         planejado = sum(1 for t in tasks if t["coluna_kanban"] == "planejado")
         em_andamento = sum(1 for t in tasks if t["coluna_kanban"] == "em_andamento")
+        pendente_aprovacao = sum(1 for t in tasks if t["coluna_kanban"] == "pendente_aprovacao")
         concluida = sum(1 for t in tasks if t["coluna_kanban"] == "concluida")
         if tasks:
             result.append({
                 "sprint_numero": s["numero"],
                 "planejado": planejado,
                 "em_andamento": em_andamento,
+                "pendente_aprovacao": pendente_aprovacao,
                 "concluida": concluida,
             })
     return result
