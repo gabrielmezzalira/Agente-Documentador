@@ -169,8 +169,8 @@ Os números de fluxo do projeto.
   "Concluída" crescer junto, há gargalo.
 - **SPI por operacional (estimado)**: proxy ao vivo sobre todas as tasks de cada
   pessoa. Serve para ver quem está sobrecarregado agora.
-- **Entrega e evolução por pessoa**: o dado consolidado dos fechamentos de sprint.
-  É o que sustenta a conversa de feedback.
+- **Entrega por pessoa**: o dado consolidado dos fechamentos de sprint. É o que
+  sustenta a conversa de feedback.
 
 ---
 

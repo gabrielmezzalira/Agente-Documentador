@@ -23,7 +23,7 @@ Cada sprint dura uma semana, e o reconhecimento acontece a cada duas sprints.
 
 ## O que conta
 
-Cinco coisas, olhadas juntas e não isoladamente:
+Quatro coisas, olhadas juntas e não isoladamente:
 
 **Entrega.** Você fez o que se comprometeu a fazer na sprint. O que importa é a
 proporção: entregar tudo o que você pegou vale mais do que pegar muito e entregar
@@ -41,10 +41,6 @@ que conta a favor é resolver.
 **Ajuda ao time.** Desbloquear, ensinar e apoiar outra pessoa conta a favor, não
 contra. Isso é medido de propósito, porque um time onde ninguém ajuda entrega
 menos.
-
-**Evolução.** Quanto você cresceu em relação a onde você estava no começo do
-ciclo. Esta é a única coisa que compara você com você mesmo, e não com os outros.
-É o que dá chance real a quem entrou mais júnior.
 
 ---
 
@@ -113,15 +109,15 @@ O motivo é direto: quando as pessoas conhecem a fórmula, elas passam a otimiza
 fórmula em vez do trabalho. É um efeito conhecido e documentado em qualquer
 sistema de medição, e não tem a ver com confiança em ninguém.
 
-Você não precisa saber os pesos para ir bem. As cinco direções acima são o que
+Você não precisa saber os pesos para ir bem. As quatro direções acima são o que
 importa, e elas são exatamente o que um bom trabalho já é.
 
 ---
 
 ## Se você quiser saber como está indo
 
-Pergunte ao seu gerente. Ele enxerga sua entrega consolidada e sua evolução, e a
-conversa de feedback existe para isso.
+Pergunte ao seu gerente. Ele enxerga sua entrega consolidada, e a conversa de
+feedback existe para isso.
 
 Se você discorda de alguma leitura, diga. A avaliação é feita por pessoas, e
 pessoas erram; o caminho de correção é a conversa, não a dedução da fórmula.
@@ -134,5 +130,5 @@ Este sistema está no primeiro ciclo. Os critérios podem ser ajustados conforme
 liderança aprende o que funciona na prática, e você será avisado quando isso
 acontecer.
 
-O que não vai mudar é a direção: entregar com qualidade, ajudar o time, ser
-autônomo e evoluir.
+O que não vai mudar é a direção: entregar com qualidade, ajudar o time e ser
+autônomo.
