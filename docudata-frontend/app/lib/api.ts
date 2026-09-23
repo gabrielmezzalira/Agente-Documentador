@@ -1641,7 +1641,7 @@ export interface TaskKanbanResponse {
   titulo: string;
   descricao?: string | null;
   pontos: number;
-  coluna_kanban: "planejado" | "em_andamento" | "concluida";
+  coluna_kanban: "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
   bloqueado: boolean;
   motivo_bloqueio?: string | null;
   checklist: { texto: string; done: boolean }[];
@@ -1663,6 +1663,7 @@ export interface TaskKanbanResponse {
   atribuida_manualmente: boolean;
   motivo_atribuicao_manual?: string | null;
   ordem_fila?: number | null;
+  requer_aprovacao: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -1707,6 +1708,7 @@ export async function createTaskKanban(data: {
   coluna_kanban?: string;
   extra?: boolean;
   checklist?: { texto: string; done: boolean }[];
+  requer_aprovacao?: boolean;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
@@ -1739,6 +1741,7 @@ export async function patchTaskKanban(
     bloqueado_por?: string;
     bloqueado_resolvido_por?: string;
     extra?: boolean;
+    requer_aprovacao?: boolean;
   }
 ): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks/${id}`, {
@@ -1781,6 +1784,35 @@ export async function overrideTravamentoTask(id: string, autor?: string): Promis
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "Task não está em Em Andamento"), { status: 409 });
   }
   if (!res.ok) throw new Error("Erro ao suprimir alerta de travamento");
+  return res.json();
+}
+
+export async function aprovarTask(id: string, autor?: string): Promise<TaskKanbanResponse> {
+  const q = new URLSearchParams();
+  if (autor) q.set("autor", autor);
+  const res = await apiFetch(`${API}/tasks/${id}/aprovar?${q}`, { method: "POST" });
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "Task não está em Pendente de aprovação"), { status: 409 });
+  }
+  if (!res.ok) throw new Error("Erro ao aprovar task");
+  return res.json();
+}
+
+export async function rejeitarTask(id: string, motivo: string, autor?: string): Promise<TaskKanbanResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/rejeitar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ motivo, autor }),
+  });
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error((err as { detail?: string }).detail ?? "Task não está em Pendente de aprovação"), { status: 409 });
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao rejeitar task");
+  }
   return res.json();
 }
 
@@ -1855,6 +1887,7 @@ export interface CfdPoint {
   sprint_numero: number;
   planejado: number;
   em_andamento: number;
+  pendente_aprovacao: number;
   concluida: number;
 }
 
