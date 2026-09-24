@@ -12,7 +12,7 @@ function apiFetch(input: string, init?: RequestInit): Promise<Response> {
     // gerente achando que é bug do formulário, não sessão vencida.
     if (res.status === 401 && typeof window !== "undefined") {
       const path = window.location.pathname;
-      if (path !== "/login" && path !== "/cadastro") {
+      if (!["/login", "/cadastro", "/esqueci-senha", "/redefinir-senha"].includes(path)) {
         window.location.href = "/login";
       }
     }

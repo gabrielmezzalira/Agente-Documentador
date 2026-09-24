@@ -4,7 +4,9 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getMe, logout, type MeResponse } from "../lib/api";
 
-const PUBLIC_PATHS = new Set(["/login", "/cadastro"]);
+// Rotas que quem está deslogado precisa abrir — inclui o fluxo de senha,
+// senão o guard manda de volta pro /login e o link parece não fazer nada.
+const PUBLIC_PATHS = new Set(["/login", "/cadastro", "/esqueci-senha", "/redefinir-senha"]);
 
 const AuthContext = createContext<MeResponse | null>(null);
 
