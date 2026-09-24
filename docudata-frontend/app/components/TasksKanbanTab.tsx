@@ -830,6 +830,11 @@ function TaskViewModal({
   );
 }
 
+function modoPendingMove(m: { de: string; para: string }): "mover" | "aprovar" | "rejeitar" {
+  if (m.de !== "pendente_aprovacao") return "mover";
+  return m.para === "concluida" ? "aprovar" : "rejeitar";
+}
+
 function labelForColuna(c: string): string {
   return COLUNAS.find((col) => col.id === c)?.label ?? c;
 }
@@ -839,7 +844,7 @@ function labelForColuna(c: string): string {
 // do banner de sugestão da IA. Cancelar não chama nenhuma API.
 
 function ConfirmTransicaoModal({
-  taskTitulo, de, para, onConfirm, onCancel, confirming, motivo, onMotivoChange,
+  taskTitulo, de, para, onConfirm, onCancel, confirming, motivo, onMotivoChange, modo = "mover",
 }: {
   taskTitulo: string;
   de: string;
@@ -849,9 +854,14 @@ function ConfirmTransicaoModal({
   confirming: boolean;
   motivo?: string;
   onMotivoChange?: (v: string) => void;
+  // Saída de pendente_aprovacao não é um "mover": vira aprovação (-> concluida)
+  // ou rejeição (volta pra planejado, motivo obrigatório).
+  modo?: "mover" | "aprovar" | "rejeitar";
 }) {
   // Reabertura (TRANS-03): concluida -> em_andamento aceita um motivo opcional.
-  const isReabertura = de === "concluida" && para === "em_andamento";
+  const isReabertura = modo === "mover" && de === "concluida" && para === "em_andamento";
+  const isRejeicao = modo === "rejeitar";
+  const semMotivo = isRejeicao && !(motivo ?? "").trim();
 
   return (
     <div style={{
@@ -866,12 +876,31 @@ function ConfirmTransicaoModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 14px" }}>
-          Confirmar mudança de status
+          {modo === "aprovar" ? "Aprovar task" : isRejeicao ? "Rejeitar task" : "Confirmar mudança de status"}
         </h3>
         <p style={{ fontSize: 14, color: "#374151", margin: "0 0 20px", lineHeight: 1.5 }}>
-          Mover <strong>{taskTitulo}</strong> de <strong>{labelForColuna(de)}</strong> para{" "}
-          <strong>{labelForColuna(para)}</strong>?
+          {modo === "aprovar" ? (
+            <>Aprovar <strong>{taskTitulo}</strong> e mover para <strong>{labelForColuna("concluida")}</strong>?</>
+          ) : isRejeicao ? (
+            <>Rejeitar <strong>{taskTitulo}</strong>? Ela volta para <strong>{labelForColuna("planejado")}</strong> sem responsável, e o operacional recebe o motivo.</>
+          ) : (
+            <>Mover <strong>{taskTitulo}</strong> de <strong>{labelForColuna(de)}</strong> para{" "}
+            <strong>{labelForColuna(para)}</strong>?</>
+          )}
         </p>
+        {isRejeicao && onMotivoChange && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelSt}>Motivo da rejeição</label>
+            <textarea
+              value={motivo ?? ""}
+              onChange={(e) => onMotivoChange(e.target.value)}
+              rows={3}
+              placeholder="O que precisa ser ajustado?"
+              style={{ ...inputSt, resize: "vertical" }}
+              autoFocus
+            />
+          </div>
+        )}
         {isReabertura && onMotivoChange && (
           <div style={{ marginBottom: 20 }}>
             <label style={labelSt}>Motivo da reabertura (opcional)</label>
@@ -891,10 +920,14 @@ function ConfirmTransicaoModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={confirming}
-            style={{ ...btnPrimary, opacity: confirming ? 0.6 : 1 }}
+            disabled={confirming || semMotivo}
+            style={{ ...btnPrimary, opacity: confirming || semMotivo ? 0.6 : 1 }}
           >
-            {confirming ? "Movendo…" : "Confirmar"}
+            {modo === "aprovar"
+              ? (confirming ? "Aprovando…" : "Aprovar")
+              : isRejeicao
+                ? (confirming ? "Rejeitando…" : "Rejeitar")
+                : (confirming ? "Movendo…" : "Confirmar")}
           </button>
         </div>
       </div>
@@ -1103,6 +1136,12 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     const task = tasks.find((t) => t.id === dragId);
     setDragId(null);
     if (!task || task.coluna_kanban === coluna) return;
+    // Saída de Pendente de aprovação só por aprovar/rejeitar, que são
+    // gerente/líder-only no backend — operacional nem abre o modal.
+    if (task.coluna_kanban === "pendente_aprovacao" && ehOperacional) {
+      alert("Esta task está esperando aprovação. Só o gerente ou líder pode aprová-la ou rejeitá-la.");
+      return;
+    }
     // Nenhuma chamada de API ainda — apenas abre o modal de confirmação.
     // Cancelar depois não deixa rastro nenhum (TRANS-01).
     setMotivoReabertura("");
@@ -1114,12 +1153,18 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     setConfirming(true);
     setWipError("");
     try {
-      const updated = await moverTaskKanban(
-        pendingMove.taskId,
-        pendingMove.para,
-        auth?.nome,
-        motivoReabertura.trim() || undefined
-      );
+      const modo = modoPendingMove(pendingMove);
+      const updated =
+        modo === "aprovar"
+          ? await aprovarTask(pendingMove.taskId, auth?.nome)
+          : modo === "rejeitar"
+            ? await rejeitarTask(pendingMove.taskId, motivoReabertura.trim(), auth?.nome)
+            : await moverTaskKanban(
+                pendingMove.taskId,
+                pendingMove.para,
+                auth?.nome,
+                motivoReabertura.trim() || undefined
+              );
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setPendingMove(null);
     } catch (e) {
@@ -1486,6 +1531,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           confirming={confirming}
           motivo={motivoReabertura}
           onMotivoChange={setMotivoReabertura}
+          modo={modoPendingMove(pendingMove)}
         />
       )}
 
