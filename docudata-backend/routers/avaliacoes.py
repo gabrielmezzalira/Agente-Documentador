@@ -336,6 +336,9 @@ async def criar_ou_atualizar_avaliacao(data: AvaliacaoGerenteCreate, pessoa: dic
 
     if not resp.data:
         raise HTTPException(status_code=500, detail="Falha ao salvar avaliação")
+    # Avaliação feita/editada depois do fechamento (permitido na janela de 48h)
+    # precisa chegar ao snapshot do ranking — antes ficava com a nota antiga.
+    sincronizar_snapshot_gerente(client, resp.data[0])
     return resp.data[0]
 
 

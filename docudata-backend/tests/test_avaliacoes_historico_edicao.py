@@ -179,3 +179,22 @@ def test_historico_filtra_por_projeto_e_sprint(monkeypatch):
 def test_historico_operacional_403(monkeypatch):
     tc = _tc(monkeypatch, FakeClient(_seed()), cargo="operacional")
     assert tc.get("/avaliacoes/historico").status_code == 403
+
+
+def test_post_apos_fechamento_sincroniza_snapshot(monkeypatch):
+    seed = _seed()
+    seed["avaliacoes_gerente"] = []  # avaliação ainda não existia quando a sprint fechou
+    seed["pontuacao_operacional_sprint"][0].update(gerente_media=None, gerente_pergunta3=None)
+    fake = FakeClient(seed)
+    tc = _tc(monkeypatch, fake)
+
+    resp = tc.post("/avaliacoes", json={
+        "operacional_id": "op-1", "sprint_id": "sp-1",
+        "resposta_1": 4, "resposta_2": 4, "resposta_3": 5, "resposta_4": 5,
+        "resposta_5": 5, "resposta_7": 5,
+    })
+
+    assert resp.status_code == 201
+    [snap] = fake.tables["pontuacao_operacional_sprint"]
+    assert snap["gerente_media"] == 4.67
+    assert snap["gerente_pergunta3"] == 5
