@@ -743,6 +743,80 @@ export async function confirmarAvaliacaoSemanal(sprintId: string): Promise<{ spr
   return res.json();
 }
 
+export interface AvaliacaoHistoricoItem {
+  id: string;
+  operacional_id: string;
+  operacional_nome: string;
+  sprint_id: string;
+  sprint_numero: number | null;
+  projeto_id: string | null;
+  projeto_nome: string;
+  modo_trabalho: "ATRIBUICAO" | "PULL";
+  avaliador_nome: string;
+  resposta_1: number;
+  resposta_2: number;
+  resposta_3: number;
+  resposta_4: number;
+  resposta_5: number;
+  resposta_6: number | null;
+  resposta_7: number;
+  criado_em: string;
+  total_edicoes: number;
+  ultima_edicao_em: string | null;
+  ultima_edicao_por: string | null;
+}
+
+export interface AvaliacaoEdicaoItem {
+  id: string;
+  editor_nome: string;
+  antes: Record<string, number | null>;
+  depois: Record<string, number | null>;
+  motivo: string;
+  criado_em: string;
+}
+
+export async function getHistoricoAvaliacoes(
+  filtros: { project_id?: string; sprint_id?: string } = {}
+): Promise<AvaliacaoHistoricoItem[]> {
+  const q = new URLSearchParams();
+  if (filtros.project_id) q.set("project_id", filtros.project_id);
+  if (filtros.sprint_id) q.set("sprint_id", filtros.sprint_id);
+  const res = await apiFetch(`${API}/avaliacoes/historico?${q}`);
+  if (!res.ok) throw new Error("Erro ao carregar avaliações");
+  return res.json();
+}
+
+export async function editarAvaliacao(
+  id: string,
+  body: {
+    resposta_1: number;
+    resposta_2: number;
+    resposta_3: number;
+    resposta_4: number;
+    resposta_5: number;
+    resposta_7: number;
+    motivo: string;
+  }
+): Promise<AvaliacaoHistoricoItem> {
+  const res = await apiFetch(`${API}/avaliacoes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: unknown }).detail;
+    throw new Error(typeof detail === "string" ? detail : "Erro ao salvar a edição");
+  }
+  return res.json();
+}
+
+export async function getEdicoesAvaliacao(id: string): Promise<AvaliacaoEdicaoItem[]> {
+  const res = await apiFetch(`${API}/avaliacoes/${id}/edicoes`);
+  if (!res.ok) throw new Error("Erro ao carregar histórico de edições");
+  return res.json();
+}
+
 export async function deleteSprint(sprintId: string): Promise<void> {
   const res = await apiFetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
   if (!res.ok) {

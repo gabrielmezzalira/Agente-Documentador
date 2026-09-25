@@ -7,19 +7,7 @@ import {
   confirmarAvaliacaoSemanal,
   type PendenciaAvaliacao,
 } from "../lib/api";
-
-function perguntas(modoTrabalho: "ATRIBUICAO" | "PULL"): string[] {
-  return [
-    modoTrabalho === "PULL"
-      ? "Puxou e entregou num ritmo consistente?"
-      : "Entregou o que se comprometeu dentro do combinado nesta sprint?",
-    "A qualidade da entrega precisou de pouca ou nenhuma correção?",
-    "A pessoa destravou sozinha antes de te escalar?",
-    "A comunicação da entrega foi clara a ponto de você não precisar perguntar?",
-    "Ajudou, desbloqueou ou ensinou outro membro nesta sprint?",
-    "Trouxe algo além do que foi pedido?",
-  ];
-}
+import { perguntas } from "../lib/perguntasAvaliacao";
 
 interface Props {
   sprintId: string;

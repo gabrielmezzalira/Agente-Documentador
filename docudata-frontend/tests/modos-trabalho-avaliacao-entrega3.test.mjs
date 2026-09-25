@@ -12,12 +12,13 @@ test("MetricasTab explica SPI nulo com sprints avaliadas em vez de deixar traves
 });
 
 test("pergunta 1 da Avaliação Semanal muda de texto conforme o modo de trabalho", () => {
-  const src = readFileSync(
+  const modal = readFileSync(
     new URL("../app/components/AvaliacaoSemanalModal.tsx", import.meta.url),
     "utf-8"
   );
-  assert.match(src, /modoTrabalho/);
-  assert.match(src, /Puxou e entregou num ritmo consistente\?/);
+  const lib = readFileSync(new URL("../app/lib/perguntasAvaliacao.ts", import.meta.url), "utf-8");
+  assert.match(modal, /modoTrabalho/);
+  assert.match(lib, /Puxou e entregou num ritmo consistente\?/);
 });
 
 test("api.ts expõe puxarTask e devolverTask", () => {
