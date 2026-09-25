@@ -121,15 +121,15 @@ export default function AvaliacoesPage() {
       </div>
 
       {erro && <p role="alert" style={{ color: "#dc2626" }}>{erro}</p>}
-      {!itens && !erro && <p style={{ color: "#9696a0" }}>Carregando...</p>}
+      {!itens && !erro && <p style={{ color: "#6b6b76" }}>Carregando...</p>}
       {itens && filtrados.length === 0 && (
-        <p style={{ color: "#9696a0" }}>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</p>
+        <p style={{ color: "#6b6b76" }}>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</p>
       )}
 
       {grupos.map((g) => (
         <section key={g.chave} style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: "#111116", margin: "0 0 10px" }}>
-            {g.projeto} <span style={{ color: "#9696a0", fontWeight: 600 }}>· Sprint {g.sprint ?? "—"}</span>
+            {g.projeto} <span style={{ color: "#6b6b76", fontWeight: 600 }}>· Sprint {g.sprint ?? "—"}</span>
           </h2>
           <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #e8e8ed", borderRadius: 12 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -282,7 +282,7 @@ function HistoricoModal({ avaliacao, onClose }: { avaliacao: AvaliacaoHistoricoI
   return (
     <Overlay onClose={onClose} titulo={`Histórico · ${avaliacao.operacional_nome}`}>
       {erro && <p role="alert" style={{ color: "#dc2626" }}>{erro}</p>}
-      {!edicoes && !erro && <p style={{ color: "#9696a0" }}>Carregando...</p>}
+      {!edicoes && !erro && <p style={{ color: "#6b6b76" }}>Carregando...</p>}
       {edicoes?.map((e) => (
         <div key={e.id} style={{ borderTop: "1px solid #f1f1f4", padding: "12px 0" }}>
           <p style={{ fontSize: 12, color: "#737380", margin: "0 0 6px" }}>
@@ -323,7 +323,7 @@ function Overlay({ titulo, onClose, children }: { titulo: string; onClose: () =>
 }
 
 const pageStyle: React.CSSProperties = { maxWidth: 1000, margin: "0 auto", padding: "52px 24px" };
-const linkVoltarStyle: React.CSSProperties = { fontSize: 13, color: "#9696a0" };
+const linkVoltarStyle: React.CSSProperties = { fontSize: 13, color: "#6b6b76" };
 const filtroLabelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "#737380", textTransform: "uppercase", letterSpacing: "0.06em" };
 const selectStyle: React.CSSProperties = { minWidth: 200, padding: "8px 10px", border: "1px solid #e8e8ed", borderRadius: 8, fontSize: 13, background: "#fff", color: "#111116", textTransform: "none", letterSpacing: 0, fontWeight: 500 };
 const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#737380", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "default" };
