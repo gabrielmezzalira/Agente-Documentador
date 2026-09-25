@@ -18,6 +18,35 @@ from services.sprints import get_current_sprint_id
 log = logging.getLogger("pontuacao")
 
 
+def campos_gerente(aval: dict) -> dict:
+    """Campos de gerente do snapshot a partir de uma linha de avaliacoes_gerente.
+
+    A resposta 6 fica FORA da média de propósito. Historicamente era a fonte
+    exclusiva da dimensão Evolução (removida em 2026-09-23) — o campo continua
+    existindo por compat com dado antigo, mas não alimenta mais nenhuma
+    dimensão de score."""
+    notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
+    return {
+        "gerente_media": round(sum(notas) / len(notas), 2),
+        "gerente_pergunta6": aval.get("resposta_6"),
+        "gerente_pergunta3": aval["resposta_3"],
+    }
+
+
+def sincronizar_snapshot_gerente(client, aval: dict) -> None:
+    """Reflete uma avaliação criada/editada DEPOIS do fechamento no snapshot
+    congelado — sem isso a nota nova nunca chegava ao ranking. Só mexe nos
+    campos de gerente (Entrega/Autonomia e correções manuais ficam como estão).
+    Sprint ainda aberta não tem linha: o update não casa nada e é no-op."""
+    (
+        client.table("pontuacao_operacional_sprint")
+        .update(campos_gerente(aval))
+        .eq("sprint_id", aval["sprint_id"])
+        .eq("operacional_id", aval["operacional_id"])
+        .execute()
+    )
+
+
 def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     """Calcula e trava uma linha de pontuacao_operacional_sprint por operacional
     com task na sprint. Idempotente: se já existir alguma linha para esta
@@ -230,14 +259,10 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         gerente_pergunta6 = None
         gerente_pergunta3 = None
         if aval:
-            # A resposta 6 fica FORA desta média de propósito. Historicamente
-            # era a fonte exclusiva da dimensão Evolução (removida em
-            # 2026-09-23) — o campo continua existindo por compat com dado
-            # antigo, mas não alimenta mais nenhuma dimensão de score.
-            notas = [aval["resposta_1"], aval["resposta_2"], aval["resposta_3"], aval["resposta_4"], aval["resposta_5"], aval["resposta_7"]]
-            gerente_media = round(sum(notas) / len(notas), 2)
-            gerente_pergunta6 = aval["resposta_6"]
-            gerente_pergunta3 = aval["resposta_3"]
+            gerente = campos_gerente(aval)
+            gerente_media = gerente["gerente_media"]
+            gerente_pergunta6 = gerente["gerente_pergunta6"]
+            gerente_pergunta3 = gerente["gerente_pergunta3"]
 
         entrega_pontos_pessoa = None
         entrega_denominador = None
