@@ -34,6 +34,7 @@ export default function SubareaSelector() {
           {podeGerenciar && <Link href="/pessoas" style={navLinkStyle}>Pessoas</Link>}
           {podeGerenciar && <Link href="/performance" style={navLinkStyle}>Performance</Link>}
           {podeGerenciar && <Link href="/comparacao-modos" style={navLinkStyle}>Comparação de modos</Link>}
+          {podeConfigurar && <Link href="/avaliacoes" style={navLinkStyle}>Avaliações</Link>}
           {podeConfigurar && <Link href="/settings" style={navLinkStyle}>Configurações</Link>}
         </nav>
       </div>

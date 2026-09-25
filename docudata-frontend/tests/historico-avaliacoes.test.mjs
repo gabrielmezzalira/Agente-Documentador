@@ -23,3 +23,20 @@ test("api.ts expõe histórico, edição e log de avaliações", () => {
   assert.match(api, /\/avaliacoes\/historico/);
   assert.match(api, /method: "PATCH"/);
 });
+
+test("página /avaliacoes: guarda de cargo, filtros, edição com motivo e histórico", () => {
+  assert.ok(existsSync(new URL("../app/avaliacoes/page.tsx", import.meta.url)));
+  const page = read("../app/avaliacoes/page.tsx");
+  assert.match(page, /cargo === "operacional"/);
+  assert.match(page, /getHistoricoAvaliacoes/);
+  assert.match(page, /editarAvaliacao/);
+  assert.match(page, /getEdicoesAvaliacao/);
+  assert.match(page, /Motivo da correção/);
+  assert.match(page, /mediaGerente100/);
+  assert.match(page, /Nenhuma avaliação/);
+});
+
+test("nav global linka /avaliacoes para gerente/líder/owner", () => {
+  const home = read("../app/page.tsx");
+  assert.match(home, /podeConfigurar && <Link href="\/avaliacoes"/);
+});
