@@ -4,15 +4,18 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from models.schemas import (
+    AvaliacaoEdicaoItem,
     AvaliacaoGerenteCreate,
+    AvaliacaoGerenteEdicao,
     AvaliacaoGerenteResponse,
+    AvaliacaoHistoricoItem,
     ConfirmarAvaliacaoResponse,
     ElegivelResponse,
     PendenciaAvaliacaoResponse,
 )
 from services.auth import get_current_pessoa, require_not_operacional, require_role
 from services.elegibilidade import listar_vinculados_no_projeto
-from services.pontuacao import calcular_e_travar_pontuacao
+from services.pontuacao import calcular_e_travar_pontuacao, sincronizar_snapshot_gerente
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.supabase_client import get_client
 
@@ -77,6 +80,157 @@ def _buscar_ultima_avaliacao_outro_projeto(client, operacional: dict) -> Optiona
         "resposta_6": aval["resposta_6"],
         "resposta_7": aval["resposta_7"],
     }
+
+
+_CAMPOS_RESPOSTA = ("resposta_1", "resposta_2", "resposta_3", "resposta_4", "resposta_5", "resposta_6", "resposta_7")
+
+
+def _por_id(client, tabela: str, colunas: str, ids) -> dict[str, dict]:
+    ids = list({i for i in ids if i})
+    if not ids:
+        return {}
+    rows = client.table(tabela).select(colunas).in_("id", ids).execute().data or []
+    return {r["id"]: r for r in rows}
+
+
+def _montar_historico(client, avaliacoes: list[dict]) -> list[dict]:
+    """Enriquece avaliações com nomes (projeto, sprint, operacional, avaliador)
+    e resumo de edições, em lote — uma query por tabela, não por linha."""
+    if not avaliacoes:
+        return []
+    sprints = _por_id(client, "sprints", "id, numero, project_id", [a["sprint_id"] for a in avaliacoes])
+    projetos = _por_id(client, "projects", "id, name, modo_trabalho", [s["project_id"] for s in sprints.values()])
+    operacionais = _por_id(client, "operacionais", "id, nome", [a["operacional_id"] for a in avaliacoes])
+    edicoes = (
+        client.table("avaliacoes_gerente_edicoes")
+        .select("avaliacao_id, editor_id, criado_em")
+        .in_("avaliacao_id", [a["id"] for a in avaliacoes])
+        .execute()
+        .data or []
+    )
+    pessoas = _por_id(
+        client, "pessoa", "id, nome",
+        [a["gerente_id"] for a in avaliacoes] + [e["editor_id"] for e in edicoes],
+    )
+
+    total: dict[str, int] = {}
+    ultima: dict[str, dict] = {}
+    for e in edicoes:
+        aid = e["avaliacao_id"]
+        total[aid] = total.get(aid, 0) + 1
+        if aid not in ultima or str(e["criado_em"]) > str(ultima[aid]["criado_em"]):
+            ultima[aid] = e
+
+    itens = []
+    for a in avaliacoes:
+        sprint = sprints.get(a["sprint_id"], {})
+        projeto = projetos.get(sprint.get("project_id"), {})
+        ult = ultima.get(a["id"])
+        itens.append({
+            "id": a["id"],
+            "operacional_id": a["operacional_id"],
+            "operacional_nome": operacionais.get(a["operacional_id"], {}).get("nome", "—"),
+            "sprint_id": a["sprint_id"],
+            "sprint_numero": sprint.get("numero"),
+            "projeto_id": sprint.get("project_id"),
+            "projeto_nome": projeto.get("name", "—"),
+            "modo_trabalho": projeto.get("modo_trabalho") or "ATRIBUICAO",
+            "avaliador_nome": pessoas.get(a["gerente_id"], {}).get("nome", "—"),
+            **{c: a.get(c) for c in _CAMPOS_RESPOSTA},
+            "criado_em": a["criado_em"],
+            "total_edicoes": total.get(a["id"], 0),
+            "ultima_edicao_em": ult["criado_em"] if ult else None,
+            "ultima_edicao_por": pessoas.get(ult["editor_id"], {}).get("nome", "—") if ult else None,
+        })
+    itens.sort(key=lambda i: (i["projeto_nome"], -(i["sprint_numero"] or 0), i["operacional_nome"]))
+    return itens
+
+
+@router.get("/historico", response_model=list[AvaliacaoHistoricoItem])
+async def historico_avaliacoes(project_id: Optional[str] = None, sprint_id: Optional[str] = None):
+    """Todas as avaliações (gerente/líder/owner veem tudo — decisão da spec
+    2026-09-25), filtráveis por projeto ou sprint."""
+    client = get_client()
+    q = client.table("avaliacoes_gerente").select("*")
+    if sprint_id:
+        q = q.eq("sprint_id", sprint_id)
+    elif project_id:
+        sprint_ids = [
+            s["id"] for s in client.table("sprints").select("id").eq("project_id", project_id).execute().data or []
+        ]
+        if not sprint_ids:
+            return []
+        q = q.in_("sprint_id", sprint_ids)
+    return _montar_historico(client, q.execute().data or [])
+
+
+@router.patch("/{avaliacao_id}", response_model=AvaliacaoHistoricoItem)
+async def editar_avaliacao(
+    avaliacao_id: str,
+    data: AvaliacaoGerenteEdicao,
+    pessoa: dict = Depends(get_current_pessoa),
+):
+    """Correção de nota dada errado, sem prazo (a janela de 48h vale só pro
+    questionário). Mantém o avaliador original e grava o log com motivo."""
+    client = get_client()
+    encontrada = client.table("avaliacoes_gerente").select("*").eq("id", avaliacao_id).execute().data
+    if not encontrada:
+        raise HTTPException(status_code=404, detail="Avaliação não encontrada")
+    atual = encontrada[0]
+
+    novas = {
+        "resposta_1": data.resposta_1,
+        "resposta_2": data.resposta_2,
+        "resposta_3": data.resposta_3,
+        "resposta_4": data.resposta_4,
+        "resposta_5": data.resposta_5,
+        "resposta_7": data.resposta_7,
+    }
+    if all(atual.get(k) == v for k, v in novas.items()):
+        raise HTTPException(status_code=422, detail="Nenhuma nota alterada.")
+
+    antes = {c: atual.get(c) for c in _CAMPOS_RESPOSTA}
+    atualizada = client.table("avaliacoes_gerente").update(novas).eq("id", avaliacao_id).execute().data
+    if not atualizada:
+        raise HTTPException(status_code=500, detail="Falha ao salvar avaliação")
+    atualizada = atualizada[0]
+
+    client.table("avaliacoes_gerente_edicoes").insert({
+        "avaliacao_id": avaliacao_id,
+        "editor_id": pessoa["id"],
+        "antes": antes,
+        "depois": {**antes, **novas},
+        "motivo": data.motivo,
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    sincronizar_snapshot_gerente(client, atualizada)
+    return _montar_historico(client, [atualizada])[0]
+
+
+@router.get("/{avaliacao_id}/edicoes", response_model=list[AvaliacaoEdicaoItem])
+async def listar_edicoes(avaliacao_id: str):
+    client = get_client()
+    rows = (
+        client.table("avaliacoes_gerente_edicoes")
+        .select("*")
+        .eq("avaliacao_id", avaliacao_id)
+        .order("criado_em", desc=True)
+        .execute()
+        .data or []
+    )
+    pessoas = _por_id(client, "pessoa", "id, nome", [r["editor_id"] for r in rows])
+    return [
+        {
+            "id": r["id"],
+            "editor_nome": pessoas.get(r["editor_id"], {}).get("nome", "—"),
+            "antes": r["antes"],
+            "depois": r["depois"],
+            "motivo": r["motivo"],
+            "criado_em": r["criado_em"],
+        }
+        for r in rows
+    ]
 
 
 @router.get("/{sprint_id}/pendencias", response_model=list[PendenciaAvaliacaoResponse])

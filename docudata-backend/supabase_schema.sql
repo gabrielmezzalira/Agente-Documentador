@@ -879,6 +879,31 @@ WHERE p.entrega_modo = 'PONTOS_RELATIVO'
 --
 -- UPDATE tasks SET bloqueio_tipo = 'cliente' WHERE id = '<TASK_ID>';
 
+-- Histórico e correção de avaliações do gerente (2026-09-25). Toda edição
+-- feita pela tela /avaliacoes grava antes/depois e motivo — a tela é aberta
+-- a qualquer gerente/líder, então o log é o que dá rastreabilidade.
+CREATE TABLE IF NOT EXISTS avaliacoes_gerente_edicoes (
+    id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    avaliacao_id  uuid        NOT NULL REFERENCES avaliacoes_gerente(id) ON DELETE CASCADE,
+    editor_id     uuid        NOT NULL REFERENCES pessoa(id),
+    antes         jsonb       NOT NULL,
+    depois        jsonb       NOT NULL,
+    motivo        text        NOT NULL CHECK (length(trim(motivo)) > 0),
+    criado_em     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aval_edicoes_avaliacao ON avaliacoes_gerente_edicoes(avaliacao_id);
+
+-- Correção retroativa (2026-09-25): o snapshot de gerente era congelado no
+-- fechamento e avaliação criada/editada depois disso nunca chegava ao
+-- ranking. Ressincroniza todo snapshot com a avaliação atual. Idempotente.
+UPDATE pontuacao_operacional_sprint p
+SET gerente_media = ROUND((a.resposta_1 + a.resposta_2 + a.resposta_3 + a.resposta_4 + a.resposta_5 + a.resposta_7)::numeric / 6, 2),
+    gerente_pergunta3 = a.resposta_3,
+    gerente_pergunta6 = a.resposta_6
+FROM avaliacoes_gerente a
+WHERE a.sprint_id = p.sprint_id
+  AND a.operacional_id = p.operacional_id;
+
 -- Migration v5: integração aditiva com repositórios GitHub (Dados e Dev)
 -- Validar em staging e aplicar com backup/ponto de restauração antes do rollout.
 -- CREATE TABLE IF NOT EXISTS project_repositories (

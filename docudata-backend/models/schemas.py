@@ -698,6 +698,56 @@ class AvaliacaoGerenteResponse(BaseModel):
     editavel_ate: datetime
 
 
+class AvaliacaoGerenteEdicao(BaseModel):
+    resposta_1: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_2: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_3: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_4: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_5: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    resposta_7: int = Field(..., ge=_RESPOSTA_MIN, le=_RESPOSTA_MAX)
+    motivo: str
+
+    @field_validator("motivo")
+    @classmethod
+    def motivo_obrigatorio(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Informe o motivo da edição")
+        return v
+
+
+class AvaliacaoHistoricoItem(BaseModel):
+    id: str
+    operacional_id: str
+    operacional_nome: str
+    sprint_id: str
+    sprint_numero: Optional[int] = None
+    projeto_id: Optional[str] = None
+    projeto_nome: str
+    modo_trabalho: str
+    avaliador_nome: str
+    resposta_1: int
+    resposta_2: int
+    resposta_3: int
+    resposta_4: int
+    resposta_5: int
+    resposta_6: Optional[int] = None
+    resposta_7: int
+    criado_em: datetime
+    total_edicoes: int
+    ultima_edicao_em: Optional[datetime] = None
+    ultima_edicao_por: Optional[str] = None
+
+
+class AvaliacaoEdicaoItem(BaseModel):
+    id: str
+    editor_nome: str
+    antes: dict
+    depois: dict
+    motivo: str
+    criado_em: datetime
+
+
 class AvaliacaoAnteriorResponse(BaseModel):
     avaliacao_id: str
     project_name: str
