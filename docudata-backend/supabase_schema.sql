@@ -1017,3 +1017,55 @@ WHERE a.sprint_id = p.sprint_id
 --   redundante, mas remover índice não faz parte desta spec.
 -- CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_fim
 --     ON pontuacao_operacional_sprint (operacional_id, sprint_fim DESC);
+
+-- =============================================================================
+-- Migration v8: subárea produto + encaminhamento (Spec 11)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase, bloco a bloco, depois do preflight.
+-- =============================================================================
+
+-- Preflight (somente leitura): distribuição atual e definição da constraint
+-- SELECT subarea, count(*) FROM projects GROUP BY subarea ORDER BY 1;
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'projects_subarea_check';
+
+-- v8.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto'));
+
+-- v8.2 — registro dos encaminhamentos Produto -> Dados/Dev
+-- CREATE TABLE IF NOT EXISTS projeto_encaminhamentos (
+--   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   project_id            uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--   origem                text        NOT NULL,
+--   destino               text        NOT NULL,
+--   motivo                text,
+--   autor                 text        NOT NULL,
+--   requisitos_promovidos int         NOT NULL DEFAULT 0,
+--   created_at            timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_encaminhamentos_project
+--   ON projeto_encaminhamentos (project_id, created_at DESC);
+
+-- v8.3 — função atômica: troca a subárea e grava o registro na mesma transação
+-- CREATE OR REPLACE FUNCTION encaminhar_projeto(
+--   p_project_id uuid, p_destino text, p_motivo text, p_autor text, p_promovidos int
+-- ) RETURNS projects
+-- LANGUAGE plpgsql AS $$
+-- DECLARE v_proj projects;
+-- BEGIN
+--   IF p_destino NOT IN ('dados','dev') THEN RAISE EXCEPTION 'destino_invalido'; END IF;
+--   SELECT * INTO v_proj FROM projects WHERE id = p_project_id FOR UPDATE;
+--   IF NOT FOUND THEN RAISE EXCEPTION 'projeto_inexistente'; END IF;
+--   IF v_proj.subarea <> 'produto' THEN RAISE EXCEPTION 'origem_invalida'; END IF;
+--   UPDATE projects SET subarea = p_destino WHERE id = p_project_id RETURNING * INTO v_proj;
+--   INSERT INTO projeto_encaminhamentos
+--     (project_id, origem, destino, motivo, autor, requisitos_promovidos)
+--     VALUES (p_project_id, 'produto', p_destino, p_motivo, p_autor, p_promovidos);
+--   RETURN v_proj;
+-- END $$;
+
+-- Rollback (só se NENHUM projeto tiver subarea = 'produto'):
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check CHECK (subarea IN ('dados','dev'));
+-- DROP FUNCTION IF EXISTS encaminhar_projeto(uuid, text, text, text, int);
+-- (a tabela projeto_encaminhamentos é aditiva e pode ficar; removê-la é decisão do time)

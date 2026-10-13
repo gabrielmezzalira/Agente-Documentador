@@ -972,7 +972,7 @@ def test_registro_antigo_com_origem_nula_continua_valido():
 
 def test_migration_v5_e_somente_aditiva_e_comentada():
     sql = (Path(__file__).resolve().parents[1] / "supabase_schema.sql").read_text()
-    bloco = sql.split("-- Migration v5:", 1)[1]
+    bloco = sql.split("-- Migration v5:", 1)[1].split("-- Migration v6:", 1)[0]
     comandos = [linha.strip().removeprefix("--").strip().upper() for linha in bloco.splitlines()]
     assert all(not comando.startswith(("DROP ", "DELETE ", "UPDATE ", "INSERT ", "ALTER COLUMN")) for comando in comandos)
     assert "CREATE TABLE IF NOT EXISTS PROJECT_REPOSITORIES (" in comandos
