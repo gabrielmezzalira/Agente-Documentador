@@ -206,6 +206,12 @@ async def update_project_subarea(
     check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
+    if check.data[0].get("subarea") == "produto":
+        # Projeto de Produto só sai pelo encaminhamento (atômico e auditado).
+        raise HTTPException(
+            status_code=409,
+            detail="Projeto de Produto só pode sair por /projects/{id}/encaminhar",
+        )
     if check.data[0].get("subarea") == data.subarea:
         response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
     else:
