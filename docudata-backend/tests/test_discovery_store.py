@@ -87,3 +87,13 @@ def test_transicoes_em_ordem():
     r = _requisito(c)
     store.inserir_transicao(c, requisito_id=r["id"], campo="status", de="proposto", para="em_revisao", autor="a@x", motivo=None)
     assert store.listar_transicoes(c, r["id"])[0]["para"] == "em_revisao"
+
+
+def test_atualizar_requisito_se_editavel_respeita_o_status_atual():
+    c = _cliente()
+    r = _requisito(c)
+    store.atualizar_requisito(c, r["id"], {"status": "validado"})
+    assert store.atualizar_requisito_se_editavel(c, r["id"], {"prioridade_sugerida": "wont"}) is None
+    assert store.buscar_requisito(c, r["id"])["prioridade_sugerida"] != "wont"
+    store.atualizar_requisito(c, r["id"], {"status": "proposto"})
+    assert store.atualizar_requisito_se_editavel(c, r["id"], {"prioridade_sugerida": "wont"})["prioridade_sugerida"] == "wont"

@@ -106,6 +106,15 @@ def atualizar_requisito(client: Any, requisito_id: str, campos: dict) -> dict:
     return resposta.data[0]
 
 
+def atualizar_requisito_se_editavel(client: Any, requisito_id: str, campos: dict) -> dict | None:
+    """Update condicional ao status NO MOMENTO da escrita (proposto/em_revisao); None se não casou."""
+    resposta = (
+        client.table("requisitos").update({**campos, "updated_at": _agora()})
+        .eq("id", requisito_id).in_("status", ["proposto", "em_revisao"]).execute()
+    )
+    return resposta.data[0] if resposta.data else None
+
+
 # ---- evidências e transições ----
 def inserir_evidencia(
     client: Any, *, requisito_id: str, reuniao_id: str, trecho: str,
