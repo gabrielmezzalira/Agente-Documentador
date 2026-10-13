@@ -132,6 +132,11 @@ class ProjectSubareaUpdate(BaseModel):
     subarea: Literal["dados", "dev"]
 
 
+class ProjectEncaminharRequest(BaseModel):
+    destino: Literal["dados", "dev"]
+    motivo: Optional[str] = Field(default=None, max_length=500)
+
+
 class GeminiApiKeyUpdate(BaseModel):
     api_key: str = Field(min_length=1)
 
