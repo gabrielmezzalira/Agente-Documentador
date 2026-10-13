@@ -22,6 +22,8 @@ _MAX_TENTATIVAS = 2
 TITULO_MAX_CHARS = 200   # o detector de duplicatas (SequenceMatcher) é quadrático no tamanho do título
 TEXTO_MAX_CHARS = 2_000
 CRITERIOS_MAX = 20
+SPEAKER_MAX_CHARS = 200
+_TITULO_MIN_CHARS = 3
 _TRECHO_ENTRADA_MAX = 5_000  # limita o trecho antes de normalizar/buscar
 
 _FOCO_POR_TIPO = {
@@ -53,8 +55,12 @@ class AnaliseFalhouErro(Exception):
 
 
 def _trecho_existe(trecho: str, fonte_normalizada: str) -> bool:
-    alvo = normalizar_titulo(trecho[:_TRECHO_ENTRADA_MAX])
-    return len(alvo) >= _TRECHO_MIN_CHARS and alvo in fonte_normalizada
+    bruto = trecho[:_TRECHO_ENTRADA_MAX]
+    alvo = normalizar_titulo(bruto)
+    # a normalização apaga CJK/cirílico/etc.: se sumiu alfanumérico real, o trecho não é literal
+    if sum(c.isalnum() for c in bruto) != sum(c.isalnum() for c in alvo):
+        return False
+    return len(alvo) >= _TRECHO_MIN_CHARS and f" {alvo} " in f" {fonte_normalizada} "
 
 
 def _confianca(valor: float) -> float:
@@ -76,7 +82,7 @@ def validar_saida(saida: SaidaAnalise, *, fonte: str, existentes: dict[str, dict
     fonte_n = normalizar_titulo(fonte)
     novos = []
     for n in saida.novos:
-        if n.trecho.strip() and _trecho_existe(n.trecho, fonte_n):
+        if len(n.titulo.strip()) >= _TITULO_MIN_CHARS and n.trecho.strip() and _trecho_existe(n.trecho, fonte_n):
             novos.append(n.model_copy(update={
                 "trecho": limitar_trecho(n.trecho.strip()),
                 "titulo": _cortar(n.titulo.strip(), TITULO_MAX_CHARS),
@@ -84,9 +90,11 @@ def validar_saida(saida: SaidaAnalise, *, fonte: str, existentes: dict[str, dict
                 "justificativa": _cortar(n.justificativa),
                 "criterios_aceite": [_cortar(c) for c in n.criterios_aceite[:CRITERIOS_MAX]],
                 "confianca": _confianca(n.confianca),
+                "speaker": _cortar(n.speaker, SPEAKER_MAX_CHARS) if n.speaker else n.speaker,
             }))
     reforcos = [
-        r.model_copy(update={"trecho": limitar_trecho(r.trecho.strip()), "confianca": _confianca(r.confianca)})
+        r.model_copy(update={"trecho": limitar_trecho(r.trecho.strip()), "confianca": _confianca(r.confianca),
+                                "speaker": _cortar(r.speaker, SPEAKER_MAX_CHARS) if r.speaker else r.speaker})
         for r in saida.reforcos
         if r.codigo in existentes and _trecho_existe(r.trecho, fonte_n)
     ]
@@ -101,14 +109,32 @@ def validar_saida(saida: SaidaAnalise, *, fonte: str, existentes: dict[str, dict
     )
 
 
+def _neutralizar(texto: str) -> str:
+    """Impede que o texto fecha/abra a área delimitada de dados do prompt."""
+    return texto.replace("<<<", "< < <").replace(">>>", "> > >")
+
+
+def _compactar(item: dict) -> dict:
+    saida = {}
+    for k, v in item.items():
+        if isinstance(v, str):
+            v = v[:200 if k == "titulo" else 300]
+        saida[k] = v
+    return saida
+
+
 def montar_mensagens(tipo: str, conteudo: dict, fonte: str, existentes: list[dict]) -> list[tuple[str, str]]:
-    foco = _FOCO_POR_TIPO.get(tipo, _FOCO_POR_TIPO["outra"])
-    compactos = existentes[-200:]
+    if tipo not in _FOCO_POR_TIPO:
+        tipo = "outra"
+    foco = _FOCO_POR_TIPO[tipo]
+    compactos = [_compactar(e) for e in existentes[-200:]]
+    existentes_json = _neutralizar(json.dumps(compactos, ensure_ascii=False))
+    conteudo_json = _neutralizar(json.dumps(conteudo, ensure_ascii=False)[:8000])
     usuario = (
         f"Tipo da reunião: {tipo}. Foque em: {foco}.\n\n"
-        f"Requisitos existentes (JSON):\n{json.dumps(compactos, ensure_ascii=False)}\n\n"
-        f"Resumo estruturado da reunião (JSON):\n{json.dumps(conteudo, ensure_ascii=False)[:8000]}\n\n"
-        f"<<<REUNIAO>>>\n{fonte[:FONTE_MAX_CHARS]}\n<<<FIM>>>"
+        f"Requisitos existentes (JSON):\n{existentes_json}\n\n"
+        f"Resumo estruturado da reunião (JSON):\n{conteudo_json}\n\n"
+        f"<<<REUNIAO>>>\n{_neutralizar(fonte[:FONTE_MAX_CHARS])}\n<<<FIM>>>"
     )
     return [("system", _SISTEMA), ("human", usuario)]
 
@@ -137,11 +163,14 @@ async def _gerar(estado: _Estado) -> dict:
         mensagens[-1] = (mensagens[-1][0], mensagens[-1][1] + _SUFIXO_RETRY)
     try:
         bruta = await _invocar_modelo(estado["api_key"], mensagens)
+        if not isinstance(bruta, SaidaAnalise):
+            raise TypeError("saida invalida")
+        por_codigo = {e["codigo"]: e for e in estado["existentes"] if isinstance(e, dict) and e.get("codigo")}
+        saida = validar_saida(bruta, fonte=estado["fonte"][:FONTE_MAX_CHARS], existentes=por_codigo)
     except Exception as exc:  # o detalhe real não sobe: pode conter trecho de prompt
         _LOG.warning("analise_requisitos_falhou tentativa=%s exc=%s", estado["tentativas"] + 1, type(exc).__name__)
         return {"tentativas": estado["tentativas"] + 1, "valido": False}
-    por_codigo = {e["codigo"]: e for e in estado["existentes"]}
-    return {"saida": validar_saida(bruta, fonte=estado["fonte"][:FONTE_MAX_CHARS], existentes=por_codigo), "valido": True}
+    return {"saida": saida, "valido": True}
 
 
 def _roteador(estado: _Estado) -> str:
