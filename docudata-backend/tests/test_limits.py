@@ -199,6 +199,8 @@ def test_apenas_endpoints_de_ia_e_autenticacao_tem_rate_limit():
         "routers.sprint_docs.submit_ata_with_upload",
         "routers.sprint_docs.submit_review",
         "routers.sprint_docs.submit_retrospectiva",
+        # Entrada de Discovery (serviço a serviço): dispara análise Gemini em segundo plano.
+        "routers.discovery_ingest.receber_reuniao",
     }
 
 
