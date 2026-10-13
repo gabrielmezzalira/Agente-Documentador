@@ -94,3 +94,10 @@ def test_redigir_estrutura_nao_muta_a_entrada():
     copia = {"a": [f"chave {CHAVE_GOOGLE}"], "b": {"c": "senha: xyz"}}
     redigir_estrutura(entrada)
     assert entrada == copia
+
+
+def test_entradas_patologicas_sao_lineares():
+    for entrada in ("token" * 300_000, "a" * 1_500_000, "password" * 190_000, "pwd_" * 400_000):
+        t0 = time.perf_counter()
+        redigir_segredos(entrada)
+        assert time.perf_counter() - t0 < 2

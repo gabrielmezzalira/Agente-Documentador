@@ -22,8 +22,8 @@ _PADROES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?<=://)([^\s:/@]+):[^\s@/]+@"), r"\1:" + _REDIGIDO + "@"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), _REDIGIDO),
     (re.compile(r"\bxox[abpr]-[A-Za-z0-9\-]{10,}"), _REDIGIDO),
-    # Aceita nomes compostos (access_token, AWS_SECRET_ACCESS_KEY, client_secret...).
-    (re.compile(r"(?i)(?<!\w)(\w*(?:senha|password|passwd|pwd|token|secret|api[_\- ]?key)\w*)\s*[:=]\s*\S+"),
+    # Nomes compostos (access_token, AWS_SECRET_ACCESS_KEY...); \w{0,40} limita o custo (linear).
+    (re.compile(r"(?i)(?<!\w)(\w{0,40}?(?:senha|password|passwd|pwd|token|secret|api[_\- ]?key)\w{0,40})\s*[:=]\s*\S+"),
      r"\1: " + _REDIGIDO),
 ]
 
