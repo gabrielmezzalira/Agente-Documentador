@@ -8,7 +8,7 @@ import logging
 from typing import Any, Awaitable, Callable
 
 from graphs.requisitos_graph import (
-    CRITERIOS_MAX, FONTE_MAX_CHARS, SPEAKER_MAX_CHARS, TEXTO_MAX_CHARS, TITULO_MAX_CHARS,
+    CRITERIOS_MAX, FONTE_MAX_CHARS, TEXTO_MAX_CHARS, TITULO_MAX_CHARS,
     executar_analise,
 )
 from models.discovery import SaidaAnalise
