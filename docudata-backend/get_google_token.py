@@ -17,7 +17,12 @@ Como usar:
 import sys
 
 IS_DEV = "--dev" in sys.argv
-TOKEN_ENV_NAME = "GOOGLE_REFRESH_TOKEN_DEV" if IS_DEV else "GOOGLE_REFRESH_TOKEN"
+IS_PRODUTO = "--produto" in sys.argv
+TOKEN_ENV_NAME = (
+    "GOOGLE_REFRESH_TOKEN_PRODUTO" if IS_PRODUTO
+    else "GOOGLE_REFRESH_TOKEN_DEV" if IS_DEV
+    else "GOOGLE_REFRESH_TOKEN"
+)
 
 CLIENT_ID = input("Cole o GOOGLE_CLIENT_ID: ").strip()
 CLIENT_SECRET = input("Cole o GOOGLE_CLIENT_SECRET: ").strip()

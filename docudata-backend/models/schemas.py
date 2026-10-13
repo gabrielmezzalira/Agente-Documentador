@@ -39,10 +39,15 @@ class WipConfigResponse(BaseModel):
     por_coluna_em_andamento: Optional[int] = None
 
 
+# Fonte única das subáreas aceitas em criação, listagem e busca. `ProjectSubareaUpdate`
+# NÃO usa este tipo de propósito: não se entra em Produto pela troca Dados↔Dev.
+Subarea = Literal["dados", "dev", "produto"]
+
+
 class ProjectCreate(BaseModel):
     name: str
     client: str
-    subarea: Literal["dados", "dev"]
+    subarea: Subarea
     description: Optional[str] = None
     squad: Optional[str] = None
     valor_projeto: Optional[float] = None
@@ -53,7 +58,7 @@ class ProjectResponse(BaseModel):
     name: str
     client: str
     # Registros anteriores à migration v3 continuam pertencendo a Dados.
-    subarea: Literal["dados", "dev"] = "dados"
+    subarea: Subarea = "dados"
     description: Optional[str] = None
     squad: Optional[str] = None
     valor_projeto: Optional[float] = None
@@ -125,6 +130,12 @@ class PontuacaoEventoResponse(BaseModel):
 
 class ProjectSubareaUpdate(BaseModel):
     subarea: Literal["dados", "dev"]
+
+
+class ProjectEncaminharRequest(BaseModel):
+    destino: Literal["dados", "dev"]
+    motivo: Optional[str] = Field(default=None, max_length=500)
+    promover_validados: bool = False
 
 
 class GeminiApiKeyUpdate(BaseModel):

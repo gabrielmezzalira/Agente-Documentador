@@ -1,6 +1,6 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Literal
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
@@ -8,19 +8,26 @@ from models.schemas import (
     ContratoUpdate,
     GerenteEmailUpdate,
     ProjectSubareaUpdate,
+    ProjectEncaminharRequest,
+    Subarea,
     ModosProjetoUpdate,
     ConfiguracaoHistoricoResponse,
     WipConfigUpdate,
     MigrarModoRequest,
 )
 from core.observability import falha_externa
-from services.auth import get_current_pessoa, require_not_operacional, require_project_access
+from services.audit import registrar_auditoria
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access, require_role
+from services.discovery_promocao import promover_validados_do_projeto
+from services.discovery_requisitos import RegraRequisitoErro
+from services.encaminhamento import EncaminhamentoErro, executar_encaminhamento, validar_origem
 from services.email_service import email_modo_pull_ativado, send_email
 from services.supabase_client import get_client
 from services.tech_timeline import build_tech_timeline
 from services.sprints import get_current_sprint_id
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+_LOG = logging.getLogger("docudata.projects")
 
 # Projeção explícita das leituras que devolvem ProjectResponse. Cobre todos os
 # campos do response model mais `github_token`/`github_repo`, usados só para
@@ -65,7 +72,7 @@ async def create_project(data: ProjectCreate):
 
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
-    subarea: Literal["dados", "dev"] = Query(...),
+    subarea: Subarea = Query(...),
     pessoa: dict = Depends(get_current_pessoa),
 ):
     """List projects ordered by creation date (most recent first).
@@ -206,6 +213,12 @@ async def update_project_subarea(
     check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
+    if check.data[0].get("subarea") == "produto":
+        # Projeto de Produto só sai pelo encaminhamento (atômico e auditado).
+        raise HTTPException(
+            status_code=409,
+            detail="Projeto de Produto só pode sair por /projects/{id}/encaminhar",
+        )
     if check.data[0].get("subarea") == data.subarea:
         response = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
     else:
@@ -219,6 +232,47 @@ async def update_project_subarea(
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update project subarea")
     return _sanitize(response.data[0])
+
+
+@router.post("/{project_id}/encaminhar", response_model=ProjectResponse)
+async def encaminhar_projeto(
+    project_id: str,
+    data: ProjectEncaminharRequest,
+    pessoa: dict = Depends(require_role("gerente")),
+):
+    """Bifurcação: o projeto sai de Produto e continua em Dados ou Dev, com todo o contexto."""
+    client = get_client()
+    check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    promovidos = 0
+    try:
+        validar_origem(check.data[0].get("subarea"))
+        if data.promover_validados:
+            # Só depois de validar a origem. Se a função SQL falhar depois de promover, as
+            # funcionalidades permanecem: a promoção é idempotente, então repetir é seguro
+            # (sem rollback necessário).
+            try:
+                promovidos = promover_validados_do_projeto(client, project_id, pessoa["email"])
+            except RegraRequisitoErro:
+                raise
+            except Exception as exc:
+                _LOG.warning("falha ao promover requisitos do projeto %s: %s", project_id, type(exc).__name__)
+                raise HTTPException(status_code=502, detail="Falha ao promover os requisitos validados") from exc
+        executar_encaminhamento(
+            client, project_id=project_id, destino=data.destino, motivo=data.motivo,
+            autor_email=pessoa["email"], requisitos_promovidos=promovidos,
+        )
+    except RegraRequisitoErro as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+    except EncaminhamentoErro as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+    try:
+        registrar_auditoria(pessoa, f"/projects/{project_id}/encaminhar", f"encaminhar produto->{data.destino}")
+    except Exception:  # a auditoria nunca desfaz um encaminhamento já gravado
+        _LOG.warning("falha ao registrar auditoria do encaminhamento do projeto %s", project_id)
+    resposta = client.table("projects").select(_CAMPOS_PROJETO).eq("id", project_id).execute()
+    return _sanitize(resposta.data[0])
 
 
 @router.patch("/{project_id}/contrato", response_model=ProjectResponse)

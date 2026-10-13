@@ -1,0 +1,204 @@
+import os
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from tests.fake_supabase import FakeClient
+
+HEADERS = {"X-Docudata-Key": os.environ["DOCUDATA_APP_SECRET"]}
+
+
+def _row(subarea: str, pid: str = "p1") -> dict:
+    return {
+        "id": pid, "name": "Projeto", "client": "CITi", "subarea": subarea,
+        "description": None, "squad": None, "is_delivered": False,
+        "created_at": "2026-10-12T12:00:00+00:00",
+    }
+
+
+def test_patch_subarea_recusa_projeto_de_produto(monkeypatch, autenticar):
+    from main import app
+    fake = FakeClient({"projects": [_row("produto")]})
+    monkeypatch.setattr("routers.projects.get_client", lambda: fake)
+    client = autenticar(TestClient(app), "gerente")
+
+    resp = client.patch("/projects/p1/subarea", json={"subarea": "dados"}, headers=HEADERS)
+
+    assert resp.status_code == 409
+    assert "encaminhar" in resp.json()["detail"]
+    assert fake.tables["projects"][0]["subarea"] == "produto"
+
+
+def test_patch_subarea_entre_dados_e_dev_continua_funcionando(monkeypatch, autenticar):
+    from main import app
+    fake = FakeClient({"projects": [_row("dados")]})
+    monkeypatch.setattr("routers.projects.get_client", lambda: fake)
+    client = autenticar(TestClient(app), "gerente")
+
+    resp = client.patch("/projects/p1/subarea", json={"subarea": "dev"}, headers=HEADERS)
+
+    assert resp.status_code == 200
+    assert fake.tables["projects"][0]["subarea"] == "dev"
+
+
+class ClienteComRpc(FakeClient):
+    """FakeClient com `rpc`: simula a função SQL `encaminhar_projeto` (troca a subárea)."""
+
+    def __init__(self, tables, rpc_falha: str | None = None):
+        super().__init__(tables)
+        self.chamadas_rpc: list[tuple[str, dict]] = []
+        self._rpc_falha = rpc_falha
+
+    def rpc(self, nome, params):
+        self.chamadas_rpc.append((nome, params))
+        cliente = self
+
+        class _Exec:
+            def execute(self_inner):
+                if cliente._rpc_falha:
+                    raise Exception(cliente._rpc_falha)
+                for linha in cliente.tables["projects"]:
+                    if linha["id"] == params["p_project_id"]:
+                        linha["subarea"] = params["p_destino"]
+                        return SimpleNamespace(data=[dict(linha)])
+                return SimpleNamespace(data=[])
+
+        return _Exec()
+
+
+@pytest.fixture
+def preparar(monkeypatch, autenticar):
+    def _preparar(subarea="produto", cargo="gerente", rpc_falha=None, projetos=None):
+        from main import app
+        fake = ClienteComRpc({"projects": projetos if projetos is not None else [_row(subarea)]}, rpc_falha)
+        auditoria = []
+        monkeypatch.setattr("routers.projects.get_client", lambda: fake)
+        monkeypatch.setattr("routers.projects.registrar_auditoria", lambda pessoa, rota, acao: auditoria.append((rota, acao)))
+        return autenticar(TestClient(app), cargo), fake, auditoria
+
+    return _preparar
+
+
+@pytest.mark.parametrize("destino", ["dados", "dev"])
+def test_encaminhar_produto_move_o_projeto_e_audita(preparar, destino):
+    client, fake, auditoria = preparar()
+    resp = client.post("/projects/p1/encaminhar", json={"destino": destino, "motivo": "Discovery concluído"}, headers=HEADERS)
+
+    assert resp.status_code == 200
+    assert resp.json()["subarea"] == destino
+    nome, params = fake.chamadas_rpc[0]
+    assert nome == "encaminhar_projeto"
+    assert params == {
+        "p_project_id": "p1", "p_destino": destino, "p_motivo": "Discovery concluído",
+        "p_autor": "pessoa@citi.org.br", "p_promovidos": 0,
+    }
+    assert auditoria == [("/projects/p1/encaminhar", f"encaminhar produto->{destino}")]
+
+
+def test_encaminhar_exige_gerente(preparar):
+    client, fake, _ = preparar(cargo="operacional")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS)
+    assert resp.status_code == 403
+    assert fake.chamadas_rpc == []
+
+
+@pytest.mark.parametrize("destino", ["produto", "outra"])
+def test_encaminhar_recusa_destino_invalido(preparar, destino):
+    client, fake, _ = preparar()
+    resp = client.post("/projects/p1/encaminhar", json={"destino": destino}, headers=HEADERS)
+    assert resp.status_code == 422
+    assert fake.chamadas_rpc == []
+
+
+def test_encaminhar_recusa_projeto_que_nao_esta_em_produto(preparar):
+    client, fake, _ = preparar(subarea="dados")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dev"}, headers=HEADERS)
+    assert resp.status_code == 409
+    assert fake.chamadas_rpc == []
+
+
+def test_encaminhar_projeto_inexistente_retorna_404(preparar):
+    client, fake, _ = preparar(projetos=[])
+    assert client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS).status_code == 404
+
+
+def test_encaminhar_corrida_na_origem_vira_409(preparar):
+    client, _, _ = preparar(rpc_falha="origem_invalida")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS)
+    assert resp.status_code == 409
+
+
+def test_encaminhar_falha_da_funcao_nao_vaza_detalhe(preparar):
+    client, _, auditoria = preparar(rpc_falha="connection refused postgres://segredo")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS)
+    assert resp.status_code == 502
+    assert "segredo" not in resp.text
+    assert auditoria == []
+
+
+def _requisito(pid="p1", codigo="RQ-001", status="validado", criterios=("Dado A, quando B, então C",)):
+    return {"id": f"req-{codigo}", "project_id": pid, "codigo": codigo, "titulo": f"T {codigo}", "descricao": None,
+            "tipo": "funcional", "prioridade_sugerida": "must", "status": status, "criterios_aceite": list(criterios),
+            "conflito": False, "funcionalidade_id": None}
+
+
+def _com_requisitos(preparar, requisitos, **kwargs):
+    client, fake, auditoria = preparar(**kwargs)
+    fake.tables["requisitos"] = requisitos
+    return client, fake, auditoria
+
+
+def test_encaminhar_com_promover_validados_leva_o_escopo_junto(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito(codigo="RQ-001"), _requisito(codigo="RQ-002"), _requisito(codigo="RQ-003", status="proposto")])
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dev", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 200 and resp.json()["subarea"] == "dev"
+    assert fake.chamadas_rpc[0][1]["p_promovidos"] == 2
+    assert [f["id_funcional"] for f in fake.tables["funcionalidades"]] == ["RQ-001", "RQ-002"]
+    assert all(f["project_id"] == "p1" for f in fake.tables["funcionalidades"])
+
+
+def test_encaminhar_sem_promover_nao_cria_funcionalidades(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito()])
+    client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS)
+    assert "funcionalidades" not in fake.tables and fake.chamadas_rpc[0][1]["p_promovidos"] == 0
+
+
+def test_encaminhar_recusa_se_validado_sem_criterio_e_nao_move_nem_promove(preparar):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito(codigo="RQ-001"), _requisito(codigo="RQ-002", criterios=())])
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 422 and "RQ-002" in resp.json()["detail"]
+    assert fake.chamadas_rpc == [] and "funcionalidades" not in fake.tables and auditoria == []
+    assert fake.tables["projects"][0]["subarea"] == "produto"
+
+
+def test_encaminhar_promover_nao_roda_se_projeto_nao_esta_em_produto(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito()], subarea="dados")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dev", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 409
+    assert "funcionalidades" not in fake.tables and fake.chamadas_rpc == []
+
+
+def test_encaminhar_falha_inesperada_na_promocao_vira_502_sem_vazar(preparar, monkeypatch):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito()])
+
+    def _explode(*_a, **_k):
+        raise Exception("segredo-do-banco titulo-do-requisito")
+
+    monkeypatch.setattr("routers.projects.promover_validados_do_projeto", _explode)
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 502
+    assert "segredo" not in resp.text and "titulo-do-requisito" not in resp.text
+    assert fake.chamadas_rpc == [] and auditoria == []
+
+
+def test_encaminhar_rpc_falha_depois_de_promover_mantem_produto_e_retry_nao_duplica(preparar):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito()], rpc_falha="connection refused")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 502 and auditoria == []
+    assert fake.tables["projects"][0]["subarea"] == "produto"
+    assert len(fake.tables["funcionalidades"]) == 1
+    fake._rpc_falha = None
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert len(fake.tables["funcionalidades"]) == 1

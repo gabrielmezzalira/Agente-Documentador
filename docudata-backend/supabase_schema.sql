@@ -1017,3 +1017,155 @@ WHERE a.sprint_id = p.sprint_id
 --   redundante, mas remover índice não faz parte desta spec.
 -- CREATE INDEX IF NOT EXISTS idx_pontuacao_operacional_sprint_fim
 --     ON pontuacao_operacional_sprint (operacional_id, sprint_fim DESC);
+
+-- =============================================================================
+-- Migration v8: subárea produto + encaminhamento (Spec 11)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase, bloco a bloco, depois do preflight.
+-- =============================================================================
+
+-- Preflight (somente leitura): distribuição atual e definição da constraint
+-- SELECT subarea, count(*) FROM projects GROUP BY subarea ORDER BY 1;
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'projects_subarea_check';
+
+-- v8.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto'));
+
+-- v8.2 — registro dos encaminhamentos Produto -> Dados/Dev
+-- CREATE TABLE IF NOT EXISTS projeto_encaminhamentos (
+--   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   project_id            uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--   origem                text        NOT NULL,
+--   destino               text        NOT NULL,
+--   motivo                text,
+--   autor                 text        NOT NULL,
+--   requisitos_promovidos int         NOT NULL DEFAULT 0,
+--   created_at            timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_encaminhamentos_project
+--   ON projeto_encaminhamentos (project_id, created_at DESC);
+
+-- v8.3 — função atômica: troca a subárea e grava o registro na mesma transação
+-- CREATE OR REPLACE FUNCTION encaminhar_projeto(
+--   p_project_id uuid, p_destino text, p_motivo text, p_autor text, p_promovidos int
+-- ) RETURNS projects
+-- LANGUAGE plpgsql AS $$
+-- DECLARE v_proj projects;
+-- BEGIN
+--   IF p_destino NOT IN ('dados','dev') THEN RAISE EXCEPTION 'destino_invalido'; END IF;
+--   SELECT * INTO v_proj FROM projects WHERE id = p_project_id FOR UPDATE;
+--   IF NOT FOUND THEN RAISE EXCEPTION 'projeto_inexistente'; END IF;
+--   IF v_proj.subarea <> 'produto' THEN RAISE EXCEPTION 'origem_invalida'; END IF;
+--   UPDATE projects SET subarea = p_destino WHERE id = p_project_id RETURNING * INTO v_proj;
+--   INSERT INTO projeto_encaminhamentos
+--     (project_id, origem, destino, motivo, autor, requisitos_promovidos)
+--     VALUES (p_project_id, 'produto', p_destino, p_motivo, p_autor, p_promovidos);
+--   RETURN v_proj;
+-- END $$;
+-- Só o backend (service role) chama a função; ninguém mais pode executá-la via PostgREST:
+-- REVOKE EXECUTE ON FUNCTION encaminhar_projeto(uuid, text, text, text, int) FROM PUBLIC, anon, authenticated;
+
+-- Rollback (só se NENHUM projeto tiver subarea = 'produto'):
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check CHECK (subarea IN ('dados','dev'));
+-- (o REVOKE some junto com a função; para só reabrir a execução: GRANT EXECUTE ON FUNCTION encaminhar_projeto(uuid, text, text, text, int) TO PUBLIC;)
+-- DROP FUNCTION IF EXISTS encaminhar_projeto(uuid, text, text, text, int);
+-- (a tabela projeto_encaminhamentos é aditiva e pode ficar; removê-la é decisão do time)
+
+-- =============================================================================
+-- Migration v9: Discovery — reuniões, transcrições, requisitos (Spec 12)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase depois da v8 e do preflight.
+-- Tudo é por PROJETO (não por subárea): o contexto acompanha o projeto no encaminhamento.
+-- =============================================================================
+
+-- Preflight (somente leitura): nada deve existir ainda
+-- SELECT to_regclass('discovery_reunioes'), to_regclass('requisitos'), to_regclass('requisito_evidencias');
+
+-- CREATE TABLE IF NOT EXISTS discovery_reunioes (
+--   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   project_id           uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--   tipo                 text        NOT NULL CHECK (tipo IN ('contexto_empresa','entrevista_tecnica','validacao','outra')),
+--   origem               text        NOT NULL DEFAULT 'agente_diagnostico' CHECK (origem IN ('agente_diagnostico','manual')),
+--   fonte_session_id     text,
+--   ocorrida_em          timestamptz,
+--   conteudo_estruturado jsonb       NOT NULL DEFAULT '{}'::jsonb,
+--   analise_status       text        NOT NULL DEFAULT 'pendente' CHECK (analise_status IN ('pendente','ok','falhou')),
+--   analise_erro         text,
+--   analise_iniciada_em  timestamptz,  -- reserva da análise (compare-and-swap): impede execução dupla
+--   created_at           timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE UNIQUE INDEX IF NOT EXISTS uq_discovery_reunioes_fonte
+--   ON discovery_reunioes (fonte_session_id) WHERE fonte_session_id IS NOT NULL;
+-- CREATE INDEX IF NOT EXISTS idx_discovery_reunioes_projeto
+--   ON discovery_reunioes (project_id, ocorrida_em DESC);
+
+-- CREATE TABLE IF NOT EXISTS discovery_transcricoes (
+--   reuniao_id uuid        PRIMARY KEY REFERENCES discovery_reunioes(id) ON DELETE CASCADE,
+--   conteudo   text        NOT NULL,
+--   tamanho    int         NOT NULL,
+--   redigida   boolean     NOT NULL DEFAULT false,
+--   expira_em  timestamptz,
+--   created_at timestamptz NOT NULL DEFAULT now()
+-- );
+
+-- CREATE TABLE IF NOT EXISTS requisitos (
+--   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   project_id            uuid        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--   codigo                text        NOT NULL,
+--   titulo                text        NOT NULL,
+--   descricao             text,
+--   tipo                  text        NOT NULL DEFAULT 'funcional'
+--                         CHECK (tipo IN ('funcional','dados','integracao','nao_funcional','regra_negocio')),
+--   lente                 text        CHECK (lente IS NULL OR lente IN ('produto','dados')),
+--   criterios_aceite      text[]      NOT NULL DEFAULT '{}',
+--   prioridade_sugerida   text        NOT NULL DEFAULT 'should' CHECK (prioridade_sugerida IN ('must','should','could','wont')),
+--   justificativa         text,
+--   status                text        NOT NULL DEFAULT 'proposto'
+--                         CHECK (status IN ('proposto','em_revisao','validado','rejeitado')),
+--   motivo_decisao        text,
+--   possivel_duplicata_de uuid        REFERENCES requisitos(id) ON DELETE SET NULL,
+--   conflito              boolean     NOT NULL DEFAULT false,
+--   revisado_por          text,
+--   validado_por          text,
+--   funcionalidade_id     uuid        REFERENCES funcionalidades(id) ON DELETE SET NULL,
+--   created_at            timestamptz NOT NULL DEFAULT now(),
+--   updated_at            timestamptz NOT NULL DEFAULT now(),
+--   UNIQUE (project_id, codigo)
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_requisitos_projeto_status ON requisitos (project_id, status);
+
+-- CREATE TABLE IF NOT EXISTS requisito_evidencias (
+--   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   requisito_id uuid        NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+--   reuniao_id   uuid        NOT NULL REFERENCES discovery_reunioes(id) ON DELETE CASCADE,
+--   trecho       text        NOT NULL,
+--   speaker      text,
+--   confianca    numeric     CHECK (confianca IS NULL OR (confianca >= 0 AND confianca <= 1)),
+--   created_at   timestamptz NOT NULL DEFAULT now(),
+--   UNIQUE (requisito_id, reuniao_id, trecho)
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_requisito_evidencias_requisito ON requisito_evidencias (requisito_id);
+
+-- CREATE TABLE IF NOT EXISTS requisito_transicoes (
+--   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   requisito_id uuid        NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+--   campo        text        NOT NULL,
+--   de           text        NOT NULL,
+--   para         text        NOT NULL,
+--   autor        text,
+--   motivo       text,
+--   timestamp    timestamptz NOT NULL DEFAULT now()
+-- );
+
+-- RLS ligada e sem policy: o browser não lê nada; o backend usa a service role, que ignora RLS
+-- (mesmo padrão de app_settings na v4).
+-- ALTER TABLE discovery_reunioes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE discovery_transcricoes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisitos ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisito_evidencias ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisito_transicoes ENABLE ROW LEVEL SECURITY;
+
+-- Rollback (aditivo; só se não houver dado que importe):
+-- (as políticas de RLS somem junto com as tabelas; para só desligar: ALTER TABLE <tabela> DISABLE ROW LEVEL SECURITY;)
+-- DROP TABLE IF EXISTS requisito_transicoes, requisito_evidencias, requisitos, discovery_transcricoes, discovery_reunioes;

@@ -23,6 +23,10 @@
 | `GOOGLE_REFRESH_TOKEN` / `GOOGLE_REFRESH_TOKEN_DEV` | Identidade Drive de Dados e Dev. |
 | `GDOCS_TEMPLATE_ID*` | Templates de Dados e overrides opcionais com sufixo `_DEV`. |
 | `GDRIVE_FOLDER_ID` / `GDRIVE_FOLDER_ID_DEV` | Pastas raiz de Dados e Dev. |
+| `GOOGLE_REFRESH_TOKEN_PRODUTO` | Identidade Drive de Produto. Sem ela o export de Produto falha com erro claro; nunca usa a de Dados ou de Dev. |
+| `GDRIVE_FOLDER_ID_PRODUTO` | Pasta raiz de Produto. Sem ela o export de Produto falha com erro claro; nunca usa a pasta de Dados ou de Dev. |
+| `GDOCS_TEMPLATE_ID_PRODUTO` | Template de Produto (opcional; sem ele reaproveita o de Dados). |
+| `DOCUDATA_DISCOVERY_KEY` | Chave de serviço do Agente; obrigatória só para a integração de Discovery. |
 | `GITHUB_APP_ID` / `GITHUB_APP_SLUG` | Identidade pública do GitHub App. |
 | `GITHUB_APP_PRIVATE_KEY` | Chave PEM privada do App, somente no backend. |
 | `GITHUB_WEBHOOK_SECRET` | Segredo aleatório usado no HMAC dos webhooks. |

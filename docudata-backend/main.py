@@ -22,8 +22,8 @@ from core.observability import (
     registrar_resposta,
 )
 from core.rate_limit import limiter
-from core.security import require_app_key
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration
+from core.security import require_app_key, require_discovery_key
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery
 from services.gemini_key import (
     GeminiApiKeyInvalid,
     GeminiApiKeyNotConfigured,
@@ -172,6 +172,7 @@ async def _erro_nao_tratado(request: Request, exc: Exception):
 app_key = [Depends(require_app_key)]
 authenticated = [Depends(get_current_pessoa)]
 restricted = [Depends(require_not_operacional)]
+discovery_service = [Depends(require_discovery_key)]
 
 app.include_router(auth.router)
 app.include_router(projects.router, dependencies=authenticated)
@@ -188,6 +189,8 @@ app.include_router(enrich.router, dependencies=authenticated)
 app.include_router(funcionalidades.router, dependencies=authenticated)
 app.include_router(painel.router, dependencies=restricted)
 app.include_router(revisao_ingest.router, dependencies=app_key)
+app.include_router(discovery_ingest.router, dependencies=discovery_service)
+app.include_router(discovery.router, dependencies=authenticated)
 app.include_router(composer.router, dependencies=authenticated)
 app.include_router(boletins.router, dependencies=authenticated)
 app.include_router(sprint_funcionalidades.router, dependencies=authenticated)
