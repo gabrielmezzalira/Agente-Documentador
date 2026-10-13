@@ -19,3 +19,18 @@ def test_v8_esta_presente_e_inteiramente_comentada():
 def test_v8_traz_preflight_e_rollback():
     assert "-- Preflight (somente leitura)" in SCHEMA
     assert "-- Rollback (só se NENHUM projeto tiver subarea = 'produto')" in SCHEMA
+
+
+def test_v9_esta_presente_e_inteiramente_comentada():
+    assert "Migration v9: Discovery" in SCHEMA
+    ativas = "\n".join(_linhas_ativas())
+    for nome in ("discovery_reunioes", "discovery_transcricoes", "requisito_evidencias", "requisito_transicoes"):
+        assert nome in SCHEMA
+        assert nome not in ativas
+    assert "CREATE TABLE IF NOT EXISTS requisitos" in SCHEMA
+    assert "CREATE TABLE IF NOT EXISTS requisitos" not in ativas
+
+
+def test_v9_garante_idempotencia_por_sessao():
+    assert "uq_discovery_reunioes_fonte" in SCHEMA
+    assert "WHERE fonte_session_id IS NOT NULL" in SCHEMA
