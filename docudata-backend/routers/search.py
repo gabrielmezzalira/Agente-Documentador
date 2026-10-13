@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from typing import Literal
+from models.schemas import Subarea
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["search"])
@@ -22,7 +22,7 @@ class SearchResponse(BaseModel):
 @router.get("/search", response_model=SearchResponse)
 async def search_stack(
     q: str = Query(..., min_length=1),
-    subarea: Literal["dados", "dev"] = Query(...),
+    subarea: Subarea = Query(...),
 ):
     """Search projects from one subarea for a technology mentioned in ingestions."""
     client = get_client()

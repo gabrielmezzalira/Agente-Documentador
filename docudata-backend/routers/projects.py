@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Literal
 from models.schemas import (
     ProjectCreate,
     ProjectResponse,
@@ -8,6 +7,7 @@ from models.schemas import (
     ContratoUpdate,
     GerenteEmailUpdate,
     ProjectSubareaUpdate,
+    Subarea,
     ModosProjetoUpdate,
     ConfiguracaoHistoricoResponse,
     WipConfigUpdate,
@@ -65,7 +65,7 @@ async def create_project(data: ProjectCreate):
 
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
-    subarea: Literal["dados", "dev"] = Query(...),
+    subarea: Subarea = Query(...),
     pessoa: dict = Depends(get_current_pessoa),
 ):
     """List projects ordered by creation date (most recent first).
