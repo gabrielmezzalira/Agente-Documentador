@@ -247,3 +247,116 @@ async def test_segundo_plano_nunca_levanta(monkeypatch):
     monkeypatch.setattr(analise, "get_client", quebra)
     await analise.analisar_em_segundo_plano("x")
     await analise.reconsolidar_em_segundo_plano("p1")
+
+
+# ---- rodada de correções 1 ----
+@pytest.mark.asyncio
+@pytest.mark.parametrize("novo_status", ["validado", "rejeitado"])
+async def test_status_mudando_durante_a_chamada_ao_modelo_bloqueia_o_ajuste(novo_status):
+    c = _cliente()
+    r1 = _reuniao(c, "sessao-0001")
+    await analise.analisar_reuniao(c, r1["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
+    req = store.listar_requisitos(c, "p1")[0]
+    r2 = _reuniao(c, "sessao-0002")
+    transicoes_antes = len(store.listar_transicoes(c, req["id"]))
+
+    async def valida_no_meio(**_):
+        store.atualizar_requisito(c, req["id"], {"status": novo_status})  # pessoa decide durante a chamada
+        return SaidaAnalise(ajustes_prioridade=[AjustePrioridade(codigo="RQ-001", prioridade="wont", justificativa="x")])
+    contagens = await analise.analisar_reuniao(c, r2["id"], executar=valida_no_meio, obter_chave=lambda: "k")
+    depois = store.buscar_requisito(c, req["id"])
+    assert depois["status"] == novo_status and depois["prioridade_sugerida"] == "must"
+    assert contagens["ajustes"] == 0
+    assert len(store.listar_transicoes(c, req["id"])) == transicoes_antes
+
+
+@pytest.mark.asyncio
+async def test_reconsolidar_tres_vezes_com_o_mesmo_novo_gera_um_requisito():
+    c = _cliente()
+    r = _reuniao(c)
+    ex = _executor(SaidaAnalise(novos=[_novo()]))
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
+    contagens = await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert contagens["novos"] == 0 and contagens["duplicatas"] == 0
+    reqs = store.listar_requisitos(c, "p1")
+    assert [(q["codigo"], q["status"]) for q in reqs] == [("RQ-001", "proposto")]
+
+
+@pytest.mark.asyncio
+async def test_requisito_orfao_da_mesma_reuniao_e_reaproveitado(monkeypatch):
+    c = _cliente()
+    r = _reuniao(c)
+    ex = _executor(SaidaAnalise(novos=[_novo()]))
+
+    def evidencia_falha(*a, **k):
+        raise RuntimeError("queda")
+    original = store.inserir_evidencia
+    monkeypatch.setattr(store, "inserir_evidencia", evidencia_falha)
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")  # deixa órfão
+    monkeypatch.setattr(store, "inserir_evidencia", original)
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    reqs = store.listar_requisitos(c, "p1")
+    assert len(reqs) == 1 and len(store.listar_evidencias(c, reqs[0]["id"])) == 1
+    assert store.buscar_reuniao(c, r["id"])["analise_status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_reconsolidar_continua_apos_falha_e_conta_so_sucessos():
+    c = _cliente()
+    r1 = _reuniao(c, "sessao-0001")
+    r2 = _reuniao(c, "sessao-0002")
+    chamadas = []
+
+    async def falha_na_primeira(**kw):
+        chamadas.append(1)
+        if len(chamadas) == 1:
+            raise RuntimeError("x")
+        return SaidaAnalise()
+    total = await analise.reconsolidar_projeto(c, "p1", executar=falha_na_primeira, obter_chave=lambda: "k")
+    assert total == 1 and len(chamadas) == 2
+    assert {store.buscar_reuniao(c, r["id"])["analise_status"] for r in (r1, r2)} == {"falhou", "ok"}
+
+
+@pytest.mark.asyncio
+async def test_reconsolidar_ordena_por_ocorrida_em_e_created_at():
+    c = _cliente()
+    ordem = []
+    a = _reuniao(c, "sessao-000A")
+    b = _reuniao(c, "sessao-000B")
+    for linha, (oc, cr) in zip((a, b), (("2026-02-01", "1"), ("2026-01-01", "2"))):
+        for t in c.tables["discovery_reunioes"]:
+            if t["id"] == linha["id"]:
+                t["ocorrida_em"], t["created_at"] = oc, cr
+
+    async def ex(**kw):
+        ordem.append(kw["fonte"])
+        return SaidaAnalise()
+    for t in c.tables["discovery_reunioes"]:
+        t["conteudo_estruturado"] = {"resumo": t["id"]}
+    await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
+    assert [b["id"] in o for o in ordem[:1]] == [True] and a["id"] in ordem[1]
+
+
+@pytest.mark.asyncio
+async def test_novo_com_trecho_vazio_e_ignorado():
+    c = _cliente()
+    r = _reuniao(c)
+    n = _novo().model_copy(update={"trecho": "   "})
+    contagens = await analise.analisar_reuniao(c, r["id"], executar=_executor(SaidaAnalise(novos=[n])), obter_chave=lambda: "k")
+    assert contagens["novos"] == 0 and store.listar_requisitos(c, "p1") == []
+
+
+@pytest.mark.asyncio
+async def test_erro_que_nao_e_de_unicidade_nao_e_retentado(monkeypatch):
+    c = _cliente()
+    r = _reuniao(c)
+    chamadas = []
+
+    def falha(client, dados):
+        chamadas.append(1)
+        raise RuntimeError("conexão caiu")
+    monkeypatch.setattr(store, "inserir_requisito", falha)
+    await analise.analisar_reuniao(c, r["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
+    assert len(chamadas) == 1
+    assert store.buscar_reuniao(c, r["id"])["analise_status"] == "falhou"
