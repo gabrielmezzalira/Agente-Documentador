@@ -18,6 +18,8 @@ from models.schemas import (
 from core.observability import falha_externa
 from services.audit import registrar_auditoria
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access, require_role
+from services.discovery_promocao import promover_validados_do_projeto
+from services.discovery_requisitos import RegraRequisitoErro
 from services.encaminhamento import EncaminhamentoErro, executar_encaminhamento, validar_origem
 from services.email_service import email_modo_pull_ativado, send_email
 from services.supabase_client import get_client
@@ -243,12 +245,26 @@ async def encaminhar_projeto(
     check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
+    promovidos = 0
     try:
         validar_origem(check.data[0].get("subarea"))
+        if data.promover_validados:
+            # Só depois de validar a origem. Se a função SQL falhar depois de promover, as
+            # funcionalidades permanecem: a promoção é idempotente, então repetir é seguro
+            # (sem rollback necessário).
+            try:
+                promovidos = promover_validados_do_projeto(client, project_id, pessoa["email"])
+            except RegraRequisitoErro:
+                raise
+            except Exception as exc:
+                _LOG.warning("falha ao promover requisitos do projeto %s: %s", project_id, type(exc).__name__)
+                raise HTTPException(status_code=502, detail="Falha ao promover os requisitos validados") from exc
         executar_encaminhamento(
-            client, project_id=project_id, destino=data.destino,
-            motivo=data.motivo, autor_email=pessoa["email"],
+            client, project_id=project_id, destino=data.destino, motivo=data.motivo,
+            autor_email=pessoa["email"], requisitos_promovidos=promovidos,
         )
+    except RegraRequisitoErro as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
     except EncaminhamentoErro as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
     try:

@@ -135,6 +135,7 @@ class ProjectSubareaUpdate(BaseModel):
 class ProjectEncaminharRequest(BaseModel):
     destino: Literal["dados", "dev"]
     motivo: Optional[str] = Field(default=None, max_length=500)
+    promover_validados: bool = False
 
 
 class GeminiApiKeyUpdate(BaseModel):

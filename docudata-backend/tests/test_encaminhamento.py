@@ -135,3 +135,70 @@ def test_encaminhar_falha_da_funcao_nao_vaza_detalhe(preparar):
     assert resp.status_code == 502
     assert "segredo" not in resp.text
     assert auditoria == []
+
+
+def _requisito(pid="p1", codigo="RQ-001", status="validado", criterios=("Dado A, quando B, então C",)):
+    return {"id": f"req-{codigo}", "project_id": pid, "codigo": codigo, "titulo": f"T {codigo}", "descricao": None,
+            "tipo": "funcional", "prioridade_sugerida": "must", "status": status, "criterios_aceite": list(criterios),
+            "conflito": False, "funcionalidade_id": None}
+
+
+def _com_requisitos(preparar, requisitos, **kwargs):
+    client, fake, auditoria = preparar(**kwargs)
+    fake.tables["requisitos"] = requisitos
+    return client, fake, auditoria
+
+
+def test_encaminhar_com_promover_validados_leva_o_escopo_junto(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito(codigo="RQ-001"), _requisito(codigo="RQ-002"), _requisito(codigo="RQ-003", status="proposto")])
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dev", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 200 and resp.json()["subarea"] == "dev"
+    assert fake.chamadas_rpc[0][1]["p_promovidos"] == 2
+    assert [f["id_funcional"] for f in fake.tables["funcionalidades"]] == ["RQ-001", "RQ-002"]
+    assert all(f["project_id"] == "p1" for f in fake.tables["funcionalidades"])
+
+
+def test_encaminhar_sem_promover_nao_cria_funcionalidades(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito()])
+    client.post("/projects/p1/encaminhar", json={"destino": "dados"}, headers=HEADERS)
+    assert "funcionalidades" not in fake.tables and fake.chamadas_rpc[0][1]["p_promovidos"] == 0
+
+
+def test_encaminhar_recusa_se_validado_sem_criterio_e_nao_move_nem_promove(preparar):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito(codigo="RQ-001"), _requisito(codigo="RQ-002", criterios=())])
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 422 and "RQ-002" in resp.json()["detail"]
+    assert fake.chamadas_rpc == [] and "funcionalidades" not in fake.tables and auditoria == []
+    assert fake.tables["projects"][0]["subarea"] == "produto"
+
+
+def test_encaminhar_promover_nao_roda_se_projeto_nao_esta_em_produto(preparar):
+    client, fake, _ = _com_requisitos(preparar, [_requisito()], subarea="dados")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dev", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 409
+    assert "funcionalidades" not in fake.tables and fake.chamadas_rpc == []
+
+
+def test_encaminhar_falha_inesperada_na_promocao_vira_502_sem_vazar(preparar, monkeypatch):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito()])
+
+    def _explode(*_a, **_k):
+        raise Exception("segredo-do-banco titulo-do-requisito")
+
+    monkeypatch.setattr("routers.projects.promover_validados_do_projeto", _explode)
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 502
+    assert "segredo" not in resp.text and "titulo-do-requisito" not in resp.text
+    assert fake.chamadas_rpc == [] and auditoria == []
+
+
+def test_encaminhar_rpc_falha_depois_de_promover_mantem_produto_e_retry_nao_duplica(preparar):
+    client, fake, auditoria = _com_requisitos(preparar, [_requisito()], rpc_falha="connection refused")
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 502 and auditoria == []
+    assert fake.tables["projects"][0]["subarea"] == "produto"
+    assert len(fake.tables["funcionalidades"]) == 1
+    fake._rpc_falha = None
+    resp = client.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert len(fake.tables["funcionalidades"]) == 1
