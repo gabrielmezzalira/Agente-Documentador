@@ -1063,10 +1063,13 @@ WHERE a.sprint_id = p.sprint_id
 --     VALUES (p_project_id, 'produto', p_destino, p_motivo, p_autor, p_promovidos);
 --   RETURN v_proj;
 -- END $$;
+-- Só o backend (service role) chama a função; ninguém mais pode executá-la via PostgREST:
+-- REVOKE EXECUTE ON FUNCTION encaminhar_projeto(uuid, text, text, text, int) FROM PUBLIC, anon, authenticated;
 
 -- Rollback (só se NENHUM projeto tiver subarea = 'produto'):
 -- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
 -- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check CHECK (subarea IN ('dados','dev'));
+-- (o REVOKE some junto com a função; para só reabrir a execução: GRANT EXECUTE ON FUNCTION encaminhar_projeto(uuid, text, text, text, int) TO PUBLIC;)
 -- DROP FUNCTION IF EXISTS encaminhar_projeto(uuid, text, text, text, int);
 -- (a tabela projeto_encaminhamentos é aditiva e pode ficar; removê-la é decisão do time)
 
@@ -1089,6 +1092,7 @@ WHERE a.sprint_id = p.sprint_id
 --   conteudo_estruturado jsonb       NOT NULL DEFAULT '{}'::jsonb,
 --   analise_status       text        NOT NULL DEFAULT 'pendente' CHECK (analise_status IN ('pendente','ok','falhou')),
 --   analise_erro         text,
+--   analise_iniciada_em  timestamptz,  -- reserva da análise (compare-and-swap): impede execução dupla
 --   created_at           timestamptz NOT NULL DEFAULT now()
 -- );
 -- CREATE UNIQUE INDEX IF NOT EXISTS uq_discovery_reunioes_fonte
@@ -1154,5 +1158,14 @@ WHERE a.sprint_id = p.sprint_id
 --   timestamp    timestamptz NOT NULL DEFAULT now()
 -- );
 
+-- RLS ligada e sem policy: o browser não lê nada; o backend usa a service role, que ignora RLS
+-- (mesmo padrão de app_settings na v4).
+-- ALTER TABLE discovery_reunioes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE discovery_transcricoes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisitos ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisito_evidencias ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE requisito_transicoes ENABLE ROW LEVEL SECURITY;
+
 -- Rollback (aditivo; só se não houver dado que importe):
+-- (as políticas de RLS somem junto com as tabelas; para só desligar: ALTER TABLE <tabela> DISABLE ROW LEVEL SECURITY;)
 -- DROP TABLE IF EXISTS requisito_transicoes, requisito_evidencias, requisitos, discovery_transcricoes, discovery_reunioes;
