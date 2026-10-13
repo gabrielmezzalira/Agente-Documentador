@@ -52,14 +52,28 @@ def _violou_unicidade(exc: Exception) -> bool:
     return any(marca in texto for marca in _MARCAS_UNICIDADE)
 
 
-def _ja_registrado(client: Any, duplicata: dict, reuniao_id: str, trecho: str) -> bool | None:
-    """True: esta reunião já deu esta evidência a esse requisito (reanálise, no-op).
-    None: requisito órfão (sem nenhuma evidência) - deve ser reaproveitado. False: caso comum."""
-    evidencias = store.listar_evidencias(client, duplicata["id"])
-    if not evidencias:
-        return None
-    alvo = normalizar_titulo(trecho)
-    return any(e["reuniao_id"] == reuniao_id and normalizar_titulo(e["trecho"]) == alvo for e in evidencias)
+def _normalizado(texto: str) -> str:
+    return normalizar_titulo(texto)
+
+
+def _ja_registrado(client: Any, similares: list[dict], reuniao_id: str, trecho: str) -> bool:
+    """Algum candidato parecido já guarda a evidência desta reunião com este trecho (reanálise)?"""
+    alvo = _normalizado(trecho)
+    return any(
+        e["reuniao_id"] == reuniao_id and _normalizado(e["trecho"]) == alvo
+        for c in similares for e in store.listar_evidencias(client, c["id"])
+    )
+
+
+def _e_orfao(client: Any, linha: dict) -> bool:
+    """Requisito de execução interrompida: editável pelo agente, nunca tocado por pessoa,
+    sem evidência e sem transição."""
+    return (
+        linha.get("status") in _EDITAVEIS_PELO_AGENTE
+        and not linha.get("revisado_por") and not linha.get("validado_por")
+        and not store.listar_evidencias(client, linha["id"])
+        and not store.listar_transicoes(client, linha["id"])
+    )
 
 
 def _inserir_com_codigo(client: Any, dados: dict, conhecidos: list[dict]) -> dict:
@@ -83,17 +97,19 @@ def _aplicar_novos(client: Any, reuniao: dict, saida: SaidaAnalise, conhecidos: 
         trecho = limitar_trecho(novo.trecho.strip())
         if not titulo or not trecho:
             continue
-        duplicata = achar_duplicata(titulo, candidatos_duplicata(conhecidos))
+        candidatos = candidatos_duplicata(conhecidos)
+        duplicata = achar_duplicata(titulo, candidatos)
         if duplicata:
-            registrado = _ja_registrado(client, duplicata, reuniao["id"], trecho)
-            if registrado:
+            similares = [c for c in candidatos if achar_duplicata(titulo, [c])]
+            if _ja_registrado(client, similares, reuniao["id"], trecho):
                 continue  # reanálise: mesmo novo da mesma reunião já aplicado
-            if registrado is None:  # órfão de execução interrompida: completa em vez de criar outro
-                store.inserir_evidencia(client, requisito_id=duplicata["id"], reuniao_id=reuniao["id"],
-                                        trecho=trecho, speaker=speaker_limitado(novo.speaker), confianca=confianca_segura(novo.confianca))
-                if not store.listar_transicoes(client, duplicata["id"]):
-                    store.inserir_transicao(client, requisito_id=duplicata["id"], campo="status", de="",
-                                            para="proposto", autor=_AUTOR, motivo=None)
+            linha = next((r for r in conhecidos if r["id"] == duplicata["id"]), None)
+            if linha is not None and _e_orfao(client, linha):  # completa em vez de criar outro
+                store.inserir_evidencia(client, requisito_id=linha["id"], reuniao_id=reuniao["id"],
+                                        trecho=trecho, speaker=speaker_limitado(novo.speaker),
+                                        confianca=confianca_segura(novo.confianca))
+                store.inserir_transicao(client, requisito_id=linha["id"], campo="status", de="",
+                                        para=linha["status"], autor=_AUTOR, motivo="retomada de execução interrompida")
                 contagens["novos"] += 1
                 continue
         status = "em_revisao" if duplicata else "proposto"
@@ -205,7 +221,7 @@ async def reconsolidar_projeto(
     `em_revisao`, validado/rejeitado intocáveis) fazem disso uma PROPOSTA, nunca uma sobrescrita."""
     reunioes = sorted(
         store.listar_reunioes(client, project_id),
-        key=lambda r: (str(r.get("ocorrida_em") or ""), str(r.get("created_at") or "")),
+        key=lambda r: (r.get("ocorrida_em") is None, str(r.get("ocorrida_em") or ""), str(r.get("created_at") or "")),
     )
     analisadas = 0
     for reuniao in reunioes:

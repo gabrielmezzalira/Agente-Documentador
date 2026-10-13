@@ -335,7 +335,8 @@ async def test_reconsolidar_ordena_por_ocorrida_em_e_created_at():
     for t in c.tables["discovery_reunioes"]:
         t["conteudo_estruturado"] = {"resumo": t["id"]}
     await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
-    assert [b["id"] in o for o in ordem[:1]] == [True] and a["id"] in ordem[1]
+    assert b["id"] in ordem[0]  # 2026-01-01 vem antes
+    assert a["id"] in ordem[1]  # 2026-02-01 depois
 
 
 @pytest.mark.asyncio
@@ -360,3 +361,67 @@ async def test_erro_que_nao_e_de_unicidade_nao_e_retentado(monkeypatch):
     await analise.analisar_reuniao(c, r["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
     assert len(chamadas) == 1
     assert store.buscar_reuniao(c, r["id"])["analise_status"] == "falhou"
+
+
+# ---- rodada de correções 2 ----
+@pytest.mark.asyncio
+async def test_reanalise_com_empate_de_titulo_nao_multiplica_requisitos():
+    c = _cliente()
+    r1 = _reuniao(c, "sessao-0001")
+    await analise.analisar_reuniao(c, r1["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
+    r2 = _reuniao(c, "sessao-0002")
+    ex = _executor(SaidaAnalise(novos=[_novo(trecho="o relatório em PDF é essencial")]))
+    for _ in range(3):
+        await analise.analisar_reuniao(c, r2["id"], executar=ex, obter_chave=lambda: "k")
+    reqs = store.listar_requisitos(c, "p1")
+    assert [(q["codigo"], q["status"]) for q in reqs] == [("RQ-001", "proposto"), ("RQ-002", "em_revisao")]
+    assert reqs[1]["possivel_duplicata_de"] == reqs[0]["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["validado", "rejeitado"])
+async def test_candidato_decidido_sem_evidencia_nao_e_absorvido(status):
+    c = _cliente()
+    r = _reuniao(c)
+    decidido = store.inserir_requisito(c, {
+        "project_id": "p1", "codigo": "RQ-001", "titulo": "Exportar relatório em PDF", "tipo": "funcional",
+        "prioridade_sugerida": "must", "status": status, "conflito": False, "validado_por": "ana"})
+    antes = dict(store.buscar_requisito(c, decidido["id"]))
+    contagens = await analise.analisar_reuniao(c, r["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
+    assert contagens["novos"] == 1 and contagens["duplicatas"] == 1
+    assert store.buscar_requisito(c, decidido["id"]) == antes
+    assert store.listar_transicoes(c, decidido["id"]) == [] and store.listar_evidencias(c, decidido["id"]) == []
+    novo = [q for q in store.listar_requisitos(c, "p1") if q["codigo"] == "RQ-002"][0]
+    assert novo["status"] == "em_revisao" and novo["possivel_duplicata_de"] == decidido["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["proposto", "em_revisao"])
+async def test_orfao_legitimo_e_reaproveitado_com_o_status_real(status):
+    c = _cliente()
+    r = _reuniao(c)
+    orfao = store.inserir_requisito(c, {
+        "project_id": "p1", "codigo": "RQ-001", "titulo": "Exportar relatório em PDF", "tipo": "funcional",
+        "prioridade_sugerida": "must", "status": status, "conflito": False})
+    await analise.analisar_reuniao(c, r["id"], executar=_executor(SaidaAnalise(novos=[_novo()])), obter_chave=lambda: "k")
+    assert len(store.listar_requisitos(c, "p1")) == 1
+    assert len(store.listar_evidencias(c, orfao["id"])) == 1
+    tr = store.listar_transicoes(c, orfao["id"])
+    assert [(t["de"], t["para"]) for t in tr] == [("", status)]
+
+
+@pytest.mark.asyncio
+async def test_reconsolidar_poe_reuniao_sem_data_por_ultimo():
+    c = _cliente()
+    sem_data = _reuniao(c, "sessao-000A")
+    com_data = _reuniao(c, "sessao-000B")
+    for t in c.tables["discovery_reunioes"]:
+        t["ocorrida_em"] = "2026-01-01" if t["id"] == com_data["id"] else None
+        t["conteudo_estruturado"] = {"resumo": t["id"]}
+    ordem = []
+
+    async def ex(**kw):
+        ordem.append(kw["fonte"])
+        return SaidaAnalise()
+    await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
+    assert com_data["id"] in ordem[0] and sem_data["id"] in ordem[1]
