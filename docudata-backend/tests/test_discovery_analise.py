@@ -19,6 +19,11 @@ def _reuniao(c, fonte="sessao-0001", tipo="contexto_empresa", transcricao=None):
     return r
 
 
+def _rearmar(c, reuniao_id):
+    """Reanálise explícita (como a rota de reanalisar): volta a `pendente` para poder reservar de novo."""
+    store.marcar_analise(c, reuniao_id, "pendente")
+
+
 def _executor(saida: SaidaAnalise, capturas=None):
     async def _exec(**kwargs):
         if capturas is not None:
@@ -277,6 +282,7 @@ async def test_reconsolidar_tres_vezes_com_o_mesmo_novo_gera_um_requisito():
     ex = _executor(SaidaAnalise(novos=[_novo()]))
     await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
     await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
+    _rearmar(c, r["id"])
     contagens = await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
     assert contagens["novos"] == 0 and contagens["duplicatas"] == 0
     reqs = store.listar_requisitos(c, "p1")
@@ -295,6 +301,7 @@ async def test_requisito_orfao_da_mesma_reuniao_e_reaproveitado(monkeypatch):
     monkeypatch.setattr(store, "inserir_evidencia", evidencia_falha)
     await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")  # deixa órfão
     monkeypatch.setattr(store, "inserir_evidencia", original)
+    _rearmar(c, r["id"])
     await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
     reqs = store.listar_requisitos(c, "p1")
     assert len(reqs) == 1 and len(store.listar_evidencias(c, reqs[0]["id"])) == 1
@@ -372,6 +379,7 @@ async def test_reanalise_com_empate_de_titulo_nao_multiplica_requisitos():
     r2 = _reuniao(c, "sessao-0002")
     ex = _executor(SaidaAnalise(novos=[_novo(trecho="o relatório em PDF é essencial")]))
     for _ in range(3):
+        _rearmar(c, r2["id"])
         await analise.analisar_reuniao(c, r2["id"], executar=ex, obter_chave=lambda: "k")
     reqs = store.listar_requisitos(c, "p1")
     assert [(q["codigo"], q["status"]) for q in reqs] == [("RQ-001", "proposto"), ("RQ-002", "em_revisao")]
@@ -524,3 +532,79 @@ def test_janelas_cortam_em_fronteira_de_linha():
     janelas, _ = discovery_fonte.janelas_da_fonte(reuniao, texto)
     assert len(janelas) == 3 and all(j.endswith("\n") for j in janelas[:-1])
     assert "".join(janelas) == discovery_fonte.texto_da_reuniao(reuniao, texto)
+
+
+# ---- reserva da análise (revisão final, I3) ----
+import asyncio  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_duas_analises_concorrentes_da_mesma_reuniao_rodam_o_modelo_uma_vez():
+    c = _cliente()
+    r = _reuniao(c)
+    soltar = asyncio.Event()
+    chamadas = []
+
+    async def lento(**kw):
+        chamadas.append(1)
+        await soltar.wait()
+        return SaidaAnalise(novos=[_novo()])
+
+    async def liberar():
+        await asyncio.sleep(0.05)
+        soltar.set()
+    resultados = await asyncio.gather(
+        analise.analisar_reuniao(c, r["id"], executar=lento, obter_chave=lambda: "k"),
+        analise.analisar_reuniao(c, r["id"], executar=lento, obter_chave=lambda: "k"),
+        liberar(),
+    )
+    assert len(chamadas) == 1
+    assert sorted(x["novos"] for x in resultados[:2]) == [0, 1]
+    assert len(store.listar_requisitos(c, "p1")) == 1
+
+
+@pytest.mark.asyncio
+async def test_reserva_expirada_e_retomada_e_reuniao_ok_nao_reserva():
+    c = _cliente()
+    r = _reuniao(c)
+    velha = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+    c.tables["discovery_reunioes"][0]["analise_iniciada_em"] = velha
+    chamadas = []
+
+    async def ex(**kw):
+        chamadas.append(1)
+        return SaidaAnalise()
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert len(chamadas) == 1 and store.buscar_reuniao(c, r["id"])["analise_status"] == "ok"
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")  # já ok: não reserva
+    assert len(chamadas) == 1
+
+
+@pytest.mark.asyncio
+async def test_reserva_ativa_bloqueia_a_analise_sem_chamar_o_executor():
+    c = _cliente()
+    r = _reuniao(c)
+    c.tables["discovery_reunioes"][0]["analise_iniciada_em"] = datetime.now(timezone.utc).isoformat()
+    chamadas = []
+
+    async def ex(**kw):
+        chamadas.append(1)
+        return SaidaAnalise()
+    contagens = await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert chamadas == [] and contagens["novos"] == 0
+    assert store.buscar_reuniao(c, r["id"])["analise_status"] == "pendente"  # não vira falhou
+
+
+@pytest.mark.asyncio
+async def test_reconsolidar_reanalisa_reunioes_ja_ok():
+    c = _cliente()
+    r = _reuniao(c)
+    chamadas = []
+
+    async def ex(**kw):
+        chamadas.append(1)
+        return SaidaAnalise()
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k") == 1
+    assert len(chamadas) == 2

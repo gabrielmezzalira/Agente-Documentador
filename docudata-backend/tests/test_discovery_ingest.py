@@ -265,3 +265,27 @@ def test_contexto_de_reuniao_do_agente_tem_resumo_e_areas_sem_transcricao(servic
     assert areas["eng_dados"] == {"area": "eng_dados", "status": "partial", "score": 0.4}
     assert ctx["red_flags_criticas"] == ["ERP sem API"]
     assert SENTINELA not in json.dumps(ctx, default=str)
+
+
+def test_reenvio_durante_analise_em_andamento_nao_chama_o_modelo(servico, monkeypatch):
+    from datetime import datetime, timezone
+
+    from models.discovery import SaidaAnalise
+    from services import discovery_analise
+    client, fake, _ = servico
+    chamadas = []
+
+    async def executor(**kw):
+        chamadas.append(1)
+        return SaidaAnalise()
+
+    async def analisar_de_verdade(reuniao_id: str):
+        await discovery_analise.analisar_reuniao(fake, reuniao_id, executar=executor, obter_chave=lambda: "k")
+    monkeypatch.setattr("routers.discovery_ingest.analisar_em_segundo_plano", analisar_de_verdade)
+    primeira = client.post("/discovery/reunioes", json=_corpo(), headers=H).json()
+    assert len(chamadas) == 1  # a primeira análise rodou (TestClient executa o background)
+    linha = fake.tables["discovery_reunioes"][0]
+    linha.update(analise_status="pendente", analise_iniciada_em=datetime.now(timezone.utc).isoformat())  # em andamento
+    resp = client.post("/discovery/reunioes", json=_corpo(), headers=H)
+    assert resp.status_code == 200 and resp.json()["id"] == primeira["id"]
+    assert len(chamadas) == 1

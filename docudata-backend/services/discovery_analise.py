@@ -4,6 +4,7 @@ ou conteúdo alterados aqui — só recebe evidência e, havendo tensão, a marc
 Dúvida de duplicata vira `em_revisao`. A saída do modelo é tratada como não confiável.
 """
 import logging
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from graphs.requisitos_graph import (
@@ -27,6 +28,10 @@ _EDITAVEIS_PELO_AGENTE = ("proposto", "em_revisao")
 MAX_TENTATIVAS_CODIGO = 3
 _MARCAS_UNICIDADE = ("23505", "duplicate key", "unique")
 _ZERO = {"novos": 0, "reforcos": 0, "conflitos": 0, "ajustes": 0, "duplicatas": 0}
+
+
+def _agora() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _compactar(requisitos: list[dict], contagem: dict[str, int]) -> list[dict]:
@@ -180,6 +185,8 @@ async def analisar_reuniao(
     reuniao = store.buscar_reuniao(client, reuniao_id)
     if reuniao is None:
         raise LookupError("Reunião não encontrada")
+    if not store.reservar_analise(client, reuniao_id, agora=_agora()):
+        return dict(_ZERO)  # outra execução já tem a reserva (ou não está pendente): sem modelo, sem custo
     try:
         transcricao = (store.buscar_transcricao(client, reuniao_id) or {}).get("conteudo")
         janelas, truncada = janelas_da_fonte(reuniao, transcricao)
@@ -224,6 +231,8 @@ async def reconsolidar_projeto(
     analisadas = 0
     for reuniao in reunioes:
         try:
+            # ação explícita: volta a `pendente` (mesmo com reserva velha), sem derrubar análise em andamento
+            store.reiniciar_analise(client, reuniao["id"], agora=_agora())
             await analisar_reuniao(client, reuniao["id"], executar=executar, obter_chave=obter_chave)
             if (store.buscar_reuniao(client, reuniao["id"]) or {}).get("analise_status") == "ok":
                 analisadas += 1

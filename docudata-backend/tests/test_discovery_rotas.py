@@ -271,3 +271,16 @@ def test_reconsolidar_e_analisar_tem_rate_limit_de_ia():
     from core.rate_limit import limiter
 
     assert {"routers.discovery.reconsolidar", "routers.discovery.reanalisar"} <= set(limiter._route_limits)
+
+
+def test_reanalisar_zera_reserva_velha_mas_nao_derruba_analise_em_andamento(ambiente):
+    como, fake, agendados = ambiente
+    m = store.inserir_reuniao(fake, project_id="p1", tipo="outra", ocorrida_em=None, fonte_session_id="sessao-0001", conteudo_estruturado={})
+    linha = fake.tables["discovery_reunioes"][0]
+    linha.update(analise_status="falhou", analise_erro="x", analise_iniciada_em=(datetime.now(timezone.utc) - timedelta(hours=1)).isoformat())
+    assert como("gerente").post(f"/discovery/reunioes/{m['id']}/analisar", headers=H).status_code == 202
+    assert linha["analise_status"] == "pendente" and linha["analise_iniciada_em"] is None
+    reserva = datetime.now(timezone.utc).isoformat()
+    linha["analise_iniciada_em"] = reserva  # análise em andamento
+    assert como("gerente").post(f"/discovery/reunioes/{m['id']}/analisar", headers=H).status_code == 202
+    assert linha["analise_iniciada_em"] == reserva

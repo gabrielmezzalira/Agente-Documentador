@@ -158,7 +158,9 @@ async def reanalisar(
 ):
     client = get_client()
     await _reuniao_com_acesso(client, reuniao_id, pessoa)
-    store.marcar_analise(client, reuniao_id, "pendente", None)
+    # Ação explícita: volta a `pendente` mesmo com reserva velha; uma análise em andamento não é
+    # derrubada (a reserva dentro de analisar_reuniao impede a execução dupla).
+    store.reiniciar_analise(client, reuniao_id, agora=datetime.now(timezone.utc))
     background.add_task(analisar_em_segundo_plano, reuniao_id)
     return {"status": "agendada"}
 
