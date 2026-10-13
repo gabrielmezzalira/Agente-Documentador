@@ -7,6 +7,7 @@ from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from models.discovery import ReuniaoIngestRequest, ReuniaoIngestResponse
 from services import discovery_store as store
 from services.discovery_analise import analisar_em_segundo_plano
+from services.discovery_contexto import compilar_contexto
 from services.discovery_redacao import TRANSCRICAO_MAX_BYTES, redigir_estrutura, redigir_segredos
 from services.supabase_client import get_client
 
@@ -80,3 +81,12 @@ async def receber_reuniao(
         store.inserir_transcricao(client, reuniao_id=reuniao["id"], conteudo=transcricao, redigida=redigida)
     background.add_task(analisar_em_segundo_plano, reuniao["id"])
     return ReuniaoIngestResponse(id=reuniao["id"], analise_status="pendente")
+
+
+@router.get("/servico/projetos/{project_id}/contexto")
+async def contexto_para_servico(project_id: str):
+    """Contexto cumulativo para o Agente Diagnóstico (chave de serviço). Sem transcrição bruta."""
+    client = get_client()
+    if store.buscar_projeto(client, project_id) is None:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    return compilar_contexto(client, project_id)
