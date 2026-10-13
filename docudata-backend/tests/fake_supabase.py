@@ -24,6 +24,13 @@ class _Query:
         self._filtros.append(lambda r: r.get(col) == val)
         return self
 
+    def is_(self, col, val):
+        """Só o caso `.is_(col, "null")` (IS NULL), usado pelo compare-and-swap da reserva de análise."""
+        if val != "null":
+            raise NotImplementedError("FakeClient.is_ só suporta 'null'")
+        self._filtros.append(lambda r: r.get(col) is None)
+        return self
+
     def in_(self, col, vals):
         conjunto = set(vals)
         self._filtros.append(lambda r: r.get(col) in conjunto)
