@@ -3,12 +3,12 @@
 Projeção mínima de colunas (AGENTS.md §6.1): a transcrição vive em tabela própria e só sai
 por `buscar_transcricao`, nunca junto da reunião nem de listagens.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 _COLS_REUNIAO = (
     "id, project_id, tipo, origem, fonte_session_id, ocorrida_em, conteudo_estruturado, "
-    "analise_status, analise_erro, created_at"
+    "analise_status, analise_erro, analise_iniciada_em, created_at"
 )
 _COLS_REQUISITO = (
     "id, project_id, codigo, titulo, descricao, tipo, lente, criterios_aceite, prioridade_sugerida, "
@@ -65,9 +65,49 @@ def listar_reunioes(client: Any, project_id: str) -> list[dict]:
 
 
 def marcar_analise(client: Any, reuniao_id: str, status: str, erro: str | None = None) -> None:
-    client.table("discovery_reunioes").update(
-        {"analise_status": status, "analise_erro": erro}
-    ).eq("id", reuniao_id).execute()
+    campos = {"analise_status": status, "analise_erro": erro}
+    if status == "pendente":
+        campos["analise_iniciada_em"] = None  # pendente = sem reserva: pronta para uma nova reserva
+    client.table("discovery_reunioes").update(campos).eq("id", reuniao_id).execute()
+
+
+def _reserva_ativa(reuniao: dict, agora: datetime, ttl_segundos: int) -> bool:
+    valor = reuniao.get("analise_iniciada_em")
+    if not valor:
+        return False
+    try:
+        inicio = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return False  # valor ilegível não prende a análise para sempre
+    if inicio.tzinfo is None:
+        inicio = inicio.replace(tzinfo=timezone.utc)
+    return agora - inicio < timedelta(seconds=ttl_segundos)
+
+
+def reservar_analise(client: Any, reuniao_id: str, *, agora: datetime, ttl_segundos: int = 900) -> bool:
+    """Reserva a análise por compare-and-swap: só quem atualizar a linha ganha.
+
+    Reserva se a reunião está `pendente` e sem reserva ativa (nula ou mais velha que o TTL).
+    """
+    reuniao = buscar_reuniao(client, reuniao_id)
+    if reuniao is None or reuniao.get("analise_status") != "pendente" or _reserva_ativa(reuniao, agora, ttl_segundos):
+        return False
+    consulta = client.table("discovery_reunioes").update({"analise_iniciada_em": agora.isoformat()}).eq("id", reuniao_id).eq("analise_status", "pendente")
+    anterior = reuniao.get("analise_iniciada_em")
+    consulta = consulta.is_("analise_iniciada_em", "null") if anterior is None else consulta.eq("analise_iniciada_em", anterior)
+    return bool(consulta.execute().data)
+
+
+def reiniciar_analise(client: Any, reuniao_id: str, *, agora: datetime, ttl_segundos: int = 900) -> bool:
+    """Ação explícita (reanalisar/reconsolidar): volta a reunião para `pendente` sem reserva.
+
+    Não derruba uma análise realmente em andamento (pendente com reserva ativa): devolve False.
+    """
+    reuniao = buscar_reuniao(client, reuniao_id)
+    if reuniao is None or (reuniao.get("analise_status") == "pendente" and _reserva_ativa(reuniao, agora, ttl_segundos)):
+        return False
+    marcar_analise(client, reuniao_id, "pendente", None)
+    return True
 
 
 # ---- transcrição ----

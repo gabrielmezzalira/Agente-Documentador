@@ -97,3 +97,48 @@ def test_atualizar_requisito_se_editavel_respeita_o_status_atual():
     assert store.buscar_requisito(c, r["id"])["prioridade_sugerida"] != "wont"
     store.atualizar_requisito(c, r["id"], {"status": "proposto"})
     assert store.atualizar_requisito_se_editavel(c, r["id"], {"prioridade_sugerida": "wont"})["prioridade_sugerida"] == "wont"
+
+
+# ---- reserva da análise (compare-and-swap) ----
+from datetime import datetime, timedelta, timezone
+
+_T0 = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+
+
+def test_reservar_analise_so_uma_vez_e_so_se_pendente():
+    c = _cliente()
+    m = _reuniao(c)
+    assert store.reservar_analise(c, m["id"], agora=_T0) is True
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(seconds=10)) is False  # reserva ativa
+    store.marcar_analise(c, m["id"], "ok")
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(hours=1)) is False  # não pendente
+
+
+def test_reserva_expirada_e_retomada_e_falhou_nao_reserva_ate_reiniciar():
+    c = _cliente()
+    m = _reuniao(c)
+    assert store.reservar_analise(c, m["id"], agora=_T0)
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(minutes=16)) is True
+    store.marcar_analise(c, m["id"], "falhou", "x")
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(hours=2)) is False
+    assert store.reiniciar_analise(c, m["id"], agora=_T0 + timedelta(hours=2)) is True
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(hours=2)) is True
+
+
+def test_reiniciar_nao_derruba_analise_em_andamento():
+    c = _cliente()
+    m = _reuniao(c)
+    assert store.reservar_analise(c, m["id"], agora=_T0)
+    assert store.reiniciar_analise(c, m["id"], agora=_T0 + timedelta(seconds=5)) is False
+    assert store.buscar_reuniao(c, m["id"])["analise_iniciada_em"] is not None
+    assert store.reiniciar_analise(c, m["id"], agora=_T0 + timedelta(minutes=20)) is True
+    assert store.buscar_reuniao(c, m["id"])["analise_iniciada_em"] is None
+
+
+def test_cas_perde_quando_outra_reserva_ocorre_entre_a_leitura_e_a_escrita(monkeypatch):
+    c = _cliente()
+    m = _reuniao(c)
+    leitura_antiga = dict(store.buscar_reuniao(c, m["id"]))  # ainda sem reserva
+    assert store.reservar_analise(c, m["id"], agora=_T0)  # o concorrente ganhou
+    monkeypatch.setattr(store, "buscar_reuniao", lambda *_a, **_k: leitura_antiga)
+    assert store.reservar_analise(c, m["id"], agora=_T0 + timedelta(seconds=1)) is False
