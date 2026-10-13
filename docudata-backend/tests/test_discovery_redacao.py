@@ -50,3 +50,47 @@ def test_limitar_trecho_corta_e_marca():
 
 def test_teto_da_transcricao_e_2mb():
     assert TRANSCRICAO_MAX_BYTES == 2 * 1024 * 1024
+
+
+# --- Fix round 1 ---
+import time
+
+AWS = "AKIA" + "Q" * 16
+SLACK = "xox" + "b-" + "1" * 12 + "-" + "z" * 10
+BEARER = "Bearer " + "t" * 20
+URL_PWD = "pa55" + "w0rd"
+
+
+def test_nomes_compostos_de_segredo_sao_redigidos():
+    for nome in ("access_token", "client_secret", "SECRET_KEY", "AWS_SECRET_ACCESS_KEY"):
+        saida, redigiu = redigir_segredos(f"x {nome}=valor123 y")
+        assert redigiu is True and "valor123" not in saida, nome
+
+
+def test_chave_privada_sem_end_nao_trava():
+    entrada = "-----BEGIN PRIVATE KEY-----" * 55000
+    t0 = time.perf_counter()
+    saida, redigiu = redigir_segredos(entrada)
+    assert time.perf_counter() - t0 < 2
+    assert redigiu is True and "BEGIN" not in saida
+
+
+def test_formatos_comuns_sao_redigidos():
+    texto = f"Authorization: {BEARER} db postgres://user:{URL_PWD}@host/db {AWS} {SLACK}"
+    saida, redigiu = redigir_segredos(texto)
+    assert redigiu is True
+    for segredo in ("t" * 20, URL_PWD, AWS, SLACK):
+        assert segredo not in saida
+    assert "postgres://user:" in saida and "@host/db" in saida
+
+
+def test_limitar_trecho_no_limite():
+    assert limitar_trecho("a" * 600, 600) == "a" * 600
+    assert limitar_trecho("a" * 601, 600).endswith("…")
+
+
+def test_redigir_estrutura_nao_muta_a_entrada():
+    entrada = {"a": [f"chave {CHAVE_GOOGLE}"], "b": {"c": "senha: xyz"}}
+    copia = {"a": [f"chave {CHAVE_GOOGLE}"], "b": {"c": "senha: xyz"}}
+    redigir_estrutura(entrada)
+    assert entrada == copia

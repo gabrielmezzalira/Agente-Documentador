@@ -11,12 +11,19 @@ TRECHO_MAX_CHARS = 600
 _REDIGIDO = "[REDIGIDO]"
 
 _PADROES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), _REDIGIDO),
+    # Corpo limitado (anti-ReDoS); BEGIN sem END redige até o fim do texto (mais seguro).
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----(?:.{0,8000}?-----END [A-Z ]*PRIVATE KEY-----|.*)", re.S),
+     _REDIGIDO),
     (re.compile(r"AIza[0-9A-Za-z_\-]{35}"), _REDIGIDO),
     (re.compile(r"\bsk-[A-Za-z0-9_\-]{20,}"), _REDIGIDO),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}"), _REDIGIDO),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"), _REDIGIDO),
-    (re.compile(r"(?i)\b(senha|password|passwd|pwd|token|secret|api[_\- ]?key)\b\s*[:=]\s*\S+"),
+    (re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/\-]{8,}=*"), "Bearer " + _REDIGIDO),
+    (re.compile(r"(?<=://)([^\s:/@]+):[^\s@/]+@"), r"\1:" + _REDIGIDO + "@"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), _REDIGIDO),
+    (re.compile(r"\bxox[abpr]-[A-Za-z0-9\-]{10,}"), _REDIGIDO),
+    # Aceita nomes compostos (access_token, AWS_SECRET_ACCESS_KEY, client_secret...).
+    (re.compile(r"(?i)(?<!\w)(\w*(?:senha|password|passwd|pwd|token|secret|api[_\- ]?key)\w*)\s*[:=]\s*\S+"),
      r"\1: " + _REDIGIDO),
 ]
 
@@ -31,7 +38,10 @@ def redigir_segredos(texto: str) -> tuple[str, bool]:
 
 
 def redigir_estrutura(valor: Any) -> Any:
-    """Aplica `redigir_segredos` em todas as strings de dict/list (o resto passa igual)."""
+    """Aplica `redigir_segredos` em todas as strings de dict/list (o resto passa igual).
+
+    Não muta a entrada. Chaves de dict, tuplas e sets não são redigidos.
+    """
     if isinstance(valor, str):
         return redigir_segredos(valor)[0]
     if isinstance(valor, dict):
@@ -42,4 +52,5 @@ def redigir_estrutura(valor: Any) -> Any:
 
 
 def limitar_trecho(trecho: str, max_chars: int = TRECHO_MAX_CHARS) -> str:
+    """Corta em max_chars e acrescenta "…" (o resultado pode ter max_chars+1)."""
     return trecho if len(trecho) <= max_chars else trecho[:max_chars] + "…"
