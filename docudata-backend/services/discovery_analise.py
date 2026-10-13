@@ -5,7 +5,6 @@ Dúvida de duplicata vira `em_revisao`. A saída do modelo é tratada como não 
 """
 import json
 import logging
-import math
 from typing import Any, Awaitable, Callable
 
 from graphs.requisitos_graph import (
@@ -15,6 +14,7 @@ from graphs.requisitos_graph import (
 from models.discovery import SaidaAnalise
 from services import discovery_store as store
 from services.discovery_redacao import limitar_trecho
+from services.discovery_saneamento import candidatos_duplicata, confianca_segura, speaker_limitado
 from services.discovery_requisitos import achar_duplicata, normalizar_titulo, proximo_codigo
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
@@ -23,7 +23,6 @@ _LOG = logging.getLogger("docudata.discovery")
 _ERRO_GENERICO = "Falha na análise da reunião"
 _AUTOR = "agente"
 _EDITAVEIS_PELO_AGENTE = ("proposto", "em_revisao")
-_CONFIANCA_PADRAO = 0.5
 MAX_TENTATIVAS_CODIGO = 3
 _MARCAS_UNICIDADE = ("23505", "duplicate key", "unique")
 _ZERO = {"novos": 0, "reforcos": 0, "conflitos": 0, "ajustes": 0, "duplicatas": 0}
@@ -45,26 +44,6 @@ def _compactar(requisitos: list[dict], contagem: dict[str, int]) -> list[dict]:
             "n_evidencias": contagem.get(r["id"], 0),
         }
         for r in requisitos
-    ]
-
-
-def _confianca(valor: Any) -> float:
-    try:
-        v = float(valor)
-    except (TypeError, ValueError):
-        return _CONFIANCA_PADRAO
-    return _CONFIANCA_PADRAO if math.isnan(v) else min(1.0, max(0.0, v))
-
-
-def _speaker(valor: str | None) -> str | None:
-    return valor[:SPEAKER_MAX_CHARS] if valor else None
-
-
-def _candidatos_duplicata(conhecidos: list[dict]) -> list[dict]:
-    """Só linhas com título não vazio, com título limitado (o difflib é quadrático)."""
-    return [
-        {"id": r["id"], "titulo": r["titulo"][:TITULO_MAX_CHARS]}
-        for r in conhecidos if isinstance(r.get("titulo"), str) and r["titulo"].strip()
     ]
 
 
@@ -104,14 +83,14 @@ def _aplicar_novos(client: Any, reuniao: dict, saida: SaidaAnalise, conhecidos: 
         trecho = limitar_trecho(novo.trecho.strip())
         if not titulo or not trecho:
             continue
-        duplicata = achar_duplicata(titulo, _candidatos_duplicata(conhecidos))
+        duplicata = achar_duplicata(titulo, candidatos_duplicata(conhecidos))
         if duplicata:
             registrado = _ja_registrado(client, duplicata, reuniao["id"], trecho)
             if registrado:
                 continue  # reanálise: mesmo novo da mesma reunião já aplicado
             if registrado is None:  # órfão de execução interrompida: completa em vez de criar outro
                 store.inserir_evidencia(client, requisito_id=duplicata["id"], reuniao_id=reuniao["id"],
-                                        trecho=trecho, speaker=_speaker(novo.speaker), confianca=_confianca(novo.confianca))
+                                        trecho=trecho, speaker=speaker_limitado(novo.speaker), confianca=confianca_segura(novo.confianca))
                 if not store.listar_transicoes(client, duplicata["id"]):
                     store.inserir_transicao(client, requisito_id=duplicata["id"], campo="status", de="",
                                             para="proposto", autor=_AUTOR, motivo=None)
@@ -127,8 +106,8 @@ def _aplicar_novos(client: Any, reuniao: dict, saida: SaidaAnalise, conhecidos: 
             "possivel_duplicata_de": duplicata["id"] if duplicata else None, "conflito": False,
         }, conhecidos)
         store.inserir_evidencia(client, requisito_id=criado["id"], reuniao_id=reuniao["id"],
-                                trecho=trecho, speaker=_speaker(novo.speaker),
-                                confianca=_confianca(novo.confianca))
+                                trecho=trecho, speaker=speaker_limitado(novo.speaker),
+                                confianca=confianca_segura(novo.confianca))
         store.inserir_transicao(client, requisito_id=criado["id"], campo="status", de="", para=status,
                                 autor=_AUTOR, motivo="possível duplicata" if duplicata else None)
         conhecidos.append(criado)
@@ -152,7 +131,7 @@ def _aplicar(client: Any, reuniao: dict, saida: SaidaAnalise, requisitos: list[d
             continue
         vistos.add((reforco.codigo, trecho))
         if store.inserir_evidencia(client, requisito_id=alvo["id"], reuniao_id=reuniao["id"], trecho=trecho,
-                                   speaker=_speaker(reforco.speaker), confianca=_confianca(reforco.confianca)):
+                                   speaker=speaker_limitado(reforco.speaker), confianca=confianca_segura(reforco.confianca)):
             contagens["reforcos"] += 1
 
     for conflito in saida.conflitos:
