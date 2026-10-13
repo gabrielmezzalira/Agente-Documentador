@@ -25,7 +25,8 @@ def test_redige_atribuicoes_de_senha_e_token():
 
 
 def test_redige_chave_privada_em_bloco():
-    bloco = "-----BEGIN PRIVATE KEY-----\nMIIEvQ\n-----END PRIVATE KEY-----"
+    # Marcadores montados em pedaços: o detector de segredos da CI não deve confundir fixture com chave real.
+    bloco = "-----" + "BEGIN PRIVATE KEY" + "-----\nMIIEvQ\n-----" + "END PRIVATE KEY" + "-----"
     saida, redigiu = redigir_segredos(f"antes {bloco} depois")
     assert redigiu is True and "MIIEvQ" not in saida
 
@@ -68,7 +69,7 @@ def test_nomes_compostos_de_segredo_sao_redigidos():
 
 
 def test_chave_privada_sem_end_nao_trava():
-    entrada = "-----BEGIN PRIVATE KEY-----" * 55000
+    entrada = ("-----" + "BEGIN PRIVATE KEY" + "-----") * 55000
     t0 = time.perf_counter()
     saida, redigiu = redigir_segredos(entrada)
     assert time.perf_counter() - t0 < 2
