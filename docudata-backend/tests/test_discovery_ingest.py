@@ -46,8 +46,9 @@ def test_reenvio_da_mesma_sessao_e_idempotente(servico):
     resp = client.post("/discovery/reunioes", json=_corpo(), headers=H)
     assert resp.status_code == 200
     assert resp.json()["id"] == primeira["id"] and resp.json()["duplicada"] is True
-    assert len(fake.tables["discovery_reunioes"]) == 1 and len(analises) == 1
-    assert len(fake.tables["discovery_transcricoes"]) == 1
+    assert len(fake.tables["discovery_reunioes"]) == 1
+    assert len(fake.tables["discovery_transcricoes"]) == 1  # não regrava a transcrição
+    assert len(analises) == 2  # reunião ainda pendente: o reenvio reagenda (análise é idempotente)
 
 
 def test_segredos_sao_redigidos_antes_de_gravar(servico):
@@ -157,3 +158,70 @@ def test_existe_transcricao_no_store():
     assert store.existe_transcricao(fake, "r1") is False
     store.inserir_transcricao(fake, reuniao_id="r1", conteudo="x", redigida=False)
     assert store.existe_transcricao(fake, "r1") is True
+
+
+def test_falha_ao_gravar_transcricao_e_reenvio_retoma(servico, monkeypatch):
+    _, fake, analises = servico
+    from main import app
+    client = TestClient(app, raise_server_exceptions=False)
+    from services import discovery_store as store
+    real = store.inserir_transcricao
+    chamadas = {"n": 0}
+
+    def falha_na_primeira(*a, **k):
+        chamadas["n"] += 1
+        if chamadas["n"] == 1:
+            raise RuntimeError("timeout-interno " + CHAVE_GOOGLE)
+        return real(*a, **k)
+
+    monkeypatch.setattr(store, "inserir_transcricao", falha_na_primeira)
+    corpo = _corpo(transcricao=f"chave {CHAVE_GOOGLE}")
+    erro = client.post("/discovery/reunioes", json=corpo, headers=H)
+    assert erro.status_code == 500 and "timeout-interno" not in erro.text and CHAVE_GOOGLE not in erro.text
+    assert analises == [] and "discovery_transcricoes" not in fake.tables
+
+    resp = client.post("/discovery/reunioes", json=corpo, headers=H)
+    assert resp.status_code == 200 and resp.json()["duplicada"] is True
+    assert len(fake.tables["discovery_transcricoes"]) == 1
+    assert fake.tables["discovery_transcricoes"][0]["redigida"] is True
+    assert CHAVE_GOOGLE not in str(fake.tables)
+    assert analises == [resp.json()["id"]]
+
+
+@pytest.mark.parametrize("status", ["ok", "falhou"])
+def test_reenvio_de_reuniao_ja_analisada_nao_grava_nem_agenda(servico, status):
+    client, fake, analises = servico
+    primeira = client.post("/discovery/reunioes", json=_corpo(), headers=H).json()
+    fake.tables["discovery_reunioes"][0]["analise_status"] = status
+    fake.tables["discovery_transcricoes"].clear()
+    analises.clear()
+    resp = client.post("/discovery/reunioes", json=_corpo(), headers=H)
+    assert resp.status_code == 200 and resp.json()["id"] == primeira["id"]
+    assert fake.tables["discovery_transcricoes"] == [] and analises == []
+
+
+def test_reenvio_pendente_com_transcricao_existente_so_reagenda(servico):
+    client, fake, analises = servico
+    primeira = client.post("/discovery/reunioes", json=_corpo(), headers=H).json()
+    analises.clear()  # simula crash entre o insert da transcrição e o add_task
+    client.post("/discovery/reunioes", json=_corpo(), headers=H)
+    assert len(fake.tables["discovery_transcricoes"]) == 1
+    assert analises == [primeira["id"]]
+
+
+def test_reenvio_pendente_sem_transcricao_no_corpo_reagenda_sem_inventar(servico):
+    client, fake, analises = servico
+    primeira = client.post("/discovery/reunioes", json=_corpo(transcricao=None), headers=H).json()
+    analises.clear()
+    resp = client.post("/discovery/reunioes", json=_corpo(transcricao=None), headers=H)
+    assert resp.status_code == 200 and resp.json()["duplicada"] is True
+    assert "discovery_transcricoes" not in fake.tables and analises == [primeira["id"]]
+
+
+def test_reenvio_com_transcricao_gigante_continua_413(servico):
+    client, fake, analises = servico
+    client.post("/discovery/reunioes", json=_corpo(), headers=H)
+    analises.clear()
+    grande = "a" * (2 * 1024 * 1024 + 1)
+    assert client.post("/discovery/reunioes", json=_corpo(transcricao=grande), headers=H).status_code == 413
+    assert analises == []

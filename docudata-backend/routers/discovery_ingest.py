@@ -22,6 +22,17 @@ def _resposta_duplicada(existente: dict, project_id: str) -> ReuniaoIngestRespon
     return ReuniaoIngestResponse(id=existente["id"], analise_status=existente["analise_status"], duplicada=True)
 
 
+def _retomar_entrega(client, reuniao_id: str, transcricao: str | None, background: BackgroundTasks) -> None:
+    """Completa uma entrega interrompida (falha/crash entre os inserts ou antes do agendamento).
+
+    Grava a transcrição só se ainda não existe e reagenda a análise (idempotente, B8).
+    """
+    if transcricao and not store.existe_transcricao(client, reuniao_id):
+        texto, redigida = redigir_segredos(transcricao)
+        store.inserir_transcricao(client, reuniao_id=reuniao_id, conteudo=texto, redigida=redigida)
+    background.add_task(analisar_em_segundo_plano, reuniao_id)
+
+
 @router.post("/reunioes", response_model=ReuniaoIngestResponse, status_code=202)
 @limiter.limit(GEMINI_RATE_LIMIT)
 async def receber_reuniao(
@@ -38,9 +49,12 @@ async def receber_reuniao(
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
     existente = store.buscar_reuniao_por_fonte(client, data.fonte_session_id)
-    if existente:  # reenvio: idempotente, sem nova análise nem nova cobrança do Gemini
+    if existente:  # reenvio: idempotente; só retoma se a entrega anterior ficou incompleta
+        duplicada = _resposta_duplicada(existente, data.docudata_project_id)
+        if existente["analise_status"] == "pendente":
+            _retomar_entrega(client, existente["id"], data.transcricao, background)
         response.status_code = 200
-        return _resposta_duplicada(existente, data.docudata_project_id)
+        return duplicada
 
     transcricao, redigida = None, False
     if data.transcricao:
