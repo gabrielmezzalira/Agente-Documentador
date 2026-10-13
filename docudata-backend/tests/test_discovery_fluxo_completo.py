@@ -80,6 +80,8 @@ def test_do_discovery_ao_destino_com_todo_o_contexto(fluxo):
     assert fake.tables["discovery_reunioes"][0]["analise_status"] == "ok"
     assert all(store.contar_evidencias(fake, [r["id"]])[r["id"]] >= 1 for r in req)
     assert SEGREDO not in str(fake.tables)  # redigido já na entrada
+    fora_da_transcricao = {t: v for t, v in fake.tables.items() if t != "discovery_transcricoes"}
+    assert SENTINELA not in str(fora_da_transcricao)  # a transcrição vive só em discovery_transcricoes
     validado, rejeitado = req[0], req[1]
 
     gerente = cliente("gerente")
@@ -90,7 +92,7 @@ def test_do_discovery_ao_destino_com_todo_o_contexto(fluxo):
 
     resp = gerente.post("/projects/p1/encaminhar", json={"destino": "dados", "promover_validados": True, "motivo": "Discovery concluído"}, headers=H)
     assert resp.status_code == 200 and resp.json()["subarea"] == "dados"
-    assert [f["id_funcional"] for f in fake.tables["funcionalidades"]] == [validado["codigo"]]
+    assert [(f["id_funcional"], f["project_id"]) for f in fake.tables["funcionalidades"]] == [(validado["codigo"], "p1")]
     por_codigo = {r["codigo"]: r for r in gerente.get("/discovery/projetos/p1/requisitos", headers=H).json()}
     assert por_codigo[validado["codigo"]]["funcionalidade_id"] is not None
     assert por_codigo[rejeitado["codigo"]]["funcionalidade_id"] is None
@@ -122,10 +124,17 @@ def test_encaminhar_recusado_quando_validado_sem_criterio_de_aceite(fluxo):
     assert not fake.tables.get("funcionalidades")
 
 
-def test_fronteiras_de_autenticacao_do_fluxo(fluxo):
+def test_fronteiras_de_autenticacao_do_fluxo(fluxo, monkeypatch):
     fake, servico, cliente, _, corpo, _ = fluxo
-    assert cliente("gerente").post("/discovery/reunioes", json=corpo, headers=H).status_code in (401, 403)
-    assert "discovery_reunioes" not in fake.tables
+    # (a) cookie de sessão válido, sem chave de serviço: o ingest exige a chave
+    assert cliente("gerente").post("/discovery/reunioes", json=corpo, headers=H).status_code == 401
+    # (c) chave de serviço errada
+    assert servico.post("/discovery/reunioes", json=corpo, headers={"X-Discovery-Key": "errada"}).status_code == 401
+    # (d) integração não configurada: falha fechada
+    monkeypatch.delenv("DOCUDATA_DISCOVERY_KEY")
+    assert servico.post("/discovery/reunioes", json=corpo, headers=SERVICO).status_code == 503
+    assert "discovery_reunioes" not in fake.tables and "discovery_transcricoes" not in fake.tables
+    # (b) rotas de sessão só com a chave de serviço, sem cookie: exigem sessão
     sem_sessao = TestClient(servico.app)
-    assert sem_sessao.get("/discovery/projetos/p1/contexto", headers=SERVICO).status_code in (401, 403)
-    assert sem_sessao.get("/discovery/projetos/p1/requisitos", headers=SERVICO).status_code in (401, 403)
+    assert sem_sessao.get("/discovery/projetos/p1/requisitos", headers=SERVICO).status_code == 401
+    assert sem_sessao.get("/discovery/projetos/p1/contexto", headers=SERVICO).status_code == 401
