@@ -3,16 +3,16 @@ e aplica o resultado. Regra de ouro: requisito `validado`/`rejeitado` NUNCA tem 
 ou conteúdo alterados aqui — só recebe evidência e, havendo tensão, a marca `conflito`.
 Dúvida de duplicata vira `em_revisao`. A saída do modelo é tratada como não confiável.
 """
-import json
 import logging
 from typing import Any, Awaitable, Callable
 
 from graphs.requisitos_graph import (
-    CRITERIOS_MAX, FONTE_MAX_CHARS, TEXTO_MAX_CHARS, TITULO_MAX_CHARS,
+    CRITERIOS_MAX, TEXTO_MAX_CHARS, TITULO_MAX_CHARS,
     executar_analise,
 )
 from models.discovery import SaidaAnalise
 from services import discovery_store as store
+from services.discovery_fonte import fonte_da_reuniao, janelas_da_fonte  # noqa: F401 (fonte_da_reuniao é API pública)
 from services.discovery_redacao import limitar_trecho
 from services.discovery_saneamento import candidatos_duplicata, confianca_segura, speaker_limitado
 from services.discovery_requisitos import achar_duplicata, normalizar_titulo, proximo_codigo
@@ -21,18 +21,12 @@ from services.supabase_client import get_client
 
 _LOG = logging.getLogger("docudata.discovery")
 _ERRO_GENERICO = "Falha na análise da reunião"
+_ERRO_PARCIAL = "análise parcial: transcrição excede o limite analisado"
 _AUTOR = "agente"
 _EDITAVEIS_PELO_AGENTE = ("proposto", "em_revisao")
 MAX_TENTATIVAS_CODIGO = 3
 _MARCAS_UNICIDADE = ("23505", "duplicate key", "unique")
 _ZERO = {"novos": 0, "reforcos": 0, "conflitos": 0, "ajustes": 0, "duplicatas": 0}
-
-
-def fonte_da_reuniao(reuniao: dict, transcricao: str | None) -> str:
-    """Texto sobre o qual o modelo trabalha e contra o qual as evidências são conferidas."""
-    estruturado = json.dumps(reuniao.get("conteudo_estruturado") or {}, ensure_ascii=False)
-    base = f"{transcricao}\n\n{estruturado}" if transcricao else estruturado
-    return base[:FONTE_MAX_CHARS]
 
 
 def _compactar(requisitos: list[dict], contagem: dict[str, int]) -> list[dict]:
@@ -187,20 +181,24 @@ async def analisar_reuniao(
     if reuniao is None:
         raise LookupError("Reunião não encontrada")
     try:
-        requisitos = store.listar_requisitos(client, reuniao["project_id"])
-        contagem = store.contar_evidencias(client, [r["id"] for r in requisitos])
         transcricao = (store.buscar_transcricao(client, reuniao_id) or {}).get("conteudo")
-        saida = await executar(
-            tipo=reuniao["tipo"], conteudo=reuniao.get("conteudo_estruturado") or {},
-            fonte=fonte_da_reuniao(reuniao, transcricao), existentes=_compactar(requisitos, contagem),
-            api_key=obter_chave(),
-        )
-        contagens = _aplicar(client, reuniao, saida, requisitos)
+        janelas, truncada = janelas_da_fonte(reuniao, transcricao)
+        contagens = dict(_ZERO)
+        api_key = obter_chave()
+        for janela in janelas:  # cada janela vê os requisitos já atualizados pela anterior
+            requisitos = store.listar_requisitos(client, reuniao["project_id"])
+            contagem = store.contar_evidencias(client, [r["id"] for r in requisitos])
+            saida = await executar(
+                tipo=reuniao["tipo"], conteudo=reuniao.get("conteudo_estruturado") or {},
+                fonte=janela, existentes=_compactar(requisitos, contagem), api_key=api_key,
+            )
+            for chave, valor in _aplicar(client, reuniao, saida, requisitos).items():
+                contagens[chave] += valor
     except Exception as exc:  # AnaliseFalhouErro e qualquer imprevisto: status falhou, sem detalhe
         _LOG.warning("analise_reuniao_falhou reuniao=%s exc=%s", reuniao_id, type(exc).__name__)
         store.marcar_analise(client, reuniao_id, "falhou", _ERRO_GENERICO)
         return dict(_ZERO)
-    store.marcar_analise(client, reuniao_id, "ok", None)
+    store.marcar_analise(client, reuniao_id, "ok", _ERRO_PARCIAL if truncada else None)
     return contagens
 
 

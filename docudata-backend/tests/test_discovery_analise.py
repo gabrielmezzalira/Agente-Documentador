@@ -425,3 +425,102 @@ async def test_reconsolidar_poe_reuniao_sem_data_por_ultimo():
         return SaidaAnalise()
     await analise.reconsolidar_projeto(c, "p1", executar=ex, obter_chave=lambda: "k")
     assert com_data["id"] in ordem[0] and sem_data["id"] in ordem[1]
+
+
+# ---- janelas de análise (revisão final, I2) ----
+from graphs.requisitos_graph import FONTE_MAX_CHARS, validar_saida  # noqa: E402
+from services import discovery_fonte  # noqa: E402
+
+
+def _transcricao_longa(linhas_de=1000, total=70_000, final="Marina: precisamos de SSO corporativo no fim da reunião"):
+    linhas, usado = [], 0
+    while usado < total:
+        linha = "Davi: " + "conversa sem relevância " * 3
+        linhas.append(linha[:linhas_de])
+        usado += len(linha) + 1
+    return "\n".join(linhas) + "\n" + final
+
+
+@pytest.mark.asyncio
+async def test_transcricao_longa_tem_a_evidencia_do_fim_na_janela_2():
+    c = _cliente()
+    final = "Marina: precisamos de SSO corporativo no fim da reunião"
+    r = _reuniao(c, transcricao=_transcricao_longa(final=final))
+    fontes = []
+
+    async def ex(**kw):
+        fontes.append(kw["fonte"])
+        if final in kw["fonte"]:
+            return SaidaAnalise(novos=[_novo("SSO corporativo", final)])
+        return SaidaAnalise()
+    contagens = await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert len(fontes) == 2 and all(len(f) <= FONTE_MAX_CHARS for f in fontes)
+    assert final not in fontes[0] and "cliente quer exportar PDF" in fontes[0]  # estruturado antes, na janela 1
+    assert contagens["novos"] == 1
+    req = store.listar_requisitos(c, "p1")[0]
+    assert store.listar_evidencias(c, req["id"])[0]["trecho"] == final
+    linha = store.buscar_reuniao(c, r["id"])
+    assert linha["analise_status"] == "ok" and linha["analise_erro"] is None
+
+
+def test_estruturado_citado_como_evidencia_e_aceito_pela_validacao():
+    reuniao = {"conteudo_estruturado": {"resumo": "cliente quer exportar relatórios em PDF"}}
+    janelas, truncada = discovery_fonte.janelas_da_fonte(reuniao, "Marina: bom dia a todos e todas")
+    assert truncada is False and "cliente quer exportar relatórios em PDF" in janelas[0]
+    novo = _novo("Exportar PDF", "cliente quer exportar relatórios em PDF")
+    saida = validar_saida(SaidaAnalise(novos=[novo]), fonte=janelas[0], existentes={})
+    assert len(saida.novos) == 1
+
+
+@pytest.mark.asyncio
+async def test_mais_de_quatro_janelas_marca_analise_parcial():
+    c = _cliente()
+    r = _reuniao(c, transcricao=_transcricao_longa(total=FONTE_MAX_CHARS * 5))
+    chamadas = []
+
+    async def ex(**kw):
+        chamadas.append(1)
+        return SaidaAnalise()
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert len(chamadas) == discovery_fonte.MAX_JANELAS == 4
+    linha = store.buscar_reuniao(c, r["id"])
+    assert linha["analise_status"] == "ok"
+    assert linha["analise_erro"] == "análise parcial: transcrição excede o limite analisado"
+
+
+@pytest.mark.asyncio
+async def test_reanalise_de_reuniao_longa_tres_vezes_e_idempotente():
+    c = _cliente()
+    final = "Marina: precisamos de SSO corporativo no fim da reunião"
+    r = _reuniao(c, transcricao=_transcricao_longa(final=final))
+
+    async def ex(**kw):
+        return SaidaAnalise(novos=[_novo("SSO corporativo", final)]) if final in kw["fonte"] else SaidaAnalise()
+    for _ in range(3):
+        store.marcar_analise(c, r["id"], "pendente")
+        await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    assert len(store.listar_requisitos(c, "p1")) == 1
+
+
+@pytest.mark.asyncio
+async def test_falha_na_janela_2_marca_falhou_sem_vazar_texto():
+    c = _cliente()
+    r = _reuniao(c, transcricao=_transcricao_longa())
+    chamadas = []
+
+    async def ex(**kw):
+        chamadas.append(1)
+        if len(chamadas) == 2:
+            raise RuntimeError("trecho da transcrição SEGREDO-XYZ")
+        return SaidaAnalise()
+    await analise.analisar_reuniao(c, r["id"], executar=ex, obter_chave=lambda: "k")
+    linha = store.buscar_reuniao(c, r["id"])
+    assert linha["analise_status"] == "falhou" and "SEGREDO" not in (linha["analise_erro"] or "")
+
+
+def test_janelas_cortam_em_fronteira_de_linha():
+    reuniao = {"conteudo_estruturado": {}}
+    texto = "\n".join(f"linha {i:05d} " + "x" * 90 for i in range(1500))
+    janelas, _ = discovery_fonte.janelas_da_fonte(reuniao, texto)
+    assert len(janelas) == 3 and all(j.endswith("\n") for j in janelas[:-1])
+    assert "".join(janelas) == discovery_fonte.texto_da_reuniao(reuniao, texto)
