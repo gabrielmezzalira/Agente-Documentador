@@ -149,3 +149,11 @@ def test_cookie_de_pessoa_nao_substitui_a_chave_de_servico(servico, autenticar):
     client, _, _ = servico
     autenticar(client, "owner")
     assert client.post("/discovery/reunioes", json=_corpo()).status_code == 401
+
+
+def test_existe_transcricao_no_store():
+    from services import discovery_store as store
+    fake = FakeClient({})
+    assert store.existe_transcricao(fake, "r1") is False
+    store.inserir_transcricao(fake, reuniao_id="r1", conteudo="x", redigida=False)
+    assert store.existe_transcricao(fake, "r1") is True

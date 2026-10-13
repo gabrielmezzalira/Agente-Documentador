@@ -85,6 +85,13 @@ def buscar_transcricao(client: Any, reuniao_id: str) -> dict | None:
     )
 
 
+def existe_transcricao(client: Any, reuniao_id: str) -> bool:
+    """Só checa a existência (não traz o conteúdo, que pode ter até 2 MB)."""
+    return _um(
+        client.table("discovery_transcricoes").select("reuniao_id").eq("reuniao_id", reuniao_id).execute()
+    ) is not None
+
+
 # ---- requisitos ----
 def listar_requisitos(client: Any, project_id: str, status: str | None = None) -> list[dict]:
     consulta = client.table("requisitos").select(_COLS_REQUISITO).eq("project_id", project_id)
