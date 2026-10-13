@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 
 GITHUB_API_URL = "https://api.github.com"
-_SUBAREAS_SUPORTADAS = {"dados", "dev"}
+_SUBAREAS_SUPORTADAS = {"dados", "dev", "produto"}
 _TTL_INSTALACOES_SEGUNDOS = 60.0
 _TTL_REPOSITORIOS_RECENTES_SEGUNDOS = 45.0
 _cache_instalacoes: tuple[float, list[dict[str, Any]]] | None = None

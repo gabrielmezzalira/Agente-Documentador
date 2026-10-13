@@ -24,6 +24,8 @@ def _get_services(subarea: str):
         refresh_token_env = "GOOGLE_REFRESH_TOKEN"
     elif subarea == "dev":
         refresh_token_env = "GOOGLE_REFRESH_TOKEN_DEV"
+    elif subarea == "produto":
+        refresh_token_env = "GOOGLE_REFRESH_TOKEN_PRODUTO"
     else:
         raise RuntimeError(f"Subárea inválida para autenticação Google: {subarea}")
     refresh_token = os.environ.get(refresh_token_env, "")
@@ -424,6 +426,13 @@ def _get_template_id(doc_type: str, subarea: str) -> str:
             typed_env,
             "GDOCS_TEMPLATE_ID",
         ]
+    elif subarea == "produto":
+        candidates = [
+            f"{typed_env}_PRODUTO" if typed_env else None,
+            "GDOCS_TEMPLATE_ID_PRODUTO",
+            typed_env,
+            "GDOCS_TEMPLATE_ID",
+        ]
     else:
         raise RuntimeError(f"Subárea inválida para template Google Docs: {subarea}")
 
@@ -443,6 +452,8 @@ def _get_root_folder_id(subarea: str) -> str:
         env_name = "GDRIVE_FOLDER_ID"
     elif subarea == "dev":
         env_name = "GDRIVE_FOLDER_ID_DEV"
+    elif subarea == "produto":
+        env_name = "GDRIVE_FOLDER_ID_PRODUTO"
     else:
         raise RuntimeError(f"Subárea inválida para exportação: {subarea}")
 

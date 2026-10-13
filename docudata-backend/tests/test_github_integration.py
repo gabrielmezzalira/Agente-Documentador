@@ -161,7 +161,7 @@ def test_integracao_permanente_inicia_sem_credenciais_e_migration():
         "import main; from services.github_app import configuracao_publica_github; "
         "c=configuracao_publica_github(); "
         "assert c == {'enabled': True, 'configured': False, "
-        "'subareas': ['dados', 'dev'], 'app_slug': None}"
+        "'subareas': ['dados', 'dev', 'produto'], 'app_slug': None}"
     )
     resultado = subprocess.run(
         [sys.executable, "-c", codigo], cwd=backend, env=env,
@@ -175,7 +175,8 @@ def test_integracao_aceita_as_duas_subareas_sem_allowlist():
 
     assert subarea_github_habilitada("dados") is True
     assert subarea_github_habilitada("dev") is True
-    assert subarea_github_habilitada("produto") is False
+    assert subarea_github_habilitada("produto") is True
+    assert subarea_github_habilitada("outra") is False
 
 
 def test_jwt_github_app_assinado_com_rs256():
@@ -317,7 +318,7 @@ def test_sem_credenciais_nao_consulta_tabelas_novas(client, monkeypatch):
     assert capability.status_code == 200
     assert capability.json() == {
         "enabled": True, "configured": False,
-        "subareas": ["dados", "dev"], "app_slug": None,
+        "subareas": ["dados", "dev", "produto"], "app_slug": None,
     }
     assert sessao.status_code == 503
     assert webhook.status_code == 503
@@ -350,7 +351,7 @@ def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
     }
 
     capabilities = client.get("/integrations/github/capabilities", headers=AUTH)
-    assert capabilities.json()["subareas"] == ["dados", "dev"]
+    assert capabilities.json()["subareas"] == ["dados", "dev", "produto"]
 
 
 def test_instalacao_existente_abre_seletor_interno_com_status_dos_repositorios(
