@@ -20,33 +20,64 @@ _ITEM_MAX = 300
 
 
 def _corte(texto: Any, limite: int) -> str:
-    return str(texto or "")[:limite]
+    return texto[:limite] if isinstance(texto, str) else ""
 
 
-def _lista(valor: Any) -> list:
-    return valor[:LIMITE_LISTA] if isinstance(valor, list) else []
+def _textos(valor: Any) -> list[str]:
+    """Lista de textos: só aceita list; ignora itens que não são str (conteúdo não confiável)."""
+    if not isinstance(valor, list):
+        return []
+    return [_corte(x, _ITEM_MAX) for x in valor[:LIMITE_LISTA] if isinstance(x, str)]
+
+
+def _red_flags_criticas(conteudo: dict) -> list[str]:
+    brutas = conteudo.get("red_flags")
+    if not isinstance(brutas, list):
+        return []
+    saida = []
+    for f in brutas[:LIMITE_RED_FLAGS]:
+        if isinstance(f, dict) and f.get("severity") == "critical" and isinstance(f.get("text"), str) and f["text"]:
+            saida.append(_corte(f["text"], _ITEM_MAX))
+    return saida
+
+
+def _ordenar_requisitos(requisitos: list[dict]) -> list[dict]:
+    """Rejeitados, validados e com conflito primeiro (o agente não pode re-sugerir rejeitados); código dentro do grupo."""
+    def chave(q: dict):
+        prioritario = q.get("status") in ("rejeitado", "validado") or bool(q.get("conflito"))
+        return (0 if prioritario else 1, str(q.get("codigo") or ""))
+    return sorted(requisitos, key=chave)
 
 
 def compilar_contexto(client: Any, project_id: str) -> dict:
     reunioes = store.listar_reunioes(client, project_id)[-LIMITE_REUNIOES:]
-    requisitos = store.listar_requisitos(client, project_id)[:LIMITE_REQUISITOS]
+    todos = _ordenar_requisitos(store.listar_requisitos(client, project_id))
+    conflitos = [q["codigo"] for q in todos if q.get("conflito") and q["status"] != "rejeitado"]  # antes do corte
+    requisitos = todos[:LIMITE_REQUISITOS]
     contagem = store.contar_evidencias(client, [r["id"] for r in requisitos])
 
-    red_flags: list[str] = []
     resumo_reunioes = []
+    flags_por_reuniao = []
     for r in reunioes:
         c = r.get("conteudo_estruturado")
         c = c if isinstance(c, dict) else {}
         resumo_reunioes.append({
             "id": r["id"], "tipo": r["tipo"], "ocorrida_em": r.get("ocorrida_em"),
             "analise_status": r["analise_status"], "resumo": _corte(c.get("resumo"), _RESUMO_MAX),
-            "decisoes": [_corte(x, _ITEM_MAX) for x in _lista(c.get("decisoes"))],
-            "problemas": [_corte(x, _ITEM_MAX) for x in _lista(c.get("problemas"))],
+            "decisoes": _textos(c.get("decisoes")),
+            "problemas": _textos(c.get("problemas")),
         })
-        if len(red_flags) < LIMITE_RED_FLAGS:
-            red_flags += [_corte(f.get("text"), _ITEM_MAX) for f in (c.get("red_flags") or [])[:LIMITE_RED_FLAGS]
-                          if isinstance(f, dict) and f.get("severity") == "critical"]
-    red_flags = red_flags[:LIMITE_RED_FLAGS]
+        flags_por_reuniao.append(_red_flags_criticas(c))
+
+    # Teto de red flags: ficam as das reuniões mais recentes; saída em ordem cronológica.
+    restante, escolhidas = LIMITE_RED_FLAGS, []
+    for flags in reversed(flags_por_reuniao):
+        if restante <= 0:
+            break
+        pegas = flags[:restante]
+        escolhidas.append(pegas)
+        restante -= len(pegas)
+    red_flags = [t for grupo in reversed(escolhidas) for t in grupo]
 
     return {
         "project_id": project_id,
@@ -58,8 +89,9 @@ def compilar_contexto(client: Any, project_id: str) -> dict:
             "prioridade_sugerida": q["prioridade_sugerida"],
             "motivo_decisao": _corte(q["motivo_decisao"], _ITEM_MAX) if q.get("motivo_decisao") else None,
             "conflito": bool(q.get("conflito")), "n_evidencias": contagem.get(q["id"], 0),
-            "criterios_aceite": [_corte(x, _ITEM_MAX) for x in _lista(q.get("criterios_aceite"))],
+            "criterios_aceite": _textos(q.get("criterios_aceite")),
         } for q in requisitos],
-        "conflitos_abertos": [q["codigo"] for q in requisitos if q.get("conflito") and q["status"] != "rejeitado"],
+        "requisitos_truncados": len(todos) > LIMITE_REQUISITOS,
+        "conflitos_abertos": conflitos,
         "red_flags_criticas": red_flags,
     }

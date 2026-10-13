@@ -82,3 +82,59 @@ def test_rota_de_servico_do_contexto_exige_a_chave(monkeypatch):
     ok = client.get("/discovery/servico/projetos/p1/contexto", headers={"X-Discovery-Key": "chave-teste"})
     assert ok.status_code == 200 and ok.json()["project_id"] == "p1"
     assert client.get("/discovery/servico/projetos/nada/contexto", headers={"X-Discovery-Key": "chave-teste"}).status_code == 404
+
+
+@pytest.mark.parametrize("campo,valor", [
+    ("red_flags", {"a": 1}), ("red_flags", 5), ("red_flags", "texto"),
+    ("red_flags", [None, 3, {"severity": "critical"}]),
+    ("decisoes", {"a": 1}), ("decisoes", 7), ("problemas", 7), ("resumo", ["x"]),
+])
+def test_conteudo_malformado_nao_derruba_o_contexto(campo, valor):
+    c = _montar()
+    store.inserir_reuniao(c, project_id="p1", tipo="outra", ocorrida_em=None, fonte_session_id="ruim",
+                          conteudo_estruturado={campo: valor})
+    ctx = compilar_contexto(c, "p1")
+    assert len(ctx["reunioes"]) == 2
+    assert ctx["red_flags_criticas"] == ["ERP sem API"]
+
+
+def test_corte_de_requisitos_preserva_rejeitados_mesmo_com_codigos_altos():
+    c = FakeClient({"projects": [{"id": "p1", "subarea": "dados"}]})
+    base = {"project_id": "p1", "titulo": "t", "tipo": "funcional", "prioridade_sugerida": "should",
+            "criterios_aceite": [], "conflito": False}
+    for i in range(250):
+        rej = i >= 240
+        store.inserir_requisito(c, base | {"codigo": f"RQ-{i:04d}", "status": "rejeitado" if rej else "proposto",
+                                           "motivo_decisao": "x" if rej else None})
+    ctx = compilar_contexto(c, "p1")
+    assert len(ctx["requisitos"]) == LIMITE_REQUISITOS and ctx["requisitos_truncados"] is True
+    assert sum(q["status"] == "rejeitado" for q in ctx["requisitos"]) == 10
+
+
+def test_conflitos_abertos_calculados_antes_do_corte():
+    c = FakeClient({"projects": [{"id": "p1", "subarea": "dados"}]})
+    base = {"project_id": "p1", "titulo": "t", "tipo": "funcional", "prioridade_sugerida": "should", "criterios_aceite": []}
+    for i in range(LIMITE_REQUISITOS + 20):
+        store.inserir_requisito(c, base | {"codigo": f"RQ-{i:04d}", "status": "proposto", "conflito": True})
+    assert len(compilar_contexto(c, "p1")["conflitos_abertos"]) == LIMITE_REQUISITOS + 20
+
+
+def test_teto_de_red_flags_prefere_as_reunioes_mais_recentes():
+    from services.discovery_contexto import LIMITE_RED_FLAGS
+    c = FakeClient({"projects": [{"id": "p1", "subarea": "dados"}]})
+    for n, rotulo in enumerate(["antiga", "nova"]):
+        store.inserir_reuniao(c, project_id="p1", tipo="outra", ocorrida_em=f"2026-01-0{n + 1}T00:00:00+00:00",
+                              fonte_session_id=f"s{n}", conteudo_estruturado={
+                                  "red_flags": [{"text": f"{rotulo}{i}", "severity": "critical"} for i in range(LIMITE_RED_FLAGS)]})
+    flags = compilar_contexto(c, "p1")["red_flags_criticas"]
+    assert len(flags) == LIMITE_RED_FLAGS and all(f.startswith("nova") for f in flags)
+
+
+def test_rota_do_contexto_sem_chave_configurada_da_503_e_sem_header_da_401(monkeypatch):
+    from main import app
+    monkeypatch.setattr("routers.discovery_ingest.get_client", lambda: _montar())
+    client = TestClient(app)
+    monkeypatch.delenv("DOCUDATA_DISCOVERY_KEY", raising=False)
+    assert client.get("/discovery/servico/projetos/p1/contexto", headers={"X-Discovery-Key": "x"}).status_code == 503
+    monkeypatch.setenv("DOCUDATA_DISCOVERY_KEY", "chave-teste")
+    assert client.get("/discovery/servico/projetos/p1/contexto").status_code == 401
