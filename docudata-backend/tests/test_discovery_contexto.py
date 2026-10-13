@@ -138,3 +138,22 @@ def test_rota_do_contexto_sem_chave_configurada_da_503_e_sem_header_da_401(monke
     assert client.get("/discovery/servico/projetos/p1/contexto", headers={"X-Discovery-Key": "x"}).status_code == 503
     monkeypatch.setenv("DOCUDATA_DISCOVERY_KEY", "chave-teste")
     assert client.get("/discovery/servico/projetos/p1/contexto").status_code == 401
+
+
+def test_areas_cobertas_aceita_lista_limita_e_ignora_tipo_errado():
+    c = FakeClient({"projects": [{"id": "p1", "subarea": "dados"}]})
+    lista = [{"area": f"a{i}", "status": "s" * 500, "score": 0.5} for i in range(50)] + ["lixo", {"area": 3}]
+    for fonte, areas in (("sessao-0001", lista), ("sessao-0002", "texto"), ("sessao-0003", {"x": "nao-dict", "y": {"score": "alto"}})):
+        store.inserir_reuniao(c, project_id="p1", tipo="outra", ocorrida_em=None, fonte_session_id=fonte,
+                              conteudo_estruturado={"areas_cobertas": areas, "contexto_pre_reuniao": 5})
+    r = compilar_contexto(c, "p1")["reunioes"]
+    assert len(r[0]["areas_cobertas"]) == 20 and len(r[0]["areas_cobertas"][0]["status"]) <= 100
+    assert r[1]["areas_cobertas"] == [] and r[1]["resumo"] == ""
+    assert r[2]["areas_cobertas"] == [{"area": "y", "status": None, "score": None}]
+
+
+def test_resumo_vazio_cai_para_contexto_pre_reuniao_com_teto():
+    c = FakeClient({"projects": [{"id": "p1", "subarea": "dados"}]})
+    store.inserir_reuniao(c, project_id="p1", tipo="outra", ocorrida_em=None, fonte_session_id="sessao-0001",
+                          conteudo_estruturado={"resumo": "  ", "contexto_pre_reuniao": "c" * 2000})
+    assert len(compilar_contexto(c, "p1")["reunioes"][0]["resumo"]) == 800

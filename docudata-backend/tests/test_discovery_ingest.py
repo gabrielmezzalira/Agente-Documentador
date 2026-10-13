@@ -225,3 +225,43 @@ def test_reenvio_com_transcricao_gigante_continua_413(servico):
     grande = "a" * (2 * 1024 * 1024 + 1)
     assert client.post("/discovery/reunioes", json=_corpo(transcricao=grande), headers=H).status_code == 413
     assert analises == []
+
+
+# ---- contrato com o Agente Diagnóstico (formato literal de montar_pacote, discovery_export.py) ----
+SENTINELA = "FRASE-SO-NA-TRANSCRICAO-777"
+
+
+def _pacote_do_agente() -> dict:
+    return {
+        "docudata_project_id": "p1",
+        "fonte_session_id": "sessao-agente-01",
+        "tipo": "outra",
+        "ocorrida_em": "2026-10-01T14:00:00+00:00",
+        "conteudo_estruturado": {
+            "origem": "agente_diagnostico",
+            "contexto_pre_reuniao": "Cliente de logística quer painel de entregas atrasadas.",
+            "areas_cobertas": {
+                "negocio": {"status": "covered", "score": 0.8, "notes": "dor clara"},
+                "eng_dados": {"status": "partial", "score": 0.4, "notes": "ERP sem API"},
+            },
+            "red_flags": [{"text": "ERP sem API", "severity": "critical", "evidence": "x", "lens": "dados"}],
+            "perguntas": [{"text": "Quantas fontes?", "block": "eng_dados", "lens": "dados", "status": "used"}],
+            "transcricao_truncada": False,
+        },
+        "transcricao": f"Marina: {SENTINELA}",
+    }
+
+
+def test_contexto_de_reuniao_do_agente_tem_resumo_e_areas_sem_transcricao(servico):
+    import json
+
+    from services.discovery_contexto import compilar_contexto
+    client, fake, _ = servico
+    assert client.post("/discovery/reunioes", json=_pacote_do_agente(), headers=H).status_code == 202
+    ctx = compilar_contexto(fake, "p1")
+    reuniao = ctx["reunioes"][0]
+    assert reuniao["resumo"] == "Cliente de logística quer painel de entregas atrasadas."
+    areas = {a["area"]: a for a in reuniao["areas_cobertas"]}
+    assert areas["eng_dados"] == {"area": "eng_dados", "status": "partial", "score": 0.4}
+    assert ctx["red_flags_criticas"] == ["ERP sem API"]
+    assert SENTINELA not in json.dumps(ctx, default=str)
