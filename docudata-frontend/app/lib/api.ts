@@ -2,9 +2,9 @@
 // o backend (ver `rewrites()` em next.config.ts). Chamar o backend direto
 // (domínio diferente) faria do cookie de sessão um cookie de terceiro, que o
 // Safari — desktop e iOS — bloqueia por padrão desde 2020.
-const API = "/api";
+export const API = "/api";
 
-function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   return globalThis.fetch(input, { ...init, credentials: "include" }).then((res) => {
     // Sessão expira em 8h. Sem isso, a aba continua parecendo logada (o badge
     // de usuário vem do estado carregado na abertura da página) e toda ação
@@ -176,7 +176,7 @@ export interface Project {
   wip_config?: { por_pessoa?: number | null; por_coluna_em_andamento?: number | null } | null;
 }
 
-export type Subarea = "dados" | "dev";
+export type Subarea = "dados" | "dev" | "produto";
 
 export interface GeminiApiKeyStatus {
   configured: boolean;

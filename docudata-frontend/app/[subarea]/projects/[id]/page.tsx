@@ -60,6 +60,10 @@ import {
   type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
+import RequisitosTab from "../../../components/discovery/RequisitosTab";
+import ReunioesTab from "../../../components/discovery/ReunioesTab";
+import EncaminharModal from "../../../components/discovery/EncaminharModal";
+import { Button as DsButton } from "../../../components/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
 import DocTypeCard from "../../../components/DocTypeCard";
@@ -72,7 +76,7 @@ import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types
 // Métricas (recharts) e os seis modais pesavam no First Load de quem só
 // queria olhar a lista de sprints.
 const placeholderCarregando = (
-  <div style={{ padding: "24px 2px", fontSize: 13, color: "#8a8a95" }}>Carregando…</div>
+  <div style={{ padding: "24px 2px", fontSize: 13, color: "#8a948e" }}>Carregando…</div>
 );
 const abaCarregando = () => placeholderCarregando;
 // Modal não mostra placeholder: aparece direto quando o chunk chega, em vez
@@ -122,7 +126,7 @@ const GitHubRepositoryPicker = dynamic(
   { loading: semPlaceholder },
 );
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "requisitos" | "reunioes" | "config";
 const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
 
@@ -166,11 +170,11 @@ function OperacionaisSection({
 
   const inputSm: React.CSSProperties = {
     padding: "6px 10px",
-    border: "1px solid #e4e4ea",
+    border: "1px solid rgba(62,224,111,0.2)",
     borderRadius: 7,
     fontSize: 13,
-    color: "#111116",
-    background: "#fff",
+    color: "#f2f5f3",
+    background: "#0d1711",
   };
 
   async function handleAdd(e: React.FormEvent) {
@@ -232,13 +236,13 @@ function OperacionaisSection({
   }
 
   return (
-    <section style={{ background: "#fff", border: "1px solid #e8e8ed", borderRadius: 14, padding: "20px 24px", marginBottom: 16 }}>
+    <section style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 14, padding: "20px 24px", marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: 0 }}>Operacionais</h2>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f2f5f3", margin: 0 }}>Operacionais</h2>
         {!adding && (
           <button
             onClick={() => setAdding(true)}
-            style={{ background: "none", border: "none", fontSize: 12, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+            style={{ background: "none", border: "none", fontSize: 12, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
           >
             + Adicionar
           </button>
@@ -246,25 +250,25 @@ function OperacionaisSection({
       </div>
 
       {operacionais.length === 0 && !adding && (
-        <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Nenhum operacional cadastrado.</p>
+        <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>Nenhum operacional cadastrado.</p>
       )}
 
       {operacionais.map((op) => (
         <div key={op.id} style={{
           display: "flex", alignItems: "center", gap: 10,
-          padding: "8px 0", borderBottom: "1px solid #f0f0f4",
+          padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)",
           opacity: op.ativo ? 1 : 0.5,
         }}>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#111116" }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f2f5f3" }}>
             {op.nome}
-            {op.papel && <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 8 }}>{op.papel}</span>}
+            {op.papel && <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{op.papel}</span>}
             {op.email
-              ? <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 8 }}>{op.email}</span>
-              : <span style={{ fontWeight: 400, color: "#d97706", marginLeft: 8 }} title="Sem e-mail, esta pessoa não é reconhecida entre projetos">sem e-mail</span>}
+              ? <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{op.email}</span>
+              : <span style={{ fontWeight: 400, color: "#f2c14e", marginLeft: 8 }} title="Sem e-mail, esta pessoa não é reconhecida entre projetos">sem e-mail</span>}
           </span>
           <button
             onClick={() => handleToggleAtivo(op)}
-            style={{ background: "none", border: "none", fontSize: 11, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+            style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
           >
             {op.ativo ? "Desativar" : "Ativar"}
           </button>
@@ -272,7 +276,7 @@ function OperacionaisSection({
             <button
               onClick={() => handleRemover(op)}
               title="Sai do projeto, mas mantém a pontuação dele no acompanhamento"
-              style={{ background: "none", border: "none", fontSize: 11, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+              style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
             >
               Remover do projeto
             </button>
@@ -280,7 +284,7 @@ function OperacionaisSection({
           <button
             onClick={() => handleDelete(op)}
             title="Apaga a pessoa e toda a pontuação dela. Irreversível."
-            style={{ background: "none", border: "none", fontSize: 11, color: "#dc2626", cursor: "pointer", padding: 0 }}
+            style={{ background: "none", border: "none", fontSize: 11, color: "#ff6b6b", cursor: "pointer", padding: 0 }}
           >
             ×
           </button>
@@ -290,11 +294,11 @@ function OperacionaisSection({
       {adding && (
         <div style={{ marginTop: 12 }}>
           {disponiveis.length > 0 && (
-            <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#0369a1", margin: "0 0 6px" }}>
+            <div style={{ background: "rgba(177,151,252,0.10)", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#b197fc", margin: "0 0 6px" }}>
                 Já trabalha em outro projeto?
               </p>
-              <p style={{ fontSize: 11, color: "#0c4a6e", margin: "0 0 8px" }}>
+              <p style={{ fontSize: 11, color: "#b197fc", margin: "0 0 8px" }}>
                 Selecione a pessoa para reaproveitar o cadastro. Redigitar com e-mail
                 diferente faz ela contar como duas pessoas no acompanhamento.
               </p>
@@ -304,7 +308,7 @@ function OperacionaisSection({
                     key={pessoa.email || pessoa.nome}
                     type="button"
                     onClick={() => preencherCom(pessoa)}
-                    style={{ background: "#fff", border: "1px solid #bae6fd", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "#0369a1", fontWeight: 600 }}
+                    style={{ background: "#0d1711", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "#b197fc", fontWeight: 600 }}
                     title={pessoa.projetos.join(", ")}
                   >
                     {pessoa.nome}
@@ -316,35 +320,35 @@ function OperacionaisSection({
 
           <form onSubmit={handleAdd} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Nome *</label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 3 }}>Nome *</label>
               <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João Silva" style={{ ...inputSm, width: 180 }} required />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>E-mail</label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 3 }}>E-mail</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="joao@citi.com" style={{ ...inputSm, width: 190 }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Papel</label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 3 }}>Papel</label>
               <input value={papel} onChange={(e) => setPapel(e.target.value)} placeholder="Front, Back, DS…" style={{ ...inputSm, width: 140 }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>GitHub username</label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 3 }}>GitHub username</label>
               <input value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} placeholder="ex: joaosilva" style={{ ...inputSm, width: 140 }} />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 3 }}>Email do GitHub</label>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 3 }}>Email do GitHub</label>
               <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} placeholder="se for diferente do e-mail" style={{ ...inputSm, width: 170 }} />
             </div>
-            <button type="submit" disabled={saving} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <button type="submit" disabled={saving} style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {saving ? "…" : "Salvar"}
             </button>
-            <button type="button" onClick={() => { setAdding(false); limparForm(); setErr(""); }} style={{ background: "none", border: "1px solid #e4e4ea", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+            <button type="button" onClick={() => { setAdding(false); limparForm(); setErr(""); }} style={{ background: "none", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#c3cbc6" }}>
               Cancelar
             </button>
-            {err && <span style={{ fontSize: 12, color: "#dc2626" }}>{err}</span>}
+            {err && <span style={{ fontSize: 12, color: "#ff6b6b" }}>{err}</span>}
           </form>
 
-          <p style={{ fontSize: 11, color: "#9696a0", marginTop: 8 }}>
+          <p style={{ fontSize: 11, color: "#8a948e", marginTop: 8 }}>
             E-mail e GitHub username não são obrigatórios, mas sem eles a pessoa não é
             reconhecida entre projetos e os commits dela não contam na nota de qualidade.
             O email do commit é o que o Git usa localmente — se for diferente do e-mail
@@ -406,28 +410,28 @@ function MigrarModoModal({
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
     }}>
       <div style={{
-        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
         width: "100%", maxWidth: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 12px" }}>
           Migrar para {para === "PULL" ? "Puxada (pull)" : "Atribuição"}
         </h3>
-        <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 16px", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 16px", lineHeight: 1.5 }}>
           O modo de avaliação da Entrega também muda junto, para{" "}
           <strong>{derivarModoAvaliacaoLabel(para)}</strong>.
         </p>
 
         {loadingPreview ? (
-          <p style={{ fontSize: 13, color: "#9696a0" }}>Calculando impacto...</p>
+          <p style={{ fontSize: 13, color: "#8a948e" }}>Calculando impacto...</p>
         ) : preview ? (
-          <ul style={{ fontSize: 13, color: "#374151", lineHeight: 1.8, margin: "0 0 20px", paddingLeft: 20 }}>
+          <ul style={{ fontSize: 13, color: "#c3cbc6", lineHeight: 1.8, margin: "0 0 20px", paddingLeft: 20 }}>
             <li>{preview.entrando_na_fila} task(s) entrando na fila de puxar</li>
             <li>{preview.mantem_responsavel} task(s) mantêm o responsável atual</li>
             <li>{preview.sem_alteracao} task(s) sem alteração</li>
           </ul>
         ) : null}
 
-        {err && <p style={{ fontSize: 12, color: "#dc2626", marginBottom: 12 }}>{err}</p>}
+        {err && <p style={{ fontSize: 12, color: "#ff6b6b", marginBottom: 12 }}>{err}</p>}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} disabled={confirmando} style={btnSecondary}>
@@ -523,7 +527,7 @@ function ModosTrabalhoSection({
   return (
     <section style={sectionStyle}>
       <h2 style={sectionTitle}>Modos de Trabalho e de Avaliação</h2>
-      <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 13, color: "#8a948e", marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
         Define como as tasks chegam ao operacional (atribuição direta ou fila de puxada) e
         qual fórmula calcula a dimensão Entrega da pontuação. Trocar o modo de trabalho migra
         as tasks existentes — veja o impacto antes de confirmar.
@@ -531,7 +535,7 @@ function ModosTrabalhoSection({
 
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <label htmlFor="project-modo-trabalho" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+          <label htmlFor="project-modo-trabalho" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 4 }}>
             Modo de trabalho
           </label>
           <select
@@ -539,7 +543,7 @@ function ModosTrabalhoSection({
             value={modoTrabalho}
             onChange={(e) => setMigrandoPara(e.target.value as ModoTrabalho)}
             disabled={savingModos}
-            style={{ ...inputStyle, width: 180, minHeight: 38, background: "#fff", cursor: "pointer" }}
+            style={{ ...inputStyle, width: 180, minHeight: 38, background: "#0d1711", cursor: "pointer" }}
           >
             <option value="ATRIBUICAO">Atribuição</option>
             <option value="PULL">Puxada (pull)</option>
@@ -547,10 +551,10 @@ function ModosTrabalhoSection({
         </div>
 
         <div>
-          <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+          <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 4 }}>
             Modo de avaliação da Entrega
           </span>
-          <div style={{ ...inputStyle, width: 200, minHeight: 38, display: "flex", alignItems: "center", background: "#f7f7fa", color: "#374151" }}>
+          <div style={{ ...inputStyle, width: 200, minHeight: 38, display: "flex", alignItems: "center", background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }}>
             {derivarModoAvaliacaoLabel(modoTrabalho)}
           </div>
         </div>
@@ -573,7 +577,7 @@ function ModosTrabalhoSection({
       {modoAvaliacao === "PONTOS_RELATIVO" && (
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
           <div>
-            <label htmlFor="project-pull-piso" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+            <label htmlFor="project-pull-piso" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 4 }}>
               Piso mínimo (pontos)
             </label>
             <input
@@ -588,7 +592,7 @@ function ModosTrabalhoSection({
             />
           </div>
           <div>
-            <label htmlFor="project-pull-teto" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+            <label htmlFor="project-pull-teto" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 4 }}>
               Teto do bônus (múltiplo da média)
             </label>
             <input
@@ -602,7 +606,7 @@ function ModosTrabalhoSection({
               style={{ ...inputStyle, width: 110 }}
             />
           </div>
-          <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, maxWidth: 320, alignSelf: "center" }}>
+          <p style={{ fontSize: 11, color: "#8a948e", margin: 0, maxWidth: 320, alignSelf: "center" }}>
             Padrão 1 e 1,5. Com denominador em pontos, o piso 1 tende a ficar baixo — recalibre depois da primeira sprint real.
           </p>
         </div>
@@ -618,20 +622,20 @@ function ModosTrabalhoSection({
           {savingModos ? "Salvando..." : "Salvar"}
         </button>
         {modosMsg && (
-          <span style={{ fontSize: 12, color: modosMsg.ok ? "#15803d" : "#b91c1c" }}>{modosMsg.text}</span>
+          <span style={{ fontSize: 12, color: modosMsg.ok ? "#3ee06f" : "#ff6b6b" }}>{modosMsg.text}</span>
         )}
       </div>
 
-      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f0f4" }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: "0 0 6px" }}>Limite de WIP por pessoa</h3>
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#f2f5f3", margin: "0 0 6px" }}>Limite de WIP por pessoa</h3>
         {modoTrabalho === "PULL" ? (
-          <p style={{ fontSize: 12, color: "#6a6a7a", margin: 0 }}>
+          <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
             Fixo em <strong>1</strong> — o modo pull opera com uma task em andamento por pessoa. O limite de WIP da coluna inteira continua editável na aba Tasks.
           </p>
         ) : (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
             <div>
-              <label htmlFor="project-wip-por-pessoa" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9696a0", marginBottom: 4 }}>
+              <label htmlFor="project-wip-por-pessoa" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#8a948e", marginBottom: 4 }}>
                 Limite de WIP por pessoa
               </label>
               <input
@@ -653,21 +657,21 @@ function ModosTrabalhoSection({
             >
               {savingWip ? "Salvando..." : "Salvar"}
             </button>
-            {wipMsg && <span style={{ fontSize: 12, color: wipMsg.ok ? "#15803d" : "#b91c1c" }}>{wipMsg.text}</span>}
+            {wipMsg && <span style={{ fontSize: 12, color: wipMsg.ok ? "#3ee06f" : "#ff6b6b" }}>{wipMsg.text}</span>}
           </div>
         )}
       </div>
 
-      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f0f4" }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: "0 0 10px" }}>Histórico de configuração</h3>
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: "#f2f5f3", margin: "0 0 10px" }}>Histórico de configuração</h3>
         {loadingHistorico ? (
-          <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+          <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
         ) : historico.length === 0 ? (
-          <p style={{ fontSize: 12, color: "#9696a0" }}>Nenhuma troca de modo registrada ainda.</p>
+          <p style={{ fontSize: 12, color: "#8a948e" }}>Nenhuma troca de modo registrada ainda.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {historico.map((h) => (
-              <div key={h.id} style={{ fontSize: 12, color: "#374151" }}>
+              <div key={h.id} style={{ fontSize: 12, color: "#c3cbc6" }}>
                 <strong>{new Date(h.criado_em).toLocaleString("pt-BR")}</strong> — {h.usuario_email} mudou{" "}
                 {h.campo === "modo_trabalho" ? "modo de trabalho" : "modo de avaliação"} de{" "}
                 <em>{h.valor_anterior ?? "—"}</em> para <em>{h.valor_novo}</em>
@@ -696,6 +700,7 @@ export default function ProjectDashboard() {
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
+  const [encaminharAberto, setEncaminharAberto] = useState(false);
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
   const [descOpen, setDescOpen] = useState(false);
@@ -789,7 +794,7 @@ export default function ProjectDashboard() {
 
   useEffect(() => {
     const solicitada = new URLSearchParams(window.location.search).get("tab") as TabId | null;
-    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "config"];
+    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "requisitos", "reunioes", "config"];
     if (solicitada && validas.includes(solicitada)) {
       if (cargo !== "operacional" || OPERACIONAL_TABS.has(solicitada)) setActiveTab(solicitada);
     }
@@ -867,8 +872,9 @@ export default function ProjectDashboard() {
 
   async function handleChangeSubarea() {
     if (!project || !subareaDestino || subareaDestino === project.subarea) return;
-    const origem = project.subarea === "dev" ? "Dev" : "Dados";
-    const destino = subareaDestino === "dev" ? "Dev" : "Dados";
+    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : sub === "produto" ? "Produto" : "Dados");
+    const origem = rotuloSubarea(project.subarea);
+    const destino = rotuloSubarea(subareaDestino);
     const confirmado = confirm(
       `Mover "${project.name}" de ${origem} para ${destino}?\n\n` +
       "Sprints, ingestões, commits, documentos e repositórios conectados serão preservados. " +
@@ -1236,45 +1242,58 @@ export default function ProjectDashboard() {
     );
   }
 
-  if (loading) return <p style={{ padding: 48, color: "#9696a0" }}>Carregando...</p>;
-  if (!project) return <p style={{ padding: 48, color: "#dc2626" }}>Projeto não encontrado.</p>;
+  if (loading) return <p style={{ padding: 48, color: "#8a948e" }}>Carregando...</p>;
+  if (!project) return <p style={{ padding: 48, color: "#ff6b6b" }}>Projeto não encontrado.</p>;
 
   return (
-    <main style={{ maxWidth: 920, margin: "0 auto", padding: "48px 24px" }}>
-      <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
+    <div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
+        <Link href={`/${subarea}`} style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
 
-      {/* HEADER */}
-      <div style={{ marginTop: 24, marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "start", gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", margin: 0 }}>
-            {project.name}
-          </h1>
-          <p style={{ marginTop: 6, fontSize: 14, color: "#9696a0", margin: 0 }}>
-            Cliente: <span style={{ color: "#22c55e", fontWeight: 600 }}>{project.client}</span>
-          </p>
-          {project.description && (
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={() => setDescOpen((v) => !v)}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "#9696a0", display: "flex", alignItems: "center", gap: 4 }}
-              >
-                <span style={{ fontSize: 10 }}>{descOpen ? "▲" : "▼"}</span>
-                {descOpen ? "Ocultar descrição" : "Ver descrição"}
-              </button>
-              {descOpen && (
-                <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5, maxWidth: 560 }}>
-                  {project.description}
-                </p>
+        {/* HEADER */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
+            <h1 style={{ fontSize: 38, lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.03em", color: "#ffffff", margin: 0 }}>
+              {project.name}
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14, color: "#8a948e", flexWrap: "wrap" }}>
+              <span>Cliente <span style={{ color: "#3ee06f", fontWeight: 600 }}>{project.client}</span></span>
+              {project.description && (
+                <>
+                  <span aria-hidden="true" style={{ width: 3, height: 3, borderRadius: "50%", background: "#5d6661" }} />
+                  <button
+                    type="button"
+                    aria-expanded={descOpen}
+                    onClick={() => setDescOpen((v) => !v)}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14, color: "#8a948e", fontFamily: "inherit" }}
+                  >
+                    {descOpen ? "Ocultar descrição ▴" : "Ver descrição ▾"}
+                  </button>
+                </>
               )}
             </div>
-          )}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-          {project.is_delivered && (
-            <span style={{ ...badgeChip, background: "#dcfce7", color: "#16a34a" }}>✓ Entregue</span>
-          )}
+            {descOpen && project.description && (
+              <p style={{ color: "#8a948e", fontSize: 14, lineHeight: 1.6, maxWidth: 640 }}>{project.description}</p>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {project.is_delivered && (
+              <span style={{ ...badgeChip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>✓ Entregue</span>
+            )}
+            {project.subarea === "produto" && (cargo === "owner" || cargo === "lider" || cargo === "gerente") && (
+              <DsButton variant="primary" onClick={() => setEncaminharAberto(true)}>Encaminhar para Dados ou Dev</DsButton>
+            )}
+          </div>
         </div>
       </div>
+      {encaminharAberto && (
+        <EncaminharModal
+          projectId={id}
+          projectName={project.name}
+          onClose={() => setEncaminharAberto(false)}
+          onDone={(destino) => { setEncaminharAberto(false); router.push(`/${destino}/projects/${id}`); }}
+        />
+      )}
 
       <Tabs
         tabs={[
@@ -1284,6 +1303,8 @@ export default function ProjectDashboard() {
           { id: "tasks", label: "Tasks" },
           { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
+          { id: "requisitos", label: "Requisitos" },
+          { id: "reunioes", label: "Reuniões" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
         ].filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
@@ -1294,11 +1315,11 @@ export default function ProjectDashboard() {
       {githubVisible && githubRepositories.every((repo) => !repo.active) && activeTab !== "config" && (
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16,
-          padding: "13px 16px", margin: "-8px 0 18px", border: "1px solid #bfdbfe",
-          borderRadius: 12, background: "#eff6ff", color: "#1e3a8a", fontSize: 13,
+          padding: "13px 16px", margin: "-8px 0 18px", border: "1px solid rgba(177,151,252,0.30)",
+          borderRadius: 12, background: "rgba(177,151,252,0.10)", color: "#b197fc", fontSize: 13,
         }}>
           <span>Conecte os repositórios deste projeto para incorporar automaticamente os commits ao contexto.</span>
-          <button style={{ ...btnSecondary, color: "#1d4ed8", borderColor: "#93c5fd" }} onClick={() => setActiveTab("config")}>
+          <button style={{ ...btnSecondary, color: "#b197fc", borderColor: "rgba(177,151,252,0.30)" }} onClick={() => setActiveTab("config")}>
             Configurar
           </button>
         </div>
@@ -1330,14 +1351,14 @@ export default function ProjectDashboard() {
               <h2 style={{
                 fontSize: 22,
                 fontWeight: 800,
-                color: "#0f172a",
+                color: "#f2f5f3",
                 letterSpacing: "-0.02em",
                 margin: 0,
               }}>
                 Sprints
                 <span style={{
                   fontSize: 14,
-                  color: "#94a3b8",
+                  color: "#8a948e",
                   fontWeight: 600,
                   marginLeft: 10,
                 }}>
@@ -1345,7 +1366,7 @@ export default function ProjectDashboard() {
                   {totalPendencias > 0 && ` · ${totalPendencias} pendência${totalPendencias === 1 ? "" : "s"}`}
                 </span>
               </h2>
-              <p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
+              <p style={{ color: "#8a948e", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
                 Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips coloridos pra registrar, ou use os botões pra gerar docs derivadas.
               </p>
             </div>
@@ -1362,22 +1383,22 @@ export default function ProjectDashboard() {
                   marginBottom: planejadasAbertas ? 10 : 0,
                 }}
               >
-                <span style={{ fontSize: 11, color: "#9696a0", transform: planejadasAbertas ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#9696a0", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <span style={{ fontSize: 11, color: "#8a948e", transform: planejadasAbertas ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   Planejadas, ainda não iniciadas
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#4338ca", background: "#eef2ff", borderRadius: 999, padding: "1px 8px" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#b197fc", background: "rgba(177,151,252,0.10)", borderRadius: 999, padding: "1px 8px" }}>
                   {sprints.filter((s) => !s.iniciada).length}
                 </span>
               </button>
               {planejadasAbertas && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {sprints.filter((s) => !s.iniciada).map((s) => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f0f0f4" }}>
-                    <span style={{ fontSize: 13, color: "#374151" }}>
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={{ fontSize: 13, color: "#c3cbc6" }}>
                       Sprint {s.numero}
                       {s.pontos_orcamento != null && (
-                        <span style={{ color: "#9696a0", marginLeft: 8 }}>{s.pontos_orcamento} pts orçados</span>
+                        <span style={{ color: "#8a948e", marginLeft: 8 }}>{s.pontos_orcamento} pts orçados</span>
                       )}
                     </span>
                     <button
@@ -1385,7 +1406,7 @@ export default function ProjectDashboard() {
                         const atualizado = await iniciarSprint(s.id);
                         setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
                       }}
-                      style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                     >
                       Iniciar sprint
                     </button>
@@ -1398,7 +1419,7 @@ export default function ProjectDashboard() {
 
           {sprints.filter((s) => s.iniciada).length === 0 ? (
             <section style={sectionStyle}>
-              <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
+              <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
                 Nenhuma sprint iniciada. Clique em <strong>Iniciar próxima sprint</strong> pra começar, ou
                 inicie uma das sprints planejadas acima.
               </p>
@@ -1465,20 +1486,22 @@ export default function ProjectDashboard() {
 
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
+      {activeTab === "requisitos" && <RequisitosTab projectId={id} cargo={cargo} />}
+      {activeTab === "reunioes" && <ReunioesTab projectId={id} cargo={cargo} />}
 
       {/* ABA: DOCUMENTOS */}
       {activeTab === "documentos" && (
         <>
           {/* Sub-tabs */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#f7f7fa", borderRadius: 10, padding: 4, width: "fit-content" }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "rgba(62,224,111,0.055)", borderRadius: 10, padding: 4, width: "fit-content" }}>
             {(["cross_sprint", "por_sprint"] as const).map((sub) => (
               <button
                 key={sub}
                 onClick={() => setDocSubTab(sub)}
                 style={{
-                  background: docSubTab === sub ? "#fff" : "transparent",
-                  color: docSubTab === sub ? "#0f172a" : "#6a6a7a",
-                  border: docSubTab === sub ? "1px solid #e4e4ea" : "1px solid transparent",
+                  background: docSubTab === sub ? "#0d1711" : "transparent",
+                  color: docSubTab === sub ? "#f2f5f3" : "#8a948e",
+                  border: docSubTab === sub ? "1px solid rgba(62,224,111,0.2)" : "1px solid transparent",
                   borderRadius: 7,
                   padding: "6px 14px",
                   fontSize: 13,
@@ -1505,11 +1528,11 @@ export default function ProjectDashboard() {
                 { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA — cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
                 { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada. O link abre diretamente no navegador." },
               ]} />
-              <p style={{ fontSize: 13, color: "#6a6a7a", margin: "0 0 14px", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 14px", lineHeight: 1.5 }}>
                 Documentos que olham o projeto como um todo.
               </p>
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#b8b8c0" }}>(opcional)</span></label>
+                <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#5d6661" }}>(opcional)</span></label>
                 <textarea
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
@@ -1535,14 +1558,14 @@ export default function ProjectDashboard() {
                 <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
                   + Adicionar documento manual
                 </button>
-                <span style={{ marginLeft: 10, fontSize: 12, color: "#9696a0" }}>Sem custo de IA.</span>
+                <span style={{ marginLeft: 10, fontSize: 12, color: "#8a948e" }}>Sem custo de IA.</span>
               </div>
-              {generating && <p style={{ color: "#9696a0", fontSize: 14 }}>Gerando documento com IA...</p>}
-              {generateError && <p style={{ color: "#dc2626", fontSize: 14 }}>{generateError}</p>}
+              {generating && <p style={{ color: "#8a948e", fontSize: 14 }}>Gerando documento com IA...</p>}
+              {generateError && <p style={{ color: "#ff6b6b", fontSize: 14 }}>{generateError}</p>}
               {generatedDoc && (
                 <div style={{ marginTop: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: "#9696a0" }}>
+                    <span style={{ fontSize: 13, color: "#8a948e" }}>
                       {docTypeLabel(generatedDoc.doc_type)}
                       {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
                     </span>
@@ -1559,9 +1582,9 @@ export default function ProjectDashboard() {
                 return (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8" }}>Histórico</span>
-                      <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
-                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{crossSprintDocs.length} {crossSprintDocs.length === 1 ? "doc" : "docs"}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#8a948e" }}>Histórico</span>
+                      <div style={{ flex: 1, height: 1, background: "rgba(62,224,111,0.055)" }} />
+                      <span style={{ fontSize: 12, color: "#8a948e" }}>{crossSprintDocs.length} {crossSprintDocs.length === 1 ? "doc" : "docs"}</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {crossSprintDocs.map((doc) => renderDocRow(doc))}
@@ -1583,7 +1606,7 @@ export default function ProjectDashboard() {
               ]} />
               {docs.filter((d) => d.sprint_number != null).length === 0 ? (
                 <section style={sectionStyle}>
-                  <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>
+                  <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
                     Nenhum documento por sprint ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva) ou aqui em <strong>Por sprint</strong>.
                   </p>
                 </section>
@@ -1598,7 +1621,7 @@ export default function ProjectDashboard() {
                         fontWeight: 700,
                         letterSpacing: "0.06em",
                         textTransform: "uppercase",
-                        color: "#64748b",
+                        color: "#8a948e",
                         margin: 0,
                         marginBottom: 12,
                       }}>
@@ -1606,9 +1629,9 @@ export default function ProjectDashboard() {
                         <span style={{
                           fontSize: 11,
                           fontWeight: 700,
-                          color: "#16a34a",
+                          color: "#3ee06f",
                           marginLeft: 8,
-                          background: "#dcfce7",
+                          background: "rgba(62,224,111,0.12)",
                           borderRadius: 4,
                           padding: "2px 7px",
                         }}>
@@ -1632,11 +1655,11 @@ export default function ProjectDashboard() {
       {activeTab === "config" && (
         <>
           {githubVisible && (
-            <section style={{ ...sectionStyle, borderColor: "#c7d2fe" }}>
+            <section style={{ ...sectionStyle, borderColor: "rgba(177,151,252,0.30)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 320px" }}>
-                  <h2 style={{ ...sectionTitle, color: "#4338ca", marginBottom: 6 }}>Repositórios GitHub</h2>
-                  <p style={{ fontSize: 13, color: "#64748b", margin: 0, lineHeight: 1.5 }}>
+                  <h2 style={{ ...sectionTitle, color: "#b197fc", marginBottom: 6 }}>Repositórios GitHub</h2>
+                  <p style={{ fontSize: 13, color: "#8a948e", margin: 0, lineHeight: 1.5 }}>
                     Os commits de todos os repositórios conectados alimentam automaticamente o contexto deste projeto.
                   </p>
                 </div>
@@ -1650,26 +1673,26 @@ export default function ProjectDashboard() {
               </div>
 
               {githubError && (
-                <p role="alert" style={{ padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13 }}>
+                <p role="alert" style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", fontSize: 13 }}>
                   {githubError}
                 </p>
               )}
 
               {githubRepositories.length === 0 ? (
                 <div style={{ padding: "18px 0 4px", textAlign: "center" }}>
-                  <strong style={{ display: "block", color: "#334155", fontSize: 14 }}>Nenhum repositório conectado</strong>
-                  <span style={{ color: "#94a3b8", fontSize: 12 }}>Escolha somente os repositórios que fazem parte deste projeto.</span>
+                  <strong style={{ display: "block", color: "#c3cbc6", fontSize: 14 }}>Nenhum repositório conectado</strong>
+                  <span style={{ color: "#8a948e", fontSize: 12 }}>Escolha somente os repositórios que fazem parte deste projeto.</span>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {githubRepositories.map((repo) => (
-                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 9, flexWrap: "wrap" }}>
+                    <div key={repo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "11px 12px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 9, flexWrap: "wrap" }}>
                       <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#3730a3", fontWeight: 700, fontSize: 13, textDecoration: "none", overflowWrap: "anywhere" }}>{repo.full_name}</a>
-                        <span style={{ display: "block", marginTop: 3, color: "#94a3b8", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
+                        <a href={repo.html_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#b197fc", fontWeight: 700, fontSize: 13, textDecoration: "none", overflowWrap: "anywhere" }}>{repo.full_name}</a>
+                        <span style={{ display: "block", marginTop: 3, color: "#8a948e", fontSize: 12 }}>{repo.default_branch ?? "branch padrão não informada"}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-                        <span style={{ ...badgeChip, background: repo.active ? "#dcfce7" : "#fef2f2", color: repo.active ? "#15803d" : "#b91c1c" }}>
+                        <span style={{ ...badgeChip, background: repo.active ? "rgba(62,224,111,0.12)" : "rgba(255,107,107,0.10)", color: repo.active ? "#3ee06f" : "#ff6b6b" }}>
                           {repo.active ? "✓ Ativo" : repo.permission_status === "disconnected" ? "Desconectado" : "Permissão revogada"}
                         </span>
                         {repo.active ? (
@@ -1708,16 +1731,16 @@ export default function ProjectDashboard() {
 
           <section style={sectionStyle}>
             <h2 style={sectionTitle}>Lembretes por email</h2>
-            <p style={{ fontSize: 13, color: "#6a6a7a", marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: "#8a948e", marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
               O DocuData envia lembretes automáticos quando a sprint não tem planning (após 24h), review (após 5 dias) ou retrospectiva (após 7 dias).
             </p>
             {project.gerente_email ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>✓ {project.gerente_email}</span>
+                  <span style={{ fontSize: 13, color: "#3ee06f", fontWeight: 600 }}>✓ {project.gerente_email}</span>
                   <button
                     onClick={() => { setEmailInput(""); handleSaveEmail({ preventDefault: () => {} } as React.FormEvent); }}
-                    style={{ background: "none", border: "none", fontSize: 12, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                    style={{ background: "none", border: "none", fontSize: 12, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
                   >
                     Remover
                   </button>
@@ -1750,7 +1773,7 @@ export default function ProjectDashboard() {
                 </button>
               </form>
             )}
-            {emailMsg && <p style={{ marginTop: 10, fontSize: 13, color: emailMsg.ok ? "#16a34a" : "#dc2626" }}>{emailMsg.text}</p>}
+            {emailMsg && <p style={{ marginTop: 10, fontSize: 13, color: emailMsg.ok ? "#3ee06f" : "#ff6b6b" }}>{emailMsg.text}</p>}
           </section>
 
           <section style={sectionStyle}>
@@ -1776,55 +1799,61 @@ export default function ProjectDashboard() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 220px" }}>
                 <h2 style={{ ...sectionTitle, marginBottom: 3 }}>Subárea</h2>
-                <span style={{ fontSize: 12, color: "#64748b" }}>
+                <span style={{ fontSize: 12, color: "#8a948e" }}>
                   Altera a lista e o destino das próximas exportações.
                 </span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
-                <label
-                  htmlFor="project-subarea"
-                  style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
-                >
-                  Subárea do projeto
-                </label>
-                <select
-                  id="project-subarea"
-                  value={subareaDestino ?? project.subarea}
-                  onChange={(event) => {
-                    setSubareaDestino(event.target.value as Subarea);
-                    setSubareaMsg(null);
-                  }}
-                  disabled={savingSubarea}
-                  style={{ ...inputStyle, width: 130, minHeight: 38, background: "#fff", cursor: "pointer" }}
-                >
-                  <option value="dados">Dados</option>
-                  <option value="dev">Dev</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={handleChangeSubarea}
-                  disabled={savingSubarea || !subareaDestino || subareaDestino === project.subarea}
-                  style={{
-                    ...btnSecondary,
-                    minHeight: 38,
-                    opacity: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? 0.5 : 1,
-                    cursor: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {savingSubarea ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
+              {project.subarea === "produto" ? (
+                <span style={{ fontSize: 12.5, color: "#8a948e", maxWidth: 360 }}>
+                  Projetos de Produto saem da subárea pelo botão &quot;Encaminhar para Dados ou Dev&quot;, no topo da página.
+                </span>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
+                  <label
+                    htmlFor="project-subarea"
+                    style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
+                  >
+                    Subárea do projeto
+                  </label>
+                  <select
+                    id="project-subarea"
+                    value={subareaDestino ?? project.subarea}
+                    onChange={(event) => {
+                      setSubareaDestino(event.target.value as Subarea);
+                      setSubareaMsg(null);
+                    }}
+                    disabled={savingSubarea}
+                    style={{ ...inputStyle, width: 130, minHeight: 38, background: "#0d1711", cursor: "pointer" }}
+                  >
+                    <option value="dados">Dados</option>
+                    <option value="dev">Dev</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleChangeSubarea}
+                    disabled={savingSubarea || !subareaDestino || subareaDestino === project.subarea}
+                    style={{
+                      ...btnSecondary,
+                      minHeight: 38,
+                      opacity: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? 0.5 : 1,
+                      cursor: savingSubarea || !subareaDestino || subareaDestino === project.subarea ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {savingSubarea ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              )}
             </div>
             {subareaMsg && (
-              <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#15803d" : "#b91c1c", fontSize: 12 }}>
+              <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#3ee06f" : "#ff6b6b", fontSize: 12 }}>
                 {subareaMsg.text}
               </p>
             )}
           </section>
 
-          <section style={{ ...sectionStyle, borderColor: "#fecaca" }}>
-            <h2 style={{ ...sectionTitle, color: "#dc2626" }}>Zona perigosa</h2>
-            <p style={{ fontSize: 13, color: "#6a6a7a", marginBottom: 14 }}>
+          <section style={{ ...sectionStyle, borderColor: "rgba(255,107,107,0.30)" }}>
+            <h2 style={{ ...sectionTitle, color: "#ff6b6b" }}>Zona perigosa</h2>
+            <p style={{ fontSize: 13, color: "#8a948e", marginBottom: 14 }}>
               Excluir o projeto remove todas as ingestões, sprints e documentos. Esta ação é irreversível.
             </p>
             <button onClick={handleDeleteProject} style={btnDanger}>Excluir projeto</button>
@@ -1993,15 +2022,15 @@ export default function ProjectDashboard() {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }
 
 // ---------- styles ----------
 
 const sectionStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 14,
   padding: "20px 22px",
   marginBottom: 14,
@@ -2012,31 +2041,31 @@ const sectionTitle: React.CSSProperties = {
   letterSpacing: "0.1em",
   textTransform: "uppercase",
   marginBottom: 16,
-  color: "#9696a0",
+  color: "#8a948e",
 };
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 11,
   fontWeight: 700,
   marginBottom: 6,
-  color: "#6a6a7a",
+  color: "#8a948e",
   letterSpacing: "0.06em",
   textTransform: "uppercase",
 };
 const inputStyle: React.CSSProperties = {
   padding: "9px 12px",
-  background: "#ffffff",
-  border: "1px solid #e4e4ea",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   fontSize: 14,
   width: "100%",
   outline: "none",
-  color: "#111116",
+  color: "#f2f5f3",
   boxSizing: "border-box",
 };
 const btnPrimary: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#0a0a0a",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 8,
   padding: "9px 18px",
@@ -2086,9 +2115,9 @@ function DocRow({
     <div style={ingestionCard}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{docTypeLabel(doc.doc_type)}</span>
+          <span style={{ fontWeight: 600, fontSize: 14, color: "#f2f5f3" }}>{docTypeLabel(doc.doc_type)}</span>
           {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
-          <span style={{ color: "#94a3b8", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
+          <span style={{ color: "#8a948e", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button
@@ -2128,22 +2157,22 @@ function DocRow({
           <button onClick={() => { if (confirm("Excluir este documento?")) onDelete(doc.id); }} style={{ ...btnDng, fontSize: 12, padding: "6px 12px" }}>
             Excluir
           </button>
-          {exportError[doc.id] && <span style={{ fontSize: 11, color: "#dc2626" }}>{exportError[doc.id]}</span>}
+          {exportError[doc.id] && <span style={{ fontSize: 11, color: "#ff6b6b" }}>{exportError[doc.id]}</span>}
         </div>
       </div>
       {movingDoc && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
-          <span style={{ fontSize: 13, color: "#64748b" }}>Mover para sprint:</span>
+          <span style={{ fontSize: 13, color: "#8a948e" }}>Mover para sprint:</span>
           <input
             type="number"
             min={1}
             value={moveToSprint}
             onChange={(e) => setMoveToSprint(e.target.value)}
-            style={{ width: 70, padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13 }}
+            style={{ width: 70, padding: "5px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, fontSize: 13 }}
             autoFocus
           />
           <button
-            style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+            style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
             onClick={() => { const n = parseInt(moveToSprint); if (!isNaN(n) && n > 0) { onMove(doc.id, n); setMovingDoc(false); } }}
           >
             Confirmar
@@ -2157,7 +2186,7 @@ function DocRow({
             style={{
               width: "100%",
               minHeight: 260,
-              border: "1px solid #e2e8f0",
+              border: "1px solid rgba(62,224,111,0.2)",
               borderRadius: 8,
               padding: "12px 14px",
               fontSize: 13,
@@ -2171,10 +2200,10 @@ function DocRow({
             disabled={saving}
             autoFocus
           />
-          {editErr && <p style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{editErr}</p>}
+          {editErr && <p style={{ color: "#ff6b6b", fontSize: 12, marginTop: 6 }}>{editErr}</p>}
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             <button
-              style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "#dcfce7", color: "#15803d", borderColor: "#86efac", opacity: saving ? 0.6 : 1 }}
+              style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)", opacity: saving ? 0.6 : 1 }}
               disabled={saving}
               onClick={async () => {
                 if (!draft.trim()) { setEditErr("O documento não pode ficar vazio."); return; }
@@ -2208,9 +2237,9 @@ function DocRow({
 }
 
 const btnSecondary: React.CSSProperties = {
-  background: "#f7f7fa",
-  color: "#374151",
-  border: "1px solid #e4e4ea",
+  background: "rgba(62,224,111,0.055)",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "8px 14px",
   fontSize: 13,
@@ -2218,9 +2247,9 @@ const btnSecondary: React.CSSProperties = {
   cursor: "pointer",
 };
 const btnDanger: React.CSSProperties = {
-  background: "#fef2f2",
-  color: "#dc2626",
-  border: "1px solid #fecaca",
+  background: "rgba(255,107,107,0.10)",
+  color: "#ff6b6b",
+  border: "1px solid rgba(255,107,107,0.30)",
   borderRadius: 8,
   padding: "8px 14px",
   fontSize: 13,
@@ -2228,31 +2257,31 @@ const btnDanger: React.CSSProperties = {
   cursor: "pointer",
 };
 const ingestionCard: React.CSSProperties = {
-  background: "#f7f7fa",
-  border: "1px solid #e8e8ed",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "12px 16px",
 };
 const tagStyle: React.CSSProperties = {
-  background: "#dcfce7",
-  color: "#16a34a",
+  background: "rgba(62,224,111,0.12)",
+  color: "#3ee06f",
   borderRadius: 4,
   padding: "2px 8px",
   fontSize: 11,
   fontWeight: 600,
 };
 const markdownContainer: React.CSSProperties = {
-  background: "#f7f7fa",
-  border: "1px solid #e8e8ed",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "20px 24px",
   lineHeight: 1.8,
-  color: "#374151",
+  color: "#c3cbc6",
 };
 const btnDelivered: React.CSSProperties = {
-  background: "#f7f7fa",
-  color: "#6a6a7a",
-  border: "1px solid #e4e4ea",
+  background: "rgba(62,224,111,0.055)",
+  color: "#8a948e",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "9px 16px",
   fontSize: 13,
@@ -2260,9 +2289,9 @@ const btnDelivered: React.CSSProperties = {
   cursor: "pointer",
 };
 const btnDeliveredActive: React.CSSProperties = {
-  background: "#dcfce7",
-  color: "#16a34a",
-  border: "1px solid #86efac",
+  background: "rgba(62,224,111,0.12)",
+  color: "#3ee06f",
+  border: "1px solid rgba(62,224,111,0.35)",
   borderRadius: 8,
   padding: "9px 16px",
   fontSize: 13,
@@ -2270,8 +2299,8 @@ const btnDeliveredActive: React.CSSProperties = {
   cursor: "pointer",
 };
 const alertBox: React.CSSProperties = {
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
+  background: "rgba(255,107,107,0.10)",
+  border: "1px solid rgba(255,107,107,0.30)",
   borderRadius: 12,
   padding: "16px 20px",
   marginBottom: 18,
