@@ -22,17 +22,19 @@ const stripStyle: React.CSSProperties = {
   overscrollBehaviorX: "contain",
   WebkitOverflowScrolling: "touch",
   scrollbarWidth: "thin",
-  borderBottom: "1px solid #e4e4ea",
-  marginBottom: 24,
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  marginBottom: 28,
+  marginTop: 6,
 };
 
 const tabBaseStyle: React.CSSProperties = {
   background: "transparent",
   border: "none",
-  padding: "10px 16px",
+  padding: "12px 14px",
   fontSize: 14,
+  fontFamily: "inherit",
   fontWeight: 500,
-  color: "#9696a0",
+  color: "#8a948e",
   cursor: "pointer",
   borderBottom: "2px solid transparent",
   marginBottom: -1,
@@ -45,18 +47,18 @@ const tabBaseStyle: React.CSSProperties = {
 
 const tabActiveStyle: React.CSSProperties = {
   ...tabBaseStyle,
-  color: "#111116",
-  fontWeight: 700,
-  borderBottom: "2px solid #4ade80",
+  color: "#ffffff",
+  fontWeight: 600,
+  borderBottom: "2px solid #3ee06f",
 };
 
 const badgeStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  background: "#dcfce7",
-  color: "#16a34a",
-  padding: "2px 7px",
-  borderRadius: 10,
+  fontFamily: "'Geist Mono', ui-monospace, monospace",
+  fontSize: 10.5,
+  background: "rgba(62,224,111,0.12)",
+  color: "#3ee06f",
+  padding: "1px 7px",
+  borderRadius: 999,
 };
 
 export default function Tabs({ tabs, active, onChange }: Props) {

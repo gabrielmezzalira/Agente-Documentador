@@ -1,90 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { listProjects, searchStack, type Project, type StackSearchResult, type Subarea } from "../lib/api";
-import styles from "./subarea.module.css";
+import { ds, innerStyle } from "../lib/ds";
+import { Card, EmptyState, ErrorNotice, PageHeader, StatusDot } from "../components/ds";
+import ProjectListCard, { isStale } from "../components/projects/ProjectListCard";
 
-const STALE_DAYS = 7;
+const SUBAREA_COPY: Record<Subarea, { label: string; description: string }> = {
+  dados: { label: "Dados", description: "Acompanhe sprints, decisões e documentação dos projetos de dados em um só lugar." },
+  dev: { label: "Dev", description: "Centralize o contexto técnico, as decisões e a documentação dos projetos de desenvolvimento." },
+  produto: { label: "Produto", description: "Acompanhe o discovery: reuniões, requisitos e o encaminhamento dos projetos para Dados ou Dev." },
+};
 
-function isStale(project: Project): boolean {
-  if (project.is_delivered) return false;
-  if (!project.last_ingestion_at) return true;
-  const diff = Date.now() - new Date(project.last_ingestion_at).getTime();
-  return diff > STALE_DAYS * 24 * 60 * 60 * 1000;
-}
-
-function ProjectCard({ p, subarea }: { p: Project; subarea: Subarea }) {
-  const [expanded, setExpanded] = useState(false);
-  const stale = isStale(p);
-
-  return (
-    <Link href={`/${subarea}/projects/${p.id}`}>
-      <div style={{ ...cardStyle, borderColor: stale ? "#fecaca" : "#e8e8ed" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {stale && (
-                <span style={staleDotStyle} title="Sem ingestão nos últimos 7 dias" />
-              )}
-              <h2 style={{ fontSize: 15, fontWeight: 600, color: "#111116" }}>{p.name}</h2>
-              {p.is_delivered && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#9696a0", background: "#f0f0f4",
-                  borderRadius: 4, padding: "2px 7px", letterSpacing: "0.04em" }}>
-                  ENTREGUE
-                </span>
-              )}
-            </div>
-            <p style={{ marginTop: 4, fontSize: 13, color: "#22c55e", fontWeight: 500 }}>{p.client}</p>
-            {p.description && (
-              <>
-                {expanded && (
-                  <p style={{ color: "#9696a0", marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>{p.description}</p>
-                )}
-                <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpanded((v) => !v); }}
-                  style={{ marginTop: 6, fontSize: 12, color: "#9696a0", background: "none", border: "none",
-                    cursor: "pointer", padding: 0, fontWeight: 500 }}
-                >
-                  {expanded ? "▲ ocultar" : "▼ ver detalhes"}
-                </button>
-              </>
-            )}
-            {stale && (
-              <p style={{ marginTop: 6, fontSize: 12, color: "#dc2626", fontWeight: 500 }}>
-                Sem insumo nos últimos 7 dias
-              </p>
-            )}
-          </div>
-          <span style={{ color: "#b8b8c0", fontSize: 12, whiteSpace: "nowrap", marginLeft: 20, marginTop: 2 }}>
-            {new Date(p.created_at).toLocaleDateString("pt-BR")}
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-export default function Home() {
+function SubareaHome() {
   const { subarea } = useParams<{ subarea: Subarea }>();
+  const queryFromUrl = (useSearchParams().get("q") ?? "").trim();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(queryFromUrl);
   const [searchResults, setSearchResults] = useState<StackSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     listProjects(subarea)
       .then(setProjects)
       .catch(() => setError("Não foi possível carregar os projetos."))
       .finally(() => setLoading(false));
   }, [subarea]);
 
-  function handleSearchChange(value: string) {
+  function runSearch(value: string, delay: number) {
     setSearchQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!value.trim()) { setSearchResults(null); return; }
@@ -95,8 +45,14 @@ export default function Home() {
         setSearchResults(res.results);
       } catch { setSearchResults([]); }
       finally { setSearching(false); }
-    }, 400);
+    }, delay);
   }
+
+  // A busca da barra superior leva até aqui com ?q=: dispara a mesma busca por tecnologia.
+  useEffect(() => {
+    if (queryFromUrl) runSearch(queryFromUrl, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryFromUrl, subarea]);
 
   function clearSearch() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -105,169 +61,114 @@ export default function Home() {
     setSearching(false);
   }
 
-  const subareaLabel = subarea === "dev" ? "Dev" : "Dados";
-  const activeProjects = projects.filter((project) => !project.is_delivered).length;
-  const deliveredProjects = projects.filter((project) => project.is_delivered).length;
+  const copy = SUBAREA_COPY[subarea] ?? SUBAREA_COPY.dados;
+  const activeProjects = projects.filter((p) => !p.is_delivered).length;
+  const deliveredProjects = projects.filter((p) => p.is_delivered).length;
   const attentionProjects = projects.filter(isStale).length;
-  const statValue = (value: number) => loading ? "—" : String(value);
+  const statValue = (value: number) => (loading ? "—" : String(value));
+
+  const stats = [
+    { value: activeProjects, label: "Projetos ativos", tone: "green" as const },
+    { value: deliveredProjects, label: "Entregues", tone: "neutral" as const },
+    { value: attentionProjects, label: "Pedem atenção", tone: "red" as const },
+  ];
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero} aria-labelledby="subarea-title">
-        <span className={styles.eyebrow}>Visão geral · {subareaLabel}</span>
-        <h1 id="subarea-title">Projetos de {subareaLabel}</h1>
-        <p className={styles.heroDescription}>
-          {subarea === "dev"
-            ? "Centralize o contexto técnico, as decisões e a documentação dos projetos de desenvolvimento."
-            : "Acompanhe sprints, decisões e documentação dos projetos de dados em um só lugar."}
-        </p>
+    <>
+      <PageHeader eyebrow={`Visão geral · ${copy.label}`} title={`Projetos de ${copy.label}`} subtitle={copy.description} />
 
-        <div className={styles.stats} aria-label="Resumo dos projetos" aria-live="polite">
-          <div className={styles.stat}>
-            <span className={styles.statIcon} aria-hidden="true" />
-            <span className={styles.statCopy}>
-              <strong className={styles.statValue}>{statValue(activeProjects)}</strong>
-              <span className={styles.statLabel}>Projetos ativos</span>
-            </span>
-          </div>
-          <div className={`${styles.stat} ${styles.statDelivered}`}>
-            <span className={styles.statIcon} aria-hidden="true" />
-            <span className={styles.statCopy}>
-              <strong className={styles.statValue}>{statValue(deliveredProjects)}</strong>
-              <span className={styles.statLabel}>Entregues</span>
-            </span>
-          </div>
-          <div className={`${styles.stat} ${styles.statAttention}`}>
-            <span className={styles.statIcon} aria-hidden="true" />
-            <span className={styles.statCopy}>
-              <strong className={styles.statValue}>{statValue(attentionProjects)}</strong>
-              <span className={styles.statLabel}>Pedem atenção</span>
-            </span>
-          </div>
+      <Card>
+        <div role="group" aria-label="Resumo dos projetos" aria-live="polite" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          {stats.map((stat, i) => (
+            <div key={stat.label} style={{ borderLeft: i > 0 ? `1px solid ${ds.border}` : "none", padding: "22px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+              <StatusDot tone={stat.tone} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em", color: ds.white, lineHeight: 1 }}>{statValue(stat.value)}</span>
+                <span style={{ fontSize: 13, color: ds.muted }}>{stat.label}</span>
+              </div>
+            </div>
+          ))}
         </div>
-      </section>
+      </Card>
 
       {/* BUSCA CROSS-PROJETO */}
-      <section className={styles.searchSection} aria-labelledby="search-title">
-        <div className={styles.searchHeading}>
-          <strong id="search-title">Busca entre projetos</strong>
-          <span>Encontre tecnologias utilizadas nesta subárea</span>
+      <section aria-labelledby="search-title" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+          <strong id="search-title" style={{ fontSize: 15, fontWeight: 600, color: ds.white }}>Busca entre projetos</strong>
+          <span style={{ fontSize: 13, color: ds.muted }}>Encontre tecnologias utilizadas nesta subárea</span>
         </div>
-        <div className={styles.searchBox}>
-          <svg className={styles.searchIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="m20 20-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          <label htmlFor="project-search" className={styles.srOnly}>Buscar tecnologia nos projetos</label>
+        <div style={{ ...innerStyle, borderRadius: 10, height: 52, display: "flex", alignItems: "center", gap: 10, padding: "0 14px" }}>
+          <label htmlFor="project-search" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Buscar tecnologia nos projetos</label>
           <input
             id="project-search"
             type="text"
-            placeholder="Busque por Python, Spark, React..."
+            placeholder="Busque por Python, Spark, React…"
             value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className={styles.searchInput}
+            onChange={(e) => runSearch(e.target.value, 400)}
+            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: ds.text2, fontSize: 15, fontFamily: "inherit" }}
           />
-          <div className={styles.searchActions}>
-            {searching && <span className={styles.searching}>Buscando…</span>}
-            {searchQuery && (
-              <button type="button" className={styles.clearSearch} onClick={clearSearch} aria-label="Limpar busca">
-                ×
-              </button>
-            )}
-          </div>
+          {searching && <span style={{ fontSize: 12, color: ds.muted }}>Buscando…</span>}
+          {searchQuery && (
+            <button type="button" onClick={clearSearch} aria-label="Limpar busca" style={{ background: "none", border: "none", color: ds.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+          )}
         </div>
 
         {searchQuery.trim() && searchResults !== null && (
-          <div className={styles.searchResults}>
+          <Card style={{ overflow: "hidden" }}>
             {searchResults.length === 0 ? (
-              <p style={{ padding: "16px 20px", color: "#9696a0", fontSize: 14 }}>
-                Nenhum projeto encontrou "{searchQuery}" na stack.
-              </p>
+              <p style={{ padding: "16px 20px", color: ds.muted, fontSize: 14 }}>Nenhum projeto encontrou &quot;{searchQuery}&quot; na stack.</p>
             ) : (
               <>
-                <p style={{ padding: "12px 20px 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
-                  textTransform: "uppercase", color: "#9696a0", borderBottom: "1px solid #f0f0f4" }}>
-                  {searchResults.length} projeto{searchResults.length !== 1 ? "s" : ""} com "{searchQuery}"
+                <p style={{ padding: "12px 20px 8px", fontFamily: ds.fontMono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ds.muted, borderBottom: `1px solid ${ds.border}` }}>
+                  {searchResults.length} projeto{searchResults.length !== 1 ? "s" : ""} com &quot;{searchQuery}&quot;
                 </p>
                 {searchResults.map((r) => (
-                  <Link key={r.project_id} href={`/${subarea}/projects/${r.project_id}`}>
-                    <div style={searchResultCard}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                        <div>
-                          <span style={{ fontWeight: 600, fontSize: 14, color: "#111116" }}>{r.project_name}</span>
-                          <span style={{ marginLeft: 8, fontSize: 13, color: "#22c55e", fontWeight: 500 }}>{r.client}</span>
-                        </div>
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                          {r.sprints.map((s) => (
-                            <span key={s} style={tagStyle}>Sprint {s}</span>
-                          ))}
-                        </div>
+                  <Link key={r.project_id} href={`/${subarea}/projects/${r.project_id}`} className="ds-row-link" style={{ display: "block", padding: "14px 20px", borderBottom: `1px solid ${ds.border}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: ds.text }}>{r.project_name}</span>
+                        <span style={{ marginLeft: 8, fontSize: 13, color: ds.green, fontWeight: 500 }}>{r.client}</span>
                       </div>
-                      {r.sample_context && (
-                        <p style={{ marginTop: 6, fontSize: 13, color: "#6a6a7a", lineHeight: 1.5,
-                          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                          {r.sample_context}
-                        </p>
-                      )}
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        {r.sprints.map((s) => (
+                          <span key={s} style={{ background: ds.greenSoft, color: ds.green, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>Sprint {s}</span>
+                        ))}
+                      </div>
                     </div>
+                    {r.sample_context && (
+                      <p style={{ marginTop: 6, fontSize: 13, color: ds.muted, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {r.sample_context}
+                      </p>
+                    )}
                   </Link>
                 ))}
               </>
             )}
-          </div>
+          </Card>
         )}
       </section>
 
-      <div className={styles.sectionHeader}>
-        <h2>Todos os projetos</h2>
-        {!loading && <span>{projects.length} projeto{projects.length !== 1 ? "s" : ""}</span>}
-      </div>
-
-      {loading && <p style={{ color: "#9696a0" }}>Carregando...</p>}
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-
-      {!loading && projects.length === 0 && (
-        <div style={{ textAlign: "center", padding: "80px 0" }}>
-          <p style={{ fontSize: 16, color: "#9696a0" }}>Nenhum projeto ainda.</p>
-          <p style={{ marginTop: 8, color: "#b8b8c0", fontSize: 14 }}>Crie o primeiro projeto para começar.</p>
+      <section style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-label="Todos os projetos">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: ds.white }}>Todos os projetos</h2>
+          {!loading && <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{projects.length} projeto{projects.length !== 1 ? "s" : ""}</span>}
         </div>
-      )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {projects.map((p) => <ProjectCard key={p.id} p={p} subarea={subarea} />)}
-      </div>
-    </main>
+        {loading && <p style={{ color: ds.muted }}>Carregando…</p>}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
+        {!loading && !error && projects.length === 0 && <EmptyState>Nenhum projeto ainda. Crie o primeiro projeto para começar.</EmptyState>}
+
+        {projects.map((p) => <ProjectListCard key={p.id} project={p} subarea={subarea} />)}
+      </section>
+    </>
   );
 }
 
-const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
-  borderRadius: 12,
-  padding: "18px 22px",
-  cursor: "pointer",
-};
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <SubareaHome />
+    </Suspense>
+  );
+}
 
-const searchResultCard: React.CSSProperties = {
-  padding: "14px 20px",
-  cursor: "pointer",
-  borderBottom: "1px solid #f0f0f4",
-};
-
-const tagStyle: React.CSSProperties = {
-  background: "#dcfce7",
-  color: "#16a34a",
-  borderRadius: 4,
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.02em",
-};
-
-const staleDotStyle: React.CSSProperties = {
-  display: "inline-block",
-  width: 8,
-  height: 8,
-  borderRadius: "50%",
-  background: "#dc2626",
-  flexShrink: 0,
-};

@@ -2,84 +2,58 @@
 
 import Link from "next/link";
 import { useAuth } from "./components/AuthGuard";
-
+import { Chip } from "./components/ds";
+import { ds, cardStyle, labelStyle } from "./lib/ds";
 
 const subareas = [
-  {
-    slug: "dados",
-    title: "Dados",
-    description: "Projetos de dados, analytics e inteligência artificial.",
-  },
-  {
-    slug: "dev",
-    title: "Dev",
-    description: "Projetos de desenvolvimento de software e seus repositórios.",
-  },
+  { slug: "dados", title: "Dados", description: "Projetos de dados, analytics e inteligência artificial." },
+  { slug: "dev", title: "Dev", description: "Projetos de desenvolvimento de software e seus repositórios." },
+  { slug: "produto", title: "Produto", description: "Discovery de produto: requisitos que saem das reuniões e seguem para Dados ou Dev." },
 ] as const;
-
 
 export default function SubareaSelector() {
   const auth = useAuth();
-  const podeGerenciar = auth?.cargo === "owner" || auth?.cargo === "lider";
-  const podeConfigurar = podeGerenciar || auth?.cargo === "gerente";
+  const firstName = auth?.nome.trim().split(/\s+/)[0] ?? "";
 
   return (
-    <main style={{ maxWidth: 800, margin: "0 auto", padding: "72px 24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#16a34a" }}>
-          citi · agente documentador
-        </span>
-        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }} aria-label="Acessos globais">
-          <Link href="/metodologia" style={navLinkStyle}>Documentos</Link>
-          {podeGerenciar && <Link href="/pessoas" style={navLinkStyle}>Pessoas</Link>}
-          {podeGerenciar && <Link href="/performance" style={navLinkStyle}>Performance</Link>}
-          {podeGerenciar && <Link href="/comparacao-modos" style={navLinkStyle}>Comparação de modos</Link>}
-          {podeConfigurar && <Link href="/avaliacoes" style={navLinkStyle}>Avaliações</Link>}
-          {podeConfigurar && <Link href="/settings" style={navLinkStyle}>Configurações</Link>}
-        </nav>
-      </div>
+    <>
+      <section style={{ marginTop: 110, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 20, maxWidth: 780 }}>
+        {firstName && <Chip tone="green" dot>Bem-vindo de volta, {firstName}.</Chip>}
+        <h1 style={{ fontSize: 76, lineHeight: 1, fontWeight: 700, letterSpacing: "-0.04em", color: ds.white }}>
+          Escolha uma <span style={{ color: ds.green, textShadow: "0 0 40px rgba(62, 224, 111, 0.35)" }}>subárea.</span>
+        </h1>
+        <p style={{ fontSize: 18, lineHeight: 1.55, color: ds.muted, textWrap: "pretty" }}>
+          Projetos, buscas e novos cadastros permanecem separados entre Dados, Dev e Produto.
+        </p>
+      </section>
 
-      <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", color: "#111116", marginTop: 28, marginBottom: 8 }}>
-        Escolha uma subárea
-      </h1>
-      <p style={{ color: "#737380", fontSize: 15, marginBottom: 36 }}>
-        Projetos, buscas e novos cadastros permanecem separados entre Dados e Dev.
-      </p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-        {subareas.map((subarea) => (
-          <Link key={subarea.slug} href={`/${subarea.slug}`} style={{ color: "inherit" }}>
-            <section style={cardStyle}>
-              <h2 style={{ fontSize: 22, fontWeight: 750, color: "#111116", margin: 0 }}>{subarea.title}</h2>
-              <p style={{ color: "#6a6a7a", fontSize: 14, lineHeight: 1.5, marginTop: 8 }}>
-                {subarea.description}
-              </p>
-              <span style={{ display: "inline-block", color: "#16a34a", fontSize: 13, fontWeight: 700, marginTop: 22 }}>
-                Acessar projetos →
-              </span>
-            </section>
-          </Link>
-        ))}
+      <div style={{ marginTop: 56, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+        {subareas.map((subarea, i) => {
+          const primary = i === 0;
+          return (
+            <Link key={subarea.slug} href={`/${subarea.slug}`} style={{ display: "block", color: "inherit" }}>
+              <section
+                style={{
+                  ...cardStyle,
+                  padding: 36,
+                  borderRadius: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                  minHeight: 260,
+                  height: "100%",
+                  ...(primary ? { background: "rgba(62, 224, 111, 0.06)", borderColor: ds.greenLine, boxShadow: "0 0 60px rgba(62, 224, 111, 0.10)" } : null),
+                }}
+              >
+                <span style={{ ...labelStyle, color: primary ? ds.green : ds.muted }}>{String(i + 1).padStart(2, "0")}</span>
+                <h2 style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.03em", color: ds.white }}>{subarea.title}</h2>
+                <p style={{ fontSize: 16, lineHeight: 1.55, color: ds.muted, maxWidth: 420, textWrap: "pretty" }}>{subarea.description}</p>
+                <span style={{ marginTop: "auto", color: ds.green, fontSize: 15, fontWeight: 600 }}>Acessar projetos →</span>
+              </section>
+            </Link>
+          );
+        })}
       </div>
-    </main>
+    </>
   );
 }
-
-
-const navLinkStyle: React.CSSProperties = {
-  color: "#374151",
-  background: "#fff",
-  border: "1px solid #e8e8ed",
-  borderRadius: 8,
-  padding: "8px 12px",
-  fontSize: 12,
-  fontWeight: 650,
-};
-
-const cardStyle: React.CSSProperties = {
-  height: "100%",
-  background: "#fff",
-  border: "1px solid #e8e8ed",
-  borderRadius: 14,
-  padding: "26px 28px",
-};
