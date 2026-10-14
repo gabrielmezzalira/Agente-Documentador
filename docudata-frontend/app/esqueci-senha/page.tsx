@@ -27,14 +27,14 @@ export default function EsqueciSenhaPage() {
     <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#f2f5f3" }}>
             Esqueci minha senha
           </h1>
         </div>
 
         <div style={cardStyle}>
           {enviado ? (
-            <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: "#c3cbc6", lineHeight: 1.6 }}>
               Se o e-mail existir, você vai receber um link de redefinição em instantes. O link expira em 30 minutos.
             </p>
           ) : (
@@ -43,7 +43,7 @@ export default function EsqueciSenhaPage() {
                 <label style={labelStyle}>Email</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} placeholder="voce@citi.org.br" />
               </div>
-              {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+              {err && <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>}
               <button type="submit" disabled={loading} style={btnPrimary}>
                 {loading ? "Enviando..." : "Enviar link de redefinição"}
               </button>
@@ -52,7 +52,7 @@ export default function EsqueciSenhaPage() {
         </div>
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <a href="/login" style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+          <a href="/login" style={{ fontSize: 13, fontWeight: 700, color: "#3ee06f" }}>
             Voltar para o login
           </a>
         </div>
@@ -62,8 +62,8 @@ export default function EsqueciSenhaPage() {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 14,
   padding: "28px 26px",
 };
@@ -73,7 +73,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   marginBottom: 6,
-  color: "#6a6a7a",
+  color: "#8a948e",
   letterSpacing: "0.04em",
   textTransform: "uppercase",
 };
@@ -81,17 +81,17 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px 14px",
-  background: "#ffffff",
-  border: "1px solid #e4e4ea",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   fontSize: 14,
   outline: "none",
-  color: "#111116",
+  color: "#f2f5f3",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#0a0a0a",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 8,
   padding: "11px 18px",

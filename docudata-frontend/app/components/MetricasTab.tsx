@@ -42,8 +42,8 @@ interface Props {
 }
 
 const section: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 12,
   padding: "20px 24px",
   marginBottom: 20,
@@ -52,20 +52,20 @@ const section: React.CSSProperties = {
 const title: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#f2f5f3",
   marginBottom: 4,
 };
 
 const subtitle: React.CSSProperties = {
   fontSize: 12,
-  color: "#78716c",
+  color: "#8a948e",
   marginBottom: 16,
 };
 
 const empty: React.CSSProperties = {
   textAlign: "center",
   padding: "32px 0",
-  color: "#9696a0",
+  color: "#8a948e",
   fontSize: 13,
 };
 
@@ -85,14 +85,14 @@ function InfoTooltip({ id }: { id: string }) {
       <span
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
-        style={{ cursor: "default", fontSize: 12, color: "#94a3b8", fontWeight: 700, border: "1px solid #e2e8f0", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        style={{ cursor: "default", fontSize: 12, color: "#8a948e", fontWeight: 700, border: "1px solid rgba(62,224,111,0.2)", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
       >
         i
       </span>
       {show && (
         <span style={{
           position: "absolute", left: 22, top: -4, zIndex: 100,
-          background: "#1e293b", color: "#f1f5f9", fontSize: 12, lineHeight: 1.5,
+          background: "#3ee06f", color: "#04120a", fontSize: 12, lineHeight: 1.5,
           borderRadius: 8, padding: "8px 12px", width: 280, whiteSpace: "normal",
           boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
         }}>
@@ -159,8 +159,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
     getComparacaoModos(projectId).then(setComparacaoModos).catch(() => setComparacaoModos([]));
   }, [projectId]);
 
-  if (loading) return <p style={{ color: "#9696a0", fontSize: 13 }}>Carregando métricas...</p>;
-  if (err) return <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>;
+  if (loading) return <p style={{ color: "#8a948e", fontSize: 13 }}>Carregando métricas...</p>;
+  if (err) return <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>;
 
   const tutorialSteps = [
     { title: "Pontos por task", body: "Todo projeto vale 100 pontos, fixo. Esses 100 são distribuídos entre as sprints na aba Planejamento, e os pontos de cada sprint entre as tasks dela. Se você informou o valor do projeto em reais, cada ponto vale um centésimo desse valor, e o faturamento previsto de cada sprint sai daí." },
@@ -208,8 +208,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
                 labelFormatter={(l) => `Sprint ${l}`}
               />
               <Legend formatter={(v) => v === "pontos_previstos" ? "Previstos" : v === "pontos_realizados" ? "Realizados" : "SPI"} />
-              <ReferenceLine y={0.9} stroke="#166534" strokeDasharray="4 2" label={{ value: "0.9", position: "right", fontSize: 11, fill: "#166534" }} />
-              <ReferenceLine y={0.7} stroke="#dc2626" strokeDasharray="4 2" label={{ value: "0.7", position: "right", fontSize: 11, fill: "#dc2626" }} />
+              <ReferenceLine y={0.9} stroke="#166534" strokeDasharray="4 2" label={{ value: "0.9", position: "right", fontSize: 11, fill: "#3ee06f" }} />
+              <ReferenceLine y={0.7} stroke="#dc2626" strokeDasharray="4 2" label={{ value: "0.7", position: "right", fontSize: 11, fill: "#ff6b6b" }} />
               <Bar dataKey="pontos_previstos" fill="#64748b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -262,17 +262,17 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
 
         {cycleTime.length > 0 && (
           <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Top tasks mais lentas</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#c3cbc6", marginBottom: 8 }}>Top tasks mais lentas</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {[...cycleTime]
                 .sort((a, b) => b.cycle_time_horas - a.cycle_time_horas)
                 .slice(0, 5)
                 .map((ct, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12 }}>
-                    <span style={{ color: "#78716c", minWidth: 24 }}>#{i + 1}</span>
-                    <span style={{ flex: 1, color: "#0f172a" }}>{ct.task_titulo}</span>
-                    {ct.operacional_nome && <span style={{ color: "#6366f1", fontSize: 11 }}>{ct.operacional_nome}</span>}
-                    <span style={{ fontWeight: 700, color: ct.cycle_time_horas > 72 ? "#dc2626" : "#374151", minWidth: 52, textAlign: "right" }}>
+                    <span style={{ color: "#8a948e", minWidth: 24 }}>#{i + 1}</span>
+                    <span style={{ flex: 1, color: "#f2f5f3" }}>{ct.task_titulo}</span>
+                    {ct.operacional_nome && <span style={{ color: "#b197fc", fontSize: 11 }}>{ct.operacional_nome}</span>}
+                    <span style={{ fontWeight: 700, color: ct.cycle_time_horas > 72 ? "#ff6b6b" : "#c3cbc6", minWidth: 52, textAlign: "right" }}>
                       {ct.cycle_time_horas < 24 ? `${ct.cycle_time_horas}h` : `${Math.round(ct.cycle_time_horas / 24)}d`}
                     </span>
                   </div>
@@ -353,13 +353,13 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
                   <tr key={op.operacional_id}>
                     <td style={tdSt}>{op.nome}</td>
                     <td
-                      style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#94a3b8" : spiColor(op.spi / 100) }}
+                      style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#8a948e" : spiColor(op.spi / 100) }}
                       title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint — score calculado com o restante das dimensões (avaliação do gerente, autonomia)" : undefined}
                     >
                       {op.spi === null ? "—" : op.spi}
                     </td>
                     <td style={tdSt}>{op.sprints_avaliadas}</td>
-                    <td style={{ ...tdSt, color: op.pontos_penalizados > 0 ? "#dc2626" : "#94a3b8" }}>
+                    <td style={{ ...tdSt, color: op.pontos_penalizados > 0 ? "#ff6b6b" : "#8a948e" }}>
                       {op.pontos_penalizados || "—"}
                     </td>
                   </tr>
@@ -404,16 +404,16 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
 const thSt: React.CSSProperties = {
   textAlign: "left",
   padding: "8px 12px",
-  borderBottom: "1px solid #e8e8ed",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   fontSize: 11,
   fontWeight: 700,
-  color: "#9696a0",
+  color: "#8a948e",
   textTransform: "uppercase",
   whiteSpace: "nowrap",
 };
 
 const tdSt: React.CSSProperties = {
   padding: "9px 12px",
-  borderBottom: "1px solid #f1f5f9",
-  color: "#374151",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  color: "#c3cbc6",
 };

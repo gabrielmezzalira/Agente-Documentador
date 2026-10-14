@@ -33,8 +33,8 @@ interface Props {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 14,
   padding: "20px 22px",
 };
@@ -44,21 +44,21 @@ const cardTitleStyle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: "0.1em",
   textTransform: "uppercase",
-  color: "#9696a0",
+  color: "#8a948e",
   marginBottom: 14,
   display: "block",
 };
 
 const metricLabelStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#6a6a7a",
+  color: "#8a948e",
   marginBottom: 2,
 };
 
 const metricValueStyle: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
-  color: "#111116",
+  color: "#f2f5f3",
   letterSpacing: "-0.02em",
 };
 
@@ -74,18 +74,18 @@ const chipBaseStyle: React.CSSProperties = {
 const subSectionTitleStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#374151",
+  color: "#c3cbc6",
   marginBottom: 8,
   marginTop: 12,
 };
 
 const inputSmStyle: React.CSSProperties = {
   padding: "6px 10px",
-  border: "1px solid #e4e4ea",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 7,
   fontSize: 13,
-  color: "#111116",
-  background: "#ffffff",
+  color: "#f2f5f3",
+  background: "#0d1711",
   width: "100%",
   boxSizing: "border-box",
 };
@@ -94,7 +94,7 @@ const labelSmStyle: React.CSSProperties = {
   display: "block",
   fontSize: 11,
   fontWeight: 700,
-  color: "#9696a0",
+  color: "#8a948e",
   letterSpacing: "0.06em",
   textTransform: "uppercase",
   marginBottom: 4,
@@ -158,7 +158,7 @@ function BlocoACard({
             background: "none",
             border: "none",
             fontSize: 12,
-            color: "#9696a0",
+            color: "#8a948e",
             cursor: "pointer",
             padding: 0,
             textDecoration: "underline",
@@ -215,18 +215,18 @@ function BlocoACard({
               disabled={valorTravado}
             />
             {valorTravado && (
-              <p style={{ fontSize: 11, color: "#9696a0", margin: "4px 0 0" }}>
+              <p style={{ fontSize: 11, color: "#8a948e", margin: "4px 0 0" }}>
                 Travado: já existe orçamento de pontos definido em pelo menos uma sprint.
               </p>
             )}
           </div>
-          {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
+          {err && <p style={{ fontSize: 12, color: "#ff6b6b", margin: 0 }}>{err}</p>}
           <button
             type="submit"
             disabled={saving}
             style={{
-              background: "#4ade80",
-              color: "#0a0a0a",
+              background: "#3ee06f",
+              color: "#04120a",
               border: "none",
               borderRadius: 7,
               padding: "8px 16px",
@@ -241,7 +241,7 @@ function BlocoACard({
           </button>
         </form>
       ) : bloco.sem_dados ? (
-        <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>
+        <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>
           Clique em <strong>Configurar</strong> para definir as datas do contrato.
         </p>
       ) : (
@@ -263,13 +263,13 @@ function BlocoACard({
                 gap: 6,
                 marginTop: 10,
                 padding: "8px 12px",
-                background: "#fff7ed",
+                background: "rgba(242,193,78,0.10)",
                 borderRadius: 8,
-                border: "1px solid #fed7aa",
+                border: "1px solid rgba(242,193,78,0.30)",
               }}
             >
-              <span style={{ color: "#c2410c", fontSize: 14 }}>⚠</span>
-              <span style={{ fontSize: 12, color: "#c2410c" }}>
+              <span style={{ color: "#f2c14e", fontSize: 14 }}>⚠</span>
+              <span style={{ fontSize: 12, color: "#f2c14e" }}>
                 Desvio de {bloco.desvio_pontos} pts acima da tolerância
               </span>
             </div>
@@ -282,7 +282,7 @@ function BlocoACard({
 
 function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
   const sep = (
-    <hr style={{ border: "none", borderTop: "1px solid #f0f0f4", margin: "10px 0" }} />
+    <hr style={{ border: "none", borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0" }} />
   );
   return (
     <div style={cardStyle}>
@@ -293,18 +293,18 @@ function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
 
       <p style={subSectionTitleStyle}>
         Travadas{" "}
-        <span style={{ ...chipBaseStyle, background: "#fee2e2", color: "#dc2626", fontSize: 11 }}>
+        <span style={{ ...chipBaseStyle, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", fontSize: 11 }}>
           {bloco.travadas.length}
         </span>
       </p>
       {bloco.travadas.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>Nenhuma funcionalidade travada</p>
+        <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>Nenhuma funcionalidade travada</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {bloco.travadas.map((f) => (
             <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#111116" }}>{f.titulo}</span>
-              <span style={{ background: "#fee2e2", color: "#dc2626", borderRadius: 4, padding: "2px 6px", fontSize: 11 }}>
+              <span style={{ fontWeight: 600, fontSize: 13, color: "#f2f5f3" }}>{f.titulo}</span>
+              <span style={{ background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 4, padding: "2px 6px", fontSize: 11 }}>
                 {f.dias} dias
               </span>
             </div>
@@ -326,7 +326,7 @@ function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
         <div>
           <p style={metricLabelStyle}>WIP agora</p>
           <p style={{ ...metricValueStyle, margin: 0 }}>{bloco.wip}</p>
-          <p style={{ fontSize: 11, color: "#9696a0", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 11, color: "#8a948e", margin: "2px 0 0" }}>
             funcionalidades em andamento
           </p>
         </div>
@@ -334,11 +334,11 @@ function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
           <p style={metricLabelStyle}>Throughput</p>
           <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
             {bloco.throughput_por_semana ?? "—"}
-            <span style={{ fontSize: 12, color: "#6a6a7a", fontWeight: 400 }}> / semana</span>
+            <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> / semana</span>
           </p>
         </div>
         {bloco.total_concluidas === 0 ? (
-          <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
+          <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
             Nenhuma funcionalidade concluída — cycle time indisponível
           </p>
         ) : (
@@ -347,14 +347,14 @@ function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
               <p style={metricLabelStyle}>Cycle time (p50)</p>
               <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
                 {bloco.cycle_time_p50_dias ?? "—"}
-                <span style={{ fontSize: 12, color: "#6a6a7a", fontWeight: 400 }}> dias</span>
+                <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> dias</span>
               </p>
             </div>
             <div>
               <p style={metricLabelStyle}>Cycle time (p85)</p>
               <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
                 {bloco.cycle_time_p85_dias ?? "—"}
-                <span style={{ fontSize: 12, color: "#6a6a7a", fontWeight: 400 }}> dias</span>
+                <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> dias</span>
               </p>
             </div>
           </>
@@ -388,7 +388,7 @@ function BlocoDCard({
         </p>
       </div>
       {fases.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
+        <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
           Sem transições de status registradas ainda
         </p>
       ) : (
@@ -401,15 +401,15 @@ function BlocoDCard({
                 alignItems: "center",
                 cursor: "pointer",
                 padding: "8px 0",
-                borderBottom: "1px solid #f0f0f4",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
               }}
             >
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#111116" }}>{fase}</span>
-              <span style={{ fontSize: 12, color: "#6a6a7a" }}>
+              <span style={{ fontWeight: 600, fontSize: 13, color: "#f2f5f3" }}>{fase}</span>
+              <span style={{ fontSize: 12, color: "#8a948e" }}>
                 {resumo.media_dias} dias (média) · {resumo.p85_dias ?? "—"} p85
               </span>
               <button
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#9696a0" }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8a948e" }}
                 onClick={() => setExpandedFase(expandedFase === fase ? null : fase)}
               >
                 {expandedFase === fase ? "▲ fechar" : "▼ ver detalhe"}
@@ -418,7 +418,7 @@ function BlocoDCard({
             {expandedFase === fase && (
               <div
                 style={{
-                  background: "#f7f7fa",
+                  background: "rgba(62,224,111,0.055)",
                   borderRadius: 8,
                   padding: "10px 12px",
                   marginTop: 4,
@@ -428,7 +428,7 @@ function BlocoDCard({
                 {bloco.detalhe_por_funcionalidade.filter(
                   (d) => d.tempos_por_fase[fase] != null
                 ).length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#9696a0", margin: 0 }}>
+                  <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
                     Sem dados de duração para esta fase
                   </p>
                 ) : (
@@ -436,8 +436,8 @@ function BlocoDCard({
                     .filter((d) => d.tempos_por_fase[fase] != null)
                     .map((d) => (
                       <div key={d.id} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, color: "#374151" }}>{d.titulo}</span>
-                        <span style={{ fontSize: 12, color: "#6a6a7a" }}>
+                        <span style={{ fontSize: 12, color: "#c3cbc6" }}>{d.titulo}</span>
+                        <span style={{ fontSize: 12, color: "#8a948e" }}>
                           {d.tempos_por_fase[fase]} dias
                         </span>
                       </div>
@@ -493,7 +493,7 @@ function ExtratoPontosCard({
         <select
           value={operacionalId}
           onChange={(e) => setOperacionalId(e.target.value)}
-          style={{ padding: "6px 10px", border: "1px solid #e4e4ea", borderRadius: 7, fontSize: 13 }}
+          style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13 }}
         >
           <option value="">Selecione um operacional...</option>
           {operacionais.map((op) => (
@@ -503,7 +503,7 @@ function ExtratoPontosCard({
         <select
           value={sprintId}
           onChange={(e) => setSprintId(e.target.value)}
-          style={{ padding: "6px 10px", border: "1px solid #e4e4ea", borderRadius: 7, fontSize: 13 }}
+          style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13 }}
         >
           <option value="">Todas as sprints</option>
           {sprints.map((s) => (
@@ -513,13 +513,13 @@ function ExtratoPontosCard({
       </div>
 
       {!operacionalId ? (
-        <p style={{ fontSize: 12, color: "#9696a0" }}>Selecione um operacional para ver o extrato.</p>
+        <p style={{ fontSize: 12, color: "#8a948e" }}>Selecione um operacional para ver o extrato.</p>
       ) : loading ? (
-        <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+        <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
       ) : erro ? (
-        <p style={{ fontSize: 12, color: "#dc2626" }}>{erro}</p>
+        <p style={{ fontSize: 12, color: "#ff6b6b" }}>{erro}</p>
       ) : eventos.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0" }}>Nenhum evento de pontuação registrado ainda.</p>
+        <p style={{ fontSize: 12, color: "#8a948e" }}>Nenhum evento de pontuação registrado ainda.</p>
       ) : (
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
@@ -537,7 +537,7 @@ function ExtratoPontosCard({
                   <td style={tdSt}>{new Date(ev.criado_em).toLocaleDateString("pt-BR")}</td>
                   <td style={tdSt}>{rotuloTipo[ev.tipo]}</td>
                   <td style={tdSt}>{ev.descricao ?? "—"}</td>
-                  <td style={{ ...tdSt, fontWeight: 700, color: ev.pontos > 0 ? "#16a34a" : ev.pontos < 0 ? "#dc2626" : "#9696a0", whiteSpace: "nowrap" }}>
+                  <td style={{ ...tdSt, fontWeight: 700, color: ev.pontos > 0 ? "#3ee06f" : ev.pontos < 0 ? "#ff6b6b" : "#8a948e", whiteSpace: "nowrap" }}>
                     {ev.pontos > 0 ? `+${ev.pontos}` : ev.pontos}
                   </td>
                 </tr>
@@ -580,11 +580,11 @@ function ElegibilidadeCard({ sprints }: { sprints: SprintWithStatus[] }) {
       </select>
 
       {loading ? (
-        <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+        <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
       ) : erro ? (
-        <p style={{ fontSize: 12, color: "#dc2626" }}>{erro}</p>
+        <p style={{ fontSize: 12, color: "#ff6b6b" }}>{erro}</p>
       ) : elegiveis.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#9696a0" }}>Ninguém vinculado a este projeto nesta consulta.</p>
+        <p style={{ fontSize: 12, color: "#8a948e" }}>Ninguém vinculado a este projeto nesta consulta.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
@@ -600,7 +600,7 @@ function ElegibilidadeCard({ sprints }: { sprints: SprintWithStatus[] }) {
                 <tr key={e.operacional_id}>
                   <td style={tdSt}>{e.nome}</td>
                   <td style={tdSt}>{e.tasks_na_sprint}</td>
-                  <td style={{ ...tdSt, color: e.avaliado ? "#16a34a" : "#dc2626" }}>
+                  <td style={{ ...tdSt, color: e.avaliado ? "#3ee06f" : "#ff6b6b" }}>
                     {e.avaliado ? "Sim" : "Não"}
                   </td>
                 </tr>
@@ -625,8 +625,8 @@ function InfoTooltip({ text }: { text: string }) {
         cursor: "help",
         fontSize: 10,
         fontWeight: 700,
-        color: "#9696a0",
-        border: "1px solid #d1d5db",
+        color: "#8a948e",
+        border: "1px solid rgba(255,255,255,0.14)",
         borderRadius: "50%",
         width: 15,
         height: 15,
@@ -643,8 +643,8 @@ function InfoTooltip({ text }: { text: string }) {
           top: 20,
           left: "50%",
           transform: "translateX(-50%)",
-          background: "#1e293b",
-          color: "#f1f5f9",
+          background: "#3ee06f",
+          color: "#04120a",
           borderRadius: 8,
           padding: "8px 12px",
           fontSize: 11,
@@ -674,8 +674,8 @@ function KanbanCard({
   return (
     <div
       style={{
-        background: "#ffffff",
-        border: "1px solid #e8e8ed",
+        background: "#0d1711",
+        border: "1px solid rgba(62,224,111,0.2)",
         borderRadius: 10,
         padding: "12px 14px",
         marginBottom: 8,
@@ -684,20 +684,20 @@ function KanbanCard({
         gap: 6,
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 600, color: "#111116", lineHeight: 1.4 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3", lineHeight: 1.4 }}>
         {f.titulo}
       </span>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         {sprintsToShow.map((s) => (
-          <span key={s} style={{ ...chipBaseStyle, background: "#ede9fe", color: "#7c3aed" }}>
+          <span key={s} style={{ ...chipBaseStyle, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>
             Sprint {s}
           </span>
         ))}
         {hasTask && (
           <span style={{
             ...chipBaseStyle,
-            background: taskCounts.concluidas === taskCounts.total ? "#dcfce7" : "#f1f5f9",
-            color: taskCounts.concluidas === taskCounts.total ? "#166534" : "#64748b",
+            background: taskCounts.concluidas === taskCounts.total ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)",
+            color: taskCounts.concluidas === taskCounts.total ? "#3ee06f" : "#8a948e",
           }}>
             {taskCounts.concluidas}/{taskCounts.total} tasks ✓
           </span>
@@ -762,7 +762,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
   if (loading) {
     return (
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>Carregando painel…</p>
+        <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>Carregando painel…</p>
       </section>
     );
   }
@@ -770,7 +770,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
   if (error) {
     return (
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#dc2626", fontSize: 14, margin: 0 }}>{error}</p>
+        <p style={{ color: "#ff6b6b", fontSize: 14, margin: 0 }}>{error}</p>
       </section>
     );
   }
@@ -881,7 +881,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
   return (
     <div>
       <TutorialBanner heading="Painel do Projeto" steps={painelSteps} />
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111116", marginBottom: 16 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", marginBottom: 16 }}>
         Painel do Projeto
       </h2>
 
@@ -913,7 +913,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
       </div>
 
       {/* Kanban */}
-      <div style={{ ...cardStyle, background: "#f7f7fa" }}>
+      <div style={{ ...cardStyle, background: "rgba(62,224,111,0.055)" }}>
         <div
           style={{
             display: "flex",
@@ -922,19 +922,19 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
             marginBottom: 16,
           }}
         >
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111116", margin: 0 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", margin: 0 }}>
             Kanban de Sprint
           </h3>
           <select
             value={String(sprintSelecionada)}
             onChange={(e) => setSprintSelecionada(Number(e.target.value))}
             style={{
-              border: "1px solid #e4e4ea",
+              border: "1px solid rgba(62,224,111,0.2)",
               borderRadius: 8,
               padding: "6px 12px",
               fontSize: 13,
-              background: "#ffffff",
-              color: "#111116",
+              background: "#0d1711",
+              color: "#f2f5f3",
             }}
           >
             {sortedSprints.length === 0 ? (
@@ -950,7 +950,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
         </div>
 
         {sortedSprints.length === 0 ? (
-          <p style={{ color: "#9696a0", fontSize: 13 }}>Nenhuma sprint cadastrada.</p>
+          <p style={{ color: "#8a948e", fontSize: 13 }}>Nenhuma sprint cadastrada.</p>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
             {/* Planejado — drop target */}
@@ -961,13 +961,13 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={colHeaderStyle("#374151")}>Planejado</span>
-                <span style={{ ...chipBaseStyle, background: "#f1f5f9", color: "#64748b", fontSize: 11 }}>
+                <span style={{ ...chipBaseStyle, background: "rgba(62,224,111,0.055)", color: "#8a948e", fontSize: 11 }}>
                   {planejado.length}
                 </span>
               </div>
               {planejado.length === 0 ? (
                 <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#b8b8c0", fontSize: 12 }}>Nenhuma funcionalidade</span>
+                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
                 </div>
               ) : (
                 planejado.map((f) => (
@@ -992,13 +992,13 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={colHeaderStyle("#a16207")}>Em andamento</span>
-                <span style={{ ...chipBaseStyle, background: "#fef9c3", color: "#a16207", fontSize: 11 }}>
+                <span style={{ ...chipBaseStyle, background: "rgba(242,193,78,0.10)", color: "#f2c14e", fontSize: 11 }}>
                   {emAndamento.length}
                 </span>
               </div>
               {emAndamento.length === 0 ? (
                 <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#b8b8c0", fontSize: 12 }}>Nenhuma funcionalidade</span>
+                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
                 </div>
               ) : (
                 emAndamento.map((f) => (
@@ -1017,7 +1017,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
               {!addingFunc ? (
                 <button
                   onClick={() => setAddingFunc(true)}
-                  style={{ marginTop: 8, width: "100%", background: "transparent", border: "1px dashed #cbd5e1", borderRadius: 8, padding: "7px 0", fontSize: 12, color: "#64748b", cursor: "pointer" }}
+                  style={{ marginTop: 8, width: "100%", background: "transparent", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 8, padding: "7px 0", fontSize: 12, color: "#8a948e", cursor: "pointer" }}
                 >
                   + Adicionar funcionalidade
                 </button>
@@ -1026,7 +1026,7 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
                   <select
                     value={addFuncId}
                     onChange={(e) => setAddFuncId(e.target.value)}
-                    style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: 13, background: "#fff" }}
+                    style={{ width: "100%", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "7px 10px", fontSize: 13, background: "#0d1711" }}
                   >
                     <option value="">Selecione…</option>
                     {funcsNotInSprint.map((f) => (
@@ -1037,13 +1037,13 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
                     <button
                       onClick={handleAddToSprint}
                       disabled={!addFuncId || kanbanSaving}
-                      style={{ flex: 1, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: (!addFuncId || kanbanSaving) ? 0.5 : 1 }}
+                      style={{ flex: 1, background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "7px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: (!addFuncId || kanbanSaving) ? 0.5 : 1 }}
                     >
                       {kanbanSaving ? "Adicionando…" : "Confirmar"}
                     </button>
                     <button
                       onClick={() => { setAddingFunc(false); setAddFuncId(""); }}
-                      style={{ background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}
+                      style={{ background: "rgba(62,224,111,0.055)", color: "#8a948e", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}
                     >
                       Cancelar
                     </button>
@@ -1060,13 +1060,13 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={colHeaderStyle("#16a34a")}>Concluído</span>
-                <span style={{ ...chipBaseStyle, background: "#dcfce7", color: "#16a34a", fontSize: 11 }}>
+                <span style={{ ...chipBaseStyle, background: "rgba(62,224,111,0.12)", color: "#3ee06f", fontSize: 11 }}>
                   {concluido.length}
                 </span>
               </div>
               {concluido.length === 0 ? (
                 <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#b8b8c0", fontSize: 12 }}>Nenhuma funcionalidade</span>
+                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
                 </div>
               ) : (
                 concluido.map((f) => (
@@ -1097,16 +1097,16 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
 const thSt: React.CSSProperties = {
   textAlign: "left",
   padding: "8px 12px",
-  borderBottom: "1px solid #e8e8ed",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   fontSize: 11,
   fontWeight: 700,
-  color: "#9696a0",
+  color: "#8a948e",
   textTransform: "uppercase",
   whiteSpace: "nowrap",
 };
 
 const tdSt: React.CSSProperties = {
   padding: "9px 12px",
-  borderBottom: "1px solid #f1f5f9",
-  color: "#374151",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  color: "#c3cbc6",
 };

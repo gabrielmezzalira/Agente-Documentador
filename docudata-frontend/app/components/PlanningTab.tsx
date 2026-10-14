@@ -29,13 +29,13 @@ interface Props {
 // ---------------------------------------------------------------------------
 
 const pageWrapStyle: React.CSSProperties = {
-  background: "#f7f7fa",
+  background: "rgba(62,224,111,0.055)",
   minHeight: 400,
 };
 
 const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 14,
   padding: "20px 22px",
   marginBottom: 16,
@@ -44,7 +44,7 @@ const cardStyle: React.CSSProperties = {
 const headingStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 700,
-  color: "#111116",
+  color: "#f2f5f3",
   marginBottom: 8,
   marginTop: 0,
 };
@@ -52,26 +52,26 @@ const headingStyle: React.CSSProperties = {
 const subHeadingStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: "#374151",
+  color: "#c3cbc6",
   marginBottom: 6,
   marginTop: 12,
 };
 
 const textSecondaryStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#9696a0",
+  color: "#8a948e",
   margin: 0,
 };
 
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#6a6a7a",
+  color: "#8a948e",
   marginBottom: 4,
 };
 
 const badgeTransbordadoStyle: React.CSSProperties = {
-  background: "#ffedd5",
-  color: "#c2410c",
+  background: "rgba(242,193,78,0.10)",
+  color: "#f2c14e",
   borderRadius: 6,
   padding: "2px 8px",
   fontSize: 12,
@@ -90,17 +90,17 @@ const stepBarContainerStyle: React.CSSProperties = {
 const stepLabelStyle = (active: boolean, done: boolean): React.CSSProperties => ({
   fontSize: 13,
   fontWeight: active ? 700 : 500,
-  color: active ? "#16a34a" : done ? "#9696a0" : "#c8c8d0",
+  color: active ? "#3ee06f" : done ? "#8a948e" : "#5d6661",
   padding: "6px 14px",
   borderRadius: 20,
-  background: active ? "#dcfce7" : done ? "#f1f5f9" : "#e8e8ed",
-  border: active ? "1px solid #4ade80" : "1px solid transparent",
+  background: active ? "rgba(62,224,111,0.12)" : done ? "rgba(62,224,111,0.055)" : "rgba(255,255,255,0.08)",
+  border: active ? "1px solid rgba(62,224,111,0.35)" : "1px solid transparent",
   cursor: "default",
 });
 
 const btnPrimaryStyle: React.CSSProperties = {
-  background: "#16a34a",
-  color: "#ffffff",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 8,
   padding: "9px 18px",
@@ -110,9 +110,9 @@ const btnPrimaryStyle: React.CSSProperties = {
 };
 
 const btnSecondaryStyle: React.CSSProperties = {
-  background: "#f1f5f9",
-  color: "#374151",
-  border: "1px solid #e8e8ed",
+  background: "rgba(62,224,111,0.055)",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "9px 18px",
   fontSize: 14,
@@ -121,9 +121,9 @@ const btnSecondaryStyle: React.CSSProperties = {
 };
 
 const btnConfirmStyle: React.CSSProperties = {
-  background: "#dcfce7",
-  color: "#16a34a",
-  border: "1px solid #4ade80",
+  background: "rgba(62,224,111,0.12)",
+  color: "#3ee06f",
+  border: "1px solid rgba(62,224,111,0.35)",
   borderRadius: 8,
   padding: "10px 22px",
   fontSize: 14,
@@ -132,8 +132,8 @@ const btnConfirmStyle: React.CSSProperties = {
 };
 
 const btnDisabledStyle: React.CSSProperties = {
-  background: "#e8e8ed",
-  color: "#b8b8c0",
+  background: "rgba(255,255,255,0.08)",
+  color: "#5d6661",
   border: "none",
   borderRadius: 8,
   padding: "9px 18px",
@@ -143,7 +143,7 @@ const btnDisabledStyle: React.CSSProperties = {
 };
 
 const errorTextStyle: React.CSSProperties = {
-  color: "#dc2626",
+  color: "#ff6b6b",
   fontSize: 12,
   margin: "4px 0 0",
 };
@@ -156,8 +156,8 @@ const checkboxRowStyle: React.CSSProperties = {
 };
 
 const funcCardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "12px 14px",
   marginBottom: 10,
@@ -165,42 +165,42 @@ const funcCardStyle: React.CSSProperties = {
 
 const funcCardTransbordadoStyle: React.CSSProperties = {
   ...funcCardStyle,
-  borderLeft: "3px solid #c2410c",
+  borderLeft: "3px solid #f2c14e",
 };
 
 const throughputInfoStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#374151",
-  background: "#f7f7fa",
+  color: "#c3cbc6",
+  background: "rgba(62,224,111,0.055)",
   borderRadius: 8,
   padding: "8px 12px",
   marginBottom: 16,
 };
 
 const inputStyle: React.CSSProperties = {
-  border: "1px solid #e4e4ea",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "7px 10px",
   fontSize: 13,
-  color: "#111116",
+  color: "#f2f5f3",
   width: "100%",
   boxSizing: "border-box",
 };
 
 const markdownWrapStyle: React.CSSProperties = {
-  background: "#f7f7fa",
+  background: "rgba(62,224,111,0.055)",
   borderRadius: 10,
   padding: "16px 18px",
   fontSize: 14,
-  color: "#111116",
+  color: "#f2f5f3",
   lineHeight: 1.6,
   marginBottom: 16,
-  border: "1px solid #e8e8ed",
+  border: "1px solid rgba(62,224,111,0.2)",
 };
 
 const successBoxStyle: React.CSSProperties = {
-  background: "#dcfce7",
-  border: "1px solid #4ade80",
+  background: "rgba(62,224,111,0.12)",
+  border: "1px solid rgba(62,224,111,0.35)",
   borderRadius: 12,
   padding: "24px",
   textAlign: "center",
@@ -360,7 +360,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
   if (loading) {
     return (
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#9696a0", fontSize: 14, margin: 0 }}>Carregando planning…</p>
+        <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>Carregando planning…</p>
       </section>
     );
   }
@@ -371,7 +371,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
   if (error) {
     return (
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#dc2626", fontSize: 14, margin: 0 }}>{error}</p>
+        <p style={{ color: "#ff6b6b", fontSize: 14, margin: 0 }}>{error}</p>
       </section>
     );
   }
@@ -383,10 +383,10 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
     return (
       <div style={pageWrapStyle}>
         <div style={successBoxStyle}>
-          <p style={{ fontSize: 18, fontWeight: 700, color: "#16a34a", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 18, fontWeight: 700, color: "#3ee06f", margin: "0 0 8px" }}>
             Planning da Sprint {sprintAlvo} salvo com sucesso!
           </p>
-          <p style={{ fontSize: 13, color: "#374151", margin: "0 0 16px" }}>
+          <p style={{ fontSize: 13, color: "#c3cbc6", margin: "0 0 16px" }}>
             O documento foi registrado e o rascunho foi descartado.
           </p>
           <button
@@ -503,7 +503,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                     }}
                     style={{ width: 16, height: 16, cursor: "pointer" }}
                   />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111116" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3" }}>
                     {f.titulo}
                     {isTransbordado && (
                       <span style={badgeTransbordadoStyle}>Transbordado</span>
@@ -566,7 +566,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                         }}
                         style={{ width: 15, height: 15, marginTop: 2, cursor: "pointer" }}
                       />
-                      <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.4 }}>
+                      <span style={{ fontSize: 13, color: "#c3cbc6", lineHeight: 1.4 }}>
                         {criterio}
                       </span>
                     </div>
@@ -592,11 +592,11 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                     }}
                     style={{
                       flex: 1,
-                      border: "1px solid #d1d5db",
+                      border: "1px solid rgba(255,255,255,0.14)",
                       borderRadius: 6,
                       padding: "6px 10px",
                       fontSize: 12,
-                      color: "#111827",
+                      color: "#f2f5f3",
                       outline: "none",
                     }}
                   />
@@ -604,8 +604,8 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                     onClick={() => adicionarCriterio(funcId)}
                     disabled={salvandoCriterio === funcId || !(novoCriterio[funcId] ?? "").trim()}
                     style={{
-                      background: (novoCriterio[funcId] ?? "").trim() ? "#0f172a" : "#e5e7eb",
-                      color: (novoCriterio[funcId] ?? "").trim() ? "#fff" : "#9ca3af",
+                      background: (novoCriterio[funcId] ?? "").trim() ? "#3ee06f" : "rgba(62,224,111,0.055)",
+                      color: (novoCriterio[funcId] ?? "").trim() ? "#ffffff" : "#8a948e",
                       border: "none",
                       borderRadius: 6,
                       padding: "6px 12px",
@@ -651,7 +651,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
             if (!func) return null;
             return (
               <div key={funcId} style={{ ...funcCardStyle, marginBottom: 10 }}>
-                <p style={{ ...labelStyle, fontWeight: 600, color: "#374151" }}>{func.titulo}</p>
+                <p style={{ ...labelStyle, fontWeight: 600, color: "#c3cbc6" }}>{func.titulo}</p>
                 <input
                   type="text"
                   placeholder="Nome do responsável (opcional)"
@@ -724,16 +724,16 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div>
                     <p style={{ ...subHeadingStyle, marginBottom: 2 }}>{func.titulo}</p>
-                    <p style={{ fontSize: 11, color: "#9696a0", margin: 0 }}>
+                    <p style={{ fontSize: 11, color: "#8a948e", margin: 0 }}>
                       {func.id_funcional} · Prioridade: {func.prioridade}
                     </p>
                   </div>
                   {responsavel && (
                     <span style={{
                       fontSize: 11,
-                      background: "#eff6ff",
-                      color: "#2563eb",
-                      border: "1px solid #bfdbfe",
+                      background: "rgba(177,151,252,0.10)",
+                      color: "#b197fc",
+                      border: "1px solid rgba(177,151,252,0.30)",
                       borderRadius: 4,
                       padding: "2px 8px",
                       fontWeight: 600,
@@ -746,10 +746,10 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
 
                 {criteriosSelecionados.length > 0 && (
                   <div style={{ marginBottom: 10 }}>
-                    <p style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", margin: "0 0 4px", letterSpacing: 0.4 }}>
+                    <p style={{ fontSize: 11, color: "#8a948e", fontWeight: 600, textTransform: "uppercase", margin: "0 0 4px", letterSpacing: 0.4 }}>
                       Critérios de aceite desta sprint
                     </p>
-                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#374151", lineHeight: 1.5 }}>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#c3cbc6", lineHeight: 1.5 }}>
                       {criteriosSelecionados.map((c, i) => (
                         <li key={i}>{c}</li>
                       ))}
@@ -757,7 +757,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
                   </div>
                 )}
 
-                <label style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 4 }}>
+                <label style={{ fontSize: 11, color: "#8a948e", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 4 }}>
                   Detalhes adicionais
                 </label>
                 <textarea

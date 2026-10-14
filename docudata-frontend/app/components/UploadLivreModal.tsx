@@ -68,7 +68,7 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "#0d1711",
   borderRadius: 12,
   width: "100%",
   maxWidth: 600,
@@ -82,25 +82,25 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
   fontWeight: 600,
-  color: "#334155",
+  color: "#c3cbc6",
   marginBottom: 6,
   marginTop: 14,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "8px 12px",
   fontSize: 14,
   outline: "none",
-  background: "#fff",
+  background: "#0d1711",
   boxSizing: "border-box",
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#052e16",
+  background: "#3ee06f",
+  color: "#3ee06f",
   border: "none",
   padding: "10px 20px",
   borderRadius: 8,
@@ -110,9 +110,9 @@ const primaryBtn: React.CSSProperties = {
 };
 
 const ghostBtn: React.CSSProperties = {
-  background: "#f7f7fa",
-  color: "#475569",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   padding: "10px 20px",
   borderRadius: 8,
   fontWeight: 600,
@@ -121,8 +121,8 @@ const ghostBtn: React.CSSProperties = {
 };
 
 const modeTab = (active: boolean): React.CSSProperties => ({
-  background: active ? "#4ade80" : "transparent",
-  color: active ? "#052e16" : "#6a6a7a",
+  background: active ? "#3ee06f" : "transparent",
+  color: active ? "#3ee06f" : "#8a948e",
   border: "none",
   padding: "8px 16px",
   fontSize: 13,
@@ -131,9 +131,9 @@ const modeTab = (active: boolean): React.CSSProperties => ({
 });
 
 const dangerBtn: React.CSSProperties = {
-  background: "#fef2f2",
-  color: "#dc2626",
-  border: "1px solid #fecaca",
+  background: "rgba(255,107,107,0.10)",
+  color: "#ff6b6b",
+  border: "1px solid rgba(255,107,107,0.30)",
   borderRadius: 8,
   padding: "8px 14px",
   fontSize: 13,
@@ -252,17 +252,17 @@ export default function UploadLivreModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#f2f5f3" }}>
           Upload livre — Sprint {sprintNumero}
         </h2>
-        <p style={{ fontSize: 13, color: "#6a6a7a", margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: "#8a948e", margin: "8px 0 0", lineHeight: 1.5 }}>
           Material avulso que alimenta o contexto do projeto: prints, código, atas externas,
           PDFs do cliente. Estes uploads alimentam as docs gerais (Onboarding, Documentação Final).
         </p>
 
         <div style={{
           display: "flex",
-          border: "1px solid #e4e4ea",
+          border: "1px solid rgba(62,224,111,0.2)",
           borderRadius: 8,
           overflow: "hidden",
           marginTop: 18,
@@ -290,14 +290,14 @@ export default function UploadLivreModal({
             {msg && (
               <p style={{
                 fontSize: 13,
-                color: msg.ok ? "#16a34a" : "#dc2626",
+                color: msg.ok ? "#3ee06f" : "#ff6b6b",
                 marginTop: 10,
               }}>
                 {msg.text}
               </p>
             )}
             {validationErr && (
-              <div style={{ marginTop: 12, padding: 12, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, fontSize: 13 }}>
+              <div style={{ marginTop: 12, padding: 12, background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", color: "#f2c14e", borderRadius: 8, fontSize: 13 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Tipo de conteúdo diferente do esperado</div>
                 <div>{validationErr.mensagem}</div>
                 <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -306,7 +306,7 @@ export default function UploadLivreModal({
                   </button>
                   <button
                     type="button"
-                    style={{ ...primaryBtn, background: "#f59e0b", color: "#1c1917", opacity: ingesting ? 0.6 : 1 }}
+                    style={{ ...primaryBtn, background: "#f2c14e", color: "#f2f5f3", opacity: ingesting ? 0.6 : 1 }}
                     onClick={() => doIngest(true)}
                     disabled={ingesting}
                   >
@@ -337,15 +337,15 @@ export default function UploadLivreModal({
               style={{ ...inputStyle, padding: "8px 12px" }}
             />
             {folderFiles.length > 0 && (
-              <p style={{ fontSize: 13, color: "#9696a0", marginTop: 8 }}>
+              <p style={{ fontSize: 13, color: "#8a948e", marginTop: 8 }}>
                 {folderFiles.length} arquivo{folderFiles.length !== 1 ? "s" : ""} aceitos · node_modules, .git e binários ignorados
               </p>
             )}
             {folderProgress && (
               <div style={{ fontSize: 13, marginTop: 14 }}>
-                <div style={{ background: "#f0f0f4", borderRadius: 4, height: 6, marginBottom: 8 }}>
+                <div style={{ background: "rgba(62,224,111,0.055)", borderRadius: 4, height: 6, marginBottom: 8 }}>
                   <div style={{
-                    background: folderProgress.cancelled ? "#b8b8c0" : folderProgress.errors.length > 0 ? "#d97706" : "#22c55e",
+                    background: folderProgress.cancelled ? "rgba(255,255,255,0.14)" : folderProgress.errors.length > 0 ? "#f2c14e" : "#3ee06f",
                     borderRadius: 4,
                     height: 6,
                     width: `${(folderProgress.done / folderProgress.total) * 100}%`,
@@ -353,11 +353,11 @@ export default function UploadLivreModal({
                   }} />
                 </div>
                 {ingesting ? (
-                  <p style={{ color: "#9696a0" }}>Processando {folderProgress.done} de {folderProgress.total} · 5 em paralelo</p>
+                  <p style={{ color: "#8a948e" }}>Processando {folderProgress.done} de {folderProgress.total} · 5 em paralelo</p>
                 ) : folderProgress.cancelled ? (
-                  <p style={{ color: "#9696a0" }}>Cancelado · {folderProgress.done - folderProgress.errors.length} processados</p>
+                  <p style={{ color: "#8a948e" }}>Cancelado · {folderProgress.done - folderProgress.errors.length} processados</p>
                 ) : (
-                  <p style={{ color: folderProgress.errors.length === 0 ? "#16a34a" : "#d97706" }}>
+                  <p style={{ color: folderProgress.errors.length === 0 ? "#3ee06f" : "#f2c14e" }}>
                     ✓ {folderProgress.done - folderProgress.errors.length} processados
                     {folderProgress.errors.length > 0 && ` · ${folderProgress.errors.length} com erro`}
                   </p>

@@ -16,8 +16,8 @@ interface Props {
 }
 
 const cardStyle = (expanded: boolean): React.CSSProperties => ({
-  background: "#ffffff",
-  border: `1px solid ${expanded ? "#86efac" : "#e8e8ed"}`,
+  background: "#0d1711",
+  border: `1px solid ${expanded ? "rgba(62,224,111,0.35)" : "rgba(62,224,111,0.2)"}`,
   borderRadius: 12,
   padding: expanded ? "16px 18px" : "12px 16px",
   cursor: "pointer",
@@ -37,7 +37,7 @@ const titleStyle: React.CSSProperties = {
   gap: 10,
   fontSize: 14,
   fontWeight: 700,
-  color: "#111116",
+  color: "#f2f5f3",
 };
 
 const explanationStyle: React.CSSProperties = {
@@ -46,7 +46,7 @@ const explanationStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 8,
   fontSize: 13,
-  color: "#374151",
+  color: "#c3cbc6",
   lineHeight: 1.5,
 };
 
@@ -58,14 +58,14 @@ const lineStyle: React.CSSProperties = {
 const labelChip: React.CSSProperties = {
   flexShrink: 0,
   fontWeight: 700,
-  color: "#6a6a7a",
+  color: "#8a948e",
   width: 78,
 };
 
 const formZone: React.CSSProperties = {
   marginTop: 16,
   paddingTop: 16,
-  borderTop: "1px solid #f0f0f4",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
   display: "flex",
   flexWrap: "wrap",
   alignItems: "center",
@@ -74,17 +74,17 @@ const formZone: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   padding: "7px 10px",
-  background: "#fff",
-  border: "1px solid #e4e4ea",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   fontSize: 13,
-  color: "#111116",
+  color: "#f2f5f3",
   outline: "none",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#052e16",
+  background: "#3ee06f",
+  color: "#3ee06f",
   border: "none",
   borderRadius: 8,
   padding: "8px 16px",
@@ -95,7 +95,7 @@ const btnPrimary: React.CSSProperties = {
 
 const fieldLabel: React.CSSProperties = {
   fontSize: 12,
-  color: "#6a6a7a",
+  color: "#8a948e",
   fontWeight: 600,
 };
 
@@ -132,7 +132,7 @@ export default function DocTypeCard({
     <div style={cardStyle(expanded)} onClick={() => setExpanded((v) => !v)}>
       <div style={headerStyle}>
         <span style={titleStyle}>{meta.label}</span>
-        <span style={{ color: "#9696a0", fontSize: 13 }}>
+        <span style={{ color: "#8a948e", fontSize: 13 }}>
           {expanded ? "▴" : "▾"}
         </span>
       </div>
@@ -191,7 +191,7 @@ export default function DocTypeCard({
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={fieldLabel}>Ingestão existente:</span>
                   {ingestions.length === 0 ? (
-                    <span style={{ color: "#9696a0", fontSize: 13 }}>
+                    <span style={{ color: "#8a948e", fontSize: 13 }}>
                       Nenhuma ingestão disponível.
                     </span>
                   ) : (
@@ -220,7 +220,7 @@ export default function DocTypeCard({
                     />
                     {pdfName && (
                       <>
-                        <span style={{ ...fieldLabel, color: "#9696a0" }}>
+                        <span style={{ ...fieldLabel, color: "#8a948e" }}>
                           {pdfName} · Sprint:
                         </span>
                         <select

@@ -44,7 +44,7 @@ const overlay: CSSProperties = {
 };
 
 const modal: CSSProperties = {
-  background: "#fff",
+  background: "#0d1711",
   borderRadius: 16,
   width: "100%",
   maxWidth: 640,
@@ -57,14 +57,14 @@ const modal: CSSProperties = {
 const heading: CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#f2f5f3",
   margin: "0 0 4px",
   letterSpacing: "-0.02em",
 };
 
 const sub: CSSProperties = {
   fontSize: 13,
-  color: "#64748b",
+  color: "#8a948e",
   margin: "0 0 20px",
 };
 
@@ -74,7 +74,7 @@ const lbl: CSSProperties = {
   gap: 6,
   fontSize: 13,
   fontWeight: 600,
-  color: "#334155",
+  color: "#c3cbc6",
   marginBottom: 6,
   marginTop: 14,
 };
@@ -82,8 +82,8 @@ const lbl: CSSProperties = {
 const aiBadge: CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  background: "#ede9fe",
-  color: "#7c3aed",
+  background: "rgba(177,151,252,0.10)",
+  color: "#b197fc",
   borderRadius: 4,
   padding: "1px 5px",
   letterSpacing: "0.04em",
@@ -91,12 +91,12 @@ const aiBadge: CSSProperties = {
 
 const inp: CSSProperties = {
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "8px 10px",
   fontSize: 13,
   outline: "none",
-  background: "#fff",
+  background: "#0d1711",
   boxSizing: "border-box",
 };
 
@@ -114,14 +114,14 @@ const tabBtnStyle = (active: boolean): CSSProperties => ({
   borderRadius: 8,
   border: "1px solid",
   cursor: "pointer",
-  background: active ? "#0f172a" : "#f8fafc",
-  color: active ? "#fff" : "#475569",
-  borderColor: active ? "#0f172a" : "#e2e8f0",
+  background: active ? "#3ee06f" : "rgba(62,224,111,0.055)",
+  color: active ? "#ffffff" : "#c3cbc6",
+  borderColor: active ? "rgba(255,255,255,0.14)" : "rgba(62,224,111,0.2)",
 });
 
 const btnPrimary: CSSProperties = {
-  background: "#0f172a",
-  color: "#fff",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 10,
   padding: "11px 22px",
@@ -132,9 +132,9 @@ const btnPrimary: CSSProperties = {
 };
 
 const btnSecondary: CSSProperties = {
-  background: "#f1f5f9",
-  color: "#1e293b",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#f2f5f3",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "11px 18px",
   fontSize: 14,
@@ -143,13 +143,13 @@ const btnSecondary: CSSProperties = {
 };
 
 const banner = (color: "yellow" | "green"): CSSProperties => ({
-  background: color === "yellow" ? "#fefce8" : "#f0fdf4",
-  border: `1px solid ${color === "yellow" ? "#fde68a" : "#bbf7d0"}`,
+  background: color === "yellow" ? "rgba(242,193,78,0.10)" : "rgba(62,224,111,0.12)",
+  border: `1px solid ${color === "yellow" ? "rgba(242,193,78,0.30)" : "rgba(62,224,111,0.35)"}`,
   borderRadius: 10,
   padding: "12px 16px",
   marginBottom: 16,
   fontSize: 13,
-  color: color === "yellow" ? "#92400e" : "#166534",
+  color: color === "yellow" ? "#f2c14e" : "#3ee06f",
 });
 
 const tableHeader: CSSProperties = {
@@ -157,10 +157,10 @@ const tableHeader: CSSProperties = {
   gridTemplateColumns: "1fr 1fr 36px",
   gap: 8,
   padding: "8px 0",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   fontWeight: 700,
   fontSize: 12,
-  color: "#64748b",
+  color: "#8a948e",
   textTransform: "uppercase",
   letterSpacing: "0.05em",
 };
@@ -171,29 +171,29 @@ const tableRow: CSSProperties = {
   gap: 8,
   alignItems: "center",
   padding: "8px 0",
-  borderBottom: "1px solid #f0f0f6",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
 };
 
 const cellText: CSSProperties = {
   fontSize: 13,
-  color: "#1e293b",
+  color: "#f2f5f3",
   lineHeight: 1.4,
 };
 
 const sel: CSSProperties = {
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "7px 10px",
   fontSize: 13,
-  background: "#fff",
+  background: "#0d1711",
   outline: "none",
 };
 
 const tinyBtn: CSSProperties = {
   background: "transparent",
   border: "none",
-  color: "#94a3b8",
+  color: "#8a948e",
   fontSize: 16,
   cursor: "pointer",
   lineHeight: 1,
@@ -202,24 +202,24 @@ const tinyBtn: CSSProperties = {
 
 const mdContainer: CSSProperties = {
   marginTop: 16,
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "16px 20px",
   lineHeight: 1.7,
-  color: "#374151",
+  color: "#c3cbc6",
   fontSize: 13,
   maxHeight: 400,
   overflowY: "auto",
 };
 
 const dropZone = (dragging: boolean): CSSProperties => ({
-  border: `2px dashed ${dragging ? "#4ade80" : "#cbd5e1"}`,
+  border: `2px dashed ${dragging ? "rgba(62,224,111,0.35)" : "rgba(255,255,255,0.14)"}`,
   borderRadius: 10,
   padding: "28px 16px",
   textAlign: "center",
   cursor: "pointer",
-  background: dragging ? "#f0fdf4" : "#fafafa",
+  background: dragging ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)",
   transition: "all 0.15s",
   marginTop: 8,
 });
@@ -233,17 +233,17 @@ const listRow: CSSProperties = {
 
 const addBtn: CSSProperties = {
   background: "transparent",
-  border: "1px dashed #cbd5e1",
+  border: "1px dashed rgba(255,255,255,0.14)",
   borderRadius: 8,
   padding: "6px 12px",
   fontSize: 12,
-  color: "#64748b",
+  color: "#8a948e",
   cursor: "pointer",
   marginTop: 6,
 };
 
 const sectionDivider: CSSProperties = {
-  borderTop: "1px solid #f0f0f6",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
   marginTop: 20,
   paddingTop: 4,
 };
@@ -631,7 +631,7 @@ export default function PlanningModal({
               {step === "doc" && "Planning gerado com sucesso."}
             </p>
           </div>
-          <button onClick={onClose} style={{ ...tinyBtn, fontSize: 20, color: "#94a3b8" }}>×</button>
+          <button onClick={onClose} style={{ ...tinyBtn, fontSize: 20, color: "#8a948e" }}>×</button>
         </div>
 
         {/* Step indicator */}
@@ -641,7 +641,7 @@ export default function PlanningModal({
               height: 4,
               flex: 1,
               borderRadius: 4,
-              background: i <= stepIndex ? "#0f172a" : "#e2e8f0",
+              background: i <= stepIndex ? "#3ee06f" : "rgba(255,255,255,0.08)",
               transition: "background 0.2s",
             }} />
           ))}
@@ -654,7 +654,7 @@ export default function PlanningModal({
               onClick={() => setStep("importar")}
               style={{
                 background: "none", border: "none", padding: 0, marginBottom: 14,
-                fontSize: 12, color: "#0284c7", cursor: "pointer", textDecoration: "underline",
+                fontSize: 12, color: "#b197fc", cursor: "pointer", textDecoration: "underline",
               }}
             >
               As tasks desta sprint estão em outro lugar (Notion, planilha, print)?
@@ -676,7 +676,7 @@ export default function PlanningModal({
 
             <span style={lbl}>Tasks desta sprint no Kanban</span>
             {carregandoTasks ? (
-              <p style={{ fontSize: 13, color: "#94a3b8", margin: "6px 0 16px" }}>Carregando…</p>
+              <p style={{ fontSize: 13, color: "#8a948e", margin: "6px 0 16px" }}>Carregando…</p>
             ) : tasksDaSprint.length === 0 ? (
               <div style={{ ...banner("yellow"), marginTop: 6 }}>
                 <strong>Nenhuma task cadastrada nesta sprint ainda.</strong> Vá na aba{" "}
@@ -685,33 +685,33 @@ export default function PlanningModal({
               </div>
             ) : (
               <div style={{
-                border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 6, marginBottom: 16,
+                border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, marginTop: 6, marginBottom: 16,
                 maxHeight: 220, overflowY: "auto",
               }}>
                 {tasksDaSprint.map((t) => (
                   <div key={t.id} style={{
                     display: "flex", alignItems: "center", gap: 8,
-                    padding: "8px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13,
+                    padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 13,
                   }}>
                     <span style={{
                       fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                      color: t.coluna_kanban === "em_andamento" ? "#a16207" : "#64748b",
+                      color: t.coluna_kanban === "em_andamento" ? "#f2c14e" : "#8a948e",
                       minWidth: 84,
                     }}>
                       {t.coluna_kanban === "em_andamento" ? "em andamento" : "planejado"}
                     </span>
-                    <span style={{ flex: 1, color: "#374151" }}>{t.titulo}</span>
+                    <span style={{ flex: 1, color: "#c3cbc6" }}>{t.titulo}</span>
                     {t.bloqueado && (
-                      <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>bloqueada</span>
+                      <span style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700 }}>bloqueada</span>
                     )}
-                    <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{t.pontos}pt</span>
+                    <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 600 }}>{t.pontos}pt</span>
                   </div>
                 ))}
               </div>
             )}
 
             <span style={lbl}>Contexto da sprint (opcional)</span>
-            <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 6px" }}>
+            <p style={{ fontSize: 12, color: "#8a948e", margin: "2px 0 6px" }}>
               Escreva do seu jeito, sem formatação. O que você contar aqui entra como
               insumo para a IA montar o documento: o porquê da sprint, o que mudou com o
               cliente, o que preocupa. É o que o Kanban não consegue dizer sozinho.
@@ -724,11 +724,11 @@ export default function PlanningModal({
               onChange={(e) => setContextoLivre(e.target.value)}
             />
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+            {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
-                style={{ ...btnSecondary, fontSize: 12, color: "#64748b" }}
+                style={{ ...btnSecondary, fontSize: 12, color: "#8a948e" }}
                 onClick={handleEnterManual}
                 disabled={loading}
               >
@@ -785,15 +785,15 @@ export default function PlanningModal({
                   onClick={() => fileRef.current?.click()}
                 >
                   {arquivo ? (
-                    <p style={{ margin: 0, fontSize: 13, color: "#16a34a", fontWeight: 600 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: "#3ee06f", fontWeight: 600 }}>
                       ✓ {arquivo.name}
                     </p>
                   ) : (
                     <>
-                      <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+                      <p style={{ margin: 0, fontSize: 13, color: "#8a948e" }}>
                         Arraste o print do kanban aqui, ou clique para selecionar
                       </p>
-                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#8a948e" }}>
                         PNG, JPG, PDF, DOCX, TXT
                       </p>
                     </>
@@ -822,11 +822,11 @@ export default function PlanningModal({
               </>
             )}
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+            {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
-                style={{ ...btnSecondary, fontSize: 12, color: "#64748b" }}
+                style={{ ...btnSecondary, fontSize: 12, color: "#8a948e" }}
                 onClick={() => setStep("input")}
                 disabled={loading}
               >
@@ -883,7 +883,7 @@ export default function PlanningModal({
             ))}
 
             {correlacoes.length === 0 && (
-              <p style={{ fontSize: 13, color: "#94a3b8", padding: "12px 0", textAlign: "center" }}>
+              <p style={{ fontSize: 13, color: "#8a948e", padding: "12px 0", textAlign: "center" }}>
                 Nenhuma task extraída. Adicione manualmente abaixo.
               </p>
             )}
@@ -899,7 +899,7 @@ export default function PlanningModal({
               <button style={btnSecondary} onClick={addManualTask}>+ Add</button>
             </div>
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 10 }}>{error}</p>}
+            {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
@@ -940,11 +940,11 @@ export default function PlanningModal({
             <span style={{ ...lbl, marginTop: 16 }}>Período da sprint {aiFilledFields.has("periodo") && <span style={aiBadge}>IA</span>}</span>
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Início</div>
+                <div style={{ fontSize: 11, color: "#8a948e", marginBottom: 4 }}>Início</div>
                 <input type="date" style={inp} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Fim</div>
+                <div style={{ fontSize: 11, color: "#8a948e", marginBottom: 4 }}>Fim</div>
                 <input type="date" style={inp} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} />
               </div>
             </div>
@@ -954,7 +954,7 @@ export default function PlanningModal({
             <span style={{ ...lbl, marginTop: 16 }}>Capacidade da sprint {aiFilledFields.has("horas") && <span style={aiBadge}>IA</span>}</span>
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Horas disponíveis</div>
+                <div style={{ fontSize: 11, color: "#8a948e", marginBottom: 4 }}>Horas disponíveis</div>
                 <input
                   type="number" style={inp} min={0}
                   placeholder="Ex: 80"
@@ -963,7 +963,7 @@ export default function PlanningModal({
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Horas estimadas</div>
+                <div style={{ fontSize: 11, color: "#8a948e", marginBottom: 4 }}>Horas estimadas</div>
                 <input
                   type="number" style={inp} min={0}
                   placeholder="Ex: 72"
@@ -996,7 +996,7 @@ export default function PlanningModal({
             <button style={addBtn} onClick={() => setDependencias((prev) => [...prev, { item: "", prazo: "", consequencia: "", confianca: "" }])} disabled={semDependencias}>
               + Adicionar dependência
             </button>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
               <input type="checkbox" checked={semDependencias} onChange={(e) => setSemDependencias(e.target.checked)} />
               Nenhuma dependência externa identificada nesta sprint
             </label>
@@ -1024,7 +1024,7 @@ export default function PlanningModal({
             <button style={addBtn} onClick={() => setRiscos((prev) => [...prev, { risco: "", consequencia: "" }])} disabled={semRiscos}>
               + Adicionar risco
             </button>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
               <input type="checkbox" checked={semRiscos} onChange={(e) => setSemRiscos(e.target.checked)} />
               Nenhum risco identificado nesta sprint
             </label>
@@ -1052,12 +1052,12 @@ export default function PlanningModal({
             <button style={addBtn} onClick={() => setCarryOver((prev) => [...prev, { item: "", causa_raiz: "" }])} disabled={semCarryOver}>
               + Adicionar carry-over
             </button>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
               <input type="checkbox" checked={semCarryOver} onChange={(e) => setSemCarryOver(e.target.checked)} />
               Nenhum item de carry-over da sprint anterior
             </label>
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{error}</p>}
+            {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 24 }}>
               <button style={btnSecondary} onClick={() => setStep("correlacoes")}>← Voltar</button>
@@ -1071,14 +1071,14 @@ export default function PlanningModal({
         {/* ── STEP: GERANDO ── */}
         {step === "gerando" && (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <p style={{ color: "#64748b", fontSize: 14 }}>Gerando documentação da sprint…</p>
+            <p style={{ color: "#8a948e", fontSize: 14 }}>Gerando documentação da sprint…</p>
           </div>
         )}
 
         {/* ── STEP: MANUAL TEXT ── */}
         {step === "manual_text" && (
           <>
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#64748b" }}>
+            <div style={{ background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#8a948e" }}>
               Escreva do jeito que preferir. Não precisa de formatação nenhuma: o texto é
               salvo como o planning desta sprint exatamente como você escrever. Se quiser
               que a IA organize e formate para você, volte e use o caminho normal.
@@ -1089,7 +1089,7 @@ export default function PlanningModal({
               value={manualMarkdown}
               onChange={(e) => setManualMarkdown(e.target.value)}
             />
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 8 }}>{error}</p>}
+            {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>{error}</p>}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
               <button

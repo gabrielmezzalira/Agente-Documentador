@@ -12,15 +12,15 @@ interface Props {
 }
 
 const overlayStyle: CSSProperties = { position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 };
-const modalStyle: CSSProperties = { background: "#fff", borderRadius: 12, width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto", padding: 24, boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)" };
-const labelStyle: CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 6, marginTop: 14 };
-const inputStyle: CSSProperties = { width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none", background: "#fff", boxSizing: "border-box" };
+const modalStyle: CSSProperties = { background: "#ffffff", borderRadius: 12, width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto", padding: 24, boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)" };
+const labelStyle: CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "#c3cbc6", marginBottom: 6, marginTop: 14 };
+const inputStyle: CSSProperties = { width: "100%", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none", background: "#0d1711", boxSizing: "border-box" };
 const textareaStyle: CSSProperties = { ...inputStyle, resize: "vertical", minHeight: 80, fontFamily: "inherit" };
-const primaryBtn: CSSProperties = { background: "#4ade80", color: "#052e16", border: "none", padding: "10px 18px", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" };
-const ghostBtn: CSSProperties = { background: "#f7f7fa", color: "#475569", border: "1px solid #e2e8f0", padding: "10px 18px", borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: "pointer" };
-const aiBadgeStyle: CSSProperties = { fontSize: 11, background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: 4, padding: "1px 6px", marginLeft: 6, fontWeight: 500 };
-const sectionStyle: CSSProperties = { background: "#f8fafc", borderRadius: 8, padding: "10px 14px", marginTop: 14 };
-const sectionTitleStyle: CSSProperties = { fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 };
+const primaryBtn: CSSProperties = { background: "#3ee06f", color: "#3ee06f", border: "none", padding: "10px 18px", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" };
+const ghostBtn: CSSProperties = { background: "rgba(62,224,111,0.055)", color: "#c3cbc6", border: "1px solid rgba(62,224,111,0.2)", padding: "10px 18px", borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: "pointer" };
+const aiBadgeStyle: CSSProperties = { fontSize: 11, background: "rgba(177,151,252,0.10)", color: "#b197fc", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 4, padding: "1px 6px", marginLeft: 6, fontWeight: 500 };
+const sectionStyle: CSSProperties = { background: "rgba(62,224,111,0.055)", borderRadius: 8, padding: "10px 14px", marginTop: 14 };
+const sectionTitleStyle: CSSProperties = { fontSize: 12, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 };
 
 export default function RetroModal({ open, onClose, projetoId, sprintNumero, onSubmitted }: Props) {
   const [step, setStep] = useState<"input" | "form">("input");
@@ -144,16 +144,16 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#f2f5f3" }}>
             Gerar Retrospectiva — Sprint {sprintNumero}
           </h2>
-          {step === "form" && <span style={{ fontSize: 12, color: "#64748b" }}>Etapa 2 de 2 — Revise e confirme</span>}
+          {step === "form" && <span style={{ fontSize: 12, color: "#8a948e" }}>Etapa 2 de 2 — Revise e confirme</span>}
         </div>
 
         {/* ── ETAPA 1 ── */}
         {step === "input" && (
           <>
-            <p style={{ fontSize: 13, color: "#64748b", marginTop: 12, marginBottom: 0 }}>
+            <p style={{ fontSize: 13, color: "#8a948e", marginTop: 12, marginBottom: 0 }}>
               Cole a matéria-prima da retro ou faça upload de um arquivo. A IA vai preencher os campos para você revisar antes de gerar.
             </p>
             <label style={labelStyle}>Texto (cole aqui)</label>
@@ -162,8 +162,8 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             <label style={labelStyle}>Ou faça upload de arquivo</label>
             <input ref={enrichFileRef} type="file" accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => setEnrichFileName(e.target.files?.[0]?.name ?? null)} />
-            {enrichFileName && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Arquivo: {enrichFileName}</div>}
-            {error && <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>{error}</div>}
+            {enrichFileName && <div style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>Arquivo: {enrichFileName}</div>}
+            {error && <div style={{ marginTop: 14, padding: 10, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 8, fontSize: 13 }}>{error}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
               <button type="button" style={ghostBtn} onClick={onClose} disabled={enriching}>Cancelar</button>
               <button type="button" style={ghostBtn} onClick={() => { setError(null); setStep("form"); }} disabled={enriching}>Preencher manualmente</button>
@@ -179,7 +179,7 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
         {step === "form" && (
           <>
             {aiFields.size > 0 && (
-              <div style={{ marginTop: 12, padding: "8px 12px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, fontSize: 13, color: "#1e40af" }}>
+              <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(177,151,252,0.10)", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 8, fontSize: 13, color: "#b197fc" }}>
                 Campos marcados com <strong>IA</strong> foram preenchidos automaticamente — revise antes de confirmar.
               </div>
             )}
@@ -237,12 +237,12 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             {/* Causa Raiz × Impacto */}
             <div style={sectionStyle}>
               <div style={sectionTitleStyle}>Causa Raiz × Impacto <AiBadge field="causaRaiz" /></div>
-              <p style={{ fontSize: 11, color: "#9696a0", margin: "0 0 8px" }}>
+              <p style={{ fontSize: 11, color: "#8a948e", margin: "0 0 8px" }}>
                 1=Especif. incompleta · 2=Dep. cliente atrasada · 3=Escopo novo · 4=Estimativa equivocada · 5=Bloqueio técnico · 6=Ausência membro · 7=Outro
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "3fr 120px auto", gap: 6, marginBottom: 4 }}>
                 {["Causa raiz (nº e nome)", "Impacto", ""].map((h, i) => (
-                  <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                 ))}
               </div>
               {causaRaizImpacto.map((row, idx) => (
@@ -269,7 +269,7 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
               <div style={sectionTitleStyle}>Ações de Melhoria (máx. 2) <AiBadge field="acoesMelhoria" /></div>
               <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr 2fr auto", gap: 6, marginBottom: 4 }}>
                 {["Ação", "Responsável", "Prazo", ""].map((h, i) => (
-                  <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                  <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                 ))}
               </div>
               {acoesMelhoria.map((row, idx) => (
@@ -313,18 +313,18 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             </div>
 
             {/* Observações */}
-            <label style={labelStyle}>Observações do gerente <span style={{ fontWeight: 400, color: "#9696a0" }}>(opcional)</span> <AiBadge field="observacoes" /></label>
+            <label style={labelStyle}>Observações do gerente <span style={{ fontWeight: 400, color: "#8a948e" }}>(opcional)</span> <AiBadge field="observacoes" /></label>
             <textarea style={textareaStyle} value={observacoes} onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Tópicos discutidos na reunião de retro, o que o time sentiu que travou, feedbacks internos..." />
 
             <label style={labelStyle}>
-              Anexo <span style={{ fontWeight: 400, color: "#9696a0" }}>(opcional) — ex: Tactiq da reunião, ata externa</span>
+              Anexo <span style={{ fontWeight: 400, color: "#8a948e" }}>(opcional) — ex: Tactiq da reunião, ata externa</span>
             </label>
             <input ref={fileRef} type="file" accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)} />
-            {anexoName && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Anexo: {anexoName}</div>}
+            {anexoName && <div style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>Anexo: {anexoName}</div>}
 
-            {error && <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>{error}</div>}
+            {error && <div style={{ marginTop: 14, padding: 10, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 8, fontSize: 13 }}>{error}</div>}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
               <button type="button" style={ghostBtn} onClick={() => { setError(null); setStep("input"); }} disabled={submitting}>Voltar</button>

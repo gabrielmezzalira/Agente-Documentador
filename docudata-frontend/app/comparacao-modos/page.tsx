@@ -21,8 +21,8 @@ import {
 } from "../lib/api";
 
 const card: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 12,
   padding: "20px 24px",
   marginBottom: 20,
@@ -30,7 +30,7 @@ const card: React.CSSProperties = {
 
 const linkProjetosStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#9696a0",
+  color: "#8a948e",
 };
 
 export default function ComparacaoModosPage() {
@@ -77,7 +77,7 @@ export default function ComparacaoModosPage() {
     return (
       <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
         <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
-        <p style={{ color: "#dc2626", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
+        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
       </main>
     );
   }
@@ -85,7 +85,7 @@ export default function ComparacaoModosPage() {
   return (
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "52px 24px" }}>
       <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", margin: "20px 0 24px" }}>
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 24px" }}>
         Comparação de modos entre projetos
       </h1>
 
@@ -108,8 +108,8 @@ export default function ComparacaoModosPage() {
           onClick={buscar}
           disabled={loading || selecionados.length < 2}
           style={{
-            background: "#22c55e",
-            color: "#fff",
+            background: "#3ee06f",
+            color: "#04120a",
             border: "none",
             borderRadius: 8,
             padding: "8px 16px",
@@ -120,12 +120,12 @@ export default function ComparacaoModosPage() {
         >
           {loading ? "Comparando..." : "Comparar"}
         </button>
-        {erro && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 8 }}>{erro}</p>}
+        {erro && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 8 }}>{erro}</p>}
       </div>
 
       {buscou && resultado.length === 0 && !erro && (
         <div style={card}>
-          <p style={{ fontSize: 13, color: "#9696a0" }}>
+          <p style={{ fontSize: 13, color: "#8a948e" }}>
             Nenhuma sprint fechada encontrada pros projetos selecionados.
           </p>
         </div>

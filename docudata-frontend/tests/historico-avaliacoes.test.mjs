@@ -37,6 +37,7 @@ test("página /avaliacoes: guarda de cargo, filtros, edição com motivo e hist�
 });
 
 test("nav global linka /avaliacoes para gerente/líder/owner", () => {
-  const home = read("../app/page.tsx");
-  assert.match(home, /podeConfigurar && <Link href="\/avaliacoes"/);
+  // O menu global vive em components/shell/navItems.ts (casca nova), com a mesma regra de cargo.
+  const nav = read("../app/components/shell/navItems.ts");
+  assert.match(nav, /canConfigure\(cargo\)\) items\.push\(\{ href: "\/avaliacoes"/);
 });

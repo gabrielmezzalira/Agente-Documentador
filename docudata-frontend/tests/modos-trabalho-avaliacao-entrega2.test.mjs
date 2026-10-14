@@ -37,7 +37,7 @@ test("página de comparação entre projetos existe e usa a função certa", () 
   assert.ok(PAGE_ENTRE_PROJETOS.includes("export default function"));
 });
 
-const HOME = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const HOME = readFileSync(new URL("../app/components/shell/navItems.ts", import.meta.url), "utf8");
 
 test("home tem link de navegação pra comparação entre projetos", () => {
   assert.ok(HOME.includes("/comparacao-modos"));

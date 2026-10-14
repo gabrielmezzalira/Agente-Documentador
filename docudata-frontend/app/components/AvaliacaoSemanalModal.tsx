@@ -100,11 +100,11 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
   }
 
   const overlaySt: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-  const boxSt: React.CSSProperties = { background: "#fff", borderRadius: 16, padding: 28, width: 480, maxHeight: "80vh", overflowY: "auto" };
+  const boxSt: React.CSSProperties = { background: "#ffffff", borderRadius: 16, padding: 28, width: 480, maxHeight: "80vh", overflowY: "auto" };
   const chipRow: React.CSSProperties = { display: "flex", gap: 6, marginTop: 6, marginBottom: 16 };
   const chipBtn = (active: boolean): React.CSSProperties => ({
-    width: 36, height: 36, borderRadius: 8, border: active ? "2px solid #111116" : "1px solid #e4e4ea",
-    background: active ? "#111116" : "#fff", color: active ? "#fff" : "#111116", fontWeight: 700, cursor: "pointer",
+    width: 36, height: 36, borderRadius: 8, border: active ? "2px solid rgba(255,255,255,0.14)" : "1px solid rgba(62,224,111,0.2)",
+    background: active ? "#3ee06f" : "#0d1711", color: active ? "#ffffff" : "#f2f5f3", fontWeight: 700, cursor: "pointer",
   });
 
   return (
@@ -112,14 +112,14 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
       <div style={boxSt} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Avaliação Semanal — Sprint {sprintNumero}</h2>
 
-        {err && <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{err}</p>}
+        {err && <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12 }}>{err}</p>}
 
         {!avaliando && pendencias && pendencias.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <p style={{ fontSize: 13, color: "#64748b" }}>{pendencias.length} pendente(s):</p>
+            <p style={{ fontSize: 13, color: "#8a948e" }}>{pendencias.length} pendente(s):</p>
             {pendencias.map((p) => (
               <button key={p.operacional_id} onClick={() => iniciarAvaliacao(p)}
-                style={{ textAlign: "left", padding: "10px 14px", border: "1px solid #e4e4ea", borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                style={{ textAlign: "left", padding: "10px 14px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, background: "#0d1711", cursor: "pointer" }}>
                 {p.nome}
               </button>
             ))}
@@ -128,9 +128,9 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
 
         {!avaliando && pendencias && pendencias.length === 0 && (
           <div>
-            <p style={{ fontSize: 13, color: "#16a34a", marginBottom: 16 }}>✓ Todas as avaliações desta sprint estão completas.</p>
+            <p style={{ fontSize: 13, color: "#3ee06f", marginBottom: 16 }}>✓ Todas as avaliações desta sprint estão completas.</p>
             <button onClick={confirmar} disabled={confirming}
-              style={{ padding: "10px 16px", borderRadius: 8, background: "#111116", color: "#fff", border: "none", fontWeight: 600 }}>
+              style={{ padding: "10px 16px", borderRadius: 8, background: "#3ee06f", color: "#04120a", border: "none", fontWeight: 600 }}>
               {confirming ? "Confirmando..." : "Confirmar Avaliação Semanal"}
             </button>
           </div>
@@ -141,10 +141,10 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
             <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>{avaliando.nome}</p>
 
             {avaliando.ultima_avaliacao_outro_projeto && !reaproveitadaDe && (
-              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 12 }}>
+              <div style={{ background: "rgba(177,151,252,0.10)", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 12 }}>
                 Reaproveitar avaliação de {avaliando.ultima_avaliacao_outro_projeto.project_name} em{" "}
                 {new Date(avaliando.ultima_avaliacao_outro_projeto.criado_em).toLocaleDateString("pt-BR")}?{" "}
-                <button onClick={() => reaproveitar(avaliando)} style={{ color: "#0284c7", fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>
+                <button onClick={() => reaproveitar(avaliando)} style={{ color: "#b197fc", fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>
                   Usar essas respostas
                 </button>
               </div>
@@ -166,10 +166,10 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
 
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
               <button onClick={salvar} disabled={saving}
-                style={{ padding: "10px 16px", borderRadius: 8, background: "#111116", color: "#fff", border: "none", fontWeight: 600 }}>
+                style={{ padding: "10px 16px", borderRadius: 8, background: "#3ee06f", color: "#04120a", border: "none", fontWeight: 600 }}>
                 {saving ? "Salvando..." : "Salvar avaliação"}
               </button>
-              <button onClick={() => setAvaliando(null)} style={{ padding: "10px 16px", borderRadius: 8, background: "none", border: "1px solid #e4e4ea", cursor: "pointer" }}>
+              <button onClick={() => setAvaliando(null)} style={{ padding: "10px 16px", borderRadius: 8, background: "none", border: "1px solid rgba(62,224,111,0.2)", cursor: "pointer" }}>
                 Voltar
               </button>
             </div>
