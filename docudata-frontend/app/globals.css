@@ -1,3 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: dark;
+  --ds-bg: #030504;
+  --ds-sidebar: #070b09;
+  --ds-card-top: #0e1913;
+  --ds-card-bottom: #0a120d;
+  --ds-border: rgba(255, 255, 255, 0.08);
+  --ds-border-strong: rgba(255, 255, 255, 0.14);
+  --ds-text: #f2f5f3;
+  --ds-text-2: #c3cbc6;
+  --ds-muted: #8a948e;
+  --ds-dim: #5d6661;
+  --ds-green: #3ee06f;
+  --ds-red: #ff6b6b;
+  --ds-amber: #f2c14e;
+  --ds-violet: #b197fc;
+  /* nomes antigos (usados por estilos existentes) */
+  --accent: #3ee06f;
+  --accent-strong: #7cf0a0;
+  --accent-soft: rgba(62, 224, 111, 0.12);
+  --accent-border: rgba(62, 224, 111, 0.35);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -5,10 +30,11 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #f4f4f7;
-  color: #111116;
-  line-height: 1.6;
+  font-family: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #030504;
+  color: #f2f5f3;
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -17,12 +43,49 @@ a {
   text-decoration: none;
 }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f0f0f4; }
-::-webkit-scrollbar-thumb { background: #d0d0d8; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #22c55e; }
+::selection {
+  background: rgba(62, 224, 111, 0.3);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3ee06f; }
 
 select option {
-  background: #ffffff;
-  color: #111116;
+  background: #0a120d;
+  color: #f2f5f3;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #5d6661;
+}
+
+/* Foco visível em tudo que é interativo (WCAG AA) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #3ee06f;
+  outline-offset: 2px;
+}
+
+/* Estados de hover/disabled que estilos inline não alcançam */
+.ds-btn { transition: background 0.15s, border-color 0.15s, color 0.15s; cursor: pointer; }
+.ds-btn:disabled { opacity: 0.5; pointer-events: none; }
+.ds-btn-primary:hover { background: #7cf0a0 !important; }
+.ds-btn-secondary:hover { background: rgba(255, 255, 255, 0.08) !important; }
+.ds-btn-ghost:hover { background: rgba(255, 255, 255, 0.05) !important; color: #f2f5f3 !important; }
+.ds-btn-danger:hover { background: rgba(255, 107, 107, 0.10) !important; }
+.ds-btn-active:hover { background: rgba(62, 224, 111, 0.20) !important; }
+.ds-row-link { transition: background 0.15s; }
+.ds-row-link:hover { background: rgba(255, 255, 255, 0.03); }
+.ds-control:hover { border-color: rgba(62, 224, 111, 0.35) !important; }
+.ds-control:focus { border-color: #3ee06f !important; outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
