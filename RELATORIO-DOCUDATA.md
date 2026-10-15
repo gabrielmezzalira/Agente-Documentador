@@ -42,7 +42,16 @@ outras pessoas.
 ranking de contribuição. É o único que consegue reabrir um fechamento de sprint que já
 foi confirmado.
 
-**Gerente** — enxerga todos os projetos e opera todas as abas, mas não acessa o ranking
+**Gerente** — enxerga todos os projetos e opeUPDATE pontuacao_operacional_sprint p
+  SET entrega_pontos_concluidos = 0,
+      entrega_pontos_alocados = 0,
+      entrega_pontos_penalizados = 0
+  FROM projects pr, sprints s
+  WHERE pr.id = p.projeto_id
+    AND s.id = p.sprint_id
+    AND pr.name = 'Visus'
+    AND s.numero IN (1, 2);
+ra todas as abas, mas não acessa o ranking
 de performance.
 
 **Operacional** — enxerga apenas os projetos em que foi cadastrado, e dentro deles
