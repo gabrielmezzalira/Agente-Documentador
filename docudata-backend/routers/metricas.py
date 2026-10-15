@@ -34,7 +34,7 @@ def _parse_ts(valor) -> Optional[datetime]:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def _cycle_time_segundos(client, task_id: str) -> Optional[int]:
+def _cycle_time_segundos(client, task_id: str, pull_em=None) -> Optional[int]:
     """Segundos entre a entrada em em_andamento e a saída pra concluida.
 
     NÃO usa `duracao_fase_anterior_segundos` da transição -> concluida: esse
@@ -44,8 +44,8 @@ def _cycle_time_segundos(client, task_id: str) -> Optional[int]:
     artificialmente baixo justo nas tasks com mais cerimônia. Diferença de
     timestamps é robusta a quantas idas e vindas a task tenha tido.
 
-    Fallback (task sem transição registrada pra em_andamento — ex.: puxada via
-    /puxar, que é estrutural e não grava transição): volta ao comportamento
+    Task puxada via /puxar não grava transição -> em_andamento (é estrutural);
+    aí o início é `pull_em`. Sem nenhum dos dois, volta ao comportamento
     antigo em vez de sumir com a task do relatório.
     """
     concluida = _ultima_transicao_para(client, task_id, "concluida")
@@ -54,7 +54,7 @@ def _cycle_time_segundos(client, task_id: str) -> Optional[int]:
 
     em_andamento = _ultima_transicao_para(client, task_id, "em_andamento")
     ts_fim = _parse_ts(concluida.get("timestamp"))
-    ts_inicio = _parse_ts(em_andamento.get("timestamp")) if em_andamento else None
+    ts_inicio = _parse_ts(em_andamento.get("timestamp")) if em_andamento else _parse_ts(pull_em)
     if ts_inicio and ts_fim and ts_fim >= ts_inicio:
         return int((ts_fim - ts_inicio).total_seconds())
 
@@ -166,7 +166,7 @@ async def get_cycle_time(
 
     tasks_query = (
         client.table("tasks")
-        .select("id, titulo, sprint_id, operacional_id, coluna_kanban")
+        .select("id, titulo, sprint_id, operacional_id, coluna_kanban, pull_em")
         .eq("project_id", project_id)
         .eq("coluna_kanban", "concluida")
     )
@@ -191,7 +191,7 @@ async def get_cycle_time(
     for task in tasks:
         # Tempo de em_andamento até concluida (robusto ao pulo por
         # pendente_aprovacao — ver _cycle_time_segundos).
-        duracao_s = _cycle_time_segundos(client, task["id"])
+        duracao_s = _cycle_time_segundos(client, task["id"], task.get("pull_em"))
         if not duracao_s:
             continue
 
@@ -327,7 +327,10 @@ async def get_performance_operacional(project_id: str):
 async def get_cycle_time_stats(project_id: str):
     """
     Estatísticas agregadas de cycle-time (MET-02): p50_horas e p85_horas via
-    statistics.quantiles. Endpoint aditivo — não altera o contrato de /cycle-time.
+    statistics.quantiles. Mesma régua do histograma (/cycle-time, via
+    _cycle_time_segundos) — antes usava só `duracao_fase_anterior_segundos` da
+    transição -> concluida, que numa task com aprovação mede só a espera pelo
+    gerente, e o p50 do card não batia com o histograma ao lado.
     """
     client = get_client()
     proj = client.table("projects").select("id").eq("id", project_id).execute()
@@ -336,7 +339,7 @@ async def get_cycle_time_stats(project_id: str):
 
     tasks = (
         client.table("tasks")
-        .select("id, sprint_id, operacional_id, coluna_kanban")
+        .select("id, sprint_id, operacional_id, coluna_kanban, pull_em")
         .eq("project_id", project_id)
         .eq("coluna_kanban", "concluida")
         .execute()
@@ -345,19 +348,7 @@ async def get_cycle_time_stats(project_id: str):
 
     cycle_times_horas: list[float] = []
     for task in tasks:
-        trans = (
-            client.table("task_transicoes")
-            .select("duracao_fase_anterior_segundos, timestamp")
-            .eq("task_id", task["id"])
-            .eq("campo", "coluna_kanban")
-            .eq("para", "concluida")
-            .order("timestamp", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if not trans.data:
-            continue
-        duracao_s = trans.data[0].get("duracao_fase_anterior_segundos")
+        duracao_s = _cycle_time_segundos(client, task["id"], task.get("pull_em"))
         if not duracao_s:
             continue
         cycle_times_horas.append(round(duracao_s / 3600, 1))
