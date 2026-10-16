@@ -2,62 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { getTechnologies, type TechTimeline } from "../lib/api";
+import { ds, labelStyle } from "../lib/ds";
+import { Card, Chip, EmptyState, ErrorNotice, TabSectionHead } from "./ds";
+import { PanelCard } from "./painel/PanelCard";
 
 interface Props {
   projectId: string;
 }
-
-const sectionStyle: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 14,
-  padding: "20px 22px",
-  marginBottom: 14,
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.1em",
-  textTransform: "uppercase",
-  marginBottom: 16,
-  color: "#8a948e",
-};
-
-const chipStyle = (active: boolean): React.CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "5px 12px",
-  borderRadius: 999,
-  fontSize: 13,
-  fontWeight: 600,
-  background: active ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)",
-  color: active ? "#3ee06f" : "#8a948e",
-  border: active ? "1px solid rgba(62,224,111,0.35)" : "1px solid rgba(62,224,111,0.2)",
-});
-
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  color: "#8a948e",
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  background: "rgba(62,224,111,0.055)",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-};
 
 export default function TechnologiesTab({ projectId }: Props) {
   const [data, setData] = useState<TechTimeline | null>(null);
@@ -75,113 +26,79 @@ export default function TechnologiesTab({ projectId }: Props) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  const head = (
+    <TabSectionHead
+      title="Tecnologias"
+      count={data ? `${data.em_uso_atual.length} em uso` : undefined}
+      description="Tecnologias detectadas nas ingestões e commits do projeto, sprint a sprint: o que está em uso agora e quando cada uma entrou ou saiu."
+    />
+  );
+
   if (loading) {
     return (
-      <section style={sectionStyle}>
-        <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>Carregando tecnologias…</p>
-      </section>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {head}
+        <Card><p role="status" style={{ margin: 0, padding: "24px 26px", color: ds.muted, fontSize: 14 }}>Carregando tecnologias…</p></Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <section style={sectionStyle}>
-        <p style={{ color: "#ff6b6b", fontSize: 14, margin: 0 }}>{error}</p>
-      </section>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {head}
+        <ErrorNotice>{error}</ErrorNotice>
+      </div>
     );
   }
 
   if (!data || data.timeline.length === 0) {
     return (
-      <section style={sectionStyle}>
-        <h2 style={sectionTitle}>Tecnologias do projeto</h2>
-        <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-          Nenhuma tecnologia identificada ainda. Tecnologias são extraídas automaticamente das
-          ingestões — assim que o gerente subir conteúdo que mencione stack, ferramentas ou
-          bibliotecas, elas aparecem aqui.
-        </p>
-      </section>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {head}
+        <EmptyState>
+          Nenhuma tecnologia identificada ainda. O DocuData extrai as tecnologias das ingestões: assim que o gerente subir conteúdo que mencione stack, ferramentas ou bibliotecas, elas aparecem aqui.
+        </EmptyState>
+      </div>
     );
   }
 
   const activeKeys = new Set(data.em_uso_atual.map((t) => t.toLowerCase()));
+  const colunas = "minmax(0,1.4fr) 1fr 1fr 140px";
 
   return (
-    <>
-      <section style={sectionStyle}>
-        <h2 style={sectionTitle}>
-          Em uso atualmente
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#3ee06f",
-              marginLeft: 8,
-              background: "rgba(62,224,111,0.12)",
-              borderRadius: 4,
-              padding: "2px 7px",
-            }}
-          >
-            {data.em_uso_atual.length}
-          </span>
-        </h2>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ marginBottom: 12 }}>{head}</div>
+      <PanelCard label={`Em uso atualmente · ${data.em_uso_atual.length}`}>
         {data.em_uso_atual.length === 0 ? (
-          <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-            Nenhuma tecnologia ativa na sprint mais recente.
-          </p>
+          <p style={{ margin: 0, fontSize: 14, color: ds.muted }}>Nenhuma tecnologia ativa na sprint mais recente.</p>
         ) : (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {data.em_uso_atual.map((t) => (
-              <span key={t} style={chipStyle(true)}>
-                {t}
-              </span>
-            ))}
+            {data.em_uso_atual.map((t) => <Chip key={t} tone="green">{t}</Chip>)}
           </div>
         )}
-      </section>
+      </PanelCard>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitle}>Histórico — quando cada tecnologia entrou e saiu</h2>
-        <div style={{ overflowX: "auto" }}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Tecnologia</th>
-                <th style={thStyle}>Introduzida em</th>
-                <th style={thStyle}>Abandonada em</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.timeline.map((entry) => {
-                const isActive = activeKeys.has(entry.tecnologia.toLowerCase());
-                return (
-                  <tr key={entry.tecnologia}>
-                    <td style={{ ...tdStyle, fontWeight: 600, color: "#f2f5f3" }}>
-                      {entry.tecnologia}
-                    </td>
-                    <td style={tdStyle}>Sprint {entry.introduzida_em}</td>
-                    <td style={tdStyle}>
-                      {entry.abandonada_em == null ? (
-                        <span style={{ color: "#5d6661" }}>—</span>
-                      ) : (
-                        <span style={{ color: "#f2c14e" }}>Sprint {entry.abandonada_em}</span>
-                      )}
-                    </td>
-                    <td style={tdStyle}>
-                      {isActive ? (
-                        <span style={chipStyle(true)}>Em uso</span>
-                      ) : (
-                        <span style={chipStyle(false)}>Abandonada</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <PanelCard label="Histórico · quando cada tecnologia entrou e saiu">
+        <div role="table" style={{ display: "flex", flexDirection: "column", overflowX: "auto" }}>
+          <div role="row" style={{ display: "grid", gridTemplateColumns: colunas, gap: 12, padding: "10px 16px", borderBottom: `1px solid ${ds.border}`, minWidth: 520 }}>
+            {["Tecnologia", "Introduzida em", "Abandonada em", "Status"].map((c) => <span key={c} role="columnheader" style={labelStyle}>{c}</span>)}
+          </div>
+          {data.timeline.map((entry, i) => {
+            const ativa = activeKeys.has(entry.tecnologia.toLowerCase());
+            return (
+              <div key={`${entry.tecnologia}-${i}`} role="row" style={{ display: "grid", gridTemplateColumns: colunas, gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none", fontSize: 14, color: ds.text2, minWidth: 520 }}>
+                <span role="cell" style={{ fontWeight: 600, color: ds.white }}>{entry.tecnologia}</span>
+                <span role="cell" style={{ fontFamily: ds.fontMono, fontSize: 13 }}>Sprint {entry.introduzida_em}</span>
+                <span role="cell" style={{ fontFamily: ds.fontMono, fontSize: 13, color: entry.abandonada_em == null ? ds.dim : ds.amber }}>
+                  {entry.abandonada_em == null ? "—" : `Sprint ${entry.abandonada_em}`}
+                </span>
+                <span role="cell">{ativa ? <Chip tone="green" dot>Em uso</Chip> : <Chip>Abandonada</Chip>}</span>
+              </div>
+            );
+          })}
         </div>
-      </section>
-    </>
+      </PanelCard>
+    </div>
   );
 }
