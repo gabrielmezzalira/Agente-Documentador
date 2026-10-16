@@ -10,14 +10,18 @@ import type {
 } from "../lib/api";
 import { reabrirAvaliacaoSemanal } from "../lib/api";
 import { DOC_TYPES, docTypeLabel } from "../lib/doc_types";
+import { ds, cardStyle } from "../lib/ds";
+import { Button } from "./ds";
 import { useAuth } from "./AuthGuard";
-
-const EXPECTED_DAILYS = 5;
+import SprintChecklist, { ChecklistBars, type ChecklistItem } from "./sprints/SprintChecklist";
+import SprintMenu, { type SprintMenuAction } from "./sprints/SprintMenu";
 
 type SprintGenType = "repasse_semanal";
 
 interface Props {
   sprint: SprintWithStatus;
+  /** Sprint em andamento (a mais recente iniciada): aparece aberta e marcada como "Atual". */
+  isCurrent: boolean;
   ingestions: Ingestion[];
   docs: GeneratedDoc[];
   generating: boolean;
@@ -37,69 +41,11 @@ interface Props {
   onDeleteSprint: (sprintId: string) => void;
   onSprintUpdated?: (updated: SprintWithStatus) => void;
   onOpenAvaliacaoSemanal?: (sprint: SprintWithStatus) => void;
+  /** Leva à aba Planejamento, onde o orçamento de pontos é definido. */
+  onGoToPlanejamento?: () => void;
 }
 
 // ---------- styles ----------
-
-const cardStyle: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 16,
-  padding: "26px 28px",
-  marginBottom: 16,
-  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
-};
-
-const headerRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  marginBottom: 4,
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#f2f5f3",
-  letterSpacing: "-0.02em",
-  margin: 0,
-};
-
-const statusRow: React.CSSProperties = {
-  display: "flex",
-  gap: 10,
-  alignItems: "center",
-  flexWrap: "wrap",
-  marginTop: 18,
-  marginBottom: 10,
-};
-
-const statusChip = (done: boolean): React.CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "9px 16px",
-  borderRadius: 10,
-  fontSize: 14,
-  fontWeight: 700,
-  background: done ? "rgba(62,224,111,0.12)" : "rgba(242,193,78,0.10)",
-  color: done ? "#3ee06f" : "#f2c14e",
-  border: done ? "1px solid rgba(62,224,111,0.35)" : "1px solid rgba(242,193,78,0.30)",
-  cursor: "pointer",
-  transition: "transform 0.06s",
-});
-
-const dailyChip = (count: number): React.CSSProperties => ({
-  ...statusChip(count > 0),
-  background: count >= EXPECTED_DAILYS ? "rgba(62,224,111,0.12)" : count > 0 ? "rgba(242,193,78,0.10)" : "rgba(62,224,111,0.055)",
-  color: count >= EXPECTED_DAILYS ? "#3ee06f" : count > 0 ? "#f2c14e" : "#c3cbc6",
-  border: count >= EXPECTED_DAILYS
-    ? "1px solid #86efac"
-    : count > 0
-    ? "1px solid #fde68a"
-    : "1px solid #e4e4ea",
-});
 
 const muted: React.CSSProperties = {
   color: "#8a948e",
@@ -107,58 +53,24 @@ const muted: React.CSSProperties = {
   marginLeft: 4,
 };
 
-const actionRow: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const btnAction: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#f2f5f3",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 10,
-  padding: "11px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  transition: "background 0.1s",
-};
-
-const btnActionActive: React.CSSProperties = {
-  ...btnAction,
-  background: "rgba(62,224,111,0.12)",
-  borderColor: "rgba(62,224,111,0.35)",
-  color: "#3ee06f",
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
+const textBtn: React.CSSProperties = {
+  background: "none",
   border: "none",
-  borderRadius: 10,
-  padding: "11px 18px",
-  fontSize: 14,
-  fontWeight: 700,
+  padding: 0,
   cursor: "pointer",
-};
-
-const btnSubtle: React.CSSProperties = {
-  background: "transparent",
-  color: "#8a948e",
-  border: "none",
+  fontFamily: "inherit",
   fontSize: 13,
-  cursor: "pointer",
-  padding: "8px 12px",
-  fontWeight: 500,
+  fontWeight: 600,
+  color: ds.text2,
 };
+
+const monoMeta: React.CSSProperties = { fontFamily: ds.fontMono, fontSize: 12, color: ds.muted };
 
 const confirmPanel: React.CSSProperties = {
-  marginTop: 14,
   padding: "16px 18px",
   background: "rgba(62,224,111,0.055)",
   borderRadius: 12,
-  border: "1px solid rgba(62,224,111,0.2)",
+  border: "1px solid rgba(62,224,111,0.17)",
 };
 
 const confirmField: React.CSSProperties = {
@@ -184,34 +96,11 @@ const confirmActions: React.CSSProperties = {
   marginTop: 14,
 };
 
-const btnConfirm: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#3ee06f",
-  border: "none",
-  padding: "9px 18px",
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const btnCancel: React.CSSProperties = {
-  background: "#0d1711",
-  color: "#8a948e",
-  border: "1px solid rgba(62,224,111,0.2)",
-  padding: "9px 16px",
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
 const detailBox: React.CSSProperties = {
-  marginTop: 20,
   padding: 18,
   background: "rgba(62,224,111,0.055)",
   borderRadius: 12,
-  border: "1px solid rgba(62,224,111,0.2)",
+  border: "1px solid rgba(62,224,111,0.17)",
 };
 
 const subTitleStyle: React.CSSProperties = {
@@ -280,9 +169,9 @@ const tinyBtnDanger: React.CSSProperties = {
 };
 
 // ---------- component ----------
-
 export default function SprintCard({
   sprint,
+  isCurrent,
   ingestions,
   docs,
   generating,
@@ -302,6 +191,7 @@ export default function SprintCard({
   onDeleteSprint,
   onSprintUpdated,
   onOpenAvaliacaoSemanal,
+  onGoToPlanejamento,
 }: Props) {
   const cargo = useAuth()?.cargo ?? "lider";
   const [expanded, setExpanded] = useState(false);
@@ -413,132 +303,138 @@ export default function SprintCard({
     );
   }
 
-  return (
-    <div style={cardStyle}>
-      <div style={headerRow}>
-        <h3 style={titleStyle}>Sprint {sprint.numero}</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button style={btnSubtle} onClick={() => setExpanded((v) => !v)}>
-            {expanded ? "Recolher" : "Detalhes"}
-          </button>
-          <button
-            style={{ ...btnSubtle, color: "#ff6b6b" }}
-            onClick={() => {
-              if (confirm(`Excluir Sprint ${sprint.numero} e TUDO associado a ela (tasks, ingestões e documentos gerados)? Esta ação é irreversível.`))
-                onDeleteSprint(sprint.id);
-            }}
-            title="Excluir sprint"
-          >
-            Excluir
+  // Sprint fechada começa recolhida em uma linha; a atual começa aberta (DESIGN.md · Densidade).
+  const [open, setOpen] = useState(isCurrent);
+
+  const checklist: ChecklistItem[] = [
+    {
+      key: "planning", label: "Planning", state: sprint.tem_planning ? "done" : "pending",
+      count: sprint.tem_planning ? "1/1" : "0/1", onClick: () => onOpenPlanning(sprint), title: "Abrir Planning",
+    },
+    {
+      key: "review", label: "Review", state: sprint.tem_review ? "done" : "pending",
+      count: sprint.tem_review ? "1/1" : "0/1", onClick: () => onOpenSprintDoc("review", sprint.numero), title: "Registrar Review",
+    },
+    {
+      key: "retro", label: "Retrospectiva", state: temRetro ? "done" : "pending",
+      count: temRetro ? "1/1" : "0/1", onClick: () => onOpenRetroModal(sprint.numero), title: "Gerar Retrospectiva",
+    },
+    ...(cargo !== "operacional"
+      ? [{
+          key: "avaliacao", label: "Avaliação",
+          state: (sprint.avaliacao_completa_em || (sprint.elegiveis_avaliacao_count > 0 && !avaliacaoPendente) ? "done" : "pending") as ChecklistItem["state"],
+          count: `${sprint.avaliados_count}/${sprint.elegiveis_avaliacao_count}`,
+          onClick: () => onOpenAvaliacaoSemanal?.(sprint), title: "Avaliação Semanal",
+        }]
+      : []),
+    {
+      key: "dailys", label: "Dailys", state: sprint.dailys_count > 0 ? "done" : "optional",
+      count: sprint.dailys_count > 0 ? String(sprint.dailys_count) : "opcional",
+      onClick: () => onOpenSprintDoc("daily", sprint.numero), title: "Registrar Daily",
+    },
+  ];
+
+  const menuActions: SprintMenuAction[] = [
+    { label: "Upload livre", onSelect: () => onUploadLivre(sprint.numero) },
+    ...((cargo === "lider" || cargo === "owner") && sprint.avaliacao_completa_em
+      ? [{
+          label: reabrindo ? "Reabrindo…" : "Reabrir fechamento",
+          onSelect: handleReabrir,
+          disabled: reabrindo,
+          title: "Apaga a pontuação travada desta sprint para o gerente corrigir o Kanban e confirmar de novo. As respostas do questionário são mantidas.",
+        }]
+      : []),
+    {
+      label: "Excluir sprint",
+      danger: true,
+      onSelect: () => {
+        if (confirm(`Excluir Sprint ${sprint.numero} e TUDO associado a ela (tasks, ingestões e documentos gerados)? Esta ação é irreversível.`))
+          onDeleteSprint(sprint.id);
+      },
+    },
+  ];
+
+  const ingestaoMeta = `${sprint.ingestions_count} ingestões · ${sprint.docs_gerados_count} docs`;
+  const statusLabel = isCurrent ? null : sprint.avaliacao_completa_em ? "Fechada" : "Em aberto";
+
+  // Linha única da sprint fechada (protótipo 03, "Sprint 1 · Fechada").
+  if (!open) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ padding: "20px 28px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: ds.white }}>Sprint {sprint.numero}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: sprint.avaliacao_completa_em ? ds.muted : ds.amber }}>{statusLabel}</span>
+          <ChecklistBars items={checklist} />
+          <span style={monoMeta}>{ingestaoMeta}</span>
+          <button type="button" className="ds-text-btn" onClick={() => setOpen(true)} aria-expanded={false} style={{ ...textBtn, marginLeft: "auto" }}>
+            Ver detalhes ▾
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* Chips clicáveis — clicar adiciona o doc correspondente */}
-      <div style={statusRow}>
-        <button
-          type="button"
-          style={statusChip(sprint.tem_planning)}
-          onClick={() => onOpenPlanning(sprint)}
-          title="Adicionar Planning"
-        >
-          {sprint.tem_planning ? "1/1" : "0/1"} Planning
-          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
-        </button>
-        <button
-          type="button"
-          style={statusChip(sprint.tem_review)}
-          onClick={() => onOpenSprintDoc("review", sprint.numero)}
-          title="Adicionar Review"
-        >
-          {sprint.tem_review ? "1/1" : "0/1"} Review
-          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
-        </button>
-        <button
-          type="button"
-          style={statusChip(temRetro)}
-          onClick={() => onOpenRetroModal(sprint.numero)}
-          title="Adicionar Retrospectiva"
-        >
-          {temRetro ? "1/1" : "0/1"} Retrospectiva
-          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
-        </button>
-        {cargo !== "operacional" && sprint.elegiveis_avaliacao_count > 0 && (
-          <button
-            type="button"
-            style={statusChip(!avaliacaoPendente)}
-            onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
-            title="Avaliação Semanal"
-          >
-            {sprint.avaliados_count}/{sprint.elegiveis_avaliacao_count} Avaliação
-          </button>
-        )}
-        <button
-          type="button"
-          style={dailyChip(sprint.dailys_count)}
-          onClick={() => onOpenSprintDoc("daily", sprint.numero)}
-          title="Adicionar Daily"
-        >
-          Dailys
-          <span style={{ marginLeft: 4, fontWeight: 800 }}>+</span>
-        </button>
-      </div>
+  return (
+    <div style={cardStyle}>
+      <div style={{ padding: "26px 28px", display: "flex", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: ds.white }}>Sprint {sprint.numero}</h3>
+            {isCurrent ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: ds.green }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: ds.green, boxShadow: `0 0 8px ${ds.green}` }} />
+                Atual
+              </span>
+            ) : (
+              <span style={{ fontSize: 12, fontWeight: 600, color: sprint.avaliacao_completa_em ? ds.muted : ds.amber }}>{statusLabel}</span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <span style={monoMeta}>{ingestaoMeta}</span>
+            <button type="button" className="ds-text-btn" style={textBtn} aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? "Recolher detalhes" : "Detalhes"}
+            </button>
+            {!isCurrent && (
+              <button type="button" className="ds-text-btn" style={{ ...textBtn, color: ds.muted }} onClick={() => { setOpen(false); setExpanded(false); }}>
+                Recolher ▴
+              </button>
+            )}
+            <SprintMenu actions={menuActions} sprintNumero={sprint.numero} />
+          </div>
+        </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: sprint.pontos_orcamento != null ? "#b197fc" : "#8a948e" }}>
-          {sprint.pontos_orcamento != null
-            ? `${sprint.pontos_usados}/${sprint.pontos_orcamento} pts em tasks${
-                sprint.faturamento_previsto != null ? ` · R$ ${sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos` : ""
-              }`
-            : "Orçamento de pontos não definido (defina na aba Planejamento)"}
-        </span>
-        <span style={muted}>
-          · {sprint.ingestions_count} ingestões · {sprint.docs_gerados_count} docs
-        </span>
-      </div>
+        <SprintChecklist items={checklist} />
 
-      <div style={actionRow}>
-        {cargo !== "operacional" && (
-          <button
-            style={sprint.avaliacao_completa_em ? btnAction : btnPrimary}
-            onClick={() => onOpenAvaliacaoSemanal?.(sprint)}
-          >
-            {sprint.avaliacao_completa_em
-              ? "✓ Avaliação Semanal"
-              : sprint.elegiveis_avaliacao_count > 0
-                ? `Avaliação Semanal (${sprint.avaliados_count}/${sprint.elegiveis_avaliacao_count})`
-                : "Avaliação Semanal"}
-          </button>
-        )}
-        {(cargo === "lider" || cargo === "owner") && sprint.avaliacao_completa_em && (
-          <button
-            style={btnSubtle}
-            disabled={reabrindo}
-            title="Apaga a pontuação travada desta sprint para o gerente corrigir o Kanban e confirmar de novo. As respostas do questionário são mantidas."
-            onClick={handleReabrir}
-          >
-            {reabrindo ? "Reabrindo..." : "Reabrir fechamento"}
-          </button>
-        )}
-        <button
-          style={
-            pendingGen === "repasse_semanal"
-              ? btnActionActive
-              : sprint.avaliacao_completa_em
-              ? btnPrimary
-              : btnAction
-          }
-          onClick={() => setPendingGen(pendingGen === "repasse_semanal" ? null : "repasse_semanal")}
-        >
-          Gerar Repasse Semanal
-        </button>
-        <button style={btnSubtle} onClick={() => onUploadLivre(sprint.numero)}>
-          Upload livre
-        </button>
-        <button style={btnSubtle} onClick={() => onAddManualDoc(sprint.numero)}>
-          + Documento manual
-        </button>
-      </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+          {sprint.pontos_orcamento == null ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: ds.muted }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: ds.amber }} />
+              Orçamento de pontos não definido
+              {onGoToPlanejamento && (
+                <button type="button" onClick={onGoToPlanejamento} style={{ ...textBtn, color: ds.amber }}>Definir →</button>
+              )}
+            </span>
+          ) : (
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: ds.muted }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: ds.green }} />
+              <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.text2 }}>{sprint.pontos_usados}/{sprint.pontos_orcamento} pts</span>
+              em tasks
+              {sprint.faturamento_previsto != null && (
+                <span>· R$ {sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos</span>
+              )}
+            </span>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Button variant="secondary" onClick={() => onAddManualDoc(sprint.numero)}>+ Documento</Button>
+            <Button
+              variant={pendingGen === "repasse_semanal" ? "active" : "primary"}
+              aria-expanded={pendingGen === "repasse_semanal"}
+              onClick={() => setPendingGen(pendingGen === "repasse_semanal" ? null : "repasse_semanal")}
+            >
+              Gerar Repasse Semanal
+            </Button>
+          </div>
+        </div>
 
       {/* Painel de confirmação com explicação */}
       {pendingMeta && (
@@ -563,16 +459,10 @@ export default function SprintCard({
             <span>{pendingMeta.fontes}</span>
           </div>
           <div style={confirmActions}>
-            <button style={btnCancel} onClick={() => setPendingGen(null)}>
-              Cancelar
-            </button>
-            <button
-              style={{ ...btnConfirm, opacity: generating ? 0.6 : 1 }}
-              onClick={confirmGenerate}
-              disabled={generating}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setPendingGen(null)}>Cancelar</Button>
+            <Button variant="primary" size="sm" onClick={confirmGenerate} disabled={generating}>
               {generating ? "Gerando…" : "Confirmar e gerar"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1034,6 +924,7 @@ export default function SprintCard({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

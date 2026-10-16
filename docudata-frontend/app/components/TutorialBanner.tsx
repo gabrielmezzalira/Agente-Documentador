@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface TutorialStep {
   title: string;
@@ -12,9 +13,17 @@ interface Props {
   steps: TutorialStep[];
 }
 
+/** Espaço no cabeçalho do projeto onde a pílula "Como usar" da aba ativa aparece (como no protótipo). */
+export const PROJECT_HELP_SLOT_ID = "project-help-slot";
+
 export default function TutorialBanner({ heading, steps }: Props) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(0);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setSlot(document.getElementById(PROJECT_HELP_SLOT_ID));
+  }, []);
 
   function handleOpen() {
     setCurrent(0);
@@ -28,44 +37,41 @@ export default function TutorialBanner({ heading, steps }: Props) {
   const step = steps[current];
   const total = steps.length;
 
+  const trigger = (
+    <button
+      type="button"
+      onClick={handleOpen}
+      className="ds-help-pill"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.05)",
+        color: "#c3cbc6",
+        border: "1px solid rgba(255,255,255,0.08)",
+        fontSize: 12,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        marginBottom: slot ? 0 : 18,
+      }}
+    >
+      <span aria-hidden="true" style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 16, height: 16, borderRadius: "50%",
+        background: "rgba(62,224,111,0.12)", color: "#3ee06f",
+        fontSize: 10,
+      }}>?</span>
+      Como usar: {heading}
+    </button>
+  );
+
   return (
     <>
-      {/* Trigger button */}
-      <button
-        onClick={handleOpen}
-        title="Como usar"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          background: "none",
-          border: "1.5px solid rgba(62,224,111,0.2)",
-          borderRadius: 20,
-          padding: "5px 12px",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#8a948e",
-          cursor: "pointer",
-          marginBottom: 18,
-          transition: "border-color 0.15s, color 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "#4338ca";
-          (e.currentTarget as HTMLButtonElement).style.color = "#4338ca";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "#e2e8f0";
-          (e.currentTarget as HTMLButtonElement).style.color = "#64748b";
-        }}
-      >
-        <span style={{
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 16, height: 16, borderRadius: "50%",
-          background: "rgba(177,151,252,0.10)", color: "#b197fc",
-          fontSize: 10, fontWeight: 800,
-        }}>?</span>
-        Como usar: {heading}
-      </button>
+      {slot ? createPortal(trigger, slot) : trigger}
 
       {/* Modal overlay */}
       {open && (

@@ -63,11 +63,12 @@ import Tabs from "../../../components/Tabs";
 import RequisitosTab from "../../../components/discovery/RequisitosTab";
 import ReunioesTab from "../../../components/discovery/ReunioesTab";
 import EncaminharModal from "../../../components/discovery/EncaminharModal";
-import { Button as DsButton } from "../../../components/ds";
+import { Button as DsButton, EmptyState, TabSectionHead } from "../../../components/ds";
+import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
 import DocTypeCard from "../../../components/DocTypeCard";
-import TutorialBanner from "../../../components/TutorialBanner";
+import TutorialBanner, { PROJECT_HELP_SLOT_ID } from "../../../components/TutorialBanner";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
 
 // A aba Sprints é a que abre por padrão, então Tabs/SprintCard/DocTypeCard
@@ -1218,7 +1219,16 @@ export default function ProjectDashboard() {
     return map;
   }, [docs]);
 
-  const totalPendencias = sprints.reduce((acc, s) => acc + s.pendencias.length, 0);
+  // Sprints iniciadas da mais recente para a mais antiga: a primeira é a atual (protótipo 03).
+  const sprintsIniciadas = useMemo(
+    () => sprints.filter((s) => s.iniciada).sort((a, b) => b.numero - a.numero),
+    [sprints],
+  );
+  const sprintsPlanejadas = useMemo(
+    () => sprints.filter((s) => !s.iniciada).sort((a, b) => a.numero - b.numero),
+    [sprints],
+  );
+  const sprintAtual = sprintsIniciadas[0] ?? null;
 
   function renderDocRow(doc: GeneratedDoc) {
     return (
@@ -1244,6 +1254,7 @@ export default function ProjectDashboard() {
 
   if (loading) return <p style={{ padding: 48, color: "#8a948e" }}>Carregando...</p>;
   if (!project) return <p style={{ padding: 48, color: "#ff6b6b" }}>Projeto não encontrado.</p>;
+  const temDiscovery = project.subarea === "produto" || project.arquetipo === "consultoria_discovery";
 
   return (
     <div>
@@ -1258,6 +1269,12 @@ export default function ProjectDashboard() {
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14, color: "#8a948e", flexWrap: "wrap" }}>
               <span>Cliente <span style={{ color: "#3ee06f", fontWeight: 600 }}>{project.client}</span></span>
+              {sprintAtual && (
+                <>
+                  <span aria-hidden="true" style={{ width: 3, height: 3, borderRadius: "50%", background: "#5d6661" }} />
+                  <span>Sprint {sprintAtual.numero}</span>
+                </>
+              )}
               {project.description && (
                 <>
                   <span aria-hidden="true" style={{ width: 3, height: 3, borderRadius: "50%", background: "#5d6661" }} />
@@ -1277,6 +1294,8 @@ export default function ProjectDashboard() {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* A pílula "Como usar" da aba ativa é renderizada aqui (TutorialBanner usa portal). */}
+            <div id={PROJECT_HELP_SLOT_ID} style={{ display: "flex", alignItems: "center", gap: 8 }} />
             {project.is_delivered && (
               <span style={{ ...badgeChip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>✓ Entregue</span>
             )}
@@ -1297,7 +1316,7 @@ export default function ProjectDashboard() {
 
       <Tabs
         tabs={[
-          { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
+          { id: "sprints", label: "Sprints" },
           { id: "escopo", label: "Planejamento", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
           { id: "tasks", label: "Tasks" },
@@ -1307,7 +1326,10 @@ export default function ProjectDashboard() {
           { id: "reunioes", label: "Reuniões" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
-        ].filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
+        ]
+          .filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))
+          // Requisitos e Reuniões só existem para projetos de discovery (Produto ou arquétipo de discovery).
+          .filter((t) => (t.id !== "requisitos" && t.id !== "reunioes") || temDiscovery)}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
       />
@@ -1327,7 +1349,7 @@ export default function ProjectDashboard() {
 
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
-        <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <TutorialBanner heading="Sprints e Documentação" steps={[
             { title: "Criar uma sprint", body: "Clique em '+ Nova sprint'. O número é atribuído automaticamente. Cada sprint representa um ciclo de trabalho (geralmente 1–2 semanas)." },
             { title: "Planning", body: "Clique no chip 'Planning' na sprint. A tela já abre mostrando as tasks que estão no Kanban desta sprint, porque é dali que sai o backlog do documento: coluna, pontos e bloqueios entram no contexto da IA automaticamente. Você não precisa listar nada à mão. Abaixo das tasks tem o campo 'Contexto da sprint', em texto livre e sem formatação, para contar o que o Kanban não diz: por que a sprint é curta, o que mudou com o cliente, o que te preocupa. Se as tasks estiverem fora do DocuData (Notion, planilha, print), use o link no topo da tela para importar. E se preferir escrever o documento inteiro na mão, sem IA, use 'Escrever sem IA'." },
@@ -1339,96 +1361,23 @@ export default function ProjectDashboard() {
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
             { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
           ]} />
-          {/* SPRINTS — header destacado */}
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-            marginTop: 4,
-          }}>
-            <div>
-              <h2 style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "#f2f5f3",
-                letterSpacing: "-0.02em",
-                margin: 0,
-              }}>
-                Sprints
-                <span style={{
-                  fontSize: 14,
-                  color: "#8a948e",
-                  fontWeight: 600,
-                  marginLeft: 10,
-                }}>
-                  {sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}
-                  {totalPendencias > 0 && ` · ${totalPendencias} pendência${totalPendencias === 1 ? "" : "s"}`}
-                </span>
-              </h2>
-              <p style={{ color: "#8a948e", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
-                Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips coloridos pra registrar, ou use os botões pra gerar docs derivadas.
-              </p>
-            </div>
-            <button onClick={handleCreateSprint} style={btnPrimary}>Iniciar próxima sprint</button>
-          </div>
+          <TabSectionHead
+            title="Sprints"
+            count={`${sprints.length} ${sprints.length === 1 ? "sprint" : "sprints"}`}
+            description="Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips para registrar, ou use os botões para gerar docs derivadas."
+            actions={<DsButton variant="primary" onClick={handleCreateSprint}>Iniciar próxima sprint</DsButton>}
+          />
 
-          {sprints.some((s) => !s.iniciada) && (
-            <section style={{ ...sectionStyle, marginBottom: 16 }}>
-              <button
-                onClick={() => setPlanejadasAbertas((v) => !v)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6, width: "100%",
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  marginBottom: planejadasAbertas ? 10 : 0,
-                }}
-              >
-                <span style={{ fontSize: 11, color: "#8a948e", transform: planejadasAbertas ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Planejadas, ainda não iniciadas
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#b197fc", background: "rgba(177,151,252,0.10)", borderRadius: 999, padding: "1px 8px" }}>
-                  {sprints.filter((s) => !s.iniciada).length}
-                </span>
-              </button>
-              {planejadasAbertas && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {sprints.filter((s) => !s.iniciada).map((s) => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span style={{ fontSize: 13, color: "#c3cbc6" }}>
-                      Sprint {s.numero}
-                      {s.pontos_orcamento != null && (
-                        <span style={{ color: "#8a948e", marginLeft: 8 }}>{s.pontos_orcamento} pts orçados</span>
-                      )}
-                    </span>
-                    <button
-                      onClick={async () => {
-                        const atualizado = await iniciarSprint(s.id);
-                        setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
-                      }}
-                      style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Iniciar sprint
-                    </button>
-                  </div>
-                ))}
-              </div>
-              )}
-            </section>
-          )}
-
-          {sprints.filter((s) => s.iniciada).length === 0 ? (
-            <section style={sectionStyle}>
-              <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-                Nenhuma sprint iniciada. Clique em <strong>Iniciar próxima sprint</strong> pra começar, ou
-                inicie uma das sprints planejadas acima.
-              </p>
-            </section>
+          {sprintsIniciadas.length === 0 ? (
+            <EmptyState>
+              Nenhuma sprint iniciada. Clique em Iniciar próxima sprint para começar{sprintsPlanejadas.length > 0 ? ", ou inicie uma das sprints planejadas abaixo" : ""}.
+            </EmptyState>
           ) : (
-            sprints.filter((s) => s.iniciada).map((s) => (
+            sprintsIniciadas.map((s) => (
               <SprintCard
                 key={s.id}
                 sprint={s}
+                isCurrent={s.id === sprintAtual?.id}
                 ingestions={ingestionsBySprint[s.numero] ?? []}
                 docs={docsBySprint[s.numero] ?? []}
                 generating={generating}
@@ -1451,10 +1400,57 @@ export default function ProjectDashboard() {
                 onDeleteSprint={handleDeleteSprint}
                 onSprintUpdated={(updated) => setSprints((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s))}
                 onOpenAvaliacaoSemanal={(s2) => setAvaliacaoModal({ sprintId: s2.id, sprintNumero: s2.numero })}
+                onGoToPlanejamento={() => setActiveTab("escopo")}
               />
             ))
           )}
-        </>
+
+          {sprintsPlanejadas.length > 0 && (
+            <div style={{ ...dsCardStyle }}>
+              <button
+                type="button"
+                className="ds-row-link"
+                aria-expanded={planejadasAbertas}
+                onClick={() => setPlanejadasAbertas((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "18px 28px",
+                  background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", borderRadius: 16, textAlign: "left",
+                }}
+              >
+                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a948e", fontWeight: 500 }}>
+                  Planejadas, ainda não iniciadas
+                </span>
+                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10.5, padding: "1px 7px", borderRadius: 999, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>
+                  {sprintsPlanejadas.length}
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>{planejadasAbertas ? "Recolher ▴" : "Ver ▾"}</span>
+              </button>
+              {planejadasAbertas && (
+                <div style={{ padding: "0 28px 8px" }}>
+                  {sprintsPlanejadas.map((s) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: "#ffffff" }}>Sprint {s.numero}</span>
+                      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#8a948e" }}>
+                        {s.pontos_orcamento != null ? `${s.pontos_orcamento} pts orçados` : "sem orçamento"}
+                      </span>
+                      <DsButton
+                        variant="secondary"
+                        size="sm"
+                        style={{ marginLeft: "auto" }}
+                        onClick={async () => {
+                          const atualizado = await iniciarSprint(s.id);
+                          setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
+                        }}
+                      >
+                        Iniciar sprint
+                      </DsButton>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ABA: PAINEL */}

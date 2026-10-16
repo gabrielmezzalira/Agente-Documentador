@@ -51,35 +51,40 @@ export default function Topbar({ subarea }: { subarea: SubareaSlug }) {
         </label>
       </form>
 
+      {/* Seletor de subárea logo depois da busca, como no protótipo */}
+      <div role="group" aria-label="Subárea" style={{ ...cardStyle, boxShadow: "none", borderRadius: 12, display: "flex", padding: 4, flexShrink: 0 }}>
+        {SUBAREAS.map((s) => {
+          const active = s.slug === subarea;
+          return (
+            <Link
+              key={s.slug}
+              href={`/${s.slug}`}
+              aria-current={active ? "true" : undefined}
+              style={{
+                height: 32,
+                padding: "0 14px",
+                borderRadius: 9,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                background: active ? ds.greenSoft : "transparent",
+                color: active ? ds.green : ds.muted,
+              }}
+            >
+              {active && (
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: ds.green, boxShadow: `0 0 8px ${ds.green}`, flexShrink: 0 }} />
+              )}
+              {s.label}
+            </Link>
+          );
+        })}
+      </div>
+
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        <div role="group" aria-label="Subárea" style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: "rgba(255, 255, 255, 0.05)", border: `1px solid ${ds.border}` }}>
-          {SUBAREAS.map((s) => {
-            const active = s.slug === subarea;
-            return (
-              <Link
-                key={s.slug}
-                href={`/${s.slug}`}
-                aria-current={active ? "true" : undefined}
-                style={{
-                  height: 32,
-                  padding: "0 14px",
-                  borderRadius: 9,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: active ? ds.greenSoft : "transparent",
-                  color: active ? ds.green : ds.muted,
-                  border: `1px solid ${active ? ds.greenLine : "transparent"}`,
-                }}
-              >
-                {s.label}
-              </Link>
-            );
-          })}
-        </div>
         <Link href={`/${subarea}/projects/new`} className={buttonClass("primary")} style={buttonStyle("primary")}>
-          <span aria-hidden="true">+</span> Novo projeto
+          + Novo projeto
         </Link>
       </div>
     </header>

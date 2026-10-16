@@ -80,6 +80,12 @@ textarea::placeholder {
 .ds-row-link { transition: background 0.15s; }
 .ds-row-link:hover { background: rgba(255, 255, 255, 0.03); }
 .ds-control:hover { border-color: rgba(62, 224, 111, 0.35) !important; }
+.ds-help-pill { transition: border-color 0.15s, color 0.15s; }
+.ds-help-pill:hover { border-color: rgba(62, 224, 111, 0.35) !important; color: #f2f5f3 !important; }
+.ds-text-btn { transition: color 0.15s; }
+.ds-text-btn:hover { color: #f2f5f3 !important; }
+.ds-check-item { transition: opacity 0.15s; }
+.ds-check-item:hover { opacity: 0.8; }
 .ds-control:focus { border-color: #3ee06f !important; outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
