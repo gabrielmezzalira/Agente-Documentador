@@ -63,11 +63,13 @@ import Tabs from "../../../components/Tabs";
 import RequisitosTab from "../../../components/discovery/RequisitosTab";
 import ReunioesTab from "../../../components/discovery/ReunioesTab";
 import EncaminharModal from "../../../components/discovery/EncaminharModal";
-import { Button as DsButton, EmptyState, TabSectionHead } from "../../../components/ds";
+import { Button as DsButton, EmptyState, ErrorNotice, Field as DsField, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
 import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
-import DocTypeCard from "../../../components/DocTypeCard";
+import DocTypeCard, { DocTypeGeneratePanel } from "../../../components/DocTypeCard";
+import DocRow from "../../../components/docs/DocRow";
+import { PanelCard } from "../../../components/painel/PanelCard";
 import TutorialBanner, { PROJECT_HELP_SLOT_ID } from "../../../components/TutorialBanner";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
 
@@ -705,7 +707,8 @@ export default function ProjectDashboard() {
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
   const [descOpen, setDescOpen] = useState(false);
-  const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
+  const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("por_sprint");
+  const [docTypeSel, setDocTypeSel] = useState<DocTypeKey | null>(null);
 
   // ---------- modal sprint-docs ----------
   const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number; sprintId?: string } | null>(null);
@@ -1235,19 +1238,14 @@ export default function ProjectDashboard() {
       <DocRow
         key={doc.id}
         doc={doc}
-        expandedDocId={expandedDocId}
-        exportingDocId={exportingDocId}
-        exportError={exportError}
-        onToggleExpand={(id: string) => setExpandedDocId(expandedDocId === id ? null : id)}
-        onExport={handleExportGdocs}
-        onDelete={handleDeleteDoc}
-        onMove={handleMoveDoc}
-        onSaveContent={handleUpdateDocContent}
-        ingestionCard={ingestionCard}
-        tagStyle={tagStyle}
-        btnSecondary={btnSecondary}
-        btnDanger={btnDanger}
-        markdownContainer={markdownContainer}
+        expanded={expandedDocId === doc.id}
+        exporting={exportingDocId === doc.id}
+        exportError={exportError[doc.id]}
+        onToggleExpand={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
+        onExport={() => handleExportGdocs(doc.id)}
+        onDelete={() => handleDeleteDoc(doc.id)}
+        onMove={(n) => handleMoveDoc(doc.id, n)}
+        onSaveContent={(content) => handleUpdateDocContent(doc.id, content)}
       />
     );
   }
@@ -1487,85 +1485,118 @@ export default function ProjectDashboard() {
 
       {/* ABA: DOCUMENTOS */}
       {activeTab === "documentos" && (
-        <>
-          {/* Sub-tabs */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "rgba(62,224,111,0.055)", borderRadius: 10, padding: 4, width: "fit-content" }}>
-            {(["cross_sprint", "por_sprint"] as const).map((sub) => (
-              <button
-                key={sub}
-                onClick={() => setDocSubTab(sub)}
-                style={{
-                  background: docSubTab === sub ? "#0d1711" : "transparent",
-                  color: docSubTab === sub ? "#f2f5f3" : "#8a948e",
-                  border: docSubTab === sub ? "1px solid rgba(62,224,111,0.2)" : "1px solid transparent",
-                  borderRadius: 7,
-                  padding: "6px 14px",
-                  fontSize: 13,
-                  fontWeight: docSubTab === sub ? 700 : 500,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                {sub === "cross_sprint" ? "Cross-sprint" : "Por sprint"}
-              </button>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div role="tablist" aria-label="Tipo de documento" style={{ ...dsCardStyle, boxShadow: "none", borderRadius: 12, display: "flex", padding: 4, alignSelf: "flex-start" }}>
+            {(["por_sprint", "cross_sprint"] as const).map((sub) => {
+              const ativo = docSubTab === sub;
+              return (
+                <button
+                  key={sub}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  onClick={() => setDocSubTab(sub)}
+                  style={{
+                    display: "flex", alignItems: "center", height: 34, padding: "0 16px", borderRadius: 9, border: "none",
+                    cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 600,
+                    background: ativo ? "rgba(62,224,111,0.12)" : "transparent",
+                    color: ativo ? "#3ee06f" : "#8a948e",
+                  }}
+                >
+                  {sub === "por_sprint" ? "Por sprint" : "Cross-sprint"}
+                </button>
+              );
+            })}
           </div>
+
+          {/* Sub-aba: Por sprint */}
+          {docSubTab === "por_sprint" && (
+            <>
+              <TutorialBanner heading="Documentos" steps={[
+                { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
+                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
+                { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
+                { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
+              ]} />
+              {docs.filter((d) => d.sprint_number != null).length === 0 ? (
+                <EmptyState>Nenhum documento por sprint ainda. Gere Planning, Review, Repasse ou Retrospectiva na aba Sprints.</EmptyState>
+              ) : (
+                [...sprints].sort((a, b) => b.numero - a.numero).map((s) => {
+                  const sprintDocs = docsBySprint[s.numero] ?? [];
+                  if (sprintDocs.length === 0) return null;
+                  return (
+                    <PanelCard key={s.id} label={`Sprint ${s.numero} · ${sprintDocs.length} ${sprintDocs.length === 1 ? "documento" : "documentos"}`}>
+                      {sprintDocs.map((doc) => renderDocRow(doc))}
+                    </PanelCard>
+                  );
+                })
+              )}
+            </>
+          )}
 
           {/* Sub-aba: Cross-sprint */}
           {docSubTab === "cross_sprint" && (
-            <section style={sectionStyle}>
-              <TutorialBanner heading="Documentos Cross-sprint" steps={[
-                { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro — não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
+            <PanelCard label="Cross-sprint">
+              <TutorialBanner heading="Documentos" steps={[
+                { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro: não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
                 { title: "Ata de Reunião", body: "Faça upload de um PDF ou arquivo de ata de reunião (com o cliente, stakeholders, etc). O DocuData gera uma ata formatada com pauta, decisões e próximos passos. Útil para registrar reuniões fora do ciclo de sprint." },
                 { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas nas ingestões e commits do projeto. Ideal para onboarding de novos membros e auditoria." },
                 { title: "Onboarding", body: "Documento de integração para novos membros entrarem no projeto rapidamente: contexto do cliente, stack técnica, decisões tomadas, estado atual. Gerado a partir de todo o histórico de ingestões." },
-                { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final. Preenche o vazio de documentação que existe em muitos projetos de dados." },
+                { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final." },
                 { title: "Observações adicionais", body: "O campo de observações permite incluir contexto extra que a IA deve considerar na geração. Use para orientações específicas, tom desejado, ou informações que não estão nos uploads." },
-                { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA — cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
-                { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada. O link abre diretamente no navegador." },
+                { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA: cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
+                { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada." },
               ]} />
-              <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 14px", lineHeight: 1.5 }}>
-                Documentos que olham o projeto como um todo.
-              </p>
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#5d6661" }}>(opcional)</span></label>
-                <textarea
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: "#8a948e" }}>Documentos que olham o projeto como um todo.</p>
+              <DsField label="Observações adicionais · opcional" htmlFor="doc-observacoes">
+                <DsTextarea
+                  id="doc-observacoes"
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   placeholder="Contexto extra que deve ser considerado na geração."
-                  rows={2}
-                  style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
+                  rows={3}
                 />
+              </DsField>
+              <div className="ds-doctype-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => {
+                  const ultimo = docs.filter((d) => d.sprint_number == null && d.doc_type === key)
+                    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+                  return (
+                    <DocTypeCard
+                      key={key}
+                      meta={DOC_TYPES[key]}
+                      status={ultimo ? `Gerado em ${new Date(ultimo.created_at).toLocaleDateString("pt-BR")}` : "Não gerado"}
+                      selected={docTypeSel === key}
+                      onSelect={() => setDocTypeSel(docTypeSel === key ? null : key)}
+                    />
+                  );
+                })}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-                {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => (
-                  <DocTypeCard
-                    key={key}
-                    meta={DOC_TYPES[key]}
-                    sprints={sprints}
-                    ingestions={ingestions}
-                    generating={generating}
-                    onGenerate={handleGenerate}
-                    onUploadAndGenerate={key === "ata_reuniao" ? handleAtaUpload : undefined}
-                  />
-                ))}
+              {docTypeSel && (
+                <DocTypeGeneratePanel
+                  key={docTypeSel}
+                  meta={DOC_TYPES[docTypeSel]}
+                  sprints={sprints}
+                  ingestions={ingestions}
+                  generating={generating}
+                  onGenerate={handleGenerate}
+                  onUploadAndGenerate={docTypeSel === "ata_reuniao" ? handleAtaUpload : undefined}
+                />
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <DsButton variant="secondary" onClick={() => setManualModal({ sprintNumero: null })}>+ Adicionar documento manual</DsButton>
+                <span style={{ fontSize: 12.5, color: "#8a948e" }}>Sem custo de IA.</span>
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
-                  + Adicionar documento manual
-                </button>
-                <span style={{ marginLeft: 10, fontSize: 12, color: "#8a948e" }}>Sem custo de IA.</span>
-              </div>
-              {generating && <p style={{ color: "#8a948e", fontSize: 14 }}>Gerando documento com IA...</p>}
-              {generateError && <p style={{ color: "#ff6b6b", fontSize: 14 }}>{generateError}</p>}
+              {generating && <p role="status" style={{ margin: 0, color: "#8a948e", fontSize: 14 }}>Gerando documento com IA...</p>}
+              {generateError && <ErrorNotice>{generateError}</ErrorNotice>}
               {generatedDoc && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: "#8a948e" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#ffffff" }}>
                       {docTypeLabel(generatedDoc.doc_type)}
-                      {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
+                      {generatedDoc.sprint_number ? <span style={{ marginLeft: 10, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#8a948e" }}>Sprint {generatedDoc.sprint_number}</span> : null}
                     </span>
-                    <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>Copiar markdown</button>
+                    <DsButton variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(generatedDoc.content)}>Copiar markdown</DsButton>
                   </div>
                   <div style={markdownContainer}><ReactMarkdown>{generatedDoc.content}</ReactMarkdown></div>
                 </div>
@@ -1576,76 +1607,18 @@ export default function ProjectDashboard() {
                 const crossSprintDocs = docs.filter((d) => d.sprint_number == null);
                 if (crossSprintDocs.length === 0) return null;
                 return (
-                  <div style={{ marginTop: 20 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#8a948e" }}>Histórico</span>
-                      <div style={{ flex: 1, height: 1, background: "rgba(62,224,111,0.055)" }} />
-                      <span style={{ fontSize: 12, color: "#8a948e" }}>{crossSprintDocs.length} {crossSprintDocs.length === 1 ? "doc" : "docs"}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {crossSprintDocs.map((doc) => renderDocRow(doc))}
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a948e" }}>
+                      Histórico · {crossSprintDocs.length} {crossSprintDocs.length === 1 ? "documento" : "documentos"}
+                    </span>
+                    {crossSprintDocs.map((doc) => renderDocRow(doc))}
                   </div>
                 );
               })()}
-            </section>
+            </PanelCard>
           )}
-
-          {/* Sub-aba: Por sprint */}
-          {docSubTab === "por_sprint" && (
-            <>
-              <TutorialBanner heading="Documentos Por sprint" steps={[
-                { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
-                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
-                { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
-                { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
-              ]} />
-              {docs.filter((d) => d.sprint_number != null).length === 0 ? (
-                <section style={sectionStyle}>
-                  <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-                    Nenhum documento por sprint ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva) ou aqui em <strong>Por sprint</strong>.
-                  </p>
-                </section>
-              ) : (
-                sprints.map((s) => {
-                  const sprintDocs = docsBySprint[s.numero] ?? [];
-                  if (sprintDocs.length === 0) return null;
-                  return (
-                    <section key={s.id} style={sectionStyle}>
-                      <h3 style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                        color: "#8a948e",
-                        margin: 0,
-                        marginBottom: 12,
-                      }}>
-                        Sprint {s.numero}
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#3ee06f",
-                          marginLeft: 8,
-                          background: "rgba(62,224,111,0.12)",
-                          borderRadius: 4,
-                          padding: "2px 7px",
-                        }}>
-                          {sprintDocs.length}
-                        </span>
-                      </h3>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {sprintDocs.map((doc) => renderDocRow(doc))}
-                      </div>
-                    </section>
-                  );
-                })
-              )}
-            </>
-          )}
-        </>
+        </div>
       )}
-
 
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
@@ -2070,168 +2043,6 @@ const btnPrimary: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
-function DocRow({
-  doc,
-  expandedDocId,
-  exportingDocId,
-  exportError,
-  onToggleExpand,
-  onExport,
-  onDelete,
-  onMove,
-  onSaveContent,
-  ingestionCard,
-  tagStyle,
-  btnSecondary: btnSec,
-  btnDanger: btnDng,
-  markdownContainer: mdContainer,
-}: {
-  doc: GeneratedDoc;
-  expandedDocId: string | null;
-  exportingDocId: string | null;
-  exportError: Record<string, string>;
-  onToggleExpand: (id: string) => void;
-  onExport: (id: string) => void;
-  onDelete: (id: string) => void;
-  onMove: (id: string, sprint: number | null) => void;
-  onSaveContent: (id: string, content: string) => Promise<void>;
-  ingestionCard: React.CSSProperties;
-  tagStyle: React.CSSProperties;
-  btnSecondary: React.CSSProperties;
-  btnDanger: React.CSSProperties;
-  markdownContainer: React.CSSProperties;
-}) {
-  const [movingDoc, setMovingDoc] = useState(false);
-  const [moveToSprint, setMoveToSprint] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [editErr, setEditErr] = useState("");
-  return (
-    <div style={ingestionCard}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: "#f2f5f3" }}>{docTypeLabel(doc.doc_type)}</span>
-          {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
-          <span style={{ color: "#8a948e", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            onClick={() => {
-              const closing = expandedDocId === doc.id;
-              onToggleExpand(doc.id);
-              if (closing) { setEditing(false); setEditErr(""); }
-            }}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
-          >
-            {expandedDocId === doc.id ? "Fechar" : "Ver"}
-          </button>
-          <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
-            Copiar
-          </button>
-          <button
-            onClick={() => {
-              if (expandedDocId !== doc.id) onToggleExpand(doc.id);
-              setEditing(true);
-              setDraft(doc.content);
-              setEditErr("");
-            }}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
-          >
-            Editar
-          </button>
-          <button
-            onClick={() => onExport(doc.id)}
-            disabled={exportingDocId === doc.id}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px", opacity: exportingDocId === doc.id ? 0.6 : 1 }}
-          >
-            {exportingDocId === doc.id ? "Exportando…" : "Google Docs"}
-          </button>
-          <button onClick={() => { setMovingDoc(true); setMoveToSprint(""); }} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
-            Mover sprint
-          </button>
-          <button onClick={() => { if (confirm("Excluir este documento?")) onDelete(doc.id); }} style={{ ...btnDng, fontSize: 12, padding: "6px 12px" }}>
-            Excluir
-          </button>
-          {exportError[doc.id] && <span style={{ fontSize: 11, color: "#ff6b6b" }}>{exportError[doc.id]}</span>}
-        </div>
-      </div>
-      {movingDoc && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
-          <span style={{ fontSize: 13, color: "#8a948e" }}>Mover para sprint:</span>
-          <input
-            type="number"
-            min={1}
-            value={moveToSprint}
-            onChange={(e) => setMoveToSprint(e.target.value)}
-            style={{ width: 70, padding: "5px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, fontSize: 13 }}
-            autoFocus
-          />
-          <button
-            style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
-            onClick={() => { const n = parseInt(moveToSprint); if (!isNaN(n) && n > 0) { onMove(doc.id, n); setMovingDoc(false); } }}
-          >
-            Confirmar
-          </button>
-          <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} onClick={() => setMovingDoc(false)}>Cancelar</button>
-        </div>
-      )}
-      {expandedDocId === doc.id && editing && (
-        <div style={{ marginTop: 14 }}>
-          <textarea
-            style={{
-              width: "100%",
-              minHeight: 260,
-              border: "1px solid rgba(62,224,111,0.2)",
-              borderRadius: 8,
-              padding: "12px 14px",
-              fontSize: 13,
-              fontFamily: "monospace",
-              lineHeight: 1.6,
-              boxSizing: "border-box",
-              resize: "vertical",
-            }}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
-            autoFocus
-          />
-          {editErr && <p style={{ color: "#ff6b6b", fontSize: 12, marginTop: 6 }}>{editErr}</p>}
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)", opacity: saving ? 0.6 : 1 }}
-              disabled={saving}
-              onClick={async () => {
-                if (!draft.trim()) { setEditErr("O documento não pode ficar vazio."); return; }
-                setSaving(true);
-                setEditErr("");
-                try {
-                  await onSaveContent(doc.id, draft);
-                  setEditing(false);
-                } catch (e) {
-                  setEditErr(e instanceof Error ? e.message : "Erro ao salvar edição.");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              {saving ? "Salvando…" : "Salvar"}
-            </button>
-            <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} disabled={saving} onClick={() => { setEditing(false); setEditErr(""); }}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-      {expandedDocId === doc.id && !editing && (
-        <div style={{ ...mdContainer, marginTop: 14 }}>
-          <ReactMarkdown>{doc.content}</ReactMarkdown>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const btnSecondary: React.CSSProperties = {
   background: "rgba(62,224,111,0.055)",
   color: "#c3cbc6",
@@ -2251,20 +2062,6 @@ const btnDanger: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 500,
   cursor: "pointer",
-};
-const ingestionCard: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  padding: "12px 16px",
-};
-const tagStyle: React.CSSProperties = {
-  background: "rgba(62,224,111,0.12)",
-  color: "#3ee06f",
-  borderRadius: 4,
-  padding: "2px 8px",
-  fontSize: 11,
-  fontWeight: 600,
 };
 const markdownContainer: React.CSSProperties = {
   background: "rgba(62,224,111,0.055)",
