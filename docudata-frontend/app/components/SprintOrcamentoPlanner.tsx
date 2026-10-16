@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { SprintWithStatus, createSprint, updateSprintOrcamento } from "../lib/api";
+import { ds, labelStyle } from "../lib/ds";
+import { Button, Card, Input, ProgressBar } from "./ds";
 
 interface Props {
   projectId: string;
@@ -68,80 +70,62 @@ export default function SprintOrcamentoPlanner({ projectId, sprints, onSprintUpd
     }
   }
 
-  if (sprints.length === 0) {
-    return (
-      <div style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: "#f2f5f3", margin: "0 0 8px" }}>Orçamento de pontos por sprint</h3>
-        <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 14px" }}>
-          Planeje aqui o projeto inteiro: crie as sprints que você já sabe que vai ter e
-          distribua os 100 pontos entre elas, sem precisar esperar a semana chegar.
-        </p>
-        <button
-          onClick={handleCriarSprint}
-          disabled={creating}
-          style={{
-            background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8,
-            padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-            opacity: creating ? 0.6 : 1,
-          }}
-        >
-          {creating ? "Criando…" : "+ Nova sprint"}
-        </button>
-        {createErr && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 8 }}>{createErr}</p>}
-      </div>
-    );
-  }
+  // Mais recente primeiro, como no protótipo 04.
+  const ordenadas = [...sprints].sort((a, b) => b.numero - a.numero);
+  const excedeu = totalAlocado > 100;
 
   return (
-    <div style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: "#f2f5f3", margin: 0 }}>Orçamento de pontos por sprint</h3>
-        <span style={{ fontSize: 13, fontWeight: 700, color: totalAlocado > 100 ? "#ff6b6b" : "#b197fc" }}>
-          {totalAlocado}/100 pontos alocados
-        </span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {sprints.map((s) => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3", width: 90 }}>Sprint {s.numero}</span>
-            <input
-              type="number"
-              min={0}
-              value={inputs[s.id] ?? (s.pontos_orcamento != null ? String(s.pontos_orcamento) : "")}
-              onChange={(e) => setInputs((i) => ({ ...i, [s.id]: e.target.value }))}
-              placeholder="0"
-              style={{ width: 80, padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13 }}
-            />
-            <button
-              onClick={() => handleSalvar(s)}
-              disabled={savingId === s.id}
-              style={{
-                background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8,
-                padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                opacity: savingId === s.id ? 0.6 : 1,
-              }}
-            >
-              {savingId === s.id ? "…" : "Salvar"}
-            </button>
-            <span style={{ fontSize: 12, color: "#8a948e" }}>{s.pontos_usados} pts já usados em tasks</span>
-            {errBySprint[s.id] && <span style={{ fontSize: 12, color: "#ff6b6b" }}>{errBySprint[s.id]}</span>}
+    <Card>
+      <div className="ds-orcamento-grid" style={{ padding: "26px 28px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 40 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+          <span style={labelStyle}>Orçamento de pontos por sprint</span>
+          {ordenadas.length === 0 && (
+            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: ds.muted }}>
+              Planeje aqui o projeto inteiro: crie as sprints que você já sabe que vai ter e distribua os 100 pontos entre elas, sem precisar esperar a semana chegar.
+            </p>
+          )}
+          {ordenadas.map((s) => (
+            <div key={s.id} style={{ display: "grid", gridTemplateColumns: "110px 140px auto 1fr", gap: 14, alignItems: "center" }}>
+              <label htmlFor={`orc-${s.id}`} style={{ fontSize: 14.5, fontWeight: 600, color: ds.white }}>Sprint {s.numero}</label>
+              <Input
+                id={`orc-${s.id}`}
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={inputs[s.id] ?? (s.pontos_orcamento != null ? String(s.pontos_orcamento) : "")}
+                onChange={(e) => setInputs((i) => ({ ...i, [s.id]: e.target.value }))}
+                placeholder="0"
+                style={{ width: 140, height: 40, fontSize: 13.5 }}
+              />
+              <Button variant="secondary" onClick={() => handleSalvar(s)} disabled={savingId === s.id}>
+                {savingId === s.id ? "Salvando…" : "Salvar"}
+              </Button>
+              <span style={{ fontSize: 13, color: errBySprint[s.id] ? ds.red : ds.muted }}>
+                {errBySprint[s.id] || `${s.pontos_usados} pts já usados em tasks`}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Button variant="secondary" onClick={handleCriarSprint} disabled={creating}>
+              {creating ? "Criando…" : "+ Nova sprint"}
+            </Button>
+            {createErr && <span style={{ fontSize: 12.5, color: ds.red }}>{createErr}</span>}
           </div>
-        ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingLeft: 32, borderLeft: `1px solid ${ds.border}` }}>
+          <span style={labelStyle}>Pontos alocados</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 44, fontWeight: 700, letterSpacing: "-0.03em", color: excedeu ? ds.red : ds.white, lineHeight: 1 }}>{totalAlocado}</span>
+            <span style={{ fontFamily: ds.fontMono, fontSize: 14, color: ds.muted }}>/ 100</span>
+          </div>
+          <ProgressBar pct={totalAlocado} tone={excedeu ? "red" : "green"} label="Pontos alocados de 100" />
+          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: excedeu ? ds.red : ds.muted, textWrap: "pretty" }}>
+            {excedeu
+              ? "A soma passou de 100 pontos. Reduza o orçamento de alguma sprint."
+              : "Todo projeto vale 100 pontos. Distribua entre as sprints para liberar o SPI."}
+          </p>
+        </div>
       </div>
-      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-        <button
-          onClick={handleCriarSprint}
-          disabled={creating}
-          style={{
-            background: "none", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8,
-            padding: "6px 14px", fontSize: 12, fontWeight: 700, color: "#c3cbc6", cursor: "pointer",
-            opacity: creating ? 0.6 : 1,
-          }}
-        >
-          {creating ? "Criando…" : "+ Nova sprint"}
-        </button>
-        {createErr && <span style={{ fontSize: 12, color: "#ff6b6b", marginLeft: 10 }}>{createErr}</span>}
-      </div>
-    </div>
+    </Card>
   );
 }

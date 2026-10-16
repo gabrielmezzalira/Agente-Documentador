@@ -27,7 +27,7 @@ interface TabSectionHeadProps {
 export function TabSectionHead({ title, count, description, actions }: TabSectionHeadProps) {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 760, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 760, minWidth: 0, flex: "1 1 320px" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: ds.white }}>{title}</h2>
           {count != null && <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{count}</span>}

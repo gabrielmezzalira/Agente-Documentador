@@ -95,3 +95,11 @@ textarea::placeholder {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Grades das abas do projeto viram uma coluna em telas estreitas */
+@media (max-width: 900px) {
+  .ds-orcamento-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+  .ds-orcamento-grid > :last-child { padding-left: 0 !important; border-left: none !important; }
+  .ds-func-row { grid-template-columns: 44px minmax(0, 1fr) !important; }
+  .ds-func-row > :nth-child(2) { display: none; }
+}
