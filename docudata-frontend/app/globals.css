@@ -109,3 +109,11 @@ textarea::placeholder {
 @media (max-width: 900px) {
   .ds-kanban-grid { grid-template-columns: 1fr !important; }
 }
+.ds-task-card { transition: border-color 0.15s, background 0.15s; }
+.ds-task-card:hover { border-color: rgba(62, 224, 111, 0.35) !important; }
+@media (max-width: 1100px) {
+  .ds-tasks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 640px) {
+  .ds-tasks-grid { grid-template-columns: 1fr !important; }
+}
