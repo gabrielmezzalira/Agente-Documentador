@@ -44,7 +44,7 @@ const overlayStyle: CSSProperties = {
 };
 
 const modalStyle: CSSProperties = {
-  background: "#fff",
+  background: "#0d1711",
   borderRadius: 12,
   width: "100%",
   maxWidth: 560,
@@ -58,19 +58,19 @@ const labelStyle: CSSProperties = {
   display: "block",
   fontSize: 13,
   fontWeight: 600,
-  color: "#334155",
+  color: "#c3cbc6",
   marginBottom: 6,
   marginTop: 14,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "8px 10px",
   fontSize: 14,
   outline: "none",
-  background: "#fff",
+  background: "#0d1711",
   boxSizing: "border-box",
 };
 
@@ -82,8 +82,8 @@ const textareaStyle: CSSProperties = {
 };
 
 const primaryBtn: CSSProperties = {
-  background: "#4ade80",
-  color: "#052e16",
+  background: "#3ee06f",
+  color: "#3ee06f",
   border: "none",
   padding: "10px 18px",
   borderRadius: 8,
@@ -93,9 +93,9 @@ const primaryBtn: CSSProperties = {
 };
 
 const ghostBtn: CSSProperties = {
-  background: "#f7f7fa",
-  color: "#475569",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   padding: "10px 18px",
   borderRadius: 8,
   fontWeight: 600,
@@ -105,9 +105,9 @@ const ghostBtn: CSSProperties = {
 
 const aiBadgeStyle: CSSProperties = {
   fontSize: 11,
-  background: "#eff6ff",
-  color: "#2563eb",
-  border: "1px solid #bfdbfe",
+  background: "rgba(177,151,252,0.10)",
+  color: "#b197fc",
+  border: "1px solid rgba(177,151,252,0.30)",
   borderRadius: 4,
   padding: "1px 6px",
   marginLeft: 6,
@@ -460,11 +460,11 @@ export default function SprintDocModal({
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#f2f5f3" }}>
             {TITLES[tipo]} — Sprint {sprintNumero}
           </h2>
           {step === "form" && (
-            <span style={{ fontSize: 12, color: "#64748b" }}>
+            <span style={{ fontSize: 12, color: "#8a948e" }}>
               Etapa 2 de 2 — Revise e confirme
             </span>
           )}
@@ -473,7 +473,7 @@ export default function SprintDocModal({
         {/* ── ETAPA 1: Forneça a matéria-prima ─────────────────────────── */}
         {step === "input" && (
           <>
-            <p style={{ fontSize: 13, color: "#64748b", marginTop: 12, marginBottom: 0 }}>
+            <p style={{ fontSize: 13, color: "#8a948e", marginTop: 12, marginBottom: 0 }}>
               Cole a matéria-prima abaixo ou faça upload de um arquivo. A IA vai preencher
               os campos automaticamente para você revisar antes de gerar o documento.
             </p>
@@ -502,13 +502,13 @@ export default function SprintDocModal({
               onChange={(e) => setEnrichFileName(e.target.files?.[0]?.name ?? null)}
             />
             {enrichFileName && (
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>
                 Arquivo: {enrichFileName}
               </div>
             )}
 
             {error && (
-              <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>
+              <div style={{ marginTop: 14, padding: 10, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 8, fontSize: 13 }}>
                 {error}
               </div>
             )}
@@ -544,11 +544,11 @@ export default function SprintDocModal({
               <div style={{
                 marginTop: 12,
                 padding: "8px 12px",
-                background: "#eff6ff",
-                border: "1px solid #bfdbfe",
+                background: "rgba(177,151,252,0.10)",
+                border: "1px solid rgba(177,151,252,0.30)",
                 borderRadius: 8,
                 fontSize: 13,
-                color: "#1e40af",
+                color: "#b197fc",
               }}>
                 Campos marcados com <strong>IA</strong> foram preenchidos automaticamente — revise antes de confirmar.
               </div>
@@ -585,7 +585,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 2fr auto", gap: 6, marginBottom: 4 }}>
                   {["Tarefa", "Responsável", "Prazo", "Critério de pronto", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {itens.map((row, idx) => (
@@ -638,7 +638,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 2fr 100px auto", gap: 6, marginBottom: 4 }}>
                   {["O que precisa entregar", "Prazo", "Consequência se atrasar", "Confiança", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {dependencias.map((row, idx) => (
@@ -666,7 +666,7 @@ export default function SprintDocModal({
                   disabled={semDependencias}>
                   + Adicionar dependência
                 </button>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
                   <input type="checkbox" checked={semDependencias} onChange={(e) => setSemDependencias(e.target.checked)} />
                   Nenhuma dependência do cliente identificada nesta sprint
                 </label>
@@ -677,7 +677,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr auto", gap: 6, marginBottom: 4 }}>
                   {["O que pode dar errado", "Consequência se acontecer", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {riscos.map((row, idx) => (
@@ -696,7 +696,7 @@ export default function SprintDocModal({
                   disabled={semRiscos}>
                   + Adicionar risco
                 </button>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
                   <input type="checkbox" checked={semRiscos} onChange={(e) => setSemRiscos(e.target.checked)} />
                   Nenhum risco identificado nesta sprint
                 </label>
@@ -707,7 +707,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
                   {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {carryOverItems.map((row, idx) => (
@@ -726,7 +726,7 @@ export default function SprintDocModal({
                   disabled={semCarryOver}>
                   + Adicionar item
                 </button>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
                   <input type="checkbox" checked={semCarryOver} onChange={(e) => setSemCarryOver(e.target.checked)} />
                   Nenhum item de carry-over da sprint anterior
                 </label>
@@ -831,13 +831,13 @@ export default function SprintDocModal({
 
                 <label style={labelStyle}>
                   Planejado vs Entregue
-                  <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6, fontSize: 12 }}>
+                  <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 6, fontSize: 12 }}>
                     {carregandoPlanejadoEntregue ? "— calculando a partir do kanban…" : "— calculado a partir do kanban, ajuste se necessário"}
                   </span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "3fr 60px 2fr 80px auto", gap: 6, marginBottom: 4 }}>
                   {["Item", "Entregue", "Motivo se não", "Causa raiz", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {itensPlanejadasEntregues.map((row, idx) => (
@@ -877,7 +877,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "80px 3fr 2fr auto", gap: 6, marginBottom: 4 }}>
                   {["Data", "Descrição do pedido", "Insistência ou sugestão", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {pedidosForaEscopoItens.map((row, idx) => (
@@ -902,7 +902,7 @@ export default function SprintDocModal({
                   disabled={semPedidosForaEscopo}>
                   + Adicionar pedido
                 </button>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
                   <input type="checkbox" checked={semPedidosForaEscopo} onChange={(e) => setSemPedidosForaEscopo(e.target.checked)} />
                   Nenhum pedido fora de escopo nesta sprint
                 </label>
@@ -913,7 +913,7 @@ export default function SprintDocModal({
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "3fr 80px auto", gap: 6, marginBottom: 4 }}>
                   {["Item pendente", "Causa raiz (nº)", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, color: "#9696a0", fontWeight: 600 }}>{h}</span>
+                    <span key={i} style={{ fontSize: 11, color: "#8a948e", fontWeight: 600 }}>{h}</span>
                   ))}
                 </div>
                 {itensProximaSprint.map((row, idx) => (
@@ -932,7 +932,7 @@ export default function SprintDocModal({
                   disabled={semItensProximaSprint}>
                   + Adicionar item
                 </button>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#475569" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, color: "#c3cbc6" }}>
                   <input type="checkbox" checked={semItensProximaSprint} onChange={(e) => setSemItensProximaSprint(e.target.checked)} />
                   Nenhum item pendente para a próxima sprint
                 </label>
@@ -942,12 +942,12 @@ export default function SprintDocModal({
             <label style={labelStyle}>
               Anexo (opcional)
               {tipo === "planning" && (
-                <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
+                <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 6 }}>
                   — PDF ou print do kanban
                 </span>
               )}
               {tipo !== "planning" && (
-                <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>— PDF</span>
+                <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 6 }}>— PDF</span>
               )}
             </label>
             <input
@@ -957,11 +957,11 @@ export default function SprintDocModal({
               onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)}
             />
             {anexoName && (
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Anexo: {anexoName}</div>
+              <div style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>Anexo: {anexoName}</div>
             )}
 
             {validationErr && (
-              <div style={{ marginTop: 14, padding: 12, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, fontSize: 13 }}>
+              <div style={{ marginTop: 14, padding: 12, background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", color: "#f2c14e", borderRadius: 8, fontSize: 13 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Tipo de conteúdo diferente do esperado</div>
                 <div>{validationErr.mensagem}</div>
                 <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -970,7 +970,7 @@ export default function SprintDocModal({
                   </button>
                   <button
                     type="button"
-                    style={{ ...primaryBtn, background: "#f59e0b", color: "#1c1917", opacity: submitting ? 0.6 : 1 }}
+                    style={{ ...primaryBtn, background: "#f2c14e", color: "#f2f5f3", opacity: submitting ? 0.6 : 1 }}
                     onClick={() => handleSubmit(true)}
                     disabled={submitting}
                   >
@@ -981,7 +981,7 @@ export default function SprintDocModal({
             )}
 
             {error && (
-              <div style={{ marginTop: 14, padding: 10, background: "#fef2f2", color: "#b91c1c", borderRadius: 8, fontSize: 13 }}>
+              <div style={{ marginTop: 14, padding: 10, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 8, fontSize: 13 }}>
                 {error}
               </div>
             )}

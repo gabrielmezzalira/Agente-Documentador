@@ -42,15 +42,15 @@ interface Props {
 type Coluna = "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
 
 const COLUNAS: { id: Coluna; label: string; color: string; bg: string }[] = [
-  { id: "planejado", label: "Planejado", color: "#374151", bg: "#f1f5f9" },
-  { id: "em_andamento", label: "Em andamento", color: "#a16207", bg: "#fef9c3" },
-  { id: "pendente_aprovacao", label: "Pendente de aprovação", color: "#7c3aed", bg: "#ede9fe" },
-  { id: "concluida", label: "Concluída", color: "#166534", bg: "#dcfce7" },
+  { id: "planejado", label: "Planejado", color: "#c3cbc6", bg: "rgba(62,224,111,0.055)" },
+  { id: "em_andamento", label: "Em andamento", color: "#f2c14e", bg: "rgba(242,193,78,0.10)" },
+  { id: "pendente_aprovacao", label: "Pendente de aprovação", color: "#b197fc", bg: "rgba(177,151,252,0.10)" },
+  { id: "concluida", label: "Concluída", color: "#3ee06f", bg: "rgba(62,224,111,0.12)" },
 ];
 
 const card: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "12px 14px",
   marginBottom: 8,
@@ -71,18 +71,18 @@ const chip: React.CSSProperties = {
 
 const inputSt: React.CSSProperties = {
   padding: "7px 10px",
-  border: "1px solid #e4e4ea",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 7,
   fontSize: 13,
-  color: "#111116",
-  background: "#fff",
+  color: "#f2f5f3",
+  background: "#0d1711",
   width: "100%",
   boxSizing: "border-box",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "#0f172a",
-  color: "#fff",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 8,
   padding: "8px 18px",
@@ -93,12 +93,12 @@ const btnPrimary: React.CSSProperties = {
 
 const btnGhost: React.CSSProperties = {
   background: "none",
-  border: "1px solid #e4e4ea",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "7px 14px",
   fontSize: 12,
   fontWeight: 600,
-  color: "#374151",
+  color: "#c3cbc6",
   cursor: "pointer",
 };
 
@@ -314,11 +314,11 @@ function TaskModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
         width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 20px" }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 20px" }}>
           {mode === "create" ? "Nova task" : "Editar task"}
         </h3>
 
@@ -351,7 +351,7 @@ function TaskModal({
           {modoTrabalho === "PULL" ? (
             <div>
               <label style={labelSt}>Operacional</label>
-              <p style={{ fontSize: 12, color: "#6a6a7a", margin: "4px 0 0", padding: "8px 10px", background: "#f7f7fa", borderRadius: 8 }}>
+              <p style={{ fontSize: 12, color: "#8a948e", margin: "4px 0 0", padding: "8px 10px", background: "rgba(62,224,111,0.055)", borderRadius: 8 }}>
                 {mode === "create" || !task?.operacional_id
                   ? "Atribuição via fila de puxar — não é definida manualmente em modo Pull."
                   : `Responsável atual: ${operacionais.find((o) => o.id === task.operacional_id)?.nome ?? "—"} (somente leitura em modo Pull).`}
@@ -369,23 +369,23 @@ function TaskModal({
             </div>
           )}
 
-          <div style={{ background: extra ? "#f0fdf4" : "#f8fafc", border: `1px solid ${extra ? "#bbf7d0" : "#e8e8ed"}`, borderRadius: 8, padding: "10px 12px" }}>
+          <div style={{ background: extra ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)", border: `1px solid ${extra ? "rgba(62,224,111,0.35)" : "rgba(62,224,111,0.2)"}`, borderRadius: 8, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
               <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Task extra</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>Task extra</span>
             </label>
-            <p style={{ fontSize: 11, color: "#64748b", margin: "6px 0 0" }}>
+            <p style={{ fontSize: 11, color: "#8a948e", margin: "6px 0 0" }}>
               Trabalho concedido além do que a pessoa já tinha. Não consome o orçamento
               de pontos da sprint e, se concluída antes do fechamento, vira bônus.
             </p>
           </div>
 
-          <div style={{ background: requerAprovacao ? "#f5f3ff" : "#f8fafc", border: `1px solid ${requerAprovacao ? "#ddd6fe" : "#e8e8ed"}`, borderRadius: 8, padding: "10px 12px" }}>
+          <div style={{ background: requerAprovacao ? "rgba(177,151,252,0.10)" : "rgba(62,224,111,0.055)", border: `1px solid ${requerAprovacao ? "rgba(177,151,252,0.30)" : "rgba(62,224,111,0.2)"}`, borderRadius: 8, padding: "10px 12px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
               <input type="checkbox" checked={requerAprovacao} onChange={(e) => setRequerAprovacao(e.target.checked)} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Requer aprovação do gerente</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>Requer aprovação do gerente</span>
             </label>
-            <p style={{ fontSize: 11, color: "#64748b", margin: "6px 0 0" }}>
+            <p style={{ fontSize: 11, color: "#8a948e", margin: "6px 0 0" }}>
               A task não pode ir direto de Em andamento pra Concluída — precisa passar por
               Pendente de aprovação primeiro.
             </p>
@@ -405,13 +405,13 @@ function TaskModal({
                     setChecklist(copy);
                   }}
                 />
-                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#8a948e" : "#f2f5f3", textDecoration: item.done ? "line-through" : "none" }}>
                   {item.texto}
                 </span>
                 <button
                   type="button"
                   onClick={() => setChecklist((prev) => prev.filter((_, j) => j !== i))}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 14, padding: 0 }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ff6b6b", fontSize: 14, padding: 0 }}
                 >
                   ×
                 </button>
@@ -459,7 +459,7 @@ function TaskModal({
                   checked={bloqueado}
                   onChange={(e) => setBloqueado(e.target.checked)}
                 />
-                <label htmlFor="bloqueado" style={{ fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
+                <label htmlFor="bloqueado" style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6", cursor: "pointer" }}>
                   Bloqueada
                 </label>
               </div>
@@ -477,7 +477,7 @@ function TaskModal({
                     <option value="cliente">Dependência do cliente</option>
                   </select>
                   {bloqueioTipo === "cliente" && (
-                    <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+                    <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
                       Se a sprint fechar com a task ainda esperando o cliente, ela não conta na Entrega de ninguém e o relógio de atraso fica pausado.
                     </p>
                   )}
@@ -524,8 +524,8 @@ function TaskModal({
 
               {/* Travamento automático — ALERT-03: alerta, nunca pontuação */}
               {task?.travado_automatico && !task?.travado_override && (
-                <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
-                  <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px", fontWeight: 600 }}>
+                <div style={{ background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 8, padding: 10 }}>
+                  <p style={{ fontSize: 12, color: "#f2c14e", margin: "0 0 8px", fontWeight: 600 }}>
                     ⏱ Task parada além do limiar esperado para {task.pontos} ponto(s)
                     (~{Math.round(task.pontos * 1.5)} dias).
                   </p>
@@ -549,8 +549,8 @@ function TaskModal({
               )}
 
               {task?.coluna_kanban === "pendente_aprovacao" && (
-                <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 8, padding: 12 }}>
-                  <p style={{ fontSize: 12, color: "#5b21b6", margin: "0 0 10px", fontWeight: 600 }}>
+                <div style={{ background: "rgba(177,151,252,0.10)", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 12, color: "#b197fc", margin: "0 0 10px", fontWeight: 600 }}>
                     Esta task está esperando aprovação.
                   </p>
                   {!rejeitando ? (
@@ -587,7 +587,7 @@ function TaskModal({
                           type="button"
                           onClick={handleRejeitar}
                           disabled={aprovando}
-                          style={{ ...btnPrimary, background: "#dc2626", opacity: aprovando ? 0.6 : 1 }}
+                          style={{ ...btnPrimary, background: "#ff6b6b", opacity: aprovando ? 0.6 : 1 }}
                         >
                           {aprovando ? "Rejeitando..." : "Confirmar rejeição"}
                         </button>
@@ -605,20 +605,20 @@ function TaskModal({
                 <button
                   type="button"
                   onClick={() => setShowHist((v) => !v)}
-                  style={{ background: "none", border: "none", fontSize: 12, color: "#9696a0", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                  style={{ background: "none", border: "none", fontSize: 12, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
                 >
                   {showHist ? "Ocultar histórico" : "Ver histórico de transições"}
                 </button>
                 {showHist && (
                   <div style={{ marginTop: 10 }}>
                     {loadingHist ? (
-                      <p style={{ fontSize: 12, color: "#9696a0" }}>Carregando...</p>
+                      <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
                     ) : transicoes.length === 0 ? (
-                      <p style={{ fontSize: 12, color: "#9696a0" }}>Sem transições registradas.</p>
+                      <p style={{ fontSize: 12, color: "#8a948e" }}>Sem transições registradas.</p>
                     ) : (
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                         <thead>
-                          <tr style={{ color: "#9696a0" }}>
+                          <tr style={{ color: "#8a948e" }}>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>Campo</th>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>De → Para</th>
                             <th style={{ textAlign: "left", padding: "4px 6px" }}>Quem</th>
@@ -634,14 +634,14 @@ function TaskModal({
                               return operacionais.find((o) => o.id === v)?.nome ?? v;
                             };
                             return (
-                            <tr key={t.id} style={{ borderTop: "1px solid #f0f0f4" }}>
-                              <td style={{ padding: "4px 6px", color: "#374151" }}>{t.campo}</td>
-                              <td style={{ padding: "4px 6px", color: "#111116" }}>{resolverValor(t.de)} → {resolverValor(t.para)}</td>
-                              <td style={{ padding: "4px 6px", color: "#374151" }}>{t.autor ?? "—"}</td>
-                              <td style={{ padding: "4px 6px", color: "#9696a0" }}>
+                            <tr key={t.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                              <td style={{ padding: "4px 6px", color: "#c3cbc6" }}>{t.campo}</td>
+                              <td style={{ padding: "4px 6px", color: "#f2f5f3" }}>{resolverValor(t.de)} → {resolverValor(t.para)}</td>
+                              <td style={{ padding: "4px 6px", color: "#c3cbc6" }}>{t.autor ?? "—"}</td>
+                              <td style={{ padding: "4px 6px", color: "#8a948e" }}>
                                 {t.timestamp ? new Date(t.timestamp).toLocaleString("pt-BR") : "—"}
                               </td>
-                              <td style={{ padding: "4px 6px", color: "#9696a0" }}>
+                              <td style={{ padding: "4px 6px", color: "#8a948e" }}>
                                 {t.duracao_fase_anterior_segundos != null
                                   ? formatDuration(t.duracao_fase_anterior_segundos)
                                   : "—"}
@@ -658,10 +658,10 @@ function TaskModal({
             </>
           )}
 
-          {err && <p style={{ fontSize: 12, color: "#dc2626", margin: 0 }}>{err}</p>}
+          {err && <p style={{ fontSize: 12, color: "#ff6b6b", margin: 0 }}>{err}</p>}
           {orcamentoEstourado && sprintId && (
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
-              <p style={{ fontSize: 12, color: "#92400e", margin: "0 0 8px" }}>
+            <div style={{ background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 8, padding: "10px 12px" }}>
+              <p style={{ fontSize: 12, color: "#f2c14e", margin: "0 0 8px" }}>
                 Dá para encolher as tasks que já estão nesta sprint, proporcionalmente,
                 para abrir os {pontos} pontos que faltam.
               </p>
@@ -669,7 +669,7 @@ function TaskModal({
                 type="button"
                 onClick={handleRedistribuir}
                 disabled={redistribuindo}
-                style={{ background: "#92400e", color: "#fff", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{ background: "rgba(242,193,78,0.10)", color: "#ffffff", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
               >
                 {redistribuindo ? "Redistribuindo..." : "Redistribuir pontos"}
               </button>
@@ -679,7 +679,7 @@ function TaskModal({
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 4 }}>
             {mode === "edit" && (
               <button type="button" onClick={handleDelete} disabled={saving}
-                style={{ background: "none", border: "none", fontSize: 12, color: "#dc2626", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                style={{ background: "none", border: "none", fontSize: 12, color: "#ff6b6b", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 Excluir
               </button>
             )}
@@ -744,30 +744,30 @@ function TaskViewModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
         width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "#f1f5f9", color: "#475569" }}>{task.pontos}pt</span>
-          {sprint && <span style={{ ...chip, background: "#ede9fe", color: "#7c3aed" }}>Sprint {sprint.numero}</span>}
-          {task.extra && <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>}
+          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }}>{task.pontos}pt</span>
+          {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
+          {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
           {task.bloqueado && (
-            <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>
+            <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b" }}>
               {task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
             </span>
           )}
         </div>
 
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>{task.titulo}</h3>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 6px" }}>{task.titulo}</h3>
         {funcionalidade && (
-          <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>
+          <p style={{ fontSize: 12, color: "#8a948e", margin: "0 0 16px" }}>
             {funcionalidade.id_funcional} — {funcionalidade.titulo}
           </p>
         )}
 
         {task.descricao && (
-          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: "#c3cbc6", lineHeight: 1.6, marginBottom: 20 }}>
             <ReactMarkdown>{task.descricao}</ReactMarkdown>
           </div>
         )}
@@ -775,12 +775,12 @@ function TaskViewModal({
         <div>
           <label style={labelSt}>Checklist{checklist.length > 0 ? ` (${done}/${checklist.length})` : ""}</label>
           {checklist.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#9696a0", margin: 0 }}>Sem itens de checklist nesta task.</p>
+            <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>Sem itens de checklist nesta task.</p>
           ) : (
             checklist.map((item, i) => (
               <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
                 <input type="checkbox" checked={item.done} disabled={saving} onChange={() => toggleItem(i)} />
-                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#9696a0" : "#111116", textDecoration: item.done ? "line-through" : "none" }}>
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#8a948e" : "#f2f5f3", textDecoration: item.done ? "line-through" : "none" }}>
                   {item.texto}
                 </span>
               </label>
@@ -788,7 +788,7 @@ function TaskViewModal({
           )}
         </div>
 
-        {err && <p style={{ fontSize: 12, color: "#dc2626", marginTop: 10 }}>{err}</p>}
+        {err && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 10 }}>{err}</p>}
 
         {modoTrabalho === "PULL" && !task.operacional_id && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
@@ -815,7 +815,7 @@ function TaskViewModal({
                 const atualizada = await devolverTask(task.id);
                 onSaved(atualizada);
               }}
-              style={{ ...btnPrimary, background: "#fff", color: "#dc2626", border: "1px solid #fecaca" }}
+              style={{ ...btnPrimary, background: "#0d1711", color: "#ff6b6b", border: "1px solid rgba(255,107,107,0.30)" }}
             >
               Devolver à fila
             </button>
@@ -871,14 +871,14 @@ function ConfirmTransicaoModal({
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
       <div style={{
-        background: "#fff", borderRadius: 16, padding: "28px 32px",
+        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
         width: "100%", maxWidth: 420,
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 14px" }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 14px" }}>
           {modo === "aprovar" ? "Aprovar task" : isRejeicao ? "Rejeitar task" : "Confirmar mudança de status"}
         </h3>
-        <p style={{ fontSize: 14, color: "#374151", margin: "0 0 20px", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 14, color: "#c3cbc6", margin: "0 0 20px", lineHeight: 1.5 }}>
           {modo === "aprovar" ? (
             <>Aprovar <strong>{taskTitulo}</strong> e mover para <strong>{labelForColuna("concluida")}</strong>?</>
           ) : isRejeicao ? (
@@ -939,7 +939,7 @@ const labelSt: React.CSSProperties = {
   display: "block",
   fontSize: 11,
   fontWeight: 700,
-  color: "#9696a0",
+  color: "#8a948e",
   letterSpacing: "0.06em",
   textTransform: "uppercase",
   marginBottom: 4,
@@ -977,35 +977,35 @@ function TaskCard({
       onClick={onClick}
       style={{
         ...card,
-        borderLeft: task.bloqueado ? "3px solid #ef4444" : card.border as string,
-        borderColor: task.bloqueado ? undefined : "#e8e8ed",
+        borderLeft: task.bloqueado ? "3px solid #ff6b6b" : card.border as string,
+        borderColor: task.bloqueado ? undefined : "rgba(62,224,111,0.2)",
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 600, color: "#111116", lineHeight: 1.4 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3", lineHeight: 1.4 }}>
         {task.titulo}
       </span>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "#f1f5f9", color: "#475569" }}>{task.pontos}pt</span>
+        <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }}>{task.pontos}pt</span>
 
         {op && (
-          <span style={{ ...chip, background: "#ede9fe", color: "#7c3aed" }}>{op.nome}</span>
+          <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>{op.nome}</span>
         )}
 
         {task.extra && (
-          <span style={{ ...chip, background: "#dcfce7", color: "#166534" }}>+ extra</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>
         )}
 
         {task.bloqueado && (
-          <span style={{ ...chip, background: "#fee2e2", color: "#dc2626" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
+          <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
         )}
 
         {task.travado_automatico && !task.travado_override && (
-          <span style={{ ...chip, background: "#fef3c7", color: "#a16207" }}>⏱ Travada</span>
+          <span style={{ ...chip, background: "rgba(242,193,78,0.10)", color: "#f2c14e" }}>⏱ Travada</span>
         )}
 
         {total > 0 && (
-          <span style={{ ...chip, background: done === total ? "#dcfce7" : "#f1f5f9", color: done === total ? "#166534" : "#64748b" }}>
+          <span style={{ ...chip, background: done === total ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)", color: done === total ? "#3ee06f" : "#8a948e" }}>
             {done}/{total} ✓
           </span>
         )}
@@ -1279,18 +1279,18 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       {/* Pedir nova task — só aparece pro operacional que zerou a fila */}
       {ehOperacional && meuOperacional && minhasTasksAbertas === 0 && (
         <div style={{
-          background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+          background: "rgba(62,224,111,0.12)", border: "1px solid rgba(62,224,111,0.35)", borderRadius: 10,
           padding: "12px 16px", marginBottom: 14,
         }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#3ee06f", margin: "0 0 4px" }}>
             Você concluiu tudo que estava com você.
           </p>
-          <p style={{ fontSize: 12, color: "#3f6f52", margin: "0 0 10px" }}>
+          <p style={{ fontSize: 12, color: "#7cf0a0", margin: "0 0 10px" }}>
             Peça mais trabalho sem precisar puxar conversa. O gerente recebe um e-mail
             e, se tiver algo disponível, te passa uma task extra.
           </p>
           {jaPediu ? (
-            <p style={{ fontSize: 12, color: "#3f6f52", margin: 0, fontWeight: 600 }}>
+            <p style={{ fontSize: 12, color: "#7cf0a0", margin: 0, fontWeight: 600 }}>
               Pedido enviado, aguardando o gerente.
             </p>
           ) : (
@@ -1305,44 +1305,44 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               <button
                 onClick={handlePedirTask}
                 disabled={pedindoTask}
-                style={{ ...btnPrimary, background: "#166534" }}
+                style={{ ...btnPrimary, background: "rgba(62,224,111,0.12)" }}
               >
                 {pedindoTask ? "Enviando..." : "Quero mais uma task"}
               </button>
             </>
           )}
-          {avisoPedido && <p style={{ fontSize: 12, color: "#3f6f52", marginTop: 8 }}>{avisoPedido}</p>}
+          {avisoPedido && <p style={{ fontSize: 12, color: "#7cf0a0", marginTop: 8 }}>{avisoPedido}</p>}
         </div>
       )}
 
       {/* Pedidos pendentes — visão do gerente */}
       {!ehOperacional && solicitacoes.length > 0 && (
         <div style={{
-          background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+          background: "rgba(62,224,111,0.12)", border: "1px solid rgba(62,224,111,0.35)", borderRadius: 10,
           padding: "12px 16px", marginBottom: 14,
         }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#3ee06f", margin: "0 0 8px" }}>
             {solicitacoes.length} pedido{solicitacoes.length > 1 ? "s" : ""} de nova task
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {solicitacoes.map((s) => (
               <div key={s.id} style={{
                 display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-                background: "#fff", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px",
+                background: "#0d1711", border: "1px solid rgba(62,224,111,0.35)", borderRadius: 7, padding: "8px 12px",
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 13, color: "#374151" }}>
+                  <span style={{ fontSize: 13, color: "#c3cbc6" }}>
                     <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
                   </span>
                   {s.sugestao && (
-                    <p style={{ fontSize: 12, color: "#3f6f52", background: "#f0fdf4", borderRadius: 6, padding: "6px 10px", margin: "6px 0 0" }}>
+                    <p style={{ fontSize: 12, color: "#7cf0a0", background: "rgba(62,224,111,0.12)", borderRadius: 6, padding: "6px 10px", margin: "6px 0 0" }}>
                       <strong>Sugestão:</strong> {s.sugestao}
                     </p>
                   )}
                 </div>
                 <button
                   onClick={() => { handleResolverPedido(s.id, "atendida"); setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id }); }}
-                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534" }}
+                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "rgba(62,224,111,0.12)" }}
                 >
                   Criar task extra
                 </button>
@@ -1361,38 +1361,38 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       {/* WIP error banner */}
       {wipError && (
         <div style={{
-          background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8,
-          padding: "10px 14px", fontSize: 13, color: "#dc2626", marginBottom: 12,
+          background: "rgba(255,107,107,0.10)", border: "1px solid rgba(255,107,107,0.30)", borderRadius: 8,
+          padding: "10px 14px", fontSize: 13, color: "#ff6b6b", marginBottom: 12,
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <span>{wipError}</span>
-          <button onClick={() => setWipError("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 16, padding: 0 }}>×</button>
+          <button onClick={() => setWipError("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#ff6b6b", fontSize: 16, padding: 0 }}>×</button>
         </div>
       )}
 
       {/* Sugestões do review */}
       {sugestoes.length > 0 && (
         <div style={{
-          background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: 10,
+          background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 10,
           padding: "12px 16px", marginBottom: 14,
         }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#f2c14e", margin: "0 0 8px" }}>
             📋 {sugestoes.length} sugestão{sugestoes.length > 1 ? "ões" : ""} do review — tasks mencionadas como concluídas
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {sugestoes.map((s) => (
               <div key={s.id} style={{
                 display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-                background: "#fff", border: "1px solid #fde68a", borderRadius: 7, padding: "8px 12px",
+                background: "#0d1711", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 7, padding: "8px 12px",
               }}>
-                <span style={{ fontSize: 13, color: "#374151", flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 13, color: "#c3cbc6", flex: 1, minWidth: 0 }}>
                   <strong>{s.task_titulo}</strong>
-                  {s.motivo && <span style={{ color: "#78716c", fontWeight: 400 }}> — {s.motivo}</span>}
+                  {s.motivo && <span style={{ color: "#8a948e", fontWeight: 400 }}> — {s.motivo}</span>}
                 </span>
                 <button
                   disabled={resolvingId === s.id}
                   onClick={() => setPendingSugestao(s)}
-                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "#166534", opacity: resolvingId === s.id ? 0.5 : 1 }}
+                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "rgba(62,224,111,0.12)", opacity: resolvingId === s.id ? 0.5 : 1 }}
                 >
                   Aceitar
                 </button>
@@ -1409,13 +1409,13 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
         </div>
       )}
 
-      {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+      {err && <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>}
 
       {loading ? (
-        <p style={{ color: "#9696a0", fontSize: 13 }}>Carregando tasks...</p>
+        <p style={{ color: "#8a948e", fontSize: 13 }}>Carregando tasks...</p>
       ) : (
         <div style={{
-          background: "#f7f7fa",
+          background: "rgba(62,224,111,0.055)",
           borderRadius: 14,
           padding: 16,
           display: "grid",
@@ -1448,7 +1448,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                       title="Nova task nesta coluna"
                       style={{
                         background: "none", border: "none", cursor: "pointer",
-                        color: "#b8b8c0", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
+                        color: "#5d6661", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
                       }}
                     >
                       +
@@ -1459,7 +1459,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 {/* Cards */}
                 {colTasks.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <span style={{ color: "#b8b8c0", fontSize: 12 }}>Nenhuma task</span>
+                    <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma task</span>
                   </div>
                 ) : (
                   colTasks.map((t) => (

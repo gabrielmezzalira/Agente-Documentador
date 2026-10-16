@@ -56,10 +56,10 @@ export default function CadastroPage() {
     <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#16a34a" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#3ee06f" }}>
             citi · subárea de dados
           </span>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#111116", marginTop: 10 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#f2f5f3", marginTop: 10 }}>
             Criar conta
           </h1>
         </div>
@@ -67,7 +67,7 @@ export default function CadastroPage() {
         <div style={cardStyle}>
           {modo === "lista" && (
             <div>
-              <p style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>Você já é operacional em algum projeto?</p>
+              <p style={{ fontSize: 13, color: "#8a948e", marginBottom: 14 }}>Você já é operacional em algum projeto?</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
                 {operacionais.map((op) => (
                   <button
@@ -75,12 +75,12 @@ export default function CadastroPage() {
                     onClick={() => { setSelecionado(op); setModo("claim"); }}
                     style={pickBtnStyle}
                   >
-                    <span style={{ fontWeight: 600, color: "#111116" }}>{op.nome}</span>
-                    <span style={{ color: "#9696a0", fontSize: 12, marginLeft: 8 }}>{op.project_name}</span>
+                    <span style={{ fontWeight: 600, color: "#f2f5f3" }}>{op.nome}</span>
+                    <span style={{ color: "#8a948e", fontSize: 12, marginLeft: 8 }}>{op.project_name}</span>
                   </button>
                 ))}
                 {operacionais.length === 0 && (
-                  <p style={{ fontSize: 13, color: "#b8b8c0" }}>Nenhum operacional pendente de conta no momento.</p>
+                  <p style={{ fontSize: 13, color: "#5d6661" }}>Nenhum operacional pendente de conta no momento.</p>
                 )}
               </div>
               <button onClick={() => setModo("novo")} style={destaqueBtnStyle}>
@@ -91,7 +91,7 @@ export default function CadastroPage() {
 
           {modo === "claim" && selecionado && (
             <form onSubmit={handleClaim} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <p style={{ fontSize: 13, color: "#374151" }}>
+              <p style={{ fontSize: 13, color: "#c3cbc6" }}>
                 Criando conta para <strong>{selecionado.nome}</strong> no projeto <strong>{selecionado.project_name}</strong>
               </p>
               <div>
@@ -109,12 +109,12 @@ export default function CadastroPage() {
               <div>
                 <label style={labelStyle}>Email do GitHub</label>
                 <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} required style={inputStyle} placeholder="pode ser diferente do email de login" />
-                <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
+                <p style={{ marginTop: 6, fontSize: 12, color: "#5d6661", lineHeight: 1.5 }}>
                   Você pode criar a conta com qualquer email. O que conta para reconhecer seus
                   commits é o email que o Git usa no seu computador, informado aqui.
                 </p>
               </div>
-              {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+              {err && <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>}
               <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
               <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
             </form>
@@ -141,12 +141,12 @@ export default function CadastroPage() {
               <div>
                 <label style={labelStyle}>Email do GitHub</label>
                 <input type="email" value={githubEmail} onChange={(e) => setGithubEmail(e.target.value)} required style={inputStyle} placeholder="pode ser diferente do email de login" />
-                <p style={{ marginTop: 6, fontSize: 12, color: "#b8b8c0", lineHeight: 1.5 }}>
+                <p style={{ marginTop: 6, fontSize: 12, color: "#5d6661", lineHeight: 1.5 }}>
                   Você pode criar a conta com qualquer email. O que conta para reconhecer seus
                   commits é o email que o Git usa no seu computador, informado aqui.
                 </p>
               </div>
-              {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+              {err && <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>}
               <button type="submit" disabled={loading} style={btnPrimary}>{loading ? "Criando..." : "Criar conta"}</button>
               <button type="button" onClick={() => setModo("lista")} style={btnGhost}>Voltar</button>
             </form>
@@ -154,8 +154,8 @@ export default function CadastroPage() {
         </div>
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <span style={{ fontSize: 13, color: "#9696a0" }}>Já tem conta? </span>
-          <a href="/login" style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+          <span style={{ fontSize: 13, color: "#8a948e" }}>Já tem conta? </span>
+          <a href="/login" style={{ fontSize: 13, fontWeight: 700, color: "#3ee06f" }}>
             Entrar
           </a>
         </div>
@@ -165,8 +165,8 @@ export default function CadastroPage() {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8ed",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 14,
   padding: "28px 26px",
 };
@@ -176,7 +176,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   marginBottom: 6,
-  color: "#6a6a7a",
+  color: "#8a948e",
   letterSpacing: "0.04em",
   textTransform: "uppercase",
 };
@@ -184,17 +184,17 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px 14px",
-  background: "#ffffff",
-  border: "1px solid #e4e4ea",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   fontSize: 14,
   outline: "none",
-  color: "#111116",
+  color: "#f2f5f3",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#0a0a0a",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 8,
   padding: "11px 18px",
@@ -207,7 +207,7 @@ const btnGhost: React.CSSProperties = {
   fontSize: 13,
   background: "none",
   border: "none",
-  color: "#9696a0",
+  color: "#8a948e",
   cursor: "pointer",
   padding: 0,
 };
@@ -215,9 +215,9 @@ const btnGhost: React.CSSProperties = {
 const pickBtnStyle: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 14px",
-  border: "1px solid #e4e4ea",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
-  background: "#fff",
+  background: "#0d1711",
   cursor: "pointer",
   fontSize: 13,
 };
@@ -228,9 +228,9 @@ const destaqueBtnStyle: React.CSSProperties = {
   textAlign: "center",
   padding: "11px 14px",
   borderRadius: 8,
-  border: "1px solid #bbf7d0",
-  background: "#f0fdf4",
-  color: "#16a34a",
+  border: "1px solid rgba(62,224,111,0.35)",
+  background: "rgba(62,224,111,0.12)",
+  color: "#3ee06f",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",

@@ -81,7 +81,7 @@ export default function AvaliacoesPage() {
     return (
       <main style={pageStyle}>
         <Link href="/" style={linkVoltarStyle}>← Projetos</Link>
-        <p style={{ color: "#dc2626", marginTop: 20 }}>Acesso restrito a Gerente, Líder e Owner.</p>
+        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Gerente, Líder e Owner.</p>
       </main>
     );
   }
@@ -89,8 +89,8 @@ export default function AvaliacoesPage() {
   return (
     <main style={pageStyle}>
       <Link href="/" style={linkVoltarStyle}>← Projetos</Link>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", margin: "20px 0 8px" }}>Avaliações do gerente</h1>
-      <p style={{ color: "#737380", fontSize: 14, marginBottom: 24 }}>
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 8px" }}>Avaliações do gerente</h1>
+      <p style={{ color: "#8a948e", fontSize: 14, marginBottom: 24 }}>
         Notas da avaliação semanal por operacional e sprint. Corrigir uma nota atualiza o ranking.
       </p>
 
@@ -120,18 +120,18 @@ export default function AvaliacoesPage() {
         </label>
       </div>
 
-      {erro && <p role="alert" style={{ color: "#dc2626" }}>{erro}</p>}
-      {!itens && !erro && <p style={{ color: "#6b6b76" }}>Carregando...</p>}
+      {erro && <p role="alert" style={{ color: "#ff6b6b" }}>{erro}</p>}
+      {!itens && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
       {itens && filtrados.length === 0 && (
-        <p style={{ color: "#6b6b76" }}>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</p>
+        <p style={{ color: "#8a948e" }}>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</p>
       )}
 
       {grupos.map((g) => (
         <section key={g.chave} style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, color: "#111116", margin: "0 0 10px" }}>
-            {g.projeto} <span style={{ color: "#6b6b76", fontWeight: 600 }}>· Sprint {g.sprint ?? "—"}</span>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: "#f2f5f3", margin: "0 0 10px" }}>
+            {g.projeto} <span style={{ color: "#8a948e", fontWeight: 600 }}>· Sprint {g.sprint ?? "—"}</span>
           </h2>
-          <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #e8e8ed", borderRadius: 12 }}>
+          <div style={{ overflowX: "auto", background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
@@ -146,16 +146,16 @@ export default function AvaliacoesPage() {
               </thead>
               <tbody>
                 {g.linhas.map((a) => (
-                  <tr key={a.id} style={{ borderTop: "1px solid #f1f1f4" }}>
+                  <tr key={a.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                     <td style={tdStyle}>
-                      <span style={{ fontWeight: 650, color: "#111116" }}>{a.operacional_nome}</span>
+                      <span style={{ fontWeight: 650, color: "#f2f5f3" }}>{a.operacional_nome}</span>
                       {a.total_edicoes > 0 && a.ultima_edicao_em && (
                         <span style={badgeEditadaStyle}>
                           editada por {a.ultima_edicao_por} em {formatData(a.ultima_edicao_em)}
                         </span>
                       )}
                     </td>
-                    <td style={{ ...tdStyle, color: "#737380" }}>{a.avaliador_nome}</td>
+                    <td style={{ ...tdStyle, color: "#8a948e" }}>{a.avaliador_nome}</td>
                     {CAMPOS_RESPOSTA.map((c) => (
                       <td key={c} style={{ ...tdStyle, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{a[c]}</td>
                     ))}
@@ -214,14 +214,14 @@ function EditarModal({
 
   return (
     <Overlay onClose={onClose} titulo={`Corrigir nota · ${avaliacao.operacional_nome}`}>
-      <p style={{ fontSize: 13, color: "#737380", margin: "0 0 16px" }}>
+      <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 16px" }}>
         {avaliacao.projeto_nome} · Sprint {avaliacao.sprint_numero ?? "—"} · avaliado por {avaliacao.avaliador_nome}
       </p>
       {perguntas(avaliacao.modo_trabalho).map((texto, idx) => {
         const campo = CAMPOS_RESPOSTA[idx];
         return (
           <fieldset key={campo} style={{ border: "none", padding: 0, margin: "0 0 14px" }}>
-            <legend style={{ fontSize: 13, color: "#111116", fontWeight: 600, marginBottom: 6 }}>
+            <legend style={{ fontSize: 13, color: "#f2f5f3", fontWeight: 600, marginBottom: 6 }}>
               {idx + 1}. {texto}
             </legend>
             <div style={{ display: "flex", gap: 6 }}>
@@ -235,9 +235,9 @@ function EditarModal({
                     onClick={() => setNotas((prev) => ({ ...prev, [campo]: n }))}
                     style={{
                       width: 36, height: 36, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer",
-                      border: ativo ? "2px solid #16a34a" : "1px solid #e8e8ed",
-                      background: ativo ? "#f0fdf4" : "#fff",
-                      color: "#111116",
+                      border: ativo ? "2px solid #3ee06f" : "1px solid rgba(62,224,111,0.2)",
+                      background: ativo ? "rgba(62,224,111,0.12)" : "#0d1711",
+                      color: "#f2f5f3",
                     }}
                   >
                     {n}
@@ -248,7 +248,7 @@ function EditarModal({
           </fieldset>
         );
       })}
-      <label htmlFor="motivo-correcao" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", margin: "8px 0 4px" }}>
+      <label htmlFor="motivo-correcao" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#c3cbc6", margin: "8px 0 4px" }}>
         Motivo da correção
       </label>
       <textarea
@@ -257,9 +257,9 @@ function EditarModal({
         onChange={(e) => setMotivo(e.target.value)}
         rows={3}
         placeholder="Ex.: nota lançada errada, conversei com o gerente"
-        style={{ width: "100%", boxSizing: "border-box", border: "1px solid #e8e8ed", borderRadius: 8, padding: 10, fontSize: 13, resize: "vertical" }}
+        style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: 10, fontSize: 13, resize: "vertical" }}
       />
-      {erro && <p role="alert" style={{ color: "#dc2626", fontSize: 13, marginTop: 8 }}>{erro}</p>}
+      {erro && <p role="alert" style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>{erro}</p>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
         <button type="button" onClick={onClose} style={btnGhostStyle}>Cancelar</button>
         <button type="button" onClick={salvar} disabled={!podeSalvar} style={{ ...btnPrimaryStyle, opacity: podeSalvar ? 1 : 0.5 }}>
@@ -281,21 +281,21 @@ function HistoricoModal({ avaliacao, onClose }: { avaliacao: AvaliacaoHistoricoI
 
   return (
     <Overlay onClose={onClose} titulo={`Histórico · ${avaliacao.operacional_nome}`}>
-      {erro && <p role="alert" style={{ color: "#dc2626" }}>{erro}</p>}
-      {!edicoes && !erro && <p style={{ color: "#6b6b76" }}>Carregando...</p>}
+      {erro && <p role="alert" style={{ color: "#ff6b6b" }}>{erro}</p>}
+      {!edicoes && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
       {edicoes?.map((e) => (
-        <div key={e.id} style={{ borderTop: "1px solid #f1f1f4", padding: "12px 0" }}>
-          <p style={{ fontSize: 12, color: "#737380", margin: "0 0 6px" }}>
+        <div key={e.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "12px 0" }}>
+          <p style={{ fontSize: 12, color: "#8a948e", margin: "0 0 6px" }}>
             {e.editor_nome} · {formatData(e.criado_em)}
           </p>
-          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 13, color: "#111116" }}>
+          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 13, color: "#f2f5f3" }}>
             {CAMPOS_RESPOSTA.map((c, idx) =>
               e.antes[c] !== e.depois[c] ? (
                 <li key={c} title={textos[idx]}>P{idx + 1}: {e.antes[c] ?? "—"} → {e.depois[c] ?? "—"}</li>
               ) : null
             )}
           </ul>
-          <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>“{e.motivo}”</p>
+          <p style={{ fontSize: 13, color: "#c3cbc6", margin: 0 }}>“{e.motivo}”</p>
         </div>
       ))}
     </Overlay>
@@ -314,8 +314,8 @@ function Overlay({ titulo, onClose, children }: { titulo: string; onClose: () =>
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label={titulo} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>{titulo}</h3>
+      <div role="dialog" aria-modal="true" aria-label={titulo} style={{ background: "#0d1711", borderRadius: 16, padding: "24px 28px", width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 12px" }}>{titulo}</h3>
         {children}
       </div>
     </div>
@@ -323,13 +323,13 @@ function Overlay({ titulo, onClose, children }: { titulo: string; onClose: () =>
 }
 
 const pageStyle: React.CSSProperties = { maxWidth: 1000, margin: "0 auto", padding: "52px 24px" };
-const linkVoltarStyle: React.CSSProperties = { fontSize: 13, color: "#6b6b76" };
-const filtroLabelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "#737380", textTransform: "uppercase", letterSpacing: "0.06em" };
-const selectStyle: React.CSSProperties = { minWidth: 200, padding: "8px 10px", border: "1px solid #e8e8ed", borderRadius: 8, fontSize: 13, background: "#fff", color: "#111116", textTransform: "none", letterSpacing: 0, fontWeight: 500 };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#737380", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "default" };
+const linkVoltarStyle: React.CSSProperties = { fontSize: 13, color: "#8a948e" };
+const filtroLabelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.06em" };
+const selectStyle: React.CSSProperties = { minWidth: 200, padding: "8px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, fontSize: 13, background: "#0d1711", color: "#f2f5f3", textTransform: "none", letterSpacing: 0, fontWeight: 500 };
+const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "default" };
 const tdStyle: React.CSSProperties = { padding: "10px 12px", verticalAlign: "top" };
-const badgeEditadaStyle: React.CSSProperties = { display: "block", marginTop: 4, fontSize: 11, color: "#b45309" };
-const btnLinkStyle: React.CSSProperties = { background: "none", border: "none", color: "#16a34a", fontSize: 13, fontWeight: 650, cursor: "pointer", padding: "4px 6px" };
-const btnGhostStyle: React.CSSProperties = { background: "#fff", border: "1px solid #e8e8ed", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#374151" };
-const btnPrimaryStyle: React.CSSProperties = { background: "#111116", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: "#fff" };
+const badgeEditadaStyle: React.CSSProperties = { display: "block", marginTop: 4, fontSize: 11, color: "#f2c14e" };
+const btnLinkStyle: React.CSSProperties = { background: "none", border: "none", color: "#3ee06f", fontSize: 13, fontWeight: 650, cursor: "pointer", padding: "4px 6px" };
+const btnGhostStyle: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#c3cbc6" };
+const btnPrimaryStyle: React.CSSProperties = { background: "#f2f5f3", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: "#04120a" };
 const srOnly: React.CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" };

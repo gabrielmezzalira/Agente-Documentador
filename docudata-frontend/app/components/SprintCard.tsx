@@ -42,8 +42,8 @@ interface Props {
 // ---------- styles ----------
 
 const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e4e4ea",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 16,
   padding: "26px 28px",
   marginBottom: 16,
@@ -61,7 +61,7 @@ const headerRow: React.CSSProperties = {
 const titleStyle: React.CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#f2f5f3",
   letterSpacing: "-0.02em",
   margin: 0,
 };
@@ -83,17 +83,17 @@ const statusChip = (done: boolean): React.CSSProperties => ({
   borderRadius: 10,
   fontSize: 14,
   fontWeight: 700,
-  background: done ? "#dcfce7" : "#fef3c7",
-  color: done ? "#16a34a" : "#b45309",
-  border: done ? "1px solid #86efac" : "1px solid #fde68a",
+  background: done ? "rgba(62,224,111,0.12)" : "rgba(242,193,78,0.10)",
+  color: done ? "#3ee06f" : "#f2c14e",
+  border: done ? "1px solid rgba(62,224,111,0.35)" : "1px solid rgba(242,193,78,0.30)",
   cursor: "pointer",
   transition: "transform 0.06s",
 });
 
 const dailyChip = (count: number): React.CSSProperties => ({
   ...statusChip(count > 0),
-  background: count >= EXPECTED_DAILYS ? "#dcfce7" : count > 0 ? "#fef3c7" : "#f7f7fa",
-  color: count >= EXPECTED_DAILYS ? "#16a34a" : count > 0 ? "#b45309" : "#475569",
+  background: count >= EXPECTED_DAILYS ? "rgba(62,224,111,0.12)" : count > 0 ? "rgba(242,193,78,0.10)" : "rgba(62,224,111,0.055)",
+  color: count >= EXPECTED_DAILYS ? "#3ee06f" : count > 0 ? "#f2c14e" : "#c3cbc6",
   border: count >= EXPECTED_DAILYS
     ? "1px solid #86efac"
     : count > 0
@@ -102,7 +102,7 @@ const dailyChip = (count: number): React.CSSProperties => ({
 });
 
 const muted: React.CSSProperties = {
-  color: "#9696a0",
+  color: "#8a948e",
   fontSize: 13,
   marginLeft: 4,
 };
@@ -114,9 +114,9 @@ const actionRow: React.CSSProperties = {
 };
 
 const btnAction: React.CSSProperties = {
-  background: "#f1f5f9",
-  color: "#1e293b",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#f2f5f3",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "11px 18px",
   fontSize: 14,
@@ -127,14 +127,14 @@ const btnAction: React.CSSProperties = {
 
 const btnActionActive: React.CSSProperties = {
   ...btnAction,
-  background: "#dcfce7",
-  borderColor: "#86efac",
-  color: "#15803d",
+  background: "rgba(62,224,111,0.12)",
+  borderColor: "rgba(62,224,111,0.35)",
+  color: "#3ee06f",
 };
 
 const btnPrimary: React.CSSProperties = {
-  background: "#0f172a",
-  color: "#fff",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 10,
   padding: "11px 18px",
@@ -145,7 +145,7 @@ const btnPrimary: React.CSSProperties = {
 
 const btnSubtle: React.CSSProperties = {
   background: "transparent",
-  color: "#64748b",
+  color: "#8a948e",
   border: "none",
   fontSize: 13,
   cursor: "pointer",
@@ -156,16 +156,16 @@ const btnSubtle: React.CSSProperties = {
 const confirmPanel: React.CSSProperties = {
   marginTop: 14,
   padding: "16px 18px",
-  background: "#f8fafc",
+  background: "rgba(62,224,111,0.055)",
   borderRadius: 12,
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
 };
 
 const confirmField: React.CSSProperties = {
   display: "flex",
   gap: 8,
   fontSize: 13,
-  color: "#475569",
+  color: "#c3cbc6",
   marginBottom: 8,
   lineHeight: 1.5,
 };
@@ -173,7 +173,7 @@ const confirmField: React.CSSProperties = {
 const confirmFieldLabel: React.CSSProperties = {
   flexShrink: 0,
   fontWeight: 700,
-  color: "#1e293b",
+  color: "#f2f5f3",
   minWidth: 72,
 };
 
@@ -185,8 +185,8 @@ const confirmActions: React.CSSProperties = {
 };
 
 const btnConfirm: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#052e16",
+  background: "#3ee06f",
+  color: "#3ee06f",
   border: "none",
   padding: "9px 18px",
   borderRadius: 8,
@@ -196,9 +196,9 @@ const btnConfirm: React.CSSProperties = {
 };
 
 const btnCancel: React.CSSProperties = {
-  background: "#fff",
-  color: "#64748b",
-  border: "1px solid #e2e8f0",
+  background: "#0d1711",
+  color: "#8a948e",
+  border: "1px solid rgba(62,224,111,0.2)",
   padding: "9px 16px",
   borderRadius: 8,
   fontSize: 13,
@@ -209,9 +209,9 @@ const btnCancel: React.CSSProperties = {
 const detailBox: React.CSSProperties = {
   marginTop: 20,
   padding: 18,
-  background: "#f8fafc",
+  background: "rgba(62,224,111,0.055)",
   borderRadius: 12,
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
 };
 
 const subTitleStyle: React.CSSProperties = {
@@ -219,14 +219,14 @@ const subTitleStyle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
-  color: "#64748b",
+  color: "#8a948e",
   margin: 0,
   marginBottom: 10,
 };
 
 const tagStyle: React.CSSProperties = {
-  background: "#e0e7ff",
-  color: "#4338ca",
+  background: "rgba(177,151,252,0.10)",
+  color: "#b197fc",
   borderRadius: 5,
   padding: "2px 9px",
   fontSize: 11,
@@ -236,8 +236,8 @@ const tagStyle: React.CSSProperties = {
 };
 
 const docRow: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
+  background: "#0d1711",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "12px 14px",
   fontSize: 13,
@@ -252,19 +252,19 @@ const docHeader: React.CSSProperties = {
 
 const markdownContainer: React.CSSProperties = {
   marginTop: 12,
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "16px 20px",
   lineHeight: 1.7,
-  color: "#374151",
+  color: "#c3cbc6",
   fontSize: 13,
 };
 
 const tinyBtn: React.CSSProperties = {
-  background: "#fff",
-  color: "#374151",
-  border: "1px solid #e2e8f0",
+  background: "#0d1711",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 7,
   padding: "5px 11px",
   fontSize: 12,
@@ -274,9 +274,9 @@ const tinyBtn: React.CSSProperties = {
 
 const tinyBtnDanger: React.CSSProperties = {
   ...tinyBtn,
-  background: "#fef2f2",
-  color: "#dc2626",
-  border: "1px solid #fecaca",
+  background: "rgba(255,107,107,0.10)",
+  color: "#ff6b6b",
+  border: "1px solid rgba(255,107,107,0.30)",
 };
 
 // ---------- component ----------
@@ -381,7 +381,7 @@ export default function SprintCard({
     }
     if (parts.length === 0) return null;
     return (
-      <p style={{ color: "#8892a4", fontSize: 11, margin: "4px 0 0", lineHeight: 1.4 }}>
+      <p style={{ color: "#8a948e", fontSize: 11, margin: "4px 0 0", lineHeight: 1.4 }}>
         {parts.join("  ·  ")}
       </p>
     );
@@ -398,13 +398,13 @@ export default function SprintCard({
     ].filter((s) => s.items.length > 0);
     if (sections.length === 0) return null;
     return (
-      <div style={{ marginTop: 8, borderTop: "1px solid #f0f0f6", paddingTop: 8 }}>
+      <div style={{ marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8 }}>
         {sections.map(({ label, items }) => (
           <div key={label} style={{ marginBottom: 6 }}>
-            <span style={{ fontWeight: 700, fontSize: 11, color: "#64748b" }}>{label}:</span>
+            <span style={{ fontWeight: 700, fontSize: 11, color: "#8a948e" }}>{label}:</span>
             <ul style={{ margin: "2px 0 0 16px", padding: 0 }}>
               {items.map((item, i) => (
-                <li key={i} style={{ fontSize: 11, color: "#52525b", lineHeight: 1.5 }}>{item}</li>
+                <li key={i} style={{ fontSize: 11, color: "#c3cbc6", lineHeight: 1.5 }}>{item}</li>
               ))}
             </ul>
           </div>
@@ -422,7 +422,7 @@ export default function SprintCard({
             {expanded ? "Recolher" : "Detalhes"}
           </button>
           <button
-            style={{ ...btnSubtle, color: "#dc2626" }}
+            style={{ ...btnSubtle, color: "#ff6b6b" }}
             onClick={() => {
               if (confirm(`Excluir Sprint ${sprint.numero} e TUDO associado a ela (tasks, ingestões e documentos gerados)? Esta ação é irreversível.`))
                 onDeleteSprint(sprint.id);
@@ -485,7 +485,7 @@ export default function SprintCard({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: sprint.pontos_orcamento != null ? "#4338ca" : "#9696a0" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: sprint.pontos_orcamento != null ? "#b197fc" : "#8a948e" }}>
           {sprint.pontos_orcamento != null
             ? `${sprint.pontos_usados}/${sprint.pontos_orcamento} pts em tasks${
                 sprint.faturamento_previsto != null ? ` · R$ ${sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos` : ""
@@ -543,7 +543,7 @@ export default function SprintCard({
       {/* Painel de confirmação com explicação */}
       {pendingMeta && (
         <div style={confirmPanel}>
-          <h4 style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 12px" }}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, color: "#f2f5f3", margin: "0 0 12px" }}>
             {pendingMeta.label} — Sprint {sprint.numero}
           </h4>
           <div style={confirmField}>
@@ -582,7 +582,7 @@ export default function SprintCard({
           {/* DOCS GERADOS DA SPRINT — destaque */}
           <p style={subTitleStyle}>Documentos desta sprint ({docs.length})</p>
           {docs.length === 0 ? (
-            <p style={{ color: "#9696a0", fontSize: 13, margin: "0 0 14px" }}>
+            <p style={{ color: "#8a948e", fontSize: 13, margin: "0 0 14px" }}>
               Nenhum documento gerado para esta sprint ainda.
             </p>
           ) : (
@@ -590,9 +590,9 @@ export default function SprintCard({
               {docs.map((d) => (
                 <div key={d.id} style={docRow}>
                   <div style={docHeader}>
-                    <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                    <span style={{ fontWeight: 600, color: "#f2f5f3" }}>
                       {docTypeLabel(d.doc_type)}
-                      <span style={{ color: "#94a3b8", fontWeight: 400, marginLeft: 8 }}>
+                      <span style={{ color: "#8a948e", fontWeight: 400, marginLeft: 8 }}>
                         {new Date(d.created_at).toLocaleDateString("pt-BR")}
                       </span>
                     </span>
@@ -649,17 +649,17 @@ export default function SprintCard({
                   </div>
                   {movingDocId === d.id && (
                     <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
-                      <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                      <span style={{ fontSize: 12, color: "#8a948e" }}>Mover para sprint:</span>
                       <input
                         type="number"
                         min={1}
                         value={moveDocSprint}
                         onChange={(e) => setMoveDocSprint(e.target.value)}
-                        style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                        style={{ width: 60, padding: "4px 8px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 6, fontSize: 13 }}
                         autoFocus
                       />
                       <button
-                        style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                        style={{ ...tinyBtn, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
                         onClick={() => {
                           const n = parseInt(moveDocSprint);
                           if (!isNaN(n) && n > 0) { onMoveDoc(d.id, n); setMovingDocId(null); }
@@ -676,7 +676,7 @@ export default function SprintCard({
                         style={{
                           width: "100%",
                           minHeight: 260,
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid rgba(62,224,111,0.2)",
                           borderRadius: 8,
                           padding: "12px 14px",
                           fontSize: 13,
@@ -691,11 +691,11 @@ export default function SprintCard({
                         autoFocus
                       />
                       {editError && (
-                        <p style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{editError}</p>
+                        <p style={{ color: "#ff6b6b", fontSize: 12, marginTop: 6 }}>{editError}</p>
                       )}
                       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                         <button
-                          style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac", opacity: savingEdit ? 0.6 : 1 }}
+                          style={{ ...tinyBtn, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)", opacity: savingEdit ? 0.6 : 1 }}
                           disabled={savingEdit}
                           onClick={async () => {
                             if (!editDraft.trim()) { setEditError("O documento não pode ficar vazio."); return; }
@@ -731,7 +731,7 @@ export default function SprintCard({
                   {ingestions.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <button
-                        style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: "#6366f1", cursor: "pointer", fontWeight: 600 }}
+                        style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: "#b197fc", cursor: "pointer", fontWeight: 600 }}
                         onClick={() => setExpandedSourcesId(expandedSourcesId === d.id ? null : d.id)}
                       >
                         {expandedSourcesId === d.id ? "ocultar fontes ▲" : `ver fontes (${ingestions.length} ingestão${ingestions.length !== 1 ? "ões" : ""}) ▼`}
@@ -739,15 +739,15 @@ export default function SprintCard({
                       {expandedSourcesId === d.id && (
                         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                           {ingestions.map((ing) => (
-                            <div key={ing.id} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px" }}>
+                            <div key={ing.id} style={{ background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "8px 12px" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                <span style={{ fontWeight: 600, fontSize: 12, color: "#0f172a" }}>{ing.file_name}</span>
+                                <span style={{ fontWeight: 600, fontSize: 12, color: "#f2f5f3" }}>{ing.file_name}</span>
                                 {ing.tipo_documentacao && (
                                   <span style={tagStyle}>{ing.tipo_documentacao}</span>
                                 )}
                               </div>
                               {ing.extracted_content?.resumo && (
-                                <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 11, lineHeight: 1.5 }}>
+                                <p style={{ color: "#8a948e", margin: "4px 0 0", fontSize: 11, lineHeight: 1.5 }}>
                                   {ing.extracted_content.resumo}
                                 </p>
                               )}
@@ -766,14 +766,14 @@ export default function SprintCard({
           {/* COMMITS — recolhido por padrão para sprints com histórico extenso */}
           {(() => {
             if (commits.length === 0) return (
-              <p style={{ fontSize: 11, color: "#b8b8c0", margin: "14px 0 0", fontStyle: "italic" }}>
+              <p style={{ fontSize: 11, color: "#5d6661", margin: "14px 0 0", fontStyle: "italic" }}>
                 Nenhum commit sincronizado neste projeto.
               </p>
             );
             return (
               <section
                 aria-label={`Commits da Sprint ${sprint.numero}`}
-                style={{ marginTop: 18, marginBottom: 18, border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}
+                style={{ marginTop: 18, marginBottom: 18, border: "1px solid rgba(62,224,111,0.2)", borderRadius: 10, overflow: "hidden" }}
               >
                 <button
                   type="button"
@@ -788,7 +788,7 @@ export default function SprintCard({
                     gap: 10,
                     padding: "11px 12px",
                     border: "none",
-                    background: commitsExpanded ? "#f8fafc" : "#fff",
+                    background: commitsExpanded ? "rgba(62,224,111,0.055)" : "#0d1711",
                     cursor: "pointer",
                     textAlign: "left",
                   }}
@@ -799,22 +799,22 @@ export default function SprintCard({
                       — GitHub App e legado
                     </span>
                   </span>
-                  <span style={{ color: "#475569", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                  <span style={{ color: "#c3cbc6", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                     {commitsExpanded ? "Recolher ▲" : "Expandir ▼"}
                   </span>
                 </button>
                 {commitsExpanded && (
-                  <div id={`commits-sprint-${sprint.id}`} style={{ padding: "0 12px 12px", background: "#f8fafc" }}>
+                  <div id={`commits-sprint-${sprint.id}`} style={{ padding: "0 12px 12px", background: "rgba(62,224,111,0.055)" }}>
                     {commitRepositories.length > 1 && (
                     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "10px 0 8px" }}>
                       {commitRepositoryFilter !== "todos" && (
-                        <span style={{ color: "#64748b", fontSize: 11 }}>{filteredCommits.length} exibido(s)</span>
+                        <span style={{ color: "#8a948e", fontSize: 11 }}>{filteredCommits.length} exibido(s)</span>
                       )}
                       <select
                         aria-label="Filtrar commits por repositório"
                         value={commitRepositoryFilter}
                         onChange={(event) => setCommitRepositoryFilter(event.target.value)}
-                        style={{ border: "1px solid #dbe1ea", borderRadius: 7, padding: "5px 8px", color: "#475569", background: "#fff", fontSize: 11 }}
+                        style={{ border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, padding: "5px 8px", color: "#c3cbc6", background: "#0d1711", fontSize: 11 }}
                       >
                         <option value="todos">Todos os repositórios</option>
                         {commitRepositories.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
@@ -839,31 +839,31 @@ export default function SprintCard({
                     });
                     return (
                       <div key={ing.id} style={{
-                        padding: "10px 12px", background: "#f8fafc",
-                        border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12,
+                        padding: "10px 12px", background: "rgba(62,224,111,0.055)",
+                        border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 12,
                       }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                          <span style={{ color: repository.includes("legado") ? "#94a3b8" : "#334155", fontWeight: 700 }}>{repository}</span>
-                          <span style={{ color: "#16a34a", fontSize: 11, fontWeight: 700 }}>✓ Processado</span>
+                          <span style={{ color: repository.includes("legado") ? "#8a948e" : "#c3cbc6", fontWeight: 700 }}>{repository}</span>
+                          <span style={{ color: "#3ee06f", fontSize: 11, fontWeight: 700 }}>✓ Processado</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                           {commitUrl ? (
-                            <a href={commitUrl} target="_blank" rel="noreferrer" style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0, textDecoration: "none", fontFamily: "monospace" }}>{hash}</a>
+                            <a href={commitUrl} target="_blank" rel="noreferrer" style={{ color: "#b197fc", fontWeight: 700, flexShrink: 0, textDecoration: "none", fontFamily: "monospace" }}>{hash}</a>
                           ) : (
-                            <code style={{ color: "#6366f1", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
+                            <code style={{ color: "#b197fc", fontWeight: 700, flexShrink: 0 }}>{hash}</code>
                           )}
                           {branch && (
-                            <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
+                            <span style={{ background: "rgba(177,151,252,0.10)", color: "#b197fc", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>
                               {branch}
                             </span>
                           )}
-                          <span style={{ color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ color: "#c3cbc6", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {msg}
                           </span>
-                          <span style={{ color: "#64748b", flexShrink: 0 }}>
+                          <span style={{ color: "#8a948e", flexShrink: 0 }}>
                             {autor}{autorLogin ? ` (@${autorLogin})` : ""}
                           </span>
-                          <span style={{ color: "#94a3b8", flexShrink: 0 }}>{when}</span>
+                          <span style={{ color: "#8a948e", flexShrink: 0 }}>{when}</span>
                           <button
                             style={{ ...tinyBtn, fontSize: 11, padding: "2px 7px", flexShrink: 0 }}
                             onClick={() => { setMovingIngId(ing.id); setMoveIngSprint(""); }}
@@ -878,11 +878,11 @@ export default function SprintCard({
                           </button>
                         </div>
                         {meta.resumo && (
-                          <p style={{ color: "#64748b", fontSize: 11, lineHeight: 1.5, margin: "6px 0 0 0" }}>{meta.resumo}</p>
+                          <p style={{ color: "#8a948e", fontSize: 11, lineHeight: 1.5, margin: "6px 0 0 0" }}>{meta.resumo}</p>
                         )}
                         {renderIngestionChips(meta)}
                         {(committer || pusher || ing.source_diff_stat) && (
-                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", color: "#94a3b8", fontSize: 10, marginTop: 5 }}>
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", color: "#8a948e", fontSize: 10, marginTop: 5 }}>
                             {committer && committer !== autor && <span>Committer: {committer}</span>}
                             {pusher && <span>Push por: {pusher}</span>}
                             {ing.source_diff_stat && <span>Alterações: {ing.source_diff_stat}</span>}
@@ -890,17 +890,17 @@ export default function SprintCard({
                         )}
                         {movingIngId === ing.id && (
                           <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
-                            <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                            <span style={{ fontSize: 12, color: "#8a948e" }}>Mover para sprint:</span>
                             <input
                               type="number"
                               min={1}
                               value={moveIngSprint}
                               onChange={(e) => setMoveIngSprint(e.target.value)}
-                              style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                              style={{ width: 60, padding: "4px 8px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 6, fontSize: 13 }}
                               autoFocus
                             />
                             <button
-                              style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                              style={{ ...tinyBtn, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
                               onClick={() => {
                                 const n = parseInt(moveIngSprint);
                                 if (!isNaN(n) && n > 0) { onMoveIngestion(ing.id, n); setMovingIngId(null); }
@@ -935,7 +935,7 @@ export default function SprintCard({
             </span>
           </p>
           {ingestions.filter((i) => i.tipo_documentacao !== "commit").length === 0 ? (
-            <p style={{ color: "#9696a0", fontSize: 13, margin: 0 }}>
+            <p style={{ color: "#8a948e", fontSize: 13, margin: 0 }}>
               Nenhuma ingestão nesta sprint.
             </p>
           ) : (
@@ -954,8 +954,8 @@ export default function SprintCard({
                   <div
                     key={ing.id}
                     style={{
-                      background: "#fff",
-                      border: "1px solid #e2e8f0",
+                      background: "#0d1711",
+                      border: "1px solid rgba(62,224,111,0.2)",
                       borderRadius: 8,
                       padding: "10px 12px",
                       fontSize: 13,
@@ -983,17 +983,17 @@ export default function SprintCard({
                     </div>
                     {movingIngId === ing.id && (
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
-                        <span style={{ fontSize: 12, color: "#64748b" }}>Mover para sprint:</span>
+                        <span style={{ fontSize: 12, color: "#8a948e" }}>Mover para sprint:</span>
                         <input
                           type="number"
                           min={1}
                           value={moveIngSprint}
                           onChange={(e) => setMoveIngSprint(e.target.value)}
-                          style={{ width: 60, padding: "4px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                          style={{ width: 60, padding: "4px 8px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 6, fontSize: 13 }}
                           autoFocus
                         />
                         <button
-                          style={{ ...tinyBtn, background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}
+                          style={{ ...tinyBtn, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
                           onClick={() => {
                             const n = parseInt(moveIngSprint);
                             if (!isNaN(n) && n > 0) { onMoveIngestion(ing.id, n); setMovingIngId(null); }
@@ -1005,7 +1005,7 @@ export default function SprintCard({
                       </div>
                     )}
                     {content?.resumo && (
-                      <p style={{ color: "#6a6a7a", margin: "4px 0 0", fontSize: 12, lineHeight: 1.5 }}>
+                      <p style={{ color: "#8a948e", margin: "4px 0 0", fontSize: 12, lineHeight: 1.5 }}>
                         {content.resumo}
                       </p>
                     )}
@@ -1018,7 +1018,7 @@ export default function SprintCard({
                           border: "none",
                           padding: "3px 0 0",
                           fontSize: 11,
-                          color: "#6366f1",
+                          color: "#b197fc",
                           cursor: "pointer",
                           fontWeight: 600,
                         }}

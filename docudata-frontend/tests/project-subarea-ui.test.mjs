@@ -11,12 +11,12 @@ const PROJECT_PAGE = readFileSync(
   "utf8",
 );
 const API = readFileSync(new URL("../app/lib/api.ts", import.meta.url), "utf8");
-const LAYOUT = readFileSync(
-  new URL("../app/[subarea]/layout.tsx", import.meta.url),
+const TOPBAR = readFileSync(
+  new URL("../app/components/shell/Topbar.tsx", import.meta.url),
   "utf8",
 );
 const STYLES = readFileSync(
-  new URL("../app/[subarea]/subarea.module.css", import.meta.url),
+  new URL("../app/components/shell/shell.module.css", import.meta.url),
   "utf8",
 );
 const TABS = readFileSync(
@@ -28,7 +28,7 @@ test("cadastro deriva e envia a subárea presente na rota", () => {
   assert.ok(NEW_PROJECT.includes("useParams<{ subarea: Subarea }>()"));
   assert.ok(NEW_PROJECT.includes("createProject({ name, client, subarea,"));
   assert.ok(NEW_PROJECT.includes("Novo projeto de {subareaLabel}"));
-  assert.ok(NEW_PROJECT.includes("será cadastrado automaticamente em {subareaLabel}"));
+  assert.ok(NEW_PROJECT.includes("será cadastrado automaticamente em ${subareaLabel}"));
 });
 
 test("configurações permitem mover o projeto preservando seu id", () => {
@@ -44,12 +44,11 @@ test("configurações permitem mover o projeto preservando seu id", () => {
   assert.ok(PROJECT_PAGE.indexOf('htmlFor="project-subarea"') < PROJECT_PAGE.indexOf("Zona perigosa"));
 });
 
-test("barra superior reorganiza ações antes que haja sobreposição", () => {
-  assert.ok(LAYOUT.includes("styles.headerIdentity"));
-  assert.ok(STYLES.includes("@media (max-width: 680px)"));
-  assert.ok(STYLES.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"));
-  assert.ok(STYLES.includes("@media (max-width: 430px)"));
-  assert.ok(STYLES.includes("grid-column: 1 / -1"));
+test("casca recolhe o menu lateral em telas estreitas e as abas rolam sem sobreposição", () => {
+  assert.ok(TOPBAR.includes("SUBAREAS.map"));
+  assert.ok(TOPBAR.includes('aria-label="Subárea"'));
+  assert.ok(STYLES.includes("@media (max-width: 1023px)"));
+  assert.ok(STYLES.includes(".sidebar { display: none; }"));
   assert.ok(TABS.includes('overflowX: "auto"'));
   assert.ok(TABS.includes('flex: "0 0 auto"'));
   assert.ok(TABS.includes('role="tablist"'));

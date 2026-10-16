@@ -29,7 +29,7 @@ const overlay: CSSProperties = {
 };
 
 const modal: CSSProperties = {
-  background: "#fff",
+  background: "#0d1711",
   borderRadius: 14,
   width: "100%",
   maxWidth: 480,
@@ -44,20 +44,20 @@ const row: CSSProperties = {
   justifyContent: "space-between",
   alignItems: "center",
   padding: "12px 0",
-  borderBottom: "1px solid #f0f0f6",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   gap: 12,
 };
 
 const funcTitle: CSSProperties = {
   fontSize: 13,
-  color: "#1e293b",
+  color: "#f2f5f3",
   fontWeight: 600,
   lineHeight: 1.4,
 };
 
 const funcCode: CSSProperties = {
   fontSize: 11,
-  color: "#94a3b8",
+  color: "#8a948e",
   marginTop: 2,
 };
 
@@ -68,15 +68,15 @@ const toggleBtn = (active: boolean, color: "green" | "amber"): CSSProperties => 
   fontWeight: 700,
   border: "1px solid",
   cursor: "pointer",
-  background: active ? (color === "green" ? "#dcfce7" : "#fef3c7") : "#f8fafc",
-  color: active ? (color === "green" ? "#16a34a" : "#b45309") : "#94a3b8",
-  borderColor: active ? (color === "green" ? "#86efac" : "#fde68a") : "#e2e8f0",
+  background: active ? (color === "green" ? "rgba(62,224,111,0.12)" : "rgba(242,193,78,0.10)") : "rgba(62,224,111,0.055)",
+  color: active ? (color === "green" ? "#3ee06f" : "#f2c14e") : "#8a948e",
+  borderColor: active ? (color === "green" ? "rgba(62,224,111,0.35)" : "rgba(242,193,78,0.30)") : "rgba(62,224,111,0.2)",
   transition: "all 0.1s",
 });
 
 const btnPrimary: CSSProperties = {
-  background: "#0f172a",
-  color: "#fff",
+  background: "#3ee06f",
+  color: "#04120a",
   border: "none",
   borderRadius: 10,
   padding: "10px 20px",
@@ -86,9 +86,9 @@ const btnPrimary: CSSProperties = {
 };
 
 const btnSecondary: CSSProperties = {
-  background: "#f1f5f9",
-  color: "#1e293b",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#f2f5f3",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 10,
   padding: "10px 16px",
   fontSize: 14,
@@ -159,29 +159,29 @@ export default function FuncionalidadesStatusModal({
       <div style={modal}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#f2f5f3", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
               Status das Funcionalidades
             </h2>
-            <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
+            <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>
               Sprint {sprintNumero} — marque o que foi concluído nesta sprint.
             </p>
           </div>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: 20, color: "#94a3b8", cursor: "pointer" }}
+            style={{ background: "none", border: "none", fontSize: 20, color: "#8a948e", cursor: "pointer" }}
           >
             ×
           </button>
         </div>
 
         {loading && (
-          <p style={{ fontSize: 13, color: "#64748b", padding: "20px 0", textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "#8a948e", padding: "20px 0", textAlign: "center" }}>
             Carregando…
           </p>
         )}
 
         {!loading && items.length === 0 && !error && (
-          <p style={{ fontSize: 13, color: "#94a3b8", padding: "20px 0", textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "#8a948e", padding: "20px 0", textAlign: "center" }}>
             Nenhuma funcionalidade associada a esta sprint. Use o botão de Planning para vincular funcionalidades.
           </p>
         )}
@@ -213,7 +213,7 @@ export default function FuncionalidadesStatusModal({
         })}
 
         {error && (
-          <p style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{error}</p>
+          <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 12 }}>{error}</p>
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>

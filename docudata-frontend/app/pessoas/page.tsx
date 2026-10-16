@@ -18,27 +18,27 @@ const CARGOS: { valor: Cargo; label: string; descricao: string }[] = [
 ];
 
 const CARGO_COR: Record<Cargo, { bg: string; fg: string }> = {
-  owner: { bg: "#ede9fe", fg: "#6d28d9" },
-  lider: { bg: "#dcfce7", fg: "#166534" },
-  gerente: { bg: "#dbeafe", fg: "#1d4ed8" },
-  operacional: { bg: "#f1f5f9", fg: "#475569" },
+  owner: { bg: "rgba(177,151,252,0.10)", fg: "#b197fc" },
+  lider: { bg: "rgba(62,224,111,0.12)", fg: "#3ee06f" },
+  gerente: { bg: "#b197fc", fg: "#b197fc" },
+  operacional: { bg: "rgba(62,224,111,0.055)", fg: "#c3cbc6" },
 };
 
 const th: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 14px",
-  borderBottom: "1px solid #e8e8ed",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   fontSize: 11,
   fontWeight: 700,
-  color: "#9696a0",
+  color: "#8a948e",
   textTransform: "uppercase",
   whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
   padding: "12px 14px",
-  borderBottom: "1px solid #f1f5f9",
-  color: "#374151",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  color: "#c3cbc6",
   fontSize: 13,
 };
 
@@ -80,20 +80,20 @@ export default function PessoasPage() {
   if (auth && !podeVer) {
     return (
       <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
-        <p style={{ color: "#dc2626", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
+        <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
+        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
       </main>
     );
   }
 
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: "48px 24px 96px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#9696a0" }}>← Projetos</Link>
+      <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
 
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#111116", margin: "20px 0 6px" }}>
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 6px" }}>
         Pessoas
       </h1>
-      <p style={{ color: "#9696a0", fontSize: 14, marginBottom: 28 }}>
+      <p style={{ color: "#8a948e", fontSize: 14, marginBottom: 28 }}>
         Quem tem acesso ao sistema e o que cada um enxerga.
         {podeEditar
           ? " Como Owner, você pode mudar o cargo de qualquer pessoa."
@@ -101,11 +101,11 @@ export default function PessoasPage() {
       </p>
 
       {erro && (
-        <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 16 }}>{erro}</p>
+        <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 16 }}>{erro}</p>
       )}
 
       <div style={{
-        background: "#f8fafc", border: "1px solid #e8e8ed", borderRadius: 12,
+        background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
         padding: "16px 20px", marginBottom: 24,
       }}>
         {CARGOS.map((c) => (
@@ -117,20 +117,20 @@ export default function PessoasPage() {
             }}>
               {c.label}
             </span>
-            <span style={{ fontSize: 12, color: "#64748b" }}>{c.descricao}</span>
+            <span style={{ fontSize: 12, color: "#8a948e" }}>{c.descricao}</span>
           </div>
         ))}
       </div>
 
-      {!pessoas && !erro && <p style={{ color: "#9696a0" }}>Carregando...</p>}
+      {!pessoas && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
 
       {pessoas && pessoas.length === 0 && (
-        <p style={{ color: "#9696a0" }}>Nenhuma pessoa cadastrada ainda.</p>
+        <p style={{ color: "#8a948e" }}>Nenhuma pessoa cadastrada ainda.</p>
       )}
 
       {pessoas && pessoas.length > 0 && (
         <div style={{
-          background: "#fff", border: "1px solid #e8e8ed", borderRadius: 12,
+          background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
           overflowX: "auto",
         }}>
           <table style={{ borderCollapse: "collapse", width: "100%" }}>
@@ -145,10 +145,10 @@ export default function PessoasPage() {
               {pessoas.map((p) => (
                 <tr key={p.id}>
                   <td style={td}>
-                    <div style={{ fontWeight: 700, color: "#111116" }}>{p.nome}</div>
-                    <div style={{ fontSize: 12, color: "#9696a0" }}>{p.email}</div>
+                    <div style={{ fontWeight: 700, color: "#f2f5f3" }}>{p.nome}</div>
+                    <div style={{ fontSize: 12, color: "#8a948e" }}>{p.email}</div>
                   </td>
-                  <td style={{ ...td, fontSize: 12, color: "#64748b" }}>
+                  <td style={{ ...td, fontSize: 12, color: "#8a948e" }}>
                     {p.projetos.length > 0 ? p.projetos.join(", ") : "—"}
                   </td>
                   <td style={td}>
@@ -158,8 +158,8 @@ export default function PessoasPage() {
                         disabled={salvandoId === p.id}
                         onChange={(e) => handleCargo(p, e.target.value as Cargo)}
                         style={{
-                          padding: "6px 10px", borderRadius: 8, border: "1px solid #e4e4ea",
-                          fontSize: 13, color: "#111116", background: "#fff",
+                          padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(62,224,111,0.2)",
+                          fontSize: 13, color: "#f2f5f3", background: "#0d1711",
                           opacity: salvandoId === p.id ? 0.5 : 1,
                         }}
                       >
@@ -184,7 +184,7 @@ export default function PessoasPage() {
       )}
 
       {podeEditar && (
-        <p style={{ fontSize: 12, color: "#9696a0", marginTop: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12, color: "#8a948e", marginTop: 16, lineHeight: 1.6 }}>
           Você não consegue mudar o próprio cargo: rebaixar a si mesmo tiraria seu acesso a
           esta tela e não teria como ser desfeito por aqui. Se precisar sair, promova outra
           pessoa a Owner antes. Toda troca de cargo fica registrada.

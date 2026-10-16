@@ -26,7 +26,7 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "#0d1711",
   borderRadius: 12,
   width: "100%",
   maxWidth: 560,
@@ -40,25 +40,25 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
   fontWeight: 600,
-  color: "#334155",
+  color: "#c3cbc6",
   marginBottom: 6,
   marginTop: 16,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid rgba(62,224,111,0.2)",
   borderRadius: 8,
   padding: "10px 12px",
   fontSize: 14,
   outline: "none",
-  background: "#fff",
+  background: "#0d1711",
   boxSizing: "border-box",
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "#4ade80",
-  color: "#052e16",
+  background: "#3ee06f",
+  color: "#3ee06f",
   border: "none",
   padding: "10px 18px",
   borderRadius: 8,
@@ -68,9 +68,9 @@ const primaryBtn: React.CSSProperties = {
 };
 
 const ghostBtn: React.CSSProperties = {
-  background: "#f7f7fa",
-  color: "#475569",
-  border: "1px solid #e2e8f0",
+  background: "rgba(62,224,111,0.055)",
+  color: "#c3cbc6",
+  border: "1px solid rgba(62,224,111,0.2)",
   padding: "10px 18px",
   borderRadius: 8,
   fontWeight: 600,
@@ -155,10 +155,10 @@ export default function ManualDocModal({
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#f2f5f3" }}>
           Adicionar documento manual
         </h2>
-        <p style={{ fontSize: 13, color: "#6a6a7a", margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: "#8a948e", margin: "8px 0 0", lineHeight: 1.5 }}>
           Subir um PDF de doc final escrito fora do sistema. O texto é extraído e armazenado
           junto com os outros documentos do projeto. Não chama o LLM (sem custo).
         </p>
@@ -188,7 +188,7 @@ export default function ManualDocModal({
 
         <label style={labelStyle}>
           Sprint (opcional)
-          <span style={{ fontWeight: 400, color: "#9696a0", marginLeft: 6 }}>
+          <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 6 }}>
             — vazio se for doc do projeto inteiro
           </span>
         </label>
@@ -212,11 +212,11 @@ export default function ManualDocModal({
           style={{ fontSize: 13 }}
         />
         {fileName && (
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "#8a948e", marginTop: 6 }}>
             Selecionado: {fileName}
           </div>
         )}
-        <p style={{ fontSize: 12, color: "#9696a0", margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12, color: "#8a948e", margin: "8px 0 0", lineHeight: 1.5 }}>
           PDFs escaneados sem camada de texto não são suportados aqui — use o upload livre da sprint nesse caso.
         </p>
 
@@ -225,8 +225,8 @@ export default function ManualDocModal({
             style={{
               marginTop: 14,
               padding: 10,
-              background: "#fef2f2",
-              color: "#b91c1c",
+              background: "rgba(255,107,107,0.10)",
+              color: "#ff6b6b",
               borderRadius: 8,
               fontSize: 13,
             }}
