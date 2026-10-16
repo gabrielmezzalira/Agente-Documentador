@@ -7,10 +7,15 @@ import { cardStyle, ds } from "../../lib/ds";
 import { Chip } from "../ds";
 import { CARGO_LABEL, navItemsFor } from "./navItems";
 
+const ORDEM_CHOOSER = ["/metodologia", "/pessoas", "/performance", "/comparacao-modos", "/avaliacoes", "/settings"];
+
 /** Cabeçalho da escolha de subárea: logo, acessos globais e identificação do usuário. */
 export default function ChooserHeader({ pessoa }: { pessoa: MeResponse }) {
   const [loggingOut, setLoggingOut] = useState(false);
-  const items = navItemsFor(pessoa.cargo, "dados", false);
+  // Na escolha de subárea a ordem dos acessos segue o protótipo 01 (diferente da sidebar).
+  const items = navItemsFor(pessoa.cargo, "dados", false).sort(
+    (a, b) => ORDEM_CHOOSER.indexOf(a.href) - ORDEM_CHOOSER.indexOf(b.href),
+  );
 
   async function handleLogout() {
     setLoggingOut(true);
