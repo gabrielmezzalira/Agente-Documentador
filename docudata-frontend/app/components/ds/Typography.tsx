@@ -51,7 +51,7 @@ interface PageHeaderProps {
 export function PageHeader({ eyebrow, title, subtitle, actions, compact = false }: PageHeaderProps) {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, flex: "1 1 360px" }}>
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
         <h1 style={{ fontSize: compact ? 38 : 44, lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.035em", color: ds.white }}>{title}</h1>
         {subtitle && <p style={{ fontSize: 15.5, lineHeight: 1.55, color: ds.muted, textWrap: "pretty" }}>{subtitle}</p>}

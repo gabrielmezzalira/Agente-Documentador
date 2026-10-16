@@ -8,3 +8,4 @@ export type { DetailRow } from "./DetailRows";
 export { Input, Textarea, Select, Field } from "./Form";
 export { EmptyState, ErrorNotice, ProgressBar } from "./Feedback";
 export { default as Modal } from "./Modal";
+export { default as SegmentedControl } from "./SegmentedControl";
