@@ -9,20 +9,19 @@ import {
   createSprintFuncionalidades,
   updateSprintFuncionalidade,
   updateFuncionalidade,
-  updateContrato,
   listTasksKanban,
-  getExtratoPontos,
-  getElegiveis,
-  type BlocoD,
-  type ElegivelPonto,
   type FuncionalidadeResponse,
   type OperacionalResponse,
   type PainelData,
-  type PontuacaoEvento,
   type Project,
   type SprintFuncionalidade,
   type SprintWithStatus,
 } from "../lib/api";
+import { ds } from "../lib/ds";
+import { Card, ErrorNotice } from "./ds";
+import { ItensAtencaoCard, MetricasFluxoCard, TempoEscopoCard, TempoPorFaseCard } from "./painel/IndicadoresCards";
+import SprintKanbanBoard from "./painel/SprintKanbanBoard";
+import { ElegibilidadeCard, ExtratoPontosCard } from "./painel/PontosCards";
 
 interface Props {
   projectId: string;
@@ -30,681 +29,6 @@ interface Props {
   project: Project;
   operacionais: OperacionalResponse[];
   onProjectUpdated?: (updated: Project) => void;
-}
-
-const cardStyle: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 14,
-  padding: "20px 22px",
-};
-
-const cardTitleStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.1em",
-  textTransform: "uppercase",
-  color: "#8a948e",
-  marginBottom: 14,
-  display: "block",
-};
-
-const metricLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#8a948e",
-  marginBottom: 2,
-};
-
-const metricValueStyle: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 800,
-  color: "#f2f5f3",
-  letterSpacing: "-0.02em",
-};
-
-const chipBaseStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "4px 10px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const subSectionTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#c3cbc6",
-  marginBottom: 8,
-  marginTop: 12,
-};
-
-const inputSmStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 7,
-  fontSize: 13,
-  color: "#f2f5f3",
-  background: "#0d1711",
-  width: "100%",
-  boxSizing: "border-box",
-};
-
-const labelSmStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#8a948e",
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  marginBottom: 4,
-};
-
-function BlocoACard({
-  bloco,
-  project,
-  sprints,
-  onSaved,
-}: {
-  bloco: PainelData["bloco_a"];
-  project: Project;
-  sprints: SprintWithStatus[];
-  onSaved?: (updated: Project) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [dataInicio, setDataInicio] = useState(project.data_inicio ?? "");
-  const [dataFim, setDataFim] = useState(project.data_fim_contratada ?? "");
-  const [tolerancia, setTolerancia] = useState(
-    project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : ""
-  );
-  const [arquetipo, setArquetipo] = useState<"padrao" | "consultoria_discovery">(project.arquetipo ?? "padrao");
-  const [valorProjeto, setValorProjeto] = useState(
-    project.valor_projeto != null ? String(project.valor_projeto) : ""
-  );
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  const valorTravado = sprints.some((s) => s.pontos_orcamento != null);
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!dataInicio || !dataFim) { setErr("Preencha as duas datas."); return; }
-    setSaving(true);
-    setErr("");
-    try {
-      const updated = await updateContrato(project.id, {
-        data_inicio: dataInicio,
-        data_fim_contratada: dataFim,
-        tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
-        arquetipo,
-        valor_projeto: !valorTravado && valorProjeto !== "" ? Number(valorProjeto) : undefined,
-      });
-      onSaved?.(updated);
-      setEditing(false);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro ao salvar.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div style={cardStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <span style={{ ...cardTitleStyle, marginBottom: 0 }}>Tempo × Escopo</span>
-        <button
-          onClick={() => { setEditing((v) => !v); setErr(""); }}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: 12,
-            color: "#8a948e",
-            cursor: "pointer",
-            padding: 0,
-            textDecoration: "underline",
-          }}
-        >
-          {editing ? "Cancelar" : (bloco.sem_dados ? "Configurar" : "Editar")}
-        </button>
-      </div>
-
-      {editing ? (
-        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <label style={labelSmStyle}>Data início do projeto</label>
-            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} style={inputSmStyle} required />
-          </div>
-          <div>
-            <label style={labelSmStyle}>Data fim contratada</label>
-            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} style={inputSmStyle} required />
-          </div>
-          <div>
-            <label style={labelSmStyle}>Tolerância de desvio (pontos) <span style={{ fontWeight: 400 }}>— opcional</span></label>
-            <input
-              type="number"
-              min={0}
-              value={tolerancia}
-              onChange={(e) => setTolerancia(e.target.value)}
-              placeholder="ex: 5"
-              style={inputSmStyle}
-            />
-          </div>
-          <div>
-            <label style={labelSmStyle}>Arquétipo do projeto</label>
-            <select
-              value={arquetipo}
-              onChange={(e) => setArquetipo(e.target.value as "padrao" | "consultoria_discovery")}
-              style={inputSmStyle}
-            >
-              <option value="padrao">Padrão</option>
-              <option value="consultoria_discovery">Consultoria / Discovery</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelSmStyle}>
-              Valor do projeto (R$) <span style={{ fontWeight: 400 }}>— opcional</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={valorProjeto}
-              onChange={(e) => setValorProjeto(e.target.value)}
-              placeholder="ex: 35000"
-              style={inputSmStyle}
-              disabled={valorTravado}
-            />
-            {valorTravado && (
-              <p style={{ fontSize: 11, color: "#8a948e", margin: "4px 0 0" }}>
-                Travado: já existe orçamento de pontos definido em pelo menos uma sprint.
-              </p>
-            )}
-          </div>
-          {err && <p style={{ fontSize: 12, color: "#ff6b6b", margin: 0 }}>{err}</p>}
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              background: "#3ee06f",
-              color: "#04120a",
-              border: "none",
-              borderRadius: 7,
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving ? 0.6 : 1,
-              alignSelf: "flex-start",
-            }}
-          >
-            {saving ? "Salvando..." : "Salvar"}
-          </button>
-        </form>
-      ) : bloco.sem_dados ? (
-        <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>
-          Clique em <strong>Configurar</strong> para definir as datas do contrato.
-        </p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { label: "Prazo consumido", value: bloco.pct_prazo_consumido },
-            { label: "Escopo concluído", value: bloco.pct_escopo_concluido },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p style={metricLabelStyle}>{label}</p>
-              <p style={{ ...metricValueStyle, margin: 0 }}>{value ?? 0}%</p>
-            </div>
-          ))}
-          {bloco.desvio_detectado && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 10,
-                padding: "8px 12px",
-                background: "rgba(242,193,78,0.10)",
-                borderRadius: 8,
-                border: "1px solid rgba(242,193,78,0.30)",
-              }}
-            >
-              <span style={{ color: "#f2c14e", fontSize: 14 }}>⚠</span>
-              <span style={{ fontSize: 12, color: "#f2c14e" }}>
-                Desvio de {bloco.desvio_pontos} pts acima da tolerância
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BlocoBCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
-  const sep = (
-    <hr style={{ border: "none", borderTop: "1px solid rgba(255,255,255,0.08)", margin: "10px 0" }} />
-  );
-  return (
-    <div style={cardStyle}>
-      <span style={cardTitleStyle}>
-        Itens em Atenção
-        <InfoTooltip text="Travadas: funcionalidades paradas há muitos dias sem avanço — precisam de atenção ou desbloqueio." />
-      </span>
-
-      <p style={subSectionTitleStyle}>
-        Travadas{" "}
-        <span style={{ ...chipBaseStyle, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", fontSize: 11 }}>
-          {bloco.travadas.length}
-        </span>
-      </p>
-      {bloco.travadas.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>Nenhuma funcionalidade travada</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {bloco.travadas.map((f) => (
-            <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#f2f5f3" }}>{f.titulo}</span>
-              <span style={{ background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderRadius: 4, padding: "2px 6px", fontSize: 11 }}>
-                {f.dias} dias
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BlocoCCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
-  return (
-    <div style={cardStyle}>
-      <span style={cardTitleStyle}>
-        Métricas de Fluxo
-        <InfoTooltip text="WIP (Work in Progress) = funcionalidades em andamento agora. Throughput = quantas foram concluídas por semana. Cycle-time = tempo médio de uma funcionalidade do início ao fim. Métricas calculadas a partir do histórico de status das funcionalidades." />
-      </span>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div>
-          <p style={metricLabelStyle}>WIP agora</p>
-          <p style={{ ...metricValueStyle, margin: 0 }}>{bloco.wip}</p>
-          <p style={{ fontSize: 11, color: "#8a948e", margin: "2px 0 0" }}>
-            funcionalidades em andamento
-          </p>
-        </div>
-        <div>
-          <p style={metricLabelStyle}>Throughput</p>
-          <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
-            {bloco.throughput_por_semana ?? "—"}
-            <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> / semana</span>
-          </p>
-        </div>
-        {bloco.total_concluidas === 0 ? (
-          <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
-            Nenhuma funcionalidade concluída — cycle time indisponível
-          </p>
-        ) : (
-          <>
-            <div>
-              <p style={metricLabelStyle}>Cycle time (p50)</p>
-              <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
-                {bloco.cycle_time_p50_dias ?? "—"}
-                <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> dias</span>
-              </p>
-            </div>
-            <div>
-              <p style={metricLabelStyle}>Cycle time (p85)</p>
-              <p style={{ ...metricValueStyle, margin: 0, fontSize: 18 }}>
-                {bloco.cycle_time_p85_dias ?? "—"}
-                <span style={{ fontSize: 12, color: "#8a948e", fontWeight: 400 }}> dias</span>
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BlocoDCard({
-  bloco,
-  expandedFase,
-  setExpandedFase,
-}: {
-  bloco: BlocoD;
-  expandedFase: string | null;
-  setExpandedFase: (f: string | null) => void;
-}) {
-  const fases = Object.entries(bloco.fases_resumo);
-  return (
-    <div style={cardStyle}>
-      <span style={cardTitleStyle}>
-        Tempo por Fase
-        <InfoTooltip text="Quanto tempo cada funcionalidade ficou em cada estado (planejada, em andamento, concluída). Eficiência de fluxo = % do tempo efetivamente trabalhado vs. tempo total." />
-      </span>
-      <div style={{ marginBottom: 12 }}>
-        <p style={metricLabelStyle}>Eficiência de fluxo</p>
-        <p style={{ ...metricValueStyle, margin: 0 }}>
-          {bloco.eficiencia_fluxo_pct ?? "—"}
-          {bloco.eficiencia_fluxo_pct != null && "%"}
-        </p>
-      </div>
-      {fases.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
-          Sem transições de status registradas ainda
-        </p>
-      ) : (
-        fases.map(([fase, resumo]) => (
-          <div key={fase}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                cursor: "pointer",
-                padding: "8px 0",
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#f2f5f3" }}>{fase}</span>
-              <span style={{ fontSize: 12, color: "#8a948e" }}>
-                {resumo.media_dias} dias (média) · {resumo.p85_dias ?? "—"} p85
-              </span>
-              <button
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8a948e" }}
-                onClick={() => setExpandedFase(expandedFase === fase ? null : fase)}
-              >
-                {expandedFase === fase ? "▲ fechar" : "▼ ver detalhe"}
-              </button>
-            </div>
-            {expandedFase === fase && (
-              <div
-                style={{
-                  background: "rgba(62,224,111,0.055)",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  marginTop: 4,
-                  marginBottom: 4,
-                }}
-              >
-                {bloco.detalhe_por_funcionalidade.filter(
-                  (d) => d.tempos_por_fase[fase] != null
-                ).length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
-                    Sem dados de duração para esta fase
-                  </p>
-                ) : (
-                  bloco.detalhe_por_funcionalidade
-                    .filter((d) => d.tempos_por_fase[fase] != null)
-                    .map((d) => (
-                      <div key={d.id} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, color: "#c3cbc6" }}>{d.titulo}</span>
-                        <span style={{ fontSize: 12, color: "#8a948e" }}>
-                          {d.tempos_por_fase[fase]} dias
-                        </span>
-                      </div>
-                    ))
-                )}
-              </div>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-function ExtratoPontosCard({
-  operacionais,
-  sprints,
-}: {
-  operacionais: OperacionalResponse[];
-  sprints: SprintWithStatus[];
-}) {
-  const [operacionalId, setOperacionalId] = useState("");
-  const [sprintId, setSprintId] = useState("");
-  const [eventos, setEventos] = useState<PontuacaoEvento[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!operacionalId) {
-      setEventos([]);
-      return;
-    }
-    setLoading(true);
-    setErro(null);
-    getExtratoPontos(operacionalId, sprintId || undefined)
-      .then(setEventos)
-      .catch((err) => setErro(err instanceof Error ? err.message : "Erro ao buscar extrato"))
-      .finally(() => setLoading(false));
-  }, [operacionalId, sprintId]);
-
-  const rotuloTipo: Record<PontuacaoEvento["tipo"], string> = {
-    entrega_concluida: "Entrega concluída",
-    travamento_penalidade: "Travamento (penalidade)",
-    devolucao_penalidade: "Devolução após travamento (penalidade)",
-    bonus_extra: "Bônus de task extra",
-    reabertura: "Reabertura",
-  };
-
-  return (
-    <div style={cardStyle}>
-      <span style={cardTitleStyle}>Extrato de pontos</span>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        <select
-          value={operacionalId}
-          onChange={(e) => setOperacionalId(e.target.value)}
-          style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13 }}
-        >
-          <option value="">Selecione um operacional...</option>
-          {operacionais.map((op) => (
-            <option key={op.id} value={op.id}>{op.nome}</option>
-          ))}
-        </select>
-        <select
-          value={sprintId}
-          onChange={(e) => setSprintId(e.target.value)}
-          style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13 }}
-        >
-          <option value="">Todas as sprints</option>
-          {sprints.map((s) => (
-            <option key={s.id} value={s.id}>Sprint {s.numero}</option>
-          ))}
-        </select>
-      </div>
-
-      {!operacionalId ? (
-        <p style={{ fontSize: 12, color: "#8a948e" }}>Selecione um operacional para ver o extrato.</p>
-      ) : loading ? (
-        <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
-      ) : erro ? (
-        <p style={{ fontSize: 12, color: "#ff6b6b" }}>{erro}</p>
-      ) : eventos.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#8a948e" }}>Nenhum evento de pontuação registrado ainda.</p>
-      ) : (
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={thSt} scope="col">Data</th>
-                <th style={thSt} scope="col">Tipo</th>
-                <th style={thSt} scope="col">Descrição</th>
-                <th style={thSt} scope="col">Pontos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {eventos.map((ev) => (
-                <tr key={ev.id}>
-                  <td style={tdSt}>{new Date(ev.criado_em).toLocaleDateString("pt-BR")}</td>
-                  <td style={tdSt}>{rotuloTipo[ev.tipo]}</td>
-                  <td style={tdSt}>{ev.descricao ?? "—"}</td>
-                  <td style={{ ...tdSt, fontWeight: 700, color: ev.pontos > 0 ? "#3ee06f" : ev.pontos < 0 ? "#ff6b6b" : "#8a948e", whiteSpace: "nowrap" }}>
-                    {ev.pontos > 0 ? `+${ev.pontos}` : ev.pontos}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ElegibilidadeCard({ sprints }: { sprints: SprintWithStatus[] }) {
-  const [sprintId, setSprintId] = useState<string>(sprints[0]?.id ?? "");
-  const [elegiveis, setElegiveis] = useState<ElegivelPonto[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!sprintId) return;
-    setLoading(true);
-    setErro(null);
-    getElegiveis(sprintId)
-      .then(setElegiveis)
-      .catch((err) => setErro(err instanceof Error ? err.message : "Erro ao carregar"))
-      .finally(() => setLoading(false));
-  }, [sprintId]);
-
-  return (
-    <div style={cardStyle}>
-      <p style={cardTitleStyle}>Elegibilidade da sprint</p>
-      <select
-        value={sprintId}
-        onChange={(e) => setSprintId(e.target.value)}
-        style={{ ...inputSmStyle, marginBottom: 12 }}
-      >
-        {sprints.map((s) => (
-          <option key={s.id} value={s.id}>Sprint {s.numero}</option>
-        ))}
-      </select>
-
-      {loading ? (
-        <p style={{ fontSize: 12, color: "#8a948e" }}>Carregando...</p>
-      ) : erro ? (
-        <p style={{ fontSize: 12, color: "#ff6b6b" }}>{erro}</p>
-      ) : elegiveis.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#8a948e" }}>Ninguém vinculado a este projeto nesta consulta.</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={thSt} scope="col">Nome</th>
-                <th style={thSt} scope="col">Tasks na sprint</th>
-                <th style={thSt} scope="col">Avaliado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {elegiveis.map((e) => (
-                <tr key={e.operacional_id}>
-                  <td style={tdSt}>{e.nome}</td>
-                  <td style={tdSt}>{e.tasks_na_sprint}</td>
-                  <td style={{ ...tdSt, color: e.avaliado ? "#3ee06f" : "#ff6b6b" }}>
-                    {e.avaliado ? "Sim" : "Não"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InfoTooltip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span
-      style={{ position: "relative", display: "inline-flex", marginLeft: 5, verticalAlign: "middle" }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <span style={{
-        cursor: "help",
-        fontSize: 10,
-        fontWeight: 700,
-        color: "#8a948e",
-        border: "1px solid rgba(255,255,255,0.14)",
-        borderRadius: "50%",
-        width: 15,
-        height: 15,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        i
-      </span>
-      {show && (
-        <div style={{
-          position: "absolute",
-          top: 20,
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "#3ee06f",
-          color: "#04120a",
-          borderRadius: 8,
-          padding: "8px 12px",
-          fontSize: 11,
-          width: 230,
-          zIndex: 200,
-          lineHeight: 1.6,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-          pointerEvents: "none",
-        }}>
-          {text}
-        </div>
-      )}
-    </span>
-  );
-}
-
-function KanbanCard({
-  f, allSprints, taskCounts,
-}: {
-  f: FuncionalidadeResponse;
-  allSprints: string[];
-  taskCounts?: { total: number; concluidas: number };
-}) {
-  const sprintsToShow = allSprints.length > 0 ? allSprints : f.sprint_alvo ? [f.sprint_alvo] : [];
-  const hasTask = taskCounts && taskCounts.total > 0;
-
-  return (
-    <div
-      style={{
-        background: "#0d1711",
-        border: "1px solid rgba(62,224,111,0.2)",
-        borderRadius: 10,
-        padding: "12px 14px",
-        marginBottom: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
-    >
-      <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3", lineHeight: 1.4 }}>
-        {f.titulo}
-      </span>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        {sprintsToShow.map((s) => (
-          <span key={s} style={{ ...chipBaseStyle, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>
-            Sprint {s}
-          </span>
-        ))}
-        {hasTask && (
-          <span style={{
-            ...chipBaseStyle,
-            background: taskCounts.concluidas === taskCounts.total ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)",
-            color: taskCounts.concluidas === taskCounts.total ? "#3ee06f" : "#8a948e",
-          }}>
-            {taskCounts.concluidas}/{taskCounts.total} tasks ✓
-          </span>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export default function PainelTab({ projectId, sprints, project, operacionais, onProjectUpdated }: Props) {
@@ -716,7 +40,6 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
     sprints.length > 0 ? Math.max(...sprints.map((s) => s.numero)) : 1
   );
   const [sprintFuncs, setSprintFuncs] = useState<SprintFuncionalidade[]>([]);
-  const [expandedFase, setExpandedFase] = useState<string | null>(null);
   const [dragFuncId, setDragFuncId] = useState<string | null>(null);
   const [addingFunc, setAddingFunc] = useState(false);
   const [addFuncId, setAddFuncId] = useState("");
@@ -761,19 +84,13 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
 
   if (loading) {
     return (
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>Carregando painel…</p>
-      </section>
+      <Card>
+        <p role="status" style={{ margin: 0, padding: "24px 26px", fontSize: 14, color: ds.muted }}>Carregando painel…</p>
+      </Card>
     );
   }
 
-  if (error) {
-    return (
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <p style={{ color: "#ff6b6b", fontSize: 14, margin: 0 }}>{error}</p>
-      </section>
-    );
-  }
+  if (error) return <ErrorNotice>{error}</ErrorNotice>;
 
   if (!data) return null;
 
@@ -818,7 +135,6 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
     }
   }
 
-  const sortedSprints = [...sprints].sort((a, b) => b.numero - a.numero);
 
   // Resolve sprint_funcionalidade → FuncionalidadeResponse using the funcionalidades list
   function sfToFunc(sf: SprintFuncionalidade): FuncionalidadeResponse | null {
@@ -850,24 +166,6 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
     concluido = funcsDaSprint.filter((f) => f.status === "concluida");
   }
 
-  const allSprintsByFuncional: Record<string, string[]> = {};
-  for (const f of funcionalidades) {
-    if (!f.sprint_alvo) continue;
-    if (!allSprintsByFuncional[f.id_funcional]) allSprintsByFuncional[f.id_funcional] = [];
-    if (!allSprintsByFuncional[f.id_funcional].includes(f.sprint_alvo)) {
-      allSprintsByFuncional[f.id_funcional].push(f.sprint_alvo);
-    }
-  }
-  for (const key of Object.keys(allSprintsByFuncional)) {
-    allSprintsByFuncional[key].sort();
-  }
-
-  const colHeaderStyle = (color: string): React.CSSProperties => ({
-    fontSize: 13,
-    fontWeight: 700,
-    color,
-  });
-
   const painelSteps = [
     { title: "Tempo × Escopo", body: "Compara o % do prazo já consumido com o % do escopo concluído (funcionalidades entregues). Se o prazo avança mais rápido que o escopo, há atraso. Configure data de início, data de término e tolerância clicando em 'Editar' no card." },
     { title: "Desvio e tolerância", body: "Desvio = prazo consumido % − escopo concluído %. Se positivo, você está atrás do planejado. Tolerância define quantos pontos percentuais de desvio são aceitáveis — acima disso, aparece um alerta laranja." },
@@ -879,22 +177,11 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
   ];
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <TutorialBanner heading="Painel do Projeto" steps={painelSteps} />
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", marginBottom: 16 }}>
-        Painel do Projeto
-      </h2>
 
-      {/* 4-block grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
-        <BlocoACard
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <TempoEscopoCard
           bloco={data.bloco_a}
           project={project}
           sprints={sprints}
@@ -903,210 +190,34 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
             getPainel(projectId).then(setData).catch(() => {});
           }}
         />
-        <BlocoBCard bloco={data.bloco_b} />
-        <BlocoCCard bloco={data.bloco_c} />
-        <BlocoDCard
-          bloco={data.bloco_d}
-          expandedFase={expandedFase}
-          setExpandedFase={setExpandedFase}
-        />
+        <ItensAtencaoCard bloco={data.bloco_b} />
+        <MetricasFluxoCard bloco={data.bloco_c} />
+        <TempoPorFaseCard bloco={data.bloco_d} />
       </div>
 
-      {/* Kanban */}
-      <div style={{ ...cardStyle, background: "rgba(62,224,111,0.055)" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", margin: 0 }}>
-            Kanban de Sprint
-          </h3>
-          <select
-            value={String(sprintSelecionada)}
-            onChange={(e) => setSprintSelecionada(Number(e.target.value))}
-            style={{
-              border: "1px solid rgba(62,224,111,0.2)",
-              borderRadius: 8,
-              padding: "6px 12px",
-              fontSize: 13,
-              background: "#0d1711",
-              color: "#f2f5f3",
-            }}
-          >
-            {sortedSprints.length === 0 ? (
-              <option disabled>Sem sprints</option>
-            ) : (
-              sortedSprints.map((s) => (
-                <option key={s.id} value={String(s.numero)}>
-                  Sprint {s.numero}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
+      <SprintKanbanBoard
+        sprints={sprints}
+        sprintSelecionada={sprintSelecionada}
+        onSelectSprint={setSprintSelecionada}
+        colunas={{ nao_iniciada: planejado, em_andamento: emAndamento, concluida: concluido }}
+        taskCounts={taskCountsByFuncId}
+        saving={kanbanSaving}
+        onDragStart={setDragFuncId}
+        onDragEnd={() => setDragFuncId(null)}
+        onDrop={handleDrop}
+        adding={addingFunc}
+        addFuncId={addFuncId}
+        funcsDisponiveis={funcsNotInSprint}
+        onStartAdding={() => setAddingFunc(true)}
+        onChangeAddFunc={setAddFuncId}
+        onConfirmAdd={handleAddToSprint}
+        onCancelAdd={() => { setAddingFunc(false); setAddFuncId(""); }}
+      />
 
-        {sortedSprints.length === 0 ? (
-          <p style={{ color: "#8a948e", fontSize: 13 }}>Nenhuma sprint cadastrada.</p>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
-            {/* Planejado — drop target */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop("nao_iniciada")}
-              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <span style={colHeaderStyle("#374151")}>Planejado</span>
-                <span style={{ ...chipBaseStyle, background: "rgba(62,224,111,0.055)", color: "#8a948e", fontSize: 11 }}>
-                  {planejado.length}
-                </span>
-              </div>
-              {planejado.length === 0 ? (
-                <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
-                </div>
-              ) : (
-                planejado.map((f) => (
-                  <div
-                    key={f.id}
-                    draggable
-                    onDragStart={() => setDragFuncId(f.id)}
-                    onDragEnd={() => setDragFuncId(null)}
-                    style={{ cursor: "grab" }}
-                  >
-                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Em andamento — drop target */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop("em_andamento")}
-              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={colHeaderStyle("#a16207")}>Em andamento</span>
-                <span style={{ ...chipBaseStyle, background: "rgba(242,193,78,0.10)", color: "#f2c14e", fontSize: 11 }}>
-                  {emAndamento.length}
-                </span>
-              </div>
-              {emAndamento.length === 0 ? (
-                <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
-                </div>
-              ) : (
-                emAndamento.map((f) => (
-                  <div
-                    key={f.id}
-                    draggable
-                    onDragStart={() => setDragFuncId(f.id)}
-                    onDragEnd={() => setDragFuncId(null)}
-                    style={{ cursor: "grab" }}
-                  >
-                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
-                  </div>
-                ))
-              )}
-              {/* Adicionar manualmente */}
-              {!addingFunc ? (
-                <button
-                  onClick={() => setAddingFunc(true)}
-                  style={{ marginTop: 8, width: "100%", background: "transparent", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 8, padding: "7px 0", fontSize: 12, color: "#8a948e", cursor: "pointer" }}
-                >
-                  + Adicionar funcionalidade
-                </button>
-              ) : (
-                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                  <select
-                    value={addFuncId}
-                    onChange={(e) => setAddFuncId(e.target.value)}
-                    style={{ width: "100%", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "7px 10px", fontSize: 13, background: "#0d1711" }}
-                  >
-                    <option value="">Selecione…</option>
-                    {funcsNotInSprint.map((f) => (
-                      <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
-                    ))}
-                  </select>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={handleAddToSprint}
-                      disabled={!addFuncId || kanbanSaving}
-                      style={{ flex: 1, background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "7px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: (!addFuncId || kanbanSaving) ? 0.5 : 1 }}
-                    >
-                      {kanbanSaving ? "Adicionando…" : "Confirmar"}
-                    </button>
-                    <button
-                      onClick={() => { setAddingFunc(false); setAddFuncId(""); }}
-                      style={{ background: "rgba(62,224,111,0.055)", color: "#8a948e", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Concluído — drop target */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop("concluida")}
-              style={{ opacity: kanbanSaving ? 0.6 : 1, transition: "opacity 0.1s" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <span style={colHeaderStyle("#16a34a")}>Concluído</span>
-                <span style={{ ...chipBaseStyle, background: "rgba(62,224,111,0.12)", color: "#3ee06f", fontSize: 11 }}>
-                  {concluido.length}
-                </span>
-              </div>
-              {concluido.length === 0 ? (
-                <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma funcionalidade</span>
-                </div>
-              ) : (
-                concluido.map((f) => (
-                  <div
-                    key={f.id}
-                    draggable
-                    onDragStart={() => setDragFuncId(f.id)}
-                    onDragEnd={() => setDragFuncId(null)}
-                    style={{ cursor: "grab" }}
-                  >
-                    <KanbanCard f={f} allSprints={allSprintsByFuncional[f.id_funcional] ?? []} taskCounts={taskCountsByFuncId.get(f.id)} />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <ExtratoPontosCard operacionais={operacionais} sprints={sprints} />
-      <div style={{ marginTop: 14 }}>
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 16, alignItems: "start" }}>
+        <ExtratoPontosCard operacionais={operacionais} sprints={sprints} />
         <ElegibilidadeCard sprints={sprints} />
       </div>
     </div>
   );
 }
-
-const thSt: React.CSSProperties = {
-  textAlign: "left",
-  padding: "8px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#8a948e",
-  textTransform: "uppercase",
-  whiteSpace: "nowrap",
-};
-
-const tdSt: React.CSSProperties = {
-  padding: "9px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  color: "#c3cbc6",
-};
