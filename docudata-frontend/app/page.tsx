@@ -8,7 +8,6 @@ import { ds, cardStyle, labelStyle } from "./lib/ds";
 const subareas = [
   { slug: "dados", title: "Dados", description: "Projetos de dados, analytics e inteligência artificial." },
   { slug: "dev", title: "Dev", description: "Projetos de desenvolvimento de software e seus repositórios." },
-  { slug: "produto", title: "Produto", description: "Discovery de produto: requisitos que saem das reuniões e seguem para Dados ou Dev." },
 ] as const;
 
 export default function SubareaSelector() {
@@ -23,7 +22,7 @@ export default function SubareaSelector() {
           Escolha uma <span style={{ color: ds.green, textShadow: "0 0 40px rgba(62, 224, 111, 0.35)" }}>subárea.</span>
         </h1>
         <p style={{ fontSize: 18, lineHeight: 1.55, color: ds.muted, textWrap: "pretty" }}>
-          Projetos, buscas e novos cadastros permanecem separados entre Dados, Dev e Produto.
+          Projetos, buscas e novos cadastros permanecem separados entre Dados e Dev.
         </p>
       </section>
 

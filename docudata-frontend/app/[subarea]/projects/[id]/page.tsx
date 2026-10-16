@@ -60,9 +60,6 @@ import {
   type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
-import RequisitosTab from "../../../components/discovery/RequisitosTab";
-import ReunioesTab from "../../../components/discovery/ReunioesTab";
-import EncaminharModal from "../../../components/discovery/EncaminharModal";
 import { Button as DsButton, EmptyState, ErrorNotice, Field as DsField, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
 import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
@@ -131,7 +128,7 @@ const GitHubRepositoryPicker = dynamic(
   { loading: semPlaceholder },
 );
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "requisitos" | "reunioes" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
 const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
 
@@ -705,7 +702,6 @@ export default function ProjectDashboard() {
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
-  const [encaminharAberto, setEncaminharAberto] = useState(false);
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
   const [descOpen, setDescOpen] = useState(false);
@@ -800,7 +796,7 @@ export default function ProjectDashboard() {
 
   useEffect(() => {
     const solicitada = new URLSearchParams(window.location.search).get("tab") as TabId | null;
-    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "requisitos", "reunioes", "config"];
+    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "config"];
     if (solicitada && validas.includes(solicitada)) {
       if (cargo !== "operacional" || OPERACIONAL_TABS.has(solicitada)) setActiveTab(solicitada);
     }
@@ -878,7 +874,7 @@ export default function ProjectDashboard() {
 
   async function handleChangeSubarea() {
     if (!project || !subareaDestino || subareaDestino === project.subarea) return;
-    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : sub === "produto" ? "Produto" : "Dados");
+    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : "Dados");
     const origem = rotuloSubarea(project.subarea);
     const destino = rotuloSubarea(subareaDestino);
     const confirmado = confirm(
@@ -1254,7 +1250,6 @@ export default function ProjectDashboard() {
 
   if (loading) return <p style={{ padding: 48, color: "#8a948e" }}>Carregando...</p>;
   if (!project) return <p style={{ padding: 48, color: "#ff6b6b" }}>Projeto não encontrado.</p>;
-  const temDiscovery = project.subarea === "produto" || project.arquetipo === "consultoria_discovery";
 
   return (
     <div>
@@ -1299,20 +1294,9 @@ export default function ProjectDashboard() {
             {project.is_delivered && (
               <span style={{ ...badgeChip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>✓ Entregue</span>
             )}
-            {project.subarea === "produto" && (cargo === "owner" || cargo === "lider" || cargo === "gerente") && (
-              <DsButton variant="primary" onClick={() => setEncaminharAberto(true)}>Encaminhar para Dados ou Dev</DsButton>
-            )}
           </div>
         </div>
       </div>
-      {encaminharAberto && (
-        <EncaminharModal
-          projectId={id}
-          projectName={project.name}
-          onClose={() => setEncaminharAberto(false)}
-          onDone={(destino) => { setEncaminharAberto(false); router.push(`/${destino}/projects/${id}`); }}
-        />
-      )}
 
       <Tabs
         tabs={[
@@ -1322,14 +1306,10 @@ export default function ProjectDashboard() {
           { id: "tasks", label: "Tasks" },
           { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
-          { id: "requisitos", label: "Requisitos" },
-          { id: "reunioes", label: "Reuniões" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
         ]
-          .filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))
-          // Requisitos e Reuniões só existem para projetos de discovery (Produto ou arquétipo de discovery).
-          .filter((t) => (t.id !== "requisitos" && t.id !== "reunioes") || temDiscovery)}
+          .filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
       />
@@ -1482,8 +1462,6 @@ export default function ProjectDashboard() {
 
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
-      {activeTab === "requisitos" && <RequisitosTab projectId={id} cargo={cargo} />}
-      {activeTab === "reunioes" && <ReunioesTab projectId={id} cargo={cargo} />}
 
       {/* ABA: DOCUMENTOS */}
       {activeTab === "documentos" && (
@@ -1774,11 +1752,6 @@ export default function ProjectDashboard() {
                   Altera a lista e o destino das próximas exportações.
                 </span>
               </div>
-              {project.subarea === "produto" ? (
-                <span style={{ fontSize: 12.5, color: "#8a948e", maxWidth: 360 }}>
-                  Projetos de Produto saem da subárea pelo botão &quot;Encaminhar para Dados ou Dev&quot;, no topo da página.
-                </span>
-              ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
                   <label
                     htmlFor="project-subarea"
@@ -1813,7 +1786,6 @@ export default function ProjectDashboard() {
                     {savingSubarea ? "Salvando..." : "Salvar"}
                   </button>
                 </div>
-              )}
             </div>
             {subareaMsg && (
               <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#3ee06f" : "#ff6b6b", fontSize: 12 }}>
