@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listOperacionaisSemConta, signupClaim, signupNovo, type OperacionalSemConta } from "../lib/api";
+import AuthBrand from "../components/shell/AuthBrand";
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -55,14 +56,7 @@ export default function CadastroPage() {
   return (
     <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#3ee06f" }}>
-            citi · subárea de dados
-          </span>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#f2f5f3", marginTop: 10 }}>
-            Criar conta
-          </h1>
-        </div>
+        <AuthBrand title="Criar conta" />
 
         <div style={cardStyle}>
           {modo === "lista" && (
@@ -165,41 +159,47 @@ export default function CadastroPage() {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "#0d1711",
+  background: "linear-gradient(180deg, #0e1913 0%, #0a120d 100%)",
   border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 14,
+  borderRadius: 16,
+  boxShadow: "inset 0 1px 0 rgba(62,224,111,0.12), 0 12px 32px rgba(0,0,0,0.45)",
   padding: "28px 26px",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
+  fontFamily: "'Geist Mono', ui-monospace, monospace",
   fontSize: 11,
-  fontWeight: 700,
-  marginBottom: 6,
+  fontWeight: 500,
+  marginBottom: 8,
   color: "#8a948e",
-  letterSpacing: "0.04em",
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "11px 14px",
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
+  height: 42,
+  padding: "0 14px",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.17)",
+  borderRadius: 10,
   fontSize: 14,
   outline: "none",
   color: "#f2f5f3",
+  fontFamily: "inherit",
 };
 
 const btnPrimary: React.CSSProperties = {
   background: "#3ee06f",
   color: "#04120a",
-  border: "none",
-  borderRadius: 8,
+  border: "1px solid #3ee06f",
+  borderRadius: 10,
   padding: "11px 18px",
   fontSize: 14,
-  fontWeight: 700,
+  fontWeight: 600,
+  boxShadow: "0 0 24px rgba(62,224,111,0.25)",
+  fontFamily: "inherit",
   cursor: "pointer",
 };
 

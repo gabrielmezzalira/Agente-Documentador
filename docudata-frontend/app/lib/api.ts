@@ -176,7 +176,7 @@ export interface Project {
   wip_config?: { por_pessoa?: number | null; por_coluna_em_andamento?: number | null } | null;
 }
 
-export type Subarea = "dados" | "dev" | "produto";
+export type Subarea = "dados" | "dev";
 
 export interface GeminiApiKeyStatus {
   configured: boolean;

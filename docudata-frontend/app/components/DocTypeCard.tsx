@@ -3,122 +3,61 @@
 import { useRef, useState } from "react";
 import type { DocTypeMeta } from "../lib/doc_types";
 import type { Ingestion, SprintWithStatus } from "../lib/api";
+import { ds, innerStyle, labelStyle } from "../lib/ds";
+import { Button, Select } from "./ds";
 
-interface Props {
+/** Tile compacto do tipo de documento (protótipo 08): nome, situação e "Gerar →". */
+export default function DocTypeCard({
+  meta, status, selected, onSelect,
+}: {
+  meta: DocTypeMeta;
+  /** Ex.: "Não gerado" ou "Gerado em 05/10/2026". */
+  status: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div
+      style={{
+        ...innerStyle,
+        padding: 18, display: "flex", flexDirection: "column", gap: 14,
+        ...(selected ? { borderColor: ds.greenLine, background: ds.greenSoft } : null),
+      }}
+    >
+      <span style={{ fontSize: 15, fontWeight: 600, color: ds.white }}>{meta.label}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12, color: ds.muted }}>{status}</span>
+        <button
+          type="button"
+          aria-expanded={selected}
+          onClick={onSelect}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", color: ds.green, fontSize: 13, fontWeight: 600 }}
+        >
+          {selected ? "Fechar" : "Gerar →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface PanelProps {
   meta: DocTypeMeta;
   sprints: SprintWithStatus[];
   ingestions: Ingestion[];
   generating: boolean;
-  /** Disparado quando o usuário clica em "Gerar documento" dentro do card. */
   onGenerate: (key: string, sprintNumero?: number, ingestionId?: string) => void;
   /** Para ata_reuniao: além de selecionar ingestão existente, permite subir PDF inline. */
   onUploadAndGenerate?: (sprintNumero: number, file: File) => void;
 }
 
-const cardStyle = (expanded: boolean): React.CSSProperties => ({
-  background: "#0d1711",
-  border: `1px solid ${expanded ? "rgba(62,224,111,0.35)" : "rgba(62,224,111,0.2)"}`,
-  borderRadius: 12,
-  padding: expanded ? "16px 18px" : "12px 16px",
-  cursor: "pointer",
-  transition: "border-color 0.15s, padding 0.15s",
-});
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-};
-
-const titleStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#f2f5f3",
-};
-
-const explanationStyle: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  fontSize: 13,
-  color: "#c3cbc6",
-  lineHeight: 1.5,
-};
-
-const lineStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 6,
-};
-
-const labelChip: React.CSSProperties = {
-  flexShrink: 0,
-  fontWeight: 700,
-  color: "#8a948e",
-  width: 78,
-};
-
-const formZone: React.CSSProperties = {
-  marginTop: 16,
-  paddingTop: 16,
-  borderTop: "1px solid rgba(255,255,255,0.08)",
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: 10,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "7px 10px",
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  fontSize: 13,
-  color: "#f2f5f3",
-  outline: "none",
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#3ee06f",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const fieldLabel: React.CSSProperties = {
-  fontSize: 12,
-  color: "#8a948e",
-  fontWeight: 600,
-};
-
-export default function DocTypeCard({
-  meta,
-  sprints,
-  ingestions,
-  generating,
-  onGenerate,
-  onUploadAndGenerate,
-}: Props) {
-  const [expanded, setExpanded] = useState(false);
-  const [sprintNumero, setSprintNumero] = useState<number>(
-    sprints[0]?.numero ?? 1
-  );
-  const [ingestionId, setIngestionId] = useState<string>(
-    ingestions[0]?.id ?? ""
-  );
+/** Painel de geração do tipo selecionado: explicação + campos + botão. */
+export function DocTypeGeneratePanel({ meta, sprints, ingestions, generating, onGenerate, onUploadAndGenerate }: PanelProps) {
+  const [sprintNumero, setSprintNumero] = useState<number>(sprints[0]?.numero ?? 1);
+  const [ingestionId, setIngestionId] = useState<string>(ingestions[0]?.id ?? "");
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [pdfName, setPdfName] = useState<string | null>(null);
 
-  function handleGenerate(e: React.MouseEvent) {
-    e.stopPropagation();
+  function handleGenerate() {
     const file = fileRef.current?.files?.[0] ?? null;
     if (meta.scope === "sprint") onGenerate(meta.key, sprintNumero);
     else if (meta.scope === "ingestion") {
@@ -128,141 +67,57 @@ export default function DocTypeCard({
     } else onGenerate(meta.key);
   }
 
+  const bloqueado = generating || (meta.scope === "ingestion" && !ingestionId && !pdfName);
+  const sprintSelect = (
+    <Select aria-label="Sprint" value={sprintNumero} onChange={(e) => setSprintNumero(Number(e.target.value))} style={{ width: 160, height: 40, fontSize: 13.5 }}>
+      {sprints.length === 0
+        ? <option value={1}>Sprint 1</option>
+        : sprints.map((s) => <option key={s.id} value={s.numero}>Sprint {s.numero}</option>)}
+    </Select>
+  );
+
   return (
-    <div style={cardStyle(expanded)} onClick={() => setExpanded((v) => !v)}>
-      <div style={headerStyle}>
-        <span style={titleStyle}>{meta.label}</span>
-        <span style={{ color: "#8a948e", fontSize: 13 }}>
-          {expanded ? "▴" : "▾"}
-        </span>
-      </div>
-
-      {expanded && (
-        <>
-          <div style={explanationStyle}>
-            <div style={lineStyle}>
-              <span style={labelChip}>O quê</span>
-              <span>{meta.o_que}</span>
-            </div>
-            <div style={lineStyle}>
-              <span style={labelChip}>Pra quê</span>
-              <span>{meta.pra_que}</span>
-            </div>
-            <div style={lineStyle}>
-              <span style={labelChip}>Quando</span>
-              <span>{meta.quando}</span>
-            </div>
-            <div style={lineStyle}>
-              <span style={labelChip}>Fontes</span>
-              <span>{meta.fontes}</span>
-            </div>
+    <div style={{ ...innerStyle, padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <span style={{ fontSize: 16, fontWeight: 700, color: ds.white }}>{meta.label}</span>
+      <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "80px minmax(0,1fr)", rowGap: 8, columnGap: 12, fontSize: 13.5, lineHeight: 1.55 }}>
+        {([["O quê", meta.o_que], ["Pra quê", meta.pra_que], ["Quando", meta.quando], ["Fontes", meta.fontes]] as const).map(([k, v]) => (
+          <div key={k} style={{ display: "contents" }}>
+            <dt style={{ ...labelStyle, paddingTop: 3 }}>{k}</dt>
+            <dd style={{ margin: 0, color: ds.text2 }}>{v}</dd>
           </div>
+        ))}
+      </dl>
 
-          <div style={formZone} onClick={(e) => e.stopPropagation()}>
-            {meta.scope === "sprint" && (
-              <>
-                <span style={fieldLabel}>Sprint:</span>
-                {sprints.length === 0 ? (
-                  <input
-                    type="number"
-                    min={1}
-                    value={sprintNumero}
-                    onChange={(e) => setSprintNumero(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 70 }}
-                  />
-                ) : (
-                  <select
-                    value={sprintNumero}
-                    onChange={(e) => setSprintNumero(Number(e.target.value))}
-                    style={inputStyle}
-                  >
-                    {sprints.map((s) => (
-                      <option key={s.id} value={s.numero}>
-                        Sprint {s.numero}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, paddingTop: 16, borderTop: `1px solid ${ds.border}` }}>
+        {meta.scope === "sprint" && sprintSelect}
+
+        {meta.scope === "ingestion" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minWidth: 260 }}>
+            {ingestions.length === 0 ? (
+              <span style={{ color: ds.muted, fontSize: 13 }}>Nenhuma ingestão disponível.</span>
+            ) : (
+              <Select aria-label="Ingestão existente" value={ingestionId} onChange={(e) => setIngestionId(e.target.value)} style={{ maxWidth: 420, height: 40, fontSize: 13.5 }}>
+                {ingestions.map((ing) => (
+                  <option key={ing.id} value={ing.id}>Sprint {ing.sprint_number} · {ing.file_name}</option>
+                ))}
+              </Select>
             )}
-
-            {meta.scope === "ingestion" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={fieldLabel}>Ingestão existente:</span>
-                  {ingestions.length === 0 ? (
-                    <span style={{ color: "#8a948e", fontSize: 13 }}>
-                      Nenhuma ingestão disponível.
-                    </span>
-                  ) : (
-                    <select
-                      value={ingestionId}
-                      onChange={(e) => setIngestionId(e.target.value)}
-                      style={{ ...inputStyle, maxWidth: 360 }}
-                    >
-                      {ingestions.map((ing) => (
-                        <option key={ing.id} value={ing.id}>
-                          Sprint {ing.sprint_number} · {ing.file_name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                {onUploadAndGenerate && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <span style={fieldLabel}>ou subir transcrição (PDF):</span>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)}
-                      style={{ fontSize: 12 }}
-                    />
-                    {pdfName && (
-                      <>
-                        <span style={{ ...fieldLabel, color: "#8a948e" }}>
-                          {pdfName} · Sprint:
-                        </span>
-                        <select
-                          value={sprintNumero}
-                          onChange={(e) => setSprintNumero(Number(e.target.value))}
-                          style={inputStyle}
-                        >
-                          {sprints.length === 0 ? (
-                            <option value={1}>Sprint 1</option>
-                          ) : (
-                            sprints.map((s) => (
-                              <option key={s.id} value={s.numero}>
-                                Sprint {s.numero}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </>
-                    )}
-                  </div>
-                )}
+            {onUploadAndGenerate && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <label style={{ fontSize: 13, color: ds.muted }}>
+                  ou subir transcrição (PDF){" "}
+                  <input ref={fileRef} type="file" accept="application/pdf" onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)} style={{ fontSize: 12, color: ds.text2 }} />
+                </label>
+                {pdfName && sprintSelect}
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={
-                generating ||
-                (meta.scope === "ingestion" && !ingestionId && !pdfName)
-              }
-              style={{
-                ...btnPrimary,
-                opacity: (generating || (meta.scope === "ingestion" && !ingestionId && !pdfName)) ? 0.6 : 1,
-                marginLeft: "auto",
-              }}
-            >
-              {generating ? "Gerando…" : "Gerar documento"}
-            </button>
           </div>
-        </>
-      )}
+        )}
+
+        <Button variant="primary" onClick={handleGenerate} disabled={bloqueado} style={{ marginLeft: "auto" }}>
+          {generating ? "Gerando…" : "Gerar documento"}
+        </Button>
+      </div>
     </div>
   );
 }

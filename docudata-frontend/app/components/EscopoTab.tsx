@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import TutorialBanner from "./TutorialBanner";
+import { Button, Card, Chip, EmptyState, ErrorNotice, Field, Input, Select, TabSectionHead, Textarea } from "./ds";
+import { ds, labelStyle, type Tone } from "../lib/ds";
 import SprintOrcamentoPlanner from "./SprintOrcamentoPlanner";
 import {
   FuncionalidadeResponse,
@@ -246,551 +248,426 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
     { title: "Valor do projeto", body: "Se você informar o valor do contrato em reais (no formulário de Contrato, na aba Painel), cada ponto passa a valer um centésimo desse valor e o faturamento previsto de cada sprint é calculado sozinho. O valor congela assim que a primeira sprint recebe orçamento de pontos, porque mudá-lo depois desalinharia em silêncio tudo que já foi calculado." },
   ];
 
+  const statusTone = (status: string): Tone =>
+    status === "concluida" ? "green" : status === "em_andamento" ? "violet" : "neutral";
+
+  const linkBtn: React.CSSProperties = {
+    background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
+    fontSize: 13, padding: "6px 10px", borderRadius: 8, color: ds.text2,
+  };
+
   return (
-    <div>
-      {/* Header */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <TutorialBanner heading="Planejamento e Funcionalidades" steps={escopoSteps} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, marginTop: 4 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: "#f2f5f3", letterSpacing: "-0.02em", margin: 0 }}>
-            Planejamento
-            <span style={{ fontSize: 14, color: "#8a948e", fontWeight: 600, marginLeft: 10 }}>
-              {funcionalidades.length} {funcionalidades.length === 1 ? "funcionalidade" : "funcionalidades"}
-            </span>
-          </h2>
-          <p style={{ color: "#8a948e", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
-            Lista de funcionalidades do projeto. Importe direto do texto do contrato ou da proposta — a IA extrai e propõe cada item para você confirmar.
-          </p>
-        </div>
-        {step === "idle" && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => { setStep("manual"); setErro(""); setForm(emptyForm); }}
-              style={{
-                background: "#0d1711", color: "#f2f5f3", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8,
-                padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-              }}
-            >
-              + Adicionar manualmente
-            </button>
-            <button
-              onClick={() => setStep("input")}
-              style={{
-                background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8,
-                padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-              }}
-            >
-              + Importar do contrato
-            </button>
-          </div>
-        )}
-      </div>
+      <TabSectionHead
+        title="Planejamento"
+        count={`${funcionalidades.length} ${funcionalidades.length === 1 ? "funcionalidade" : "funcionalidades"}`}
+        description="Lista de funcionalidades do projeto. Importe direto do texto do contrato ou da proposta: a IA extrai e propõe cada item para você confirmar."
+        actions={step === "idle" ? (
+          <>
+            <Button variant="secondary" onClick={() => { setStep("manual"); setErro(""); setForm(emptyForm); }}>+ Adicionar manualmente</Button>
+            <Button variant="primary" onClick={() => setStep("input")}>+ Importar do contrato</Button>
+          </>
+        ) : undefined}
+      />
 
       <SprintOrcamentoPlanner projectId={projectId} sprints={sprints} onSprintUpdated={onSprintUpdated} onSprintCreated={onSprintCreated} />
 
-      {/* Filtro por sprint */}
-      {sprintsDisponiveis.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#8a948e" }}>Sprint:</span>
-          {[{ label: "Todas", value: "todas" }, ...sprintsDisponiveis.map((s) => ({ label: `Sprint ${s}`, value: s })), { label: "Sem sprint", value: "sem_sprint" }].map(({ label, value }) => (
-            <button key={value} onClick={() => setSprintFiltro(value)} style={{
-              padding: "5px 14px", fontSize: 12, fontWeight: 600, borderRadius: 20, cursor: "pointer", border: "1px solid",
-              background: sprintFiltro === value ? "#3ee06f" : "rgba(62,224,111,0.055)",
-              color: sprintFiltro === value ? "#ffffff" : "#8a948e",
-              borderColor: sprintFiltro === value ? "rgba(255,255,255,0.14)" : "rgba(62,224,111,0.2)",
-            }}>{label}</button>
-          ))}
-        </div>
-      )}
-
-      {/* Resumo de status */}
-      {funcionalidades.length > 0 && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-          {Object.entries(totalPorStatus).map(([status, count]) => (
-            <div key={status} style={{
-              background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8,
-              padding: "8px 14px", display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: STATUS_COLOR[status] ?? "rgba(255,255,255,0.14)" }} />
-              <span style={{ fontSize: 13, color: "#c3cbc6", fontWeight: 500 }}>
-                {STATUS_LABEL[status] ?? status}
-              </span>
-              <span style={{ fontSize: 13, color: "#f2f5f3", fontWeight: 700 }}>{count}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Fluxo de importação */}
       {step === "input" && (
-        <div style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", margin: "0 0 16px" }}>
-            Importar do contrato
-          </h3>
+        <Card>
+          <div style={{ padding: "26px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: ds.white }}>Importar do contrato</h3>
+            <div role="group" aria-label="Forma de importar" style={{ display: "flex", padding: 4, gap: 2, borderRadius: 12, background: "rgba(255,255,255,0.04)", border: `1px solid ${ds.border}`, width: "fit-content" }}>
+              {(["arquivo", "texto"] as InputMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={inputMode === mode}
+                  onClick={() => setInputMode(mode)}
+                  style={{
+                    height: 32, padding: "0 14px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "inherit",
+                    fontSize: 13, fontWeight: 600,
+                    background: inputMode === mode ? ds.greenSoft : "transparent",
+                    color: inputMode === mode ? ds.green : ds.muted,
+                  }}
+                >
+                  {mode === "arquivo" ? "Upload de arquivo" : "Colar texto"}
+                </button>
+              ))}
+            </div>
 
-          {/* Toggle modo */}
-          <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
-            {(["arquivo", "texto"] as InputMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setInputMode(mode)}
-                style={{
-                  padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none",
-                  background: inputMode === mode ? "#3ee06f" : "rgba(62,224,111,0.055)",
-                  color: inputMode === mode ? "#ffffff" : "#8a948e",
-                  transition: "all 0.15s",
-                }}
-              >
-                {mode === "arquivo" ? "Upload de arquivo" : "Colar texto"}
-              </button>
-            ))}
-          </div>
-
-          {inputMode === "arquivo" ? (
-            <div>
-              <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 14px", lineHeight: 1.5 }}>
-                Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX e TXT.
-              </p>
-              <label
-                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  border: `2px dashed ${dragging ? "#b197fc" : arquivo ? "rgba(62,224,111,0.35)" : "rgba(255,255,255,0.14)"}`,
-                  borderRadius: 10, padding: "40px 24px", cursor: "pointer",
-                  background: dragging ? "rgba(177,151,252,0.10)" : arquivo ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)",
-                  transition: "all 0.15s",
-                }}
-              >
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.txt"
-                  style={{ display: "none" }}
-                  onChange={(e) => { setErro(""); setArquivo(e.target.files?.[0] ?? null); }}
+            {inputMode === "arquivo" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ margin: 0, fontSize: 13.5, color: ds.muted, lineHeight: 1.55 }}>
+                  Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX e TXT.
+                </p>
+                <label
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                    border: `1.5px dashed ${dragging || arquivo ? ds.greenLine : ds.borderStrong}`,
+                    borderRadius: 12, padding: "40px 24px", cursor: "pointer",
+                    background: dragging || arquivo ? ds.greenSoft : ds.inner,
+                    transition: "background 0.15s, border-color 0.15s",
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    style={{ display: "none" }}
+                    onChange={(e) => { setErro(""); setArquivo(e.target.files?.[0] ?? null); }}
+                  />
+                  {dragging ? (
+                    <span style={{ fontSize: 14, fontWeight: 600, color: ds.green }}>Solte aqui</span>
+                  ) : arquivo ? (
+                    <>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: ds.green }}>✓ {arquivo.name}</span>
+                      <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>
+                        {(arquivo.size / 1024).toFixed(0)} KB · clique ou arraste para trocar
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: ds.text2 }}>Arraste o arquivo aqui</span>
+                      <span style={{ fontSize: 12.5, color: ds.muted }}>ou clique para selecionar · PDF, DOCX ou TXT</span>
+                    </>
+                  )}
+                </label>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ margin: 0, fontSize: 13.5, color: ds.muted, lineHeight: 1.55 }}>
+                  Cole o texto completo do contrato ou proposta. A IA extrai cada funcionalidade com título, descrição e critérios de aceite.
+                </p>
+                <Textarea
+                  aria-label="Texto do contrato"
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  placeholder="Cole aqui o texto do contrato..."
+                  rows={12}
                 />
-                {dragging ? (
-                  <>
-                    <span style={{ fontSize: 36, marginBottom: 10 }}>📂</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#b197fc" }}>Solte aqui</span>
-                  </>
-                ) : arquivo ? (
-                  <>
-                    <span style={{ fontSize: 32, marginBottom: 8 }}>✓</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#3ee06f" }}>{arquivo.name}</span>
-                    <span style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>
-                      {(arquivo.size / 1024).toFixed(0)} KB · clique ou arraste para trocar
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: 36, marginBottom: 10 }}>📄</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#c3cbc6" }}>Arraste o arquivo aqui</span>
-                    <span style={{ fontSize: 12, color: "#8a948e", marginTop: 4 }}>ou clique para selecionar · PDF, DOCX ou TXT</span>
-                  </>
-                )}
-              </label>
-            </div>
-          ) : (
-            <div>
-              <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 12px", lineHeight: 1.5 }}>
-                Cole o texto completo do contrato ou proposta. A IA extrai cada funcionalidade com título, descrição e critérios de aceite.
-              </p>
-              <textarea
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                placeholder="Cole aqui o texto do contrato..."
-                rows={12}
-                style={{
-                  width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.14)",
-                  borderRadius: 8, padding: "12px 14px", fontSize: 13, lineHeight: 1.6,
-                  fontFamily: "inherit", resize: "vertical", outline: "none", color: "#f2f5f3",
-                }}
-              />
-            </div>
-          )}
+              </div>
+            )}
 
-          {erro && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 10 }}>{erro}</p>}
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button
-              onClick={handleAnalisar}
-              style={{
-                background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8,
-                padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              Analisar com IA
-            </button>
-            <button
-              onClick={handleCancelar}
-              style={{
-                background: "transparent", color: "#8a948e", border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer",
-              }}
-            >
-              Cancelar
-            </button>
+            {erro && <ErrorNotice>{erro}</ErrorNotice>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" onClick={handleAnalisar}>Analisar com IA</Button>
+              <Button variant="ghost" onClick={handleCancelar}>Cancelar</Button>
+            </div>
           </div>
-        </div>
+        </Card>
       )}
 
       {step === "loading" && (
-        <div style={{
-          background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
-          padding: 40, textAlign: "center", marginBottom: 24,
-        }}>
-          <p style={{ color: "#c3cbc6", fontSize: 14, margin: 0 }}>
-            Analisando o contrato e extraindo funcionalidades...
-          </p>
-          <p style={{ color: "#8a948e", fontSize: 12, margin: "8px 0 0" }}>
-            Isso pode levar alguns segundos
-          </p>
-        </div>
+        <Card>
+          <div role="status" style={{ padding: 40, textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: 14, color: ds.text2 }}>Analisando o contrato e extraindo funcionalidades...</p>
+            <p style={{ margin: "8px 0 0", fontSize: 12.5, color: ds.muted }}>Isso pode levar alguns segundos</p>
+          </div>
+        </Card>
       )}
 
       {step === "review" && (
-        <div style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", margin: 0 }}>
-                {propostas.length} funcionalidades encontradas
-              </h3>
-              <p style={{ fontSize: 13, color: "#8a948e", margin: "4px 0 0" }}>
-                Desmarque as que não quer salvar, depois confirme.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={handleCancelar}
-                style={{
-                  background: "transparent", color: "#8a948e", border: "1px solid rgba(255,255,255,0.14)",
-                  borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer",
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmar}
-                disabled={selecionadas.size === 0}
-                style={{
-                  background: selecionadas.size === 0 ? "rgba(255,255,255,0.08)" : "#3ee06f",
-                  color: selecionadas.size === 0 ? "#8a948e" : "#ffffff",
-                  border: "none", borderRadius: 8, padding: "8px 16px",
-                  fontSize: 13, fontWeight: 600,
-                  cursor: selecionadas.size === 0 ? "not-allowed" : "pointer",
-                }}
-              >
-                Salvar {selecionadas.size} selecionadas
-              </button>
-            </div>
-          </div>
-
-          {erro && <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12 }}>{erro}</p>}
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button
-              onClick={() => setSelecionadas(new Set(propostas.map((_, i) => i)))}
-              style={{ fontSize: 12, color: "#b197fc", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            >
-              Selecionar todas
-            </button>
-            <span style={{ color: "#5d6661" }}>·</span>
-            <button
-              onClick={() => setSelecionadas(new Set())}
-              style={{ fontSize: 12, color: "#8a948e", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            >
-              Desmarcar todas
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {propostas.map((p, i) => (
-              <div
-                key={i}
-                style={{
-                  border: `1px solid ${selecionadas.has(i) ? "rgba(177,151,252,0.30)" : "rgba(62,224,111,0.2)"}`,
-                  borderRadius: 10,
-                  padding: "14px 16px",
-                  background: selecionadas.has(i) ? "rgba(177,151,252,0.10)" : "rgba(62,224,111,0.055)",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-                onClick={() => toggleSelecionada(i)}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={selecionadas.has(i)}
-                    onChange={() => toggleSelecionada(i)}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ marginTop: 2, cursor: "pointer", width: 16, height: 16, accentColor: "#b197fc" }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, color: "#8a948e", fontFamily: "monospace" }}>{p.id_funcional}</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, color: PRIORIDADE_COLOR[p.prioridade] ?? "#8a948e",
-                        background: `${PRIORIDADE_COLOR[p.prioridade]}18`,
-                        padding: "1px 7px", borderRadius: 4, textTransform: "uppercase",
-                      }}>
-                        {PRIORIDADE_LABEL[p.prioridade] ?? p.prioridade}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "#f2f5f3", margin: "4px 0 0" }}>
-                      {p.titulo}
-                    </p>
-                    {p.descricao && (
-                      <p style={{ fontSize: 13, color: "#c3cbc6", margin: "4px 0 0", lineHeight: 1.5 }}>
-                        {p.descricao}
-                      </p>
-                    )}
-                    {p.criterios_aceite.length > 0 && (
-                      <div style={{ marginTop: 8 }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "#8a948e", textTransform: "uppercase", margin: "0 0 4px" }}>
-                          Critérios de aceite
-                        </p>
-                        <ul style={{ margin: 0, paddingLeft: 16 }}>
-                          {p.criterios_aceite.map((c, j) => (
-                            <li key={j} style={{ fontSize: 12, color: "#c3cbc6", marginBottom: 2 }}>{c}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        <Card>
+          <div style={{ padding: "26px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: ds.white }}>
+                  {propostas.length} funcionalidades encontradas
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13.5, color: ds.muted }}>Desmarque as que não quer salvar, depois confirme.</p>
               </div>
-            ))}
+              <div style={{ display: "flex", gap: 10 }}>
+                <Button variant="ghost" onClick={handleCancelar}>Cancelar</Button>
+                <Button variant="primary" onClick={handleConfirmar} disabled={selecionadas.size === 0}>
+                  Salvar {selecionadas.size} selecionadas
+                </Button>
+              </div>
+            </div>
+
+            {erro && <ErrorNotice>{erro}</ErrorNotice>}
+
+            <div style={{ display: "flex", gap: 14 }}>
+              <button type="button" className="ds-text-btn" style={{ ...linkBtn, padding: 0, color: ds.green, fontWeight: 600 }} onClick={() => setSelecionadas(new Set(propostas.map((_, i) => i)))}>
+                Selecionar todas
+              </button>
+              <button type="button" className="ds-text-btn" style={{ ...linkBtn, padding: 0, color: ds.muted, fontWeight: 600 }} onClick={() => setSelecionadas(new Set())}>
+                Desmarcar todas
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {propostas.map((p, i) => {
+                const marcada = selecionadas.has(i);
+                return (
+                  <label
+                    key={i}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+                      border: `1px solid ${marcada ? ds.greenLine : ds.innerBorder}`,
+                      background: marcada ? ds.greenSoft : ds.inner,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcada}
+                      onChange={() => toggleSelecionada(i)}
+                      style={{ marginTop: 3, width: 16, height: 16, accentColor: ds.green, cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{p.id_funcional}</span>
+                        <span style={{ fontFamily: ds.fontMono, fontSize: 11, color: PRIORIDADE_COLOR[p.prioridade] ?? ds.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                          {PRIORIDADE_LABEL[p.prioridade] ?? p.prioridade}
+                        </span>
+                      </div>
+                      <p style={{ margin: "4px 0 0", fontSize: 15, fontWeight: 500, color: ds.white }}>{p.titulo}</p>
+                      {p.descricao && <p style={{ margin: "4px 0 0", fontSize: 13.5, color: ds.text2, lineHeight: 1.55 }}>{p.descricao}</p>}
+                      {p.criterios_aceite.length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <span style={labelStyle}>Critérios de aceite</span>
+                          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                            {p.criterios_aceite.map((c, j) => (
+                              <li key={j} style={{ fontSize: 13, color: ds.text2, marginBottom: 2, lineHeight: 1.5 }}>{c}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </Card>
       )}
 
       {step === "saving" && (
-        <div style={{
-          background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
-          padding: 40, textAlign: "center", marginBottom: 24,
-        }}>
-          <p style={{ color: "#c3cbc6", fontSize: 14, margin: 0 }}>Salvando funcionalidades...</p>
-        </div>
+        <Card>
+          <p role="status" style={{ margin: 0, padding: 40, textAlign: "center", fontSize: 14, color: ds.text2 }}>Salvando funcionalidades...</p>
+        </Card>
       )}
 
       {step === "manual" && (
-        <div style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f2f5f3", margin: "0 0 20px" }}>Nova funcionalidade</h3>
-
-          {(
-            [
-              { label: "ID funcional", key: "id_funcional" as const, placeholder: "Ex: F01 (opcional — gerado automaticamente)" },
-              { label: "Título *", key: "titulo" as const, placeholder: "Ex: Autenticação de usuários" },
-              { label: "Descrição", key: "descricao" as const, placeholder: "Contexto adicional (opcional)" },
-              { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável (opcional)" },
-            ] as const
-          ).map(({ label, key, placeholder }) => (
-            <div key={key} style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 4 }}>{label}</label>
-              <input
-                value={form[key]}
-                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                placeholder={placeholder}
-                style={{
-                  width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8,
-                  padding: "9px 12px", fontSize: 13, outline: "none", color: "#f2f5f3",
-                }}
-              />
-            </div>
-          ))}
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 4 }}>Critérios de aceite *</label>
-            {form.criterios_aceite.map((c, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input
-                  value={c}
-                  onChange={(e) => {
-                    const next = [...form.criterios_aceite];
-                    next[i] = e.target.value;
-                    setForm(f => ({ ...f, criterios_aceite: next }));
-                  }}
-                  placeholder={`Critério ${i + 1}`}
-                  style={{
-                    flex: 1, border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8,
-                    padding: "9px 12px", fontSize: 13, outline: "none", color: "#f2f5f3",
-                  }}
-                />
-                {form.criterios_aceite.length > 1 && (
-                  <button
-                    onClick={() => setForm(f => ({ ...f, criterios_aceite: f.criterios_aceite.filter((_, j) => j !== i) }))}
-                    style={{ background: "none", border: "none", color: "#ff6b6b", fontSize: 18, cursor: "pointer", padding: "0 4px" }}
-                  >×</button>
-                )}
-              </div>
+        <Card>
+          <div style={{ padding: "26px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: ds.white }}>Nova funcionalidade</h3>
+            {(
+              [
+                { label: "ID funcional", key: "id_funcional" as const, placeholder: "Ex: F01 (opcional, gerado automaticamente)", required: false },
+                { label: "Título", key: "titulo" as const, placeholder: "Ex: Autenticação de usuários", required: true },
+                { label: "Descrição", key: "descricao" as const, placeholder: "Contexto adicional (opcional)", required: false },
+                { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável (opcional)", required: false },
+              ] as const
+            ).map(({ label, key, placeholder, required }) => (
+              <Field key={key} label={label} htmlFor={`nova-${key}`} required={required}>
+                <Input id={`nova-${key}`} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} />
+              </Field>
             ))}
-            <button
-              onClick={() => setForm(f => ({ ...f, criterios_aceite: [...f.criterios_aceite, ""] }))}
-              style={{ fontSize: 12, color: "#b197fc", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            >
-              + Adicionar critério
-            </button>
+            <CriteriosEditor
+              idPrefix="nova"
+              criterios={form.criterios_aceite}
+              onChange={(criterios_aceite) => setForm((f) => ({ ...f, criterios_aceite }))}
+            />
+            {erro && <ErrorNotice>{erro}</ErrorNotice>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" onClick={handleSalvarManual} disabled={savingManual}>
+                {savingManual ? "Salvando..." : "Salvar funcionalidade"}
+              </Button>
+              <Button variant="ghost" onClick={() => { setStep("idle"); setErro(""); }}>Cancelar</Button>
+            </div>
           </div>
+        </Card>
+      )}
 
-          {erro && <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12 }}>{erro}</p>}
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={handleSalvarManual}
-              disabled={savingManual}
-              style={{
-                background: savingManual ? "rgba(255,255,255,0.08)" : "#3ee06f", color: savingManual ? "#8a948e" : "#ffffff",
-                border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 600,
-                cursor: savingManual ? "not-allowed" : "pointer",
-              }}
-            >
-              {savingManual ? "Salvando..." : "Salvar funcionalidade"}
-            </button>
-            <button
-              onClick={() => { setStep("idle"); setErro(""); }}
-              style={{ background: "transparent", color: "#8a948e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer" }}
-            >
-              Cancelar
-            </button>
-          </div>
+      {/* Resumo de status + filtro por sprint */}
+      {funcionalidades.length > 0 && step !== "review" && step !== "loading" && step !== "saving" && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {Object.entries(totalPorStatus).map(([status, count]) => (
+            <Chip key={status} tone={statusTone(status)} dot={status === "concluida"}>
+              {STATUS_LABEL[status] ?? status} · {count}
+            </Chip>
+          ))}
+          {sprintsDisponiveis.length > 0 && (
+            <div role="group" aria-label="Filtrar por sprint" style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[{ label: "Todas", value: "todas" }, ...sprintsDisponiveis.map((s) => ({ label: `Sprint ${s}`, value: s })), { label: "Sem sprint", value: "sem_sprint" }].map(({ label, value }) => {
+                const ativo = sprintFiltro === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => setSprintFiltro(value)}
+                    style={{
+                      padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      background: ativo ? ds.greenSoft : "rgba(255,255,255,0.05)",
+                      color: ativo ? ds.green : ds.text2,
+                      border: `1px solid ${ativo ? ds.greenLine : ds.border}`,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* Lista existente */}
       {funcList.length === 0 && step === "idle" ? (
-        <div style={{ background: "rgba(62,224,111,0.055)", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 12, padding: 48, textAlign: "center" }}>
-          <p style={{ color: "#8a948e", fontSize: 15, margin: "0 0 8px", fontWeight: 500 }}>Nenhuma funcionalidade cadastrada</p>
-          <p style={{ color: "#8a948e", fontSize: 13, margin: 0 }}>Clique em <strong>+ Importar do contrato</strong> para extrair as funcionalidades automaticamente.</p>
-        </div>
+        <EmptyState>
+          Nenhuma funcionalidade cadastrada. Clique em + Importar do contrato para extrair as funcionalidades automaticamente.
+        </EmptyState>
       ) : (
-        step !== "review" && step !== "loading" && step !== "saving" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {funcExibidas.map((f) => (
-              <div key={f.id} style={{ background: "#0d1711", border: `1px solid ${editingId === f.id ? "rgba(177,151,252,0.30)" : "rgba(62,224,111,0.2)"}`, borderRadius: 10, padding: "14px 16px" }}>
-
-                {/* Header do card — sempre visível */}
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", cursor: editingId === f.id ? "default" : "pointer" }}
-                  onClick={() => { if (editingId !== f.id) setExpanded(expanded === f.id ? null : f.id); }}
-                >
-                  <span style={{ fontSize: 11, color: "#8a948e", fontFamily: "monospace" }}>{f.id_funcional}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLOR[f.status] ?? "#8a948e", background: `${STATUS_COLOR[f.status] ?? "rgba(255,255,255,0.14)"}15`, padding: "1px 7px", borderRadius: 4 }}>
-                    {STATUS_LABEL[f.status] ?? f.status}
-                  </span>
-                  {f.sprint_alvo && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#8a948e", background: "rgba(255,255,255,0.05)", padding: "1px 7px", borderRadius: 4 }}>
-                      Sprint {f.sprint_alvo}
+        step !== "review" && step !== "loading" && step !== "saving" && funcExibidas.length > 0 && (
+          <Card>
+            {funcExibidas.map((f, idx) => {
+              const aberta = expanded === f.id;
+              const editando = editingId === f.id;
+              return (
+                <div key={f.id} style={{ borderTop: idx > 0 ? `1px solid ${ds.border}` : "none" }}>
+                  <div className="ds-func-row" style={{ display: "grid", gridTemplateColumns: "44px 120px minmax(0,1fr) auto", gap: 16, alignItems: "center", padding: "15px 22px" }}>
+                    <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{f.id_funcional}</span>
+                    <span><Chip tone={statusTone(f.status)}>{STATUS_LABEL[f.status] ?? f.status}</Chip></span>
+                    <span style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
+                      <span style={{ fontSize: 15, fontWeight: 500, color: ds.white, overflow: "hidden", textOverflow: "ellipsis" }}>{f.titulo}</span>
+                      {f.sprint_alvo && <span style={{ fontFamily: ds.fontMono, fontSize: 11.5, color: ds.muted, flexShrink: 0 }}>Sprint {f.sprint_alvo}</span>}
                     </span>
+                    {!editando ? (
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button type="button" className="ds-text-btn" style={linkBtn} onClick={() => { startEdit(f); setExpanded(f.id); }}>Editar</button>
+                        <button
+                          type="button"
+                          style={{ ...linkBtn, color: deletingId === f.id ? ds.muted : ds.red }}
+                          disabled={deletingId === f.id}
+                          onClick={() => handleDelete(f)}
+                        >
+                          {deletingId === f.id ? "Excluindo..." : "Excluir"}
+                        </button>
+                        <button
+                          type="button"
+                          className="ds-text-btn"
+                          aria-expanded={aberta}
+                          aria-label={aberta ? `Recolher ${f.titulo}` : `Ver detalhes de ${f.titulo}`}
+                          style={{ ...linkBtn, padding: "6px 8px", color: ds.muted }}
+                          onClick={() => setExpanded(aberta ? null : f.id)}
+                        >
+                          {aberta ? "▴" : "▾"}
+                        </button>
+                      </div>
+                    ) : <span />}
+                  </div>
+
+                  {/* Formulário de edição inline */}
+                  {editando && (
+                    <div style={{ padding: "4px 22px 22px 82px", display: "flex", flexDirection: "column", gap: 14 }}>
+                      {([
+                        { label: "ID funcional", key: "id_funcional" as const, placeholder: "F01", required: false },
+                        { label: "Título", key: "titulo" as const, placeholder: "Título da funcionalidade", required: true },
+                        { label: "Descrição", key: "descricao" as const, placeholder: "Descrição opcional", required: false },
+                        { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável", required: false },
+                      ] as const).map(({ label, key, placeholder, required }) => (
+                        <Field key={key} label={label} htmlFor={`edit-${f.id}-${key}`} required={required}>
+                          <Input id={`edit-${f.id}-${key}`} value={editForm[key]} onChange={(e) => setEditForm((ef) => ({ ...ef, [key]: e.target.value }))} placeholder={placeholder} />
+                        </Field>
+                      ))}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+                        <Field label="Status" htmlFor={`edit-${f.id}-status`}>
+                          <Select id={`edit-${f.id}-status`} value={editForm.status} onChange={(e) => setEditForm((ef) => ({ ...ef, status: e.target.value }))}>
+                            <option value="nao_iniciada">Não iniciada</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluida">Concluída</option>
+                          </Select>
+                        </Field>
+                        <Field label="Sprint alvo" htmlFor={`edit-${f.id}-sprint`}>
+                          <Input id={`edit-${f.id}-sprint`} value={editForm.sprint_alvo} onChange={(e) => setEditForm((ef) => ({ ...ef, sprint_alvo: e.target.value }))} placeholder="ex: 3" />
+                        </Field>
+                        <Field label="Prioridade" htmlFor={`edit-${f.id}-prioridade`}>
+                          <Select id={`edit-${f.id}-prioridade`} value={editForm.prioridade} onChange={(e) => setEditForm((ef) => ({ ...ef, prioridade: e.target.value }))}>
+                            {[["must", "Must"], ["should", "Should"], ["could", "Could"], ["wont", "Won't"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </Select>
+                        </Field>
+                      </div>
+                      <CriteriosEditor
+                        idPrefix={`edit-${f.id}`}
+                        criterios={editForm.criterios_aceite}
+                        onChange={(criterios_aceite) => setEditForm((ef) => ({ ...ef, criterios_aceite }))}
+                      />
+                      {erroEdit && <ErrorNotice>{erroEdit}</ErrorNotice>}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <Button variant="primary" onClick={handleSalvarEdit} disabled={savingEdit}>{savingEdit ? "Salvando..." : "Salvar"}</Button>
+                        <Button variant="ghost" onClick={() => { setEditingId(null); setErroEdit(""); }}>Cancelar</Button>
+                      </div>
+                    </div>
                   )}
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#f2f5f3" }}>{f.titulo}</span>
-                  {editingId !== f.id && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startEdit(f); setExpanded(f.id); }}
-                        style={{ fontSize: 12, color: "#b197fc", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(f); }}
-                        disabled={deletingId === f.id}
-                        style={{ fontSize: 12, color: deletingId === f.id ? "#8a948e" : "#ff6b6b", background: "none", border: "none", cursor: deletingId === f.id ? "not-allowed" : "pointer", padding: "2px 6px", borderRadius: 4 }}
-                      >
-                        {deletingId === f.id ? "Excluindo..." : "Excluir"}
-                      </button>
-                      <span style={{ fontSize: 12, color: "#8a948e" }}>{expanded === f.id ? "▲" : "▼"}</span>
-                    </>
+
+                  {/* Detalhes expandidos (só quando não está editando) */}
+                  {aberta && !editando && (
+                    <div style={{ padding: "0 22px 18px 82px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {f.descricao && <p style={{ margin: 0, fontSize: 13.5, color: ds.text2, lineHeight: 1.6 }}>{f.descricao}</p>}
+                      {f.criterios_aceite.length > 0 && (
+                        <div>
+                          <span style={labelStyle}>Critérios de aceite</span>
+                          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                            {f.criterios_aceite.map((c, i) => <li key={i} style={{ fontSize: 13.5, color: ds.text2, marginBottom: 4, lineHeight: 1.55 }}>{c}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", fontSize: 12.5, color: ds.muted }}>
+                        <span>Prioridade <span style={{ color: PRIORIDADE_COLOR[f.prioridade] ?? ds.text2, fontWeight: 600 }}>{PRIORIDADE_LABEL[f.prioridade] ?? f.prioridade}</span></span>
+                        {f.responsavel && <span>Responsável <span style={{ color: ds.text2, fontWeight: 600 }}>{f.responsavel}</span></span>}
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                {/* Formulário de edição inline */}
-                {editingId === f.id && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    {([ { label: "ID funcional", key: "id_funcional" as const, placeholder: "F01" }, { label: "Título *", key: "titulo" as const, placeholder: "Título da funcionalidade" }, { label: "Descrição", key: "descricao" as const, placeholder: "Descrição opcional" }, { label: "Responsável", key: "responsavel" as const, placeholder: "Nome do responsável" } ] as const).map(({ label, key, placeholder }) => (
-                      <div key={key} style={{ marginBottom: 12 }}>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 3 }}>{label}</label>
-                        <input value={editForm[key]} onChange={(e) => setEditForm(ef => ({ ...ef, [key]: e.target.value }))} placeholder={placeholder}
-                          style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#f2f5f3" }} />
-                      </div>
-                    ))}
-
-                    <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 3 }}>Status</label>
-                        <select value={editForm.status} onChange={(e) => setEditForm(ef => ({ ...ef, status: e.target.value }))}
-                          style={{ width: "100%", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 11px", fontSize: 13, color: "#f2f5f3", background: "#0d1711" }}>
-                          <option value="nao_iniciada">Não iniciada</option>
-                          <option value="em_andamento">Em andamento</option>
-                          <option value="concluida">Concluída</option>
-                        </select>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 3 }}>Sprint alvo</label>
-                        <input value={editForm.sprint_alvo} onChange={(e) => setEditForm(ef => ({ ...ef, sprint_alvo: e.target.value }))}
-                          placeholder="ex: 3"
-                          style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#f2f5f3" }} />
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ fontSize: 11, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 3 }}>Prioridade</label>
-                      <select value={editForm.prioridade} onChange={(e) => setEditForm(ef => ({ ...ef, prioridade: e.target.value }))}
-                        style={{ border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 11px", fontSize: 13, color: "#f2f5f3", background: "#0d1711" }}>
-                        {[["must","Must"],["should","Should"],["could","Could"],["wont","Won't"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                    </div>
-
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={{ fontSize: 11, fontWeight: 600, color: "#c3cbc6", display: "block", marginBottom: 3 }}>Critérios de aceite *</label>
-                      {editForm.criterios_aceite.map((c, i) => (
-                        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                          <input value={c} onChange={(e) => { const n = [...editForm.criterios_aceite]; n[i] = e.target.value; setEditForm(ef => ({ ...ef, criterios_aceite: n })); }}
-                            placeholder={`Critério ${i + 1}`} style={{ flex: 1, border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 11px", fontSize: 13, outline: "none", color: "#f2f5f3" }} />
-                          {editForm.criterios_aceite.length > 1 && (
-                            <button onClick={() => setEditForm(ef => ({ ...ef, criterios_aceite: ef.criterios_aceite.filter((_, j) => j !== i) }))}
-                              style={{ background: "none", border: "none", color: "#ff6b6b", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>×</button>
-                          )}
-                        </div>
-                      ))}
-                      <button onClick={() => setEditForm(ef => ({ ...ef, criterios_aceite: [...ef.criterios_aceite, ""] }))}
-                        style={{ fontSize: 12, color: "#b197fc", background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Adicionar critério</button>
-                    </div>
-
-                    {erroEdit && <p style={{ color: "#ff6b6b", fontSize: 12, marginBottom: 10 }}>{erroEdit}</p>}
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={handleSalvarEdit} disabled={savingEdit}
-                        style={{ background: savingEdit ? "rgba(255,255,255,0.08)" : "#3ee06f", color: savingEdit ? "#8a948e" : "#ffffff", border: "none", borderRadius: 7, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: savingEdit ? "not-allowed" : "pointer" }}>
-                        {savingEdit ? "Salvando..." : "Salvar"}
-                      </button>
-                      <button onClick={() => { setEditingId(null); setErroEdit(""); }}
-                        style={{ background: "transparent", color: "#8a948e", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Detalhes expandidos (só quando não está editando) */}
-                {expanded === f.id && editingId !== f.id && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    {f.descricao && <p style={{ fontSize: 13, color: "#c3cbc6", margin: "0 0 10px", lineHeight: 1.5 }}>{f.descricao}</p>}
-                    {f.criterios_aceite.length > 0 && (
-                      <div>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "#8a948e", textTransform: "uppercase", margin: "0 0 6px" }}>Critérios de aceite</p>
-                        <ul style={{ margin: 0, paddingLeft: 16 }}>
-                          {f.criterios_aceite.map((c, i) => <li key={i} style={{ fontSize: 13, color: "#c3cbc6", marginBottom: 4 }}>{c}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {f.responsavel && <p style={{ fontSize: 12, color: "#8a948e", margin: "10px 0 0" }}>Responsável: <strong>{f.responsavel}</strong></p>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              );
+            })}
+          </Card>
         )
       )}
+    </div>
+  );
+}
+
+/** Lista editável de critérios de aceite (usada na criação e na edição). */
+function CriteriosEditor({ idPrefix, criterios, onChange }: { idPrefix: string; criterios: string[]; onChange: (c: string[]) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span style={labelStyle}>Critérios de aceite<span style={{ color: ds.green }}> *</span></span>
+      {criterios.map((c, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Input
+            id={`${idPrefix}-criterio-${i}`}
+            aria-label={`Critério ${i + 1}`}
+            value={c}
+            onChange={(e) => { const next = [...criterios]; next[i] = e.target.value; onChange(next); }}
+            placeholder={`Critério ${i + 1}`}
+          />
+          {criterios.length > 1 && (
+            <button
+              type="button"
+              aria-label={`Remover critério ${i + 1}`}
+              onClick={() => onChange(criterios.filter((_, j) => j !== i))}
+              style={{ background: "none", border: "none", color: ds.red, fontSize: 18, cursor: "pointer", padding: "0 6px" }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        className="ds-text-btn"
+        onClick={() => onChange([...criterios, ""])}
+        style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: ds.green }}
+      >
+        + Adicionar critério
+      </button>
     </div>
   );
 }

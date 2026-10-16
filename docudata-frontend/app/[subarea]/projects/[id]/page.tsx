@@ -60,14 +60,16 @@ import {
   type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
-import RequisitosTab from "../../../components/discovery/RequisitosTab";
-import ReunioesTab from "../../../components/discovery/ReunioesTab";
-import EncaminharModal from "../../../components/discovery/EncaminharModal";
-import { Button as DsButton } from "../../../components/ds";
+import { Button as DsButton, EmptyState, ErrorNotice, Field as DsField, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
+import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
 import DocTypeCard from "../../../components/DocTypeCard";
+import { DocTypeGeneratePanel } from "../../../components/DocTypeCard";
+import DocRow from "../../../components/docs/DocRow";
+import { PanelCard } from "../../../components/painel/PanelCard";
 import TutorialBanner from "../../../components/TutorialBanner";
+import { PROJECT_HELP_SLOT_ID } from "../../../components/TutorialBanner";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
 
 // A aba Sprints é a que abre por padrão, então Tabs/SprintCard/DocTypeCard
@@ -126,7 +128,7 @@ const GitHubRepositoryPicker = dynamic(
   { loading: semPlaceholder },
 );
 
-type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "requisitos" | "reunioes" | "config";
+type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
 const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
 
@@ -700,11 +702,11 @@ export default function ProjectDashboard() {
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
-  const [encaminharAberto, setEncaminharAberto] = useState(false);
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
   const [descOpen, setDescOpen] = useState(false);
-  const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("cross_sprint");
+  const [docSubTab, setDocSubTab] = useState<"cross_sprint" | "por_sprint">("por_sprint");
+  const [docTypeSel, setDocTypeSel] = useState<DocTypeKey | null>(null);
 
   // ---------- modal sprint-docs ----------
   const [modal, setModal] = useState<{ tipo: SprintDocType; sprintNumero: number; sprintId?: string } | null>(null);
@@ -794,7 +796,7 @@ export default function ProjectDashboard() {
 
   useEffect(() => {
     const solicitada = new URLSearchParams(window.location.search).get("tab") as TabId | null;
-    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "requisitos", "reunioes", "config"];
+    const validas: TabId[] = ["sprints", "escopo", "painel", "tasks", "metricas", "tecnologias", "documentos", "config"];
     if (solicitada && validas.includes(solicitada)) {
       if (cargo !== "operacional" || OPERACIONAL_TABS.has(solicitada)) setActiveTab(solicitada);
     }
@@ -872,7 +874,7 @@ export default function ProjectDashboard() {
 
   async function handleChangeSubarea() {
     if (!project || !subareaDestino || subareaDestino === project.subarea) return;
-    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : sub === "produto" ? "Produto" : "Dados");
+    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : "Dados");
     const origem = rotuloSubarea(project.subarea);
     const destino = rotuloSubarea(subareaDestino);
     const confirmado = confirm(
@@ -1218,26 +1220,30 @@ export default function ProjectDashboard() {
     return map;
   }, [docs]);
 
-  const totalPendencias = sprints.reduce((acc, s) => acc + s.pendencias.length, 0);
+  // Sprints iniciadas da mais recente para a mais antiga: a primeira é a atual (protótipo 03).
+  const sprintsIniciadas = useMemo(
+    () => sprints.filter((s) => s.iniciada).sort((a, b) => b.numero - a.numero),
+    [sprints],
+  );
+  const sprintsPlanejadas = useMemo(
+    () => sprints.filter((s) => !s.iniciada).sort((a, b) => a.numero - b.numero),
+    [sprints],
+  );
+  const sprintAtual = sprintsIniciadas[0] ?? null;
 
   function renderDocRow(doc: GeneratedDoc) {
     return (
       <DocRow
         key={doc.id}
         doc={doc}
-        expandedDocId={expandedDocId}
-        exportingDocId={exportingDocId}
-        exportError={exportError}
-        onToggleExpand={(id: string) => setExpandedDocId(expandedDocId === id ? null : id)}
-        onExport={handleExportGdocs}
-        onDelete={handleDeleteDoc}
-        onMove={handleMoveDoc}
-        onSaveContent={handleUpdateDocContent}
-        ingestionCard={ingestionCard}
-        tagStyle={tagStyle}
-        btnSecondary={btnSecondary}
-        btnDanger={btnDanger}
-        markdownContainer={markdownContainer}
+        expanded={expandedDocId === doc.id}
+        exporting={exportingDocId === doc.id}
+        exportError={exportError[doc.id]}
+        onToggleExpand={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
+        onExport={() => handleExportGdocs(doc.id)}
+        onDelete={() => handleDeleteDoc(doc.id)}
+        onMove={(n) => handleMoveDoc(doc.id, n)}
+        onSaveContent={(content) => handleUpdateDocContent(doc.id, content)}
       />
     );
   }
@@ -1258,6 +1264,12 @@ export default function ProjectDashboard() {
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14, color: "#8a948e", flexWrap: "wrap" }}>
               <span>Cliente <span style={{ color: "#3ee06f", fontWeight: 600 }}>{project.client}</span></span>
+              {sprintAtual && (
+                <>
+                  <span aria-hidden="true" style={{ width: 3, height: 3, borderRadius: "50%", background: "#5d6661" }} />
+                  <span>Sprint {sprintAtual.numero}</span>
+                </>
+              )}
               {project.description && (
                 <>
                   <span aria-hidden="true" style={{ width: 3, height: 3, borderRadius: "50%", background: "#5d6661" }} />
@@ -1277,37 +1289,27 @@ export default function ProjectDashboard() {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* A pílula "Como usar" da aba ativa é renderizada aqui (TutorialBanner usa portal). */}
+            <div id={PROJECT_HELP_SLOT_ID} style={{ display: "flex", alignItems: "center", gap: 8 }} />
             {project.is_delivered && (
               <span style={{ ...badgeChip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>✓ Entregue</span>
-            )}
-            {project.subarea === "produto" && (cargo === "owner" || cargo === "lider" || cargo === "gerente") && (
-              <DsButton variant="primary" onClick={() => setEncaminharAberto(true)}>Encaminhar para Dados ou Dev</DsButton>
             )}
           </div>
         </div>
       </div>
-      {encaminharAberto && (
-        <EncaminharModal
-          projectId={id}
-          projectName={project.name}
-          onClose={() => setEncaminharAberto(false)}
-          onDone={(destino) => { setEncaminharAberto(false); router.push(`/${destino}/projects/${id}`); }}
-        />
-      )}
 
       <Tabs
         tabs={[
-          { id: "sprints", label: "Sprints", badge: totalPendencias > 0 ? `${totalPendencias} pend.` : undefined },
+          { id: "sprints", label: "Sprints" },
           { id: "escopo", label: "Planejamento", badge: funcionalidades.length || undefined },
           { id: "painel", label: "Painel" },
           { id: "tasks", label: "Tasks" },
           { id: "metricas", label: "Métricas" },
           { id: "tecnologias", label: "Tecnologias" },
-          { id: "requisitos", label: "Requisitos" },
-          { id: "reunioes", label: "Reuniões" },
           { id: "documentos", label: "Documentos", badge: docs.length || undefined },
           { id: "config", label: "Configurações" },
-        ].filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
+        ]
+          .filter((t) => cargo !== "operacional" || OPERACIONAL_TABS.has(t.id))}
         active={activeTab}
         onChange={(t) => setActiveTab(t as TabId)}
       />
@@ -1327,7 +1329,7 @@ export default function ProjectDashboard() {
 
       {/* ABA: SPRINTS */}
       {activeTab === "sprints" && (
-        <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <TutorialBanner heading="Sprints e Documentação" steps={[
             { title: "Criar uma sprint", body: "Clique em '+ Nova sprint'. O número é atribuído automaticamente. Cada sprint representa um ciclo de trabalho (geralmente 1–2 semanas)." },
             { title: "Planning", body: "Clique no chip 'Planning' na sprint. A tela já abre mostrando as tasks que estão no Kanban desta sprint, porque é dali que sai o backlog do documento: coluna, pontos e bloqueios entram no contexto da IA automaticamente. Você não precisa listar nada à mão. Abaixo das tasks tem o campo 'Contexto da sprint', em texto livre e sem formatação, para contar o que o Kanban não diz: por que a sprint é curta, o que mudou com o cliente, o que te preocupa. Se as tasks estiverem fora do DocuData (Notion, planilha, print), use o link no topo da tela para importar. E se preferir escrever o documento inteiro na mão, sem IA, use 'Escrever sem IA'." },
@@ -1339,96 +1341,23 @@ export default function ProjectDashboard() {
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
             { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
           ]} />
-          {/* SPRINTS — header destacado */}
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-            marginTop: 4,
-          }}>
-            <div>
-              <h2 style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "#f2f5f3",
-                letterSpacing: "-0.02em",
-                margin: 0,
-              }}>
-                Sprints
-                <span style={{
-                  fontSize: 14,
-                  color: "#8a948e",
-                  fontWeight: 600,
-                  marginLeft: 10,
-                }}>
-                  {sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}
-                  {totalPendencias > 0 && ` · ${totalPendencias} pendência${totalPendencias === 1 ? "" : "s"}`}
-                </span>
-              </h2>
-              <p style={{ color: "#8a948e", fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, maxWidth: 620 }}>
-                Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips coloridos pra registrar, ou use os botões pra gerar docs derivadas.
-              </p>
-            </div>
-            <button onClick={handleCreateSprint} style={btnPrimary}>Iniciar próxima sprint</button>
-          </div>
+          <TabSectionHead
+            title="Sprints"
+            count={`${sprints.length} ${sprints.length === 1 ? "sprint" : "sprints"}`}
+            description="Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips para registrar, ou use os botões para gerar docs derivadas."
+            actions={<DsButton variant="primary" onClick={handleCreateSprint}>Iniciar próxima sprint</DsButton>}
+          />
 
-          {sprints.some((s) => !s.iniciada) && (
-            <section style={{ ...sectionStyle, marginBottom: 16 }}>
-              <button
-                onClick={() => setPlanejadasAbertas((v) => !v)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6, width: "100%",
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  marginBottom: planejadasAbertas ? 10 : 0,
-                }}
-              >
-                <span style={{ fontSize: 11, color: "#8a948e", transform: planejadasAbertas ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Planejadas, ainda não iniciadas
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#b197fc", background: "rgba(177,151,252,0.10)", borderRadius: 999, padding: "1px 8px" }}>
-                  {sprints.filter((s) => !s.iniciada).length}
-                </span>
-              </button>
-              {planejadasAbertas && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {sprints.filter((s) => !s.iniciada).map((s) => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span style={{ fontSize: 13, color: "#c3cbc6" }}>
-                      Sprint {s.numero}
-                      {s.pontos_orcamento != null && (
-                        <span style={{ color: "#8a948e", marginLeft: 8 }}>{s.pontos_orcamento} pts orçados</span>
-                      )}
-                    </span>
-                    <button
-                      onClick={async () => {
-                        const atualizado = await iniciarSprint(s.id);
-                        setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
-                      }}
-                      style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Iniciar sprint
-                    </button>
-                  </div>
-                ))}
-              </div>
-              )}
-            </section>
-          )}
-
-          {sprints.filter((s) => s.iniciada).length === 0 ? (
-            <section style={sectionStyle}>
-              <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-                Nenhuma sprint iniciada. Clique em <strong>Iniciar próxima sprint</strong> pra começar, ou
-                inicie uma das sprints planejadas acima.
-              </p>
-            </section>
+          {sprintsIniciadas.length === 0 ? (
+            <EmptyState>
+              Nenhuma sprint iniciada. Clique em Iniciar próxima sprint para começar{sprintsPlanejadas.length > 0 ? ", ou inicie uma das sprints planejadas abaixo" : ""}.
+            </EmptyState>
           ) : (
-            sprints.filter((s) => s.iniciada).map((s) => (
+            sprintsIniciadas.map((s) => (
               <SprintCard
                 key={s.id}
                 sprint={s}
+                isCurrent={s.id === sprintAtual?.id}
                 ingestions={ingestionsBySprint[s.numero] ?? []}
                 docs={docsBySprint[s.numero] ?? []}
                 generating={generating}
@@ -1451,10 +1380,57 @@ export default function ProjectDashboard() {
                 onDeleteSprint={handleDeleteSprint}
                 onSprintUpdated={(updated) => setSprints((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s))}
                 onOpenAvaliacaoSemanal={(s2) => setAvaliacaoModal({ sprintId: s2.id, sprintNumero: s2.numero })}
+                onGoToPlanejamento={() => setActiveTab("escopo")}
               />
             ))
           )}
-        </>
+
+          {sprintsPlanejadas.length > 0 && (
+            <div style={{ ...dsCardStyle }}>
+              <button
+                type="button"
+                className="ds-row-link"
+                aria-expanded={planejadasAbertas}
+                onClick={() => setPlanejadasAbertas((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "18px 28px",
+                  background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", borderRadius: 16, textAlign: "left",
+                }}
+              >
+                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a948e", fontWeight: 500 }}>
+                  Planejadas, ainda não iniciadas
+                </span>
+                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10.5, padding: "1px 7px", borderRadius: 999, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>
+                  {sprintsPlanejadas.length}
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>{planejadasAbertas ? "Recolher ▴" : "Ver ▾"}</span>
+              </button>
+              {planejadasAbertas && (
+                <div style={{ padding: "0 28px 8px" }}>
+                  {sprintsPlanejadas.map((s) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: "#ffffff" }}>Sprint {s.numero}</span>
+                      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#8a948e" }}>
+                        {s.pontos_orcamento != null ? `${s.pontos_orcamento} pts orçados` : "sem orçamento"}
+                      </span>
+                      <DsButton
+                        variant="secondary"
+                        size="sm"
+                        style={{ marginLeft: "auto" }}
+                        onClick={async () => {
+                          const atualizado = await iniciarSprint(s.id);
+                          setSprints((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...atualizado } : x)));
+                        }}
+                      >
+                        Iniciar sprint
+                      </DsButton>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ABA: PAINEL */}
@@ -1481,95 +1457,126 @@ export default function ProjectDashboard() {
 
       {/* ABA: MÉTRICAS */}
       {activeTab === "metricas" && (
-        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} />
+        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} onGoToPlanejamento={() => setActiveTab("escopo")} />
       )}
 
       {/* ABA: TECNOLOGIAS */}
       {activeTab === "tecnologias" && <TechnologiesTab projectId={id} />}
-      {activeTab === "requisitos" && <RequisitosTab projectId={id} cargo={cargo} />}
-      {activeTab === "reunioes" && <ReunioesTab projectId={id} cargo={cargo} />}
 
       {/* ABA: DOCUMENTOS */}
       {activeTab === "documentos" && (
-        <>
-          {/* Sub-tabs */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "rgba(62,224,111,0.055)", borderRadius: 10, padding: 4, width: "fit-content" }}>
-            {(["cross_sprint", "por_sprint"] as const).map((sub) => (
-              <button
-                key={sub}
-                onClick={() => setDocSubTab(sub)}
-                style={{
-                  background: docSubTab === sub ? "#0d1711" : "transparent",
-                  color: docSubTab === sub ? "#f2f5f3" : "#8a948e",
-                  border: docSubTab === sub ? "1px solid rgba(62,224,111,0.2)" : "1px solid transparent",
-                  borderRadius: 7,
-                  padding: "6px 14px",
-                  fontSize: 13,
-                  fontWeight: docSubTab === sub ? 700 : 500,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                {sub === "cross_sprint" ? "Cross-sprint" : "Por sprint"}
-              </button>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div role="tablist" aria-label="Tipo de documento" style={{ ...dsCardStyle, boxShadow: "none", borderRadius: 12, display: "flex", padding: 4, alignSelf: "flex-start" }}>
+            {(["por_sprint", "cross_sprint"] as const).map((sub) => {
+              const ativo = docSubTab === sub;
+              return (
+                <button
+                  key={sub}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  onClick={() => setDocSubTab(sub)}
+                  style={{
+                    display: "flex", alignItems: "center", height: 34, padding: "0 16px", borderRadius: 9, border: "none",
+                    cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 600,
+                    background: ativo ? "rgba(62,224,111,0.12)" : "transparent",
+                    color: ativo ? "#3ee06f" : "#8a948e",
+                  }}
+                >
+                  {sub === "por_sprint" ? "Por sprint" : "Cross-sprint"}
+                </button>
+              );
+            })}
           </div>
+
+          {/* Sub-aba: Por sprint */}
+          {docSubTab === "por_sprint" && (
+            <>
+              <TutorialBanner heading="Documentos" steps={[
+                { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
+                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
+                { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
+                { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
+              ]} />
+              {docs.filter((d) => d.sprint_number != null).length === 0 ? (
+                <EmptyState>Nenhum documento por sprint ainda. Gere Planning, Review, Repasse ou Retrospectiva na aba Sprints.</EmptyState>
+              ) : (
+                [...sprints].sort((a, b) => b.numero - a.numero).map((s) => {
+                  const sprintDocs = docsBySprint[s.numero] ?? [];
+                  if (sprintDocs.length === 0) return null;
+                  return (
+                    <PanelCard key={s.id} label={`Sprint ${s.numero} · ${sprintDocs.length} ${sprintDocs.length === 1 ? "documento" : "documentos"}`}>
+                      {sprintDocs.map((doc) => renderDocRow(doc))}
+                    </PanelCard>
+                  );
+                })
+              )}
+            </>
+          )}
 
           {/* Sub-aba: Cross-sprint */}
           {docSubTab === "cross_sprint" && (
-            <section style={sectionStyle}>
-              <TutorialBanner heading="Documentos Cross-sprint" steps={[
-                { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro — não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
+            <PanelCard label="Cross-sprint">
+              <TutorialBanner heading="Documentos" steps={[
+                { title: "O que é Cross-sprint", body: "Documentos que cobrem o projeto inteiro: não estão ligados a uma sprint específica. São os entregáveis de documentação final para o cliente ou para novos membros da equipe." },
                 { title: "Ata de Reunião", body: "Faça upload de um PDF ou arquivo de ata de reunião (com o cliente, stakeholders, etc). O DocuData gera uma ata formatada com pauta, decisões e próximos passos. Útil para registrar reuniões fora do ciclo de sprint." },
                 { title: "Log de Decisões", body: "Compila automaticamente todas as decisões técnicas e de negócio registradas nas ingestões e commits do projeto. Ideal para onboarding de novos membros e auditoria." },
                 { title: "Onboarding", body: "Documento de integração para novos membros entrarem no projeto rapidamente: contexto do cliente, stack técnica, decisões tomadas, estado atual. Gerado a partir de todo o histórico de ingestões." },
-                { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final. Preenche o vazio de documentação que existe em muitos projetos de dados." },
+                { title: "Documentação Final", body: "Documento completo para entrega ao cliente ao final do projeto: visão geral, timeline de sprints, decisões arquiteturais, desafios superados e estado final." },
                 { title: "Observações adicionais", body: "O campo de observações permite incluir contexto extra que a IA deve considerar na geração. Use para orientações específicas, tom desejado, ou informações que não estão nos uploads." },
-                { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA — cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
-                { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada. O link abre diretamente no navegador." },
+                { title: "Doc manual", body: "Adicione qualquer documento sem custo de IA: cole o texto diretamente. Útil para atas já escritas, contratos, ou qualquer conteúdo que não precisa ser gerado." },
+                { title: "Google Docs", body: "Exporte qualquer documento gerado para o Google Docs com um clique. Requer que o projeto tenha uma conta Google configurada." },
               ]} />
-              <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 14px", lineHeight: 1.5 }}>
-                Documentos que olham o projeto como um todo.
-              </p>
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Observações adicionais <span style={{ fontWeight: 400, color: "#5d6661" }}>(opcional)</span></label>
-                <textarea
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: "#8a948e" }}>Documentos que olham o projeto como um todo.</p>
+              <DsField label="Observações adicionais · opcional" htmlFor="doc-observacoes">
+                <DsTextarea
+                  id="doc-observacoes"
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   placeholder="Contexto extra que deve ser considerado na geração."
-                  rows={2}
-                  style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
+                  rows={3}
                 />
+              </DsField>
+              <div className="ds-doctype-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => {
+                  const ultimo = docs.filter((d) => d.sprint_number == null && d.doc_type === key)
+                    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+                  return (
+                    <DocTypeCard
+                      key={key}
+                      meta={DOC_TYPES[key]}
+                      status={ultimo ? `Gerado em ${new Date(ultimo.created_at).toLocaleDateString("pt-BR")}` : "Não gerado"}
+                      selected={docTypeSel === key}
+                      onSelect={() => setDocTypeSel(docTypeSel === key ? null : key)}
+                    />
+                  );
+                })}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-                {(["ata_reuniao", "log_decisoes", "onboarding", "documentacao_final"] as DocTypeKey[]).map((key) => (
-                  <DocTypeCard
-                    key={key}
-                    meta={DOC_TYPES[key]}
-                    sprints={sprints}
-                    ingestions={ingestions}
-                    generating={generating}
-                    onGenerate={handleGenerate}
-                    onUploadAndGenerate={key === "ata_reuniao" ? handleAtaUpload : undefined}
-                  />
-                ))}
+              {docTypeSel && (
+                <DocTypeGeneratePanel
+                  key={docTypeSel}
+                  meta={DOC_TYPES[docTypeSel]}
+                  sprints={sprints}
+                  ingestions={ingestions}
+                  generating={generating}
+                  onGenerate={handleGenerate}
+                  onUploadAndGenerate={docTypeSel === "ata_reuniao" ? handleAtaUpload : undefined}
+                />
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <DsButton variant="secondary" onClick={() => setManualModal({ sprintNumero: null })}>+ Adicionar documento manual</DsButton>
+                <span style={{ fontSize: 12.5, color: "#8a948e" }}>Sem custo de IA.</span>
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <button onClick={() => setManualModal({ sprintNumero: null })} style={btnSecondary}>
-                  + Adicionar documento manual
-                </button>
-                <span style={{ marginLeft: 10, fontSize: 12, color: "#8a948e" }}>Sem custo de IA.</span>
-              </div>
-              {generating && <p style={{ color: "#8a948e", fontSize: 14 }}>Gerando documento com IA...</p>}
-              {generateError && <p style={{ color: "#ff6b6b", fontSize: 14 }}>{generateError}</p>}
+              {generating && <p role="status" style={{ margin: 0, color: "#8a948e", fontSize: 14 }}>Gerando documento com IA...</p>}
+              {generateError && <ErrorNotice>{generateError}</ErrorNotice>}
               {generatedDoc && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: "#8a948e" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#ffffff" }}>
                       {docTypeLabel(generatedDoc.doc_type)}
-                      {generatedDoc.sprint_number ? <span style={{ ...tagStyle, marginLeft: 8 }}>Sprint {generatedDoc.sprint_number}</span> : null}
+                      {generatedDoc.sprint_number ? <span style={{ marginLeft: 10, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#8a948e" }}>Sprint {generatedDoc.sprint_number}</span> : null}
                     </span>
-                    <button onClick={() => navigator.clipboard.writeText(generatedDoc.content)} style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}>Copiar markdown</button>
+                    <DsButton variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(generatedDoc.content)}>Copiar markdown</DsButton>
                   </div>
                   <div style={markdownContainer}><ReactMarkdown>{generatedDoc.content}</ReactMarkdown></div>
                 </div>
@@ -1580,76 +1587,18 @@ export default function ProjectDashboard() {
                 const crossSprintDocs = docs.filter((d) => d.sprint_number == null);
                 if (crossSprintDocs.length === 0) return null;
                 return (
-                  <div style={{ marginTop: 20 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#8a948e" }}>Histórico</span>
-                      <div style={{ flex: 1, height: 1, background: "rgba(62,224,111,0.055)" }} />
-                      <span style={{ fontSize: 12, color: "#8a948e" }}>{crossSprintDocs.length} {crossSprintDocs.length === 1 ? "doc" : "docs"}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {crossSprintDocs.map((doc) => renderDocRow(doc))}
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#8a948e" }}>
+                      Histórico · {crossSprintDocs.length} {crossSprintDocs.length === 1 ? "documento" : "documentos"}
+                    </span>
+                    {crossSprintDocs.map((doc) => renderDocRow(doc))}
                   </div>
                 );
               })()}
-            </section>
+            </PanelCard>
           )}
-
-          {/* Sub-aba: Por sprint */}
-          {docSubTab === "por_sprint" && (
-            <>
-              <TutorialBanner heading="Documentos Por sprint" steps={[
-                { title: "Repasse Semanal", body: "Gerado a partir das dailys e ingestões da sprint. Resume o que foi feito na semana, pontos em andamento e próximos passos. Gere a partir do botão na sprint ou pela aba Sprints." },
-                { title: "Retrospectiva", body: "Gerado ao final da sprint com base em planning, dailys, review, uploads e commits. Inclui: O que foi feito, O que funcionou, O que não funcionou e aprendizados. Gere pelo botão 'Retro' na sprint." },
-                { title: "Mover documento de sprint", body: "Se um documento foi gerado na sprint errada, use 'Mover sprint' para corrigir sem precisar regerar." },
-                { title: "Copiar e exportar", body: "Todo documento gerado pode ser copiado como markdown (para colar em qualquer ferramenta) ou exportado diretamente para o Google Docs." },
-              ]} />
-              {docs.filter((d) => d.sprint_number != null).length === 0 ? (
-                <section style={sectionStyle}>
-                  <p style={{ color: "#8a948e", fontSize: 14, margin: 0 }}>
-                    Nenhum documento por sprint ainda. Gere docs na aba <strong>Sprints</strong> (Repasse/Retrospectiva) ou aqui em <strong>Por sprint</strong>.
-                  </p>
-                </section>
-              ) : (
-                sprints.map((s) => {
-                  const sprintDocs = docsBySprint[s.numero] ?? [];
-                  if (sprintDocs.length === 0) return null;
-                  return (
-                    <section key={s.id} style={sectionStyle}>
-                      <h3 style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                        color: "#8a948e",
-                        margin: 0,
-                        marginBottom: 12,
-                      }}>
-                        Sprint {s.numero}
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#3ee06f",
-                          marginLeft: 8,
-                          background: "rgba(62,224,111,0.12)",
-                          borderRadius: 4,
-                          padding: "2px 7px",
-                        }}>
-                          {sprintDocs.length}
-                        </span>
-                      </h3>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {sprintDocs.map((doc) => renderDocRow(doc))}
-                      </div>
-                    </section>
-                  );
-                })
-              )}
-            </>
-          )}
-        </>
+        </div>
       )}
-
 
       {/* ABA: CONFIG */}
       {activeTab === "config" && (
@@ -1803,11 +1752,6 @@ export default function ProjectDashboard() {
                   Altera a lista e o destino das próximas exportações.
                 </span>
               </div>
-              {project.subarea === "produto" ? (
-                <span style={{ fontSize: 12.5, color: "#8a948e", maxWidth: 360 }}>
-                  Projetos de Produto saem da subárea pelo botão &quot;Encaminhar para Dados ou Dev&quot;, no topo da página.
-                </span>
-              ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 1 auto", flexWrap: "wrap" }}>
                   <label
                     htmlFor="project-subarea"
@@ -1842,7 +1786,6 @@ export default function ProjectDashboard() {
                     {savingSubarea ? "Salvando..." : "Salvar"}
                   </button>
                 </div>
-              )}
             </div>
             {subareaMsg && (
               <p role="status" style={{ margin: "8px 0 0", color: subareaMsg.ok ? "#3ee06f" : "#ff6b6b", fontSize: 12 }}>
@@ -2029,246 +1972,79 @@ export default function ProjectDashboard() {
 // ---------- styles ----------
 
 const sectionStyle: React.CSSProperties = {
-  background: "#0d1711",
+  background: "linear-gradient(180deg, #0e1913 0%, #0a120d 100%)",
   border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 14,
-  padding: "20px 22px",
-  marginBottom: 14,
+  borderRadius: 16,
+  boxShadow: "inset 0 1px 0 rgba(62,224,111,0.12), 0 12px 32px rgba(0,0,0,0.45)",
+  padding: "24px 26px",
+  marginBottom: 16,
 };
 const sectionTitle: React.CSSProperties = {
+  fontFamily: "'Geist Mono', ui-monospace, monospace",
   fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.1em",
+  fontWeight: 500,
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
   marginBottom: 16,
   color: "#8a948e",
 };
 const labelStyle: React.CSSProperties = {
   display: "block",
+  fontFamily: "'Geist Mono', ui-monospace, monospace",
   fontSize: 11,
-  fontWeight: 700,
-  marginBottom: 6,
+  fontWeight: 500,
+  marginBottom: 8,
   color: "#8a948e",
-  letterSpacing: "0.06em",
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
 };
 const inputStyle: React.CSSProperties = {
-  padding: "9px 12px",
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
+  padding: "10px 14px",
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.17)",
+  borderRadius: 10,
   fontSize: 14,
   width: "100%",
   outline: "none",
   color: "#f2f5f3",
   boxSizing: "border-box",
+  fontFamily: "inherit",
 };
 const btnPrimary: React.CSSProperties = {
   background: "#3ee06f",
   color: "#04120a",
-  border: "none",
-  borderRadius: 8,
-  padding: "9px 18px",
-  fontSize: 13,
-  fontWeight: 700,
+  border: "1px solid #3ee06f",
+  borderRadius: 10,
+  height: 38,
+  padding: "0 16px",
+  fontSize: 13.5,
+  fontWeight: 600,
   cursor: "pointer",
   whiteSpace: "nowrap",
+  boxShadow: "0 0 24px rgba(62,224,111,0.25)",
+  fontFamily: "inherit",
 };
-function DocRow({
-  doc,
-  expandedDocId,
-  exportingDocId,
-  exportError,
-  onToggleExpand,
-  onExport,
-  onDelete,
-  onMove,
-  onSaveContent,
-  ingestionCard,
-  tagStyle,
-  btnSecondary: btnSec,
-  btnDanger: btnDng,
-  markdownContainer: mdContainer,
-}: {
-  doc: GeneratedDoc;
-  expandedDocId: string | null;
-  exportingDocId: string | null;
-  exportError: Record<string, string>;
-  onToggleExpand: (id: string) => void;
-  onExport: (id: string) => void;
-  onDelete: (id: string) => void;
-  onMove: (id: string, sprint: number | null) => void;
-  onSaveContent: (id: string, content: string) => Promise<void>;
-  ingestionCard: React.CSSProperties;
-  tagStyle: React.CSSProperties;
-  btnSecondary: React.CSSProperties;
-  btnDanger: React.CSSProperties;
-  markdownContainer: React.CSSProperties;
-}) {
-  const [movingDoc, setMovingDoc] = useState(false);
-  const [moveToSprint, setMoveToSprint] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [editErr, setEditErr] = useState("");
-  return (
-    <div style={ingestionCard}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: "#f2f5f3" }}>{docTypeLabel(doc.doc_type)}</span>
-          {doc.sprint_number && <span style={tagStyle}>Sprint {doc.sprint_number}</span>}
-          <span style={{ color: "#8a948e", fontSize: 12 }}>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            onClick={() => {
-              const closing = expandedDocId === doc.id;
-              onToggleExpand(doc.id);
-              if (closing) { setEditing(false); setEditErr(""); }
-            }}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
-          >
-            {expandedDocId === doc.id ? "Fechar" : "Ver"}
-          </button>
-          <button onClick={() => navigator.clipboard.writeText(doc.content)} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
-            Copiar
-          </button>
-          <button
-            onClick={() => {
-              if (expandedDocId !== doc.id) onToggleExpand(doc.id);
-              setEditing(true);
-              setDraft(doc.content);
-              setEditErr("");
-            }}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}
-          >
-            Editar
-          </button>
-          <button
-            onClick={() => onExport(doc.id)}
-            disabled={exportingDocId === doc.id}
-            style={{ ...btnSec, fontSize: 12, padding: "6px 12px", opacity: exportingDocId === doc.id ? 0.6 : 1 }}
-          >
-            {exportingDocId === doc.id ? "Exportando…" : "Google Docs"}
-          </button>
-          <button onClick={() => { setMovingDoc(true); setMoveToSprint(""); }} style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }}>
-            Mover sprint
-          </button>
-          <button onClick={() => { if (confirm("Excluir este documento?")) onDelete(doc.id); }} style={{ ...btnDng, fontSize: 12, padding: "6px 12px" }}>
-            Excluir
-          </button>
-          {exportError[doc.id] && <span style={{ fontSize: 11, color: "#ff6b6b" }}>{exportError[doc.id]}</span>}
-        </div>
-      </div>
-      {movingDoc && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
-          <span style={{ fontSize: 13, color: "#8a948e" }}>Mover para sprint:</span>
-          <input
-            type="number"
-            min={1}
-            value={moveToSprint}
-            onChange={(e) => setMoveToSprint(e.target.value)}
-            style={{ width: 70, padding: "5px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, fontSize: 13 }}
-            autoFocus
-          />
-          <button
-            style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}
-            onClick={() => { const n = parseInt(moveToSprint); if (!isNaN(n) && n > 0) { onMove(doc.id, n); setMovingDoc(false); } }}
-          >
-            Confirmar
-          </button>
-          <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} onClick={() => setMovingDoc(false)}>Cancelar</button>
-        </div>
-      )}
-      {expandedDocId === doc.id && editing && (
-        <div style={{ marginTop: 14 }}>
-          <textarea
-            style={{
-              width: "100%",
-              minHeight: 260,
-              border: "1px solid rgba(62,224,111,0.2)",
-              borderRadius: 8,
-              padding: "12px 14px",
-              fontSize: 13,
-              fontFamily: "monospace",
-              lineHeight: 1.6,
-              boxSizing: "border-box",
-              resize: "vertical",
-            }}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={saving}
-            autoFocus
-          />
-          {editErr && <p style={{ color: "#ff6b6b", fontSize: 12, marginTop: 6 }}>{editErr}</p>}
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              style={{ ...btnSec, fontSize: 12, padding: "6px 14px", background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)", opacity: saving ? 0.6 : 1 }}
-              disabled={saving}
-              onClick={async () => {
-                if (!draft.trim()) { setEditErr("O documento não pode ficar vazio."); return; }
-                setSaving(true);
-                setEditErr("");
-                try {
-                  await onSaveContent(doc.id, draft);
-                  setEditing(false);
-                } catch (e) {
-                  setEditErr(e instanceof Error ? e.message : "Erro ao salvar edição.");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              {saving ? "Salvando…" : "Salvar"}
-            </button>
-            <button style={{ ...btnSec, fontSize: 12, padding: "6px 12px" }} disabled={saving} onClick={() => { setEditing(false); setEditErr(""); }}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-      {expandedDocId === doc.id && !editing && (
-        <div style={{ ...mdContainer, marginTop: 14 }}>
-          <ReactMarkdown>{doc.content}</ReactMarkdown>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const btnSecondary: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#c3cbc6",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
+  background: "rgba(255,255,255,0.04)",
+  color: "#f2f5f3",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 10,
   padding: "8px 14px",
   fontSize: 13,
-  fontWeight: 500,
+  fontWeight: 600,
   cursor: "pointer",
+  fontFamily: "inherit",
 };
 const btnDanger: React.CSSProperties = {
-  background: "rgba(255,107,107,0.10)",
+  background: "transparent",
   color: "#ff6b6b",
   border: "1px solid rgba(255,107,107,0.30)",
-  borderRadius: 8,
+  borderRadius: 10,
   padding: "8px 14px",
   fontSize: 13,
-  fontWeight: 500,
-  cursor: "pointer",
-};
-const ingestionCard: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  padding: "12px 16px",
-};
-const tagStyle: React.CSSProperties = {
-  background: "rgba(62,224,111,0.12)",
-  color: "#3ee06f",
-  borderRadius: 4,
-  padding: "2px 8px",
-  fontSize: 11,
   fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
 };
 const markdownContainer: React.CSSProperties = {
   background: "rgba(62,224,111,0.055)",
@@ -2279,10 +2055,10 @@ const markdownContainer: React.CSSProperties = {
   color: "#c3cbc6",
 };
 const btnDelivered: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#8a948e",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
+  background: "rgba(255,255,255,0.04)",
+  color: "#f2f5f3",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 10,
   padding: "9px 16px",
   fontSize: 13,
   fontWeight: 500,
@@ -2292,10 +2068,10 @@ const btnDeliveredActive: React.CSSProperties = {
   background: "rgba(62,224,111,0.12)",
   color: "#3ee06f",
   border: "1px solid rgba(62,224,111,0.35)",
-  borderRadius: 8,
+  borderRadius: 10,
   padding: "9px 16px",
   fontSize: 13,
-  fontWeight: 700,
+  fontWeight: 600,
   cursor: "pointer",
 };
 const alertBox: React.CSSProperties = {

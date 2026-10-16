@@ -2,21 +2,11 @@
 
 import { useEffect, useState } from "react";
 import TutorialBanner from "./TutorialBanner";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine,
-} from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { ds, labelStyle } from "../lib/ds";
+import { Button, Chip } from "./ds";
+import { BigNumber, PanelCard, fmtNum } from "./painel/PanelCard";
+import { BarGroups, ChartEmpty, ChartLegend } from "./metricas/Charts";
 import {
   getMetricasSpi,
   getMetricasThroughput,
@@ -39,35 +29,9 @@ import {
 interface Props {
   projectId: string;
   modoTrabalho?: "ATRIBUICAO" | "PULL";
+  /** Leva à aba Planejamento (orçamento de pontos), usado no estado vazio do SPI. */
+  onGoToPlanejamento?: () => void;
 }
-
-const section: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  marginBottom: 20,
-};
-
-const title: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: "#f2f5f3",
-  marginBottom: 4,
-};
-
-const subtitle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#8a948e",
-  marginBottom: 16,
-};
-
-const empty: React.CSSProperties = {
-  textAlign: "center",
-  padding: "32px 0",
-  color: "#8a948e",
-  fontSize: 13,
-};
 
 const TOOLTIPS: Record<string, string> = {
   spi: "SPI = pontos concluídos ÷ pontos previstos na sprint. 1.0 = entregou exatamente o planejado. ≥0.9 = saudável (verde) · 0.7–0.9 = atenção (amarelo) · <0.7 = crítico (vermelho). Requer baseline (pontos previstos) definido na sprint.",
@@ -81,20 +45,25 @@ const TOOLTIPS: Record<string, string> = {
 function InfoTooltip({ id }: { id: string }) {
   const [show, setShow] = useState(false);
   return (
-    <span style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
-      <span
+    <span style={{ position: "relative", display: "inline-flex", verticalAlign: "middle" }}>
+      <button
+        type="button"
+        aria-label="O que significa"
+        aria-expanded={show}
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
-        style={{ cursor: "default", fontSize: 12, color: "#8a948e", fontWeight: 700, border: "1px solid rgba(62,224,111,0.2)", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        style={{ cursor: "help", fontSize: 10, color: ds.muted, fontWeight: 700, background: "none", border: `1px solid ${ds.borderStrong}`, borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
       >
         i
-      </span>
+      </button>
       {show && (
-        <span style={{
-          position: "absolute", left: 22, top: -4, zIndex: 100,
-          background: "#3ee06f", color: "#04120a", fontSize: 12, lineHeight: 1.5,
-          borderRadius: 8, padding: "8px 12px", width: 280, whiteSpace: "normal",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+        <span role="tooltip" style={{
+          position: "absolute", right: 0, top: 22, zIndex: 100,
+          background: ds.cardTop, color: ds.text2, border: `1px solid ${ds.greenLine}`, fontSize: 12, lineHeight: 1.55,
+          borderRadius: 10, padding: "10px 12px", width: 280, whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontFamily: ds.fontSans,
+          boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
         }}>
           {TOOLTIPS[id]}
         </span>
@@ -104,10 +73,10 @@ function InfoTooltip({ id }: { id: string }) {
 }
 
 function spiColor(spi: number | null): string {
-  if (spi === null) return "#94a3b8";
-  if (spi >= 0.9) return "#166534";
-  if (spi >= 0.7) return "#92400e";
-  return "#dc2626";
+  if (spi === null) return ds.muted;
+  if (spi >= 0.9) return ds.green;
+  if (spi >= 0.7) return ds.amber;
+  return ds.red;
 }
 
 function _cfdLabel(v: string): string {
@@ -117,7 +86,7 @@ function _cfdLabel(v: string): string {
   return "Planejado";
 }
 
-export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: Props) {
+export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", onGoToPlanejamento }: Props) {
   const labelPontosVinculados = modoTrabalho === "PULL" ? "Puxados" : "Atribuídos";
   const [spi, setSpi] = useState<SpiPoint[]>([]);
   const [throughput, setThroughput] = useState<ThroughputPoint[]>([]);
@@ -159,8 +128,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
     getComparacaoModos(projectId).then(setComparacaoModos).catch(() => setComparacaoModos([]));
   }, [projectId]);
 
-  if (loading) return <p style={{ color: "#8a948e", fontSize: 13 }}>Carregando métricas...</p>;
-  if (err) return <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>;
+  if (loading) return <p role="status" style={{ color: ds.muted, fontSize: 13, margin: 0 }}>Carregando métricas...</p>;
+  if (err) return <p role="alert" style={{ color: ds.red, fontSize: 13, margin: 0 }}>{err}</p>;
 
   const tutorialSteps = [
     { title: "Pontos por task", body: "Todo projeto vale 100 pontos, fixo. Esses 100 são distribuídos entre as sprints na aba Planejamento, e os pontos de cada sprint entre as tasks dela. Se você informou o valor do projeto em reais, cada ponto vale um centésimo desse valor, e o faturamento previsto de cada sprint sai daí." },
@@ -186,234 +155,195 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
     ? Math.round(cycleTime.reduce((s, c) => s + c.cycle_time_horas, 0) / cycleTime.length)
     : null;
 
+  const chartGrey = ds.chartGrey;
+  const fmtHoras = (h: number) => (h < 24 ? `${fmtNum(h)}h` : `${Math.round(h / 24)}d`);
+  const spiComBaseline = spi.filter((s) => s.pontos_previstos !== null);
+  const ultimoSpi = [...spiComBaseline].reverse().find((s) => s.spi !== null)?.spi ?? null;
+  const lentas = [...cycleTime].sort((a, b) => b.cycle_time_horas - a.cycle_time_horas).slice(0, 5);
+  const corLenta = (h: number) => (h >= 120 ? ds.red : h >= 72 ? ds.amber : ds.text2);
+
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <TutorialBanner heading="Métricas" steps={tutorialSteps} />
-      {/* SPI por sprint */}
-      <div style={section}>
-        <p style={title}>SPI — Schedule Performance Index <InfoTooltip id="spi" /></p>
-        {spi.filter((s) => s.pontos_previstos !== null).length === 0 ? (
-          <p style={empty}>Nenhuma sprint com baseline definido ainda.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={spi} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="sprint_numero" tickFormatter={(v) => `S${v}`} tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} domain={[0, "auto"]} />
-              <Tooltip
-                formatter={(v, name) => [
-                  name === "spi" ? (typeof v === "number" ? v.toFixed(2) : v) : v,
-                  name === "spi" ? "SPI" : name === "pontos_realizados" ? "Realizados" : "Previstos",
+
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 16 }}>
+        <PanelCard label="SPI · Schedule Performance Index" action={<InfoTooltip id="spi" />}>
+          {spiComBaseline.length === 0 ? (
+            <ChartEmpty action={onGoToPlanejamento && <Button variant="secondary" onClick={onGoToPlanejamento}>Definir orçamento de pontos</Button>}>
+              Nenhuma sprint com baseline definido ainda.
+            </ChartEmpty>
+          ) : (
+            <>
+              {ultimoSpi !== null && <BigNumber value={fmtNum(ultimoSpi)} unit="SPI da última sprint" color={spiColor(ultimoSpi)} />}
+              <BarGroups
+                label="Pontos previstos e realizados por sprint"
+                categories={spiComBaseline.map((s) => `S${s.sprint_numero}`)}
+                series={[
+                  { key: "prev", label: "Previstos", color: chartGrey, values: spiComBaseline.map((s) => s.pontos_previstos ?? 0) },
+                  { key: "real", label: "Realizados", color: ds.green, values: spiComBaseline.map((s) => s.pontos_realizados ?? 0) },
                 ]}
-                labelFormatter={(l) => `Sprint ${l}`}
               />
-              <Legend formatter={(v) => v === "pontos_previstos" ? "Previstos" : v === "pontos_realizados" ? "Realizados" : "SPI"} />
-              <ReferenceLine y={0.9} stroke="#166534" strokeDasharray="4 2" label={{ value: "0.9", position: "right", fontSize: 11, fill: "#3ee06f" }} />
-              <ReferenceLine y={0.7} stroke="#dc2626" strokeDasharray="4 2" label={{ value: "0.7", position: "right", fontSize: 11, fill: "#ff6b6b" }} />
-              <Bar dataKey="pontos_previstos" fill="#64748b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+            </>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Chip tone="green">≥ 0,9 saudável</Chip>
+            <Chip tone="amber">0,7 a 0,9 atenção</Chip>
+            <Chip tone="red">&lt; 0,7 crítico</Chip>
+          </div>
+        </PanelCard>
+
+        <PanelCard
+          label="Throughput · tasks concluídas por sprint"
+          action={<ChartLegend items={[{ label: "Concluídas", color: ds.green }, { label: "Total", color: chartGrey }]} />}
+        >
+          {throughput.filter((t) => t.tasks_total > 0).length === 0 ? (
+            <ChartEmpty>Nenhuma task registrada ainda.</ChartEmpty>
+          ) : (
+            <BarGroups
+              label="Tasks totais e concluídas por sprint"
+              categories={throughput.map((t) => `S${t.sprint_numero}`)}
+              series={[
+                { key: "total", label: "Total", color: chartGrey, values: throughput.map((t) => t.tasks_total) },
+                { key: "conc", label: "Concluídas", color: ds.green, values: throughput.map((t) => t.tasks_concluidas) },
+              ]}
+            />
+          )}
+        </PanelCard>
       </div>
 
-      {/* Throughput */}
-      <div style={section}>
-        <p style={title}>Throughput — Tasks concluídas por sprint <InfoTooltip id="throughput" /></p>
-        {throughput.filter((t) => t.tasks_total > 0).length === 0 ? (
-          <p style={empty}>Nenhuma task registrada ainda.</p>
+      <PanelCard label="Cycle time · distribuição" action={<InfoTooltip id="cycletime" />}>
+        {cycleTime.length === 0 ? (
+          <ChartEmpty>Nenhuma task concluída com histórico de transições ainda.</ChartEmpty>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={throughput} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="sprint_numero" tickFormatter={(v) => `S${v}`} tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip labelFormatter={(l) => `Sprint ${l}`} formatter={(v, n) => [v, n === "tasks_concluidas" ? "Concluídas" : n === "tasks_total" ? "Total" : "Pontos"]} />
-              <Legend formatter={(v) => v === "tasks_total" ? "Total" : v === "tasks_concluidas" ? "Concluídas" : "Pontos concluídos"} />
-              <Bar dataKey="tasks_total" fill="#64748b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="tasks_concluidas" fill="#166534" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Cycle-time */}
-      <div style={section}>
-        <p style={title}>Cycle-time — Distribuição <InfoTooltip id="cycletime" /></p>
-        <p style={subtitle}>
-          Tempo em em_andamento antes de concluir.
-          {avgCT !== null && ` Média: ${avgCT < 24 ? `${avgCT}h` : `${Math.round(avgCT / 24)}d`} · ${cycleTime.length} task${cycleTime.length !== 1 ? "s" : ""} com histórico`}
-          {ctStats?.p50_horas != null && ` · p50: ${ctStats.p50_horas}h`}
-          {ctStats?.p85_horas != null && ` · p85: ${ctStats.p85_horas}h`}
-        </p>
-        {ctBuckets.length === 0 ? (
-          <p style={empty}>Nenhuma task concluída com histórico de transições ainda.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={ctBuckets} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="faixa" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <Tooltip formatter={(v) => [v, "Tasks"]} />
-              <Bar dataKey="tasks" fill="#6366f1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-
-        {cycleTime.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#c3cbc6", marginBottom: 8 }}>Top tasks mais lentas</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {[...cycleTime]
-                .sort((a, b) => b.cycle_time_horas - a.cycle_time_horas)
-                .slice(0, 5)
-                .map((ct, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12 }}>
-                    <span style={{ color: "#8a948e", minWidth: 24 }}>#{i + 1}</span>
-                    <span style={{ flex: 1, color: "#f2f5f3" }}>{ct.task_titulo}</span>
-                    {ct.operacional_nome && <span style={{ color: "#b197fc", fontSize: 11 }}>{ct.operacional_nome}</span>}
-                    <span style={{ fontWeight: 700, color: ct.cycle_time_horas > 72 ? "#ff6b6b" : "#c3cbc6", minWidth: 52, textAlign: "right" }}>
-                      {ct.cycle_time_horas < 24 ? `${ct.cycle_time_horas}h` : `${Math.round(ct.cycle_time_horas / 24)}d`}
-                    </span>
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {avgCT !== null && <Chip>Média {fmtHoras(avgCT)}</Chip>}
+              {ctStats?.p50_horas != null && <Chip>p50 {fmtNum(ctStats.p50_horas)}h</Chip>}
+              {ctStats?.p85_horas != null && <Chip>p85 {fmtNum(ctStats.p85_horas)}h</Chip>}
+              <Chip>{cycleTime.length} task{cycleTime.length !== 1 ? "s" : ""} com histórico</Chip>
+            </div>
+            <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 36, alignItems: "start", paddingTop: 10 }}>
+              <BarGroups
+                label="Quantidade de tasks por faixa de cycle time"
+                categories={ctBuckets.map((b) => b.faixa)}
+                series={[{ key: "tasks", label: "Tasks", color: ds.green, values: ctBuckets.map((b) => b.tasks) }]}
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: ds.white, paddingBottom: 8 }}>Tasks mais lentas</span>
+                {lentas.map((ct, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "28px minmax(0,1fr) auto 36px", gap: 10, alignItems: "center", padding: "9px 0", borderTop: `1px solid ${ds.border}`, fontSize: 13 }}>
+                    <span style={{ fontFamily: ds.fontMono, color: ds.dim }}>#{i + 1}</span>
+                    <span style={{ color: ds.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ct.task_titulo}</span>
+                    <span style={{ color: ds.violet, fontSize: 12 }}>{ct.operacional_nome ?? ""}</span>
+                    <span style={{ fontFamily: ds.fontMono, fontWeight: 600, color: corLenta(ct.cycle_time_horas), textAlign: "right" }}>{fmtHoras(ct.cycle_time_horas)}</span>
                   </div>
                 ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
-      </div>
+      </PanelCard>
 
-      {/* CFD */}
-      <div style={section}>
-        <p style={title}>CFD — Distribuição de tasks por coluna e sprint <InfoTooltip id="cfd" /></p>
-        {cfd.length === 0 ? (
-          <p style={empty}>Nenhuma sprint com tasks ainda.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={cfd} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="sprint_numero" tickFormatter={(v) => `S${v}`} tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip labelFormatter={(l) => `Sprint ${l}`} formatter={(v, n) => [v, _cfdLabel(String(n))]} />
-              <Legend formatter={(v) => _cfdLabel(v)} />
-              <Area type="monotone" dataKey="concluida" stackId="1" stroke="#166534" fill="#dcfce7" />
-              <Area type="monotone" dataKey="pendente_aprovacao" stackId="1" stroke="#5b21b6" fill="#ede9fe" />
-              <Area type="monotone" dataKey="em_andamento" stackId="1" stroke="#92400e" fill="#fef9c3" />
-              <Area type="monotone" dataKey="planejado" stackId="1" stroke="#374151" fill="#f1f5f9" />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <PanelCard label="CFD · tasks por coluna e sprint" action={<InfoTooltip id="cfd" />}>
+          {cfd.length === 0 ? (
+            <ChartEmpty>Nenhuma sprint com tasks ainda.</ChartEmpty>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={190}>
+                <AreaChart data={cfd} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="sprint_numero" tickFormatter={(v) => `S${v}`} tick={{ fontSize: 11.5, fill: ds.muted, fontFamily: ds.fontMono }} axisLine={{ stroke: ds.borderStrong }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10.5, fill: ds.dim, fontFamily: ds.fontMono }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ background: ds.cardTop, border: `1px solid ${ds.greenLine}`, borderRadius: 10, color: ds.text, fontSize: 12.5 }}
+                    labelStyle={{ color: ds.text2 }}
+                    labelFormatter={(l) => `Sprint ${l}`}
+                    formatter={(v, n) => [v, _cfdLabel(String(n))]}
+                  />
+                  <Area type="monotone" dataKey="concluida" stackId="1" stroke={ds.green} fill="rgba(62,224,111,0.20)" />
+                  <Area type="monotone" dataKey="pendente_aprovacao" stackId="1" stroke={ds.violet} fill="rgba(177,151,252,0.16)" />
+                  <Area type="monotone" dataKey="em_andamento" stackId="1" stroke={ds.amber} fill="rgba(242,193,78,0.16)" />
+                  <Area type="monotone" dataKey="planejado" stackId="1" stroke={chartGrey} fill="rgba(74,85,80,0.25)" />
+                </AreaChart>
+              </ResponsiveContainer>
+              <ChartLegend items={[
+                { label: "Concluída", color: ds.green },
+                { label: "Em andamento", color: ds.amber },
+                { label: "Pendente de aprovação", color: ds.violet },
+                { label: "Planejado", color: chartGrey },
+              ]} />
+            </>
+          )}
+        </PanelCard>
 
-      {/* Performance por operacional (SPI estimado) */}
-      <div style={section}>
-        <p style={title}>SPI por operacional (estimado) <InfoTooltip id="perfop" /></p>
-        {perfOp.length === 0 ? (
-          <p style={empty}>Nenhum operacional com tasks {modoTrabalho === "PULL" ? "puxadas" : "atribuídas"} ainda.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={perfOp} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="operacional_nome" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} domain={[0, "auto"]} />
-              <Tooltip
-                formatter={(v, name) => [
-                  v,
-                  name === "pontos_atribuidos" ? labelPontosVinculados : name === "pontos_realizados" ? "Realizados" : name,
+        <PanelCard label="SPI por operacional · estimado" action={<InfoTooltip id="perfop" />}>
+          {perfOp.length === 0 ? (
+            <ChartEmpty>Nenhum operacional com tasks {modoTrabalho === "PULL" ? "puxadas" : "atribuídas"} ainda.</ChartEmpty>
+          ) : (
+            <>
+              <BarGroups
+                label={`Pontos ${labelPontosVinculados.toLowerCase()} e realizados por operacional`}
+                categories={perfOp.map((p) => p.operacional_nome)}
+                series={[
+                  { key: "vinc", label: labelPontosVinculados, color: chartGrey, values: perfOp.map((p) => p.pontos_atribuidos) },
+                  { key: "real", label: "Realizados", color: ds.green, values: perfOp.map((p) => p.pontos_realizados) },
                 ]}
               />
-              <Legend formatter={(v) => v === "pontos_atribuidos" ? labelPontosVinculados : "Realizados"} />
-              <Bar dataKey="pontos_atribuidos" fill="#64748b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pontos_realizados" fill="#0f172a" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+              <ChartLegend items={[{ label: labelPontosVinculados, color: chartGrey }, { label: "Realizados", color: ds.green }]} />
+            </>
+          )}
+        </PanelCard>
       </div>
 
-      {/* SPI travado por operacional */}
-      <div style={section}>
-        <p style={title}>Entrega por pessoa <InfoTooltip id="spievol" /></p>
-        <p style={subtitle}>
-          Dado consolidado nos fechamentos de sprint. Use na conversa de feedback.
+      <PanelCard label="Entrega por pessoa" action={<Chip tone="amber">Leitura restrita a líderes e gerentes</Chip>}>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: ds.muted }}>
+          Dado consolidado nos fechamentos de sprint. Use na conversa de feedback. <InfoTooltip id="spievol" />
         </p>
         {spiPorPessoa.length === 0 ? (
-          <p style={empty}>Nenhum operacional cadastrado neste projeto.</p>
+          <ChartEmpty>Nenhum operacional cadastrado neste projeto.</ChartEmpty>
         ) : (
-          <div style={{ overflowX: "auto", marginTop: 12 }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={thSt}>Pessoa</th>
-                  <th style={thSt}>Entrega</th>
-                  <th style={thSt}>Sprints avaliadas</th>
-                  <th style={thSt}>Pontos perdidos por atraso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {spiPorPessoa.map((op) => (
-                  <tr key={op.operacional_id}>
-                    <td style={tdSt}>{op.nome}</td>
-                    <td
-                      style={{ ...tdSt, fontWeight: 700, color: op.spi === null ? "#8a948e" : spiColor(op.spi / 100) }}
-                      title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint — score calculado com o restante das dimensões (avaliação do gerente, autonomia)" : undefined}
-                    >
-                      {op.spi === null ? "—" : op.spi}
-                    </td>
-                    <td style={tdSt}>{op.sprints_avaliadas}</td>
-                    <td style={{ ...tdSt, color: op.pontos_penalizados > 0 ? "#ff6b6b" : "#8a948e" }}>
-                      {op.pontos_penalizados || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div role="table" style={{ display: "flex", flexDirection: "column" }}>
+            <div role="row" style={{ display: "grid", gridTemplateColumns: "1.3fr 1.4fr 1fr 1.2fr", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${ds.border}` }}>
+              {["Pessoa", "Entrega", "Sprints avaliadas", "Pontos perdidos por atraso"].map((c) => <span key={c} role="columnheader" style={labelStyle}>{c}</span>)}
+            </div>
+            {spiPorPessoa.map((op, i) => {
+              const cor = op.spi === null ? ds.muted : spiColor(op.spi / 100);
+              return (
+                <div key={op.operacional_id} role="row" style={{ display: "grid", gridTemplateColumns: "1.3fr 1.4fr 1fr 1.2fr", gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none", fontSize: 14, color: ds.text2 }}>
+                  <span role="cell">{op.nome}</span>
+                  <span role="cell" style={{ display: "flex", alignItems: "center", gap: 10 }} title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint: score calculado com o restante das dimensões (avaliação do gerente, autonomia)" : undefined}>
+                    <span style={{ fontFamily: ds.fontMono, fontWeight: 600, color: cor, width: 52 }}>{op.spi === null ? "—" : fmtNum(op.spi)}</span>
+                    {op.spi !== null && (
+                      <span aria-hidden="true" style={{ flex: 1, maxWidth: 140, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.07)", overflow: "hidden", display: "block" }}>
+                        <span style={{ display: "block", width: `${Math.min(100, op.spi)}%`, height: "100%", background: cor }} />
+                      </span>
+                    )}
+                  </span>
+                  <span role="cell">{op.sprints_avaliadas}</span>
+                  <span role="cell" style={{ color: op.pontos_penalizados > 0 ? ds.red : ds.muted }}>{op.pontos_penalizados || "—"}</span>
+                </div>
+              );
+            })}
           </div>
         )}
-      </div>
+      </PanelCard>
 
       {/* Comparação de modos (Entrega 2) */}
       {comparacaoModos.length >= 2 && (
-        <div style={section}>
-          <p style={title}>Comparação de modos</p>
-          <p style={subtitle}>
-            Sprints fechadas agrupadas pelo modo vigente no momento do fechamento de cada uma.
-          </p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={comparacaoModos.map((c) => ({
-                modo: `${c.modo_trabalho}/${c.modo_avaliacao}`,
-                spi_medio: c.spi_medio,
-                entrega_media: c.entrega_media,
-              }))}
-              margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="modo" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Legend formatter={(v) => v === "spi_medio" ? "SPI médio" : "Entrega média"} />
-              <Bar dataKey="spi_medio" fill="#64748b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="entrega_media" fill="#166534" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <PanelCard label="Comparação de modos">
+          <p style={{ margin: 0, fontSize: 13, color: ds.muted }}>Sprints fechadas agrupadas pelo modo vigente no momento do fechamento de cada uma.</p>
+          <BarGroups
+            label="SPI médio e entrega média por modo"
+            categories={comparacaoModos.map((c) => `${c.modo_trabalho}/${c.modo_avaliacao}`)}
+            series={[
+              { key: "spi", label: "SPI médio", color: chartGrey, values: comparacaoModos.map((c) => c.spi_medio ?? 0) },
+              { key: "ent", label: "Entrega média", color: ds.green, values: comparacaoModos.map((c) => c.entrega_media ?? 0) },
+            ]}
+          />
+          <ChartLegend items={[{ label: "SPI médio", color: chartGrey }, { label: "Entrega média", color: ds.green }]} />
+        </PanelCard>
       )}
     </div>
   );
 }
-
-const thSt: React.CSSProperties = {
-  textAlign: "left",
-  padding: "8px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#8a948e",
-  textTransform: "uppercase",
-  whiteSpace: "nowrap",
-};
-
-const tdSt: React.CSSProperties = {
-  padding: "9px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  color: "#c3cbc6",
-};

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
+import { Button as DsButton, Select as DsSelect } from "./ds";
 import { useAuth } from "./AuthGuard";
 import {
   listTasksKanban,
@@ -42,64 +43,80 @@ interface Props {
 type Coluna = "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
 
 const COLUNAS: { id: Coluna; label: string; color: string; bg: string }[] = [
-  { id: "planejado", label: "Planejado", color: "#c3cbc6", bg: "rgba(62,224,111,0.055)" },
+  { id: "planejado", label: "Planejado", color: "#8a948e", bg: "rgba(255,255,255,0.06)" },
   { id: "em_andamento", label: "Em andamento", color: "#f2c14e", bg: "rgba(242,193,78,0.10)" },
   { id: "pendente_aprovacao", label: "Pendente de aprovação", color: "#b197fc", bg: "rgba(177,151,252,0.10)" },
   { id: "concluida", label: "Concluída", color: "#3ee06f", bg: "rgba(62,224,111,0.12)" },
 ];
 
+/** Quantas tasks concluídas aparecem antes do "+ N tasks concluídas" (protótipo 06). */
+const CONCLUIDAS_VISIVEIS = 4;
+
 const card: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 10,
-  padding: "12px 14px",
-  marginBottom: 8,
+  background: "rgba(62,224,111,0.055)",
+  border: "1px solid rgba(62,224,111,0.17)",
+  borderRadius: 12,
+  padding: 16,
   cursor: "pointer",
   display: "flex",
   flexDirection: "column",
-  gap: 6,
+  gap: 12,
+  textAlign: "left",
+  width: "100%",
+  fontFamily: "inherit",
 };
 
 const chip: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  padding: "3px 9px",
+  gap: 6,
+  padding: "4px 10px",
   borderRadius: 999,
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
+  whiteSpace: "nowrap",
+  border: "1px solid rgba(255,255,255,0.08)",
 };
 
 const inputSt: React.CSSProperties = {
-  padding: "7px 10px",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 7,
-  fontSize: 13,
+  padding: "10px 14px",
+  border: "1px solid rgba(62,224,111,0.17)",
+  borderRadius: 10,
+  fontSize: 14,
   color: "#f2f5f3",
-  background: "#0d1711",
+  background: "rgba(62,224,111,0.055)",
   width: "100%",
   boxSizing: "border-box",
+  fontFamily: "inherit",
 };
 
 const btnPrimary: React.CSSProperties = {
   background: "#3ee06f",
   color: "#04120a",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 18px",
-  fontSize: 13,
-  fontWeight: 700,
+  border: "1px solid #3ee06f",
+  borderRadius: 10,
+  height: 38,
+  padding: "0 16px",
+  fontSize: 13.5,
+  fontWeight: 600,
   cursor: "pointer",
+  boxShadow: "0 0 24px rgba(62,224,111,0.25)",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
 };
 
 const btnGhost: React.CSSProperties = {
-  background: "none",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  padding: "7px 14px",
-  fontSize: 12,
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 10,
+  padding: "0 14px",
+  height: 32,
+  fontSize: 12.5,
   fontWeight: 600,
-  color: "#c3cbc6",
+  color: "#f2f5f3",
   cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
 };
 
 // ---------------------------------------------------------------------------
@@ -970,47 +987,53 @@ function TaskCard({
   const total = task.checklist.length;
 
   return (
-    <div
+    <button
+      type="button"
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      className="ds-task-card"
       style={{
         ...card,
-        borderLeft: task.bloqueado ? "3px solid #ff6b6b" : card.border as string,
-        borderColor: task.bloqueado ? undefined : "rgba(62,224,111,0.2)",
+        ...(task.bloqueado ? { borderColor: "rgba(255,107,107,0.30)", background: "rgba(255,107,107,0.06)" } : null),
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 600, color: "#f2f5f3", lineHeight: 1.4 }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: "#ffffff", lineHeight: 1.35 }}>
         {task.titulo}
       </span>
 
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }}>{task.pontos}pt</span>
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }}>{task.pontos}pt</span>
 
         {op && (
-          <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>{op.nome}</span>
+          <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
         )}
 
         {task.extra && (
-          <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}>+ extra</span>
         )}
 
         {task.bloqueado && (
-          <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
+          <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderColor: "rgba(255,107,107,0.30)" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
         )}
 
         {task.travado_automatico && !task.travado_override && (
-          <span style={{ ...chip, background: "rgba(242,193,78,0.10)", color: "#f2c14e" }}>⏱ Travada</span>
+          <span style={{ ...chip, background: "rgba(242,193,78,0.10)", color: "#f2c14e", borderColor: "rgba(242,193,78,0.30)" }}>Travada</span>
         )}
 
         {total > 0 && (
-          <span style={{ ...chip, background: done === total ? "rgba(62,224,111,0.12)" : "rgba(62,224,111,0.055)", color: done === total ? "#3ee06f" : "#8a948e" }}>
+          <span style={{
+            ...chip,
+            background: done === total ? "rgba(62,224,111,0.12)" : "rgba(255,255,255,0.05)",
+            color: done === total ? "#3ee06f" : "#8a948e",
+            borderColor: done === total ? "rgba(62,224,111,0.35)" : "rgba(255,255,255,0.08)",
+          }}>
             {done}/{total} ✓
           </span>
         )}
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }
 
@@ -1018,6 +1041,7 @@ function TaskCard({
 // Main component
 
 export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades, modoTrabalho }: Props) {
+  const [concluidasAbertas, setConcluidasAbertas] = useState(false);
   const [tasks, setTasks] = useState<TaskKanbanResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -1229,50 +1253,35 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   ];
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <TutorialBanner heading="Tasks e Kanban" steps={tasksSteps} />
       {/* Filters */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-        <select
-          value={filterSprintId}
-          onChange={(e) => setFilterSprintId(e.target.value)}
-          style={{ ...inputSt, width: "auto", minWidth: 140 }}
-        >
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <DsSelect aria-label="Filtrar por sprint" value={filterSprintId} onChange={(e) => setFilterSprintId(e.target.value)} style={{ width: 200, height: 40, fontSize: 13.5 }}>
           <option value="">Todas as sprints</option>
           {sortedSprints.map((s) => (
             <option key={s.id} value={s.id}>Sprint {s.numero}</option>
           ))}
-        </select>
+        </DsSelect>
 
-        <select
-          value={filterOpId}
-          onChange={(e) => setFilterOpId(e.target.value)}
-          style={{ ...inputSt, width: "auto", minWidth: 160 }}
-        >
+        <DsSelect aria-label="Filtrar por operacional" value={filterOpId} onChange={(e) => setFilterOpId(e.target.value)} style={{ width: 240, height: 40, fontSize: 13.5 }}>
           <option value="">Todos os operacionais</option>
           {operacionais.filter((o) => o.ativo).map((o) => (
             <option key={o.id} value={o.id}>{o.nome}</option>
           ))}
-        </select>
+        </DsSelect>
 
-        <select
-          value={filterFuncId}
-          onChange={(e) => setFilterFuncId(e.target.value)}
-          style={{ ...inputSt, width: "auto", minWidth: 200 }}
-        >
+        <DsSelect aria-label="Filtrar por funcionalidade" value={filterFuncId} onChange={(e) => setFilterFuncId(e.target.value)} style={{ flex: "1 1 220px", width: "auto", height: 40, fontSize: 13.5 }}>
           <option value="">Todas as funcionalidades</option>
           {funcionalidades.map((f) => (
-            <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
+            <option key={f.id} value={f.id}>{f.id_funcional} · {f.titulo}</option>
           ))}
-        </select>
+        </DsSelect>
 
         {!ehOperacional && (
-          <button
-            onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-            style={{ ...btnPrimary, marginLeft: "auto" }}
-          >
+          <DsButton variant="primary" onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}>
             + Nova task
-          </button>
+          </DsButton>
         )}
       </div>
 
@@ -1412,57 +1421,51 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       {err && <p style={{ color: "#ff6b6b", fontSize: 13 }}>{err}</p>}
 
       {loading ? (
-        <p style={{ color: "#8a948e", fontSize: 13 }}>Carregando tasks...</p>
+        <p role="status" style={{ color: "#8a948e", fontSize: 13, margin: 0 }}>Carregando tasks...</p>
       ) : (
-        <div style={{
-          background: "rgba(62,224,111,0.055)",
-          borderRadius: 14,
-          padding: 16,
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr",
-          gap: 12,
-        }}>
+        <div className="ds-tasks-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, alignItems: "start" }}>
           {COLUNAS.map((col) => {
             const colTasks = byColuna(col.id);
+            const recolher = col.id === "concluida" && !concluidasAbertas && colTasks.length > CONCLUIDAS_VISIVEIS;
+            const visiveis = recolher ? colTasks.slice(0, CONCLUIDAS_VISIVEIS) : colTasks;
             return (
               <div
                 key={col.id}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(col.id)}
-                style={{ minHeight: 120 }}
+                style={{
+                  display: "flex", flexDirection: "column", gap: 10, minWidth: 0, minHeight: 120,
+                  padding: 16, borderRadius: 14, background: "rgba(62,224,111,0.04)", border: "1px solid rgba(62,224,111,0.16)",
+                }}
               >
-                {/* Column header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
-                    textTransform: "uppercase", color: col.color,
-                  }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px 6px" }}>
+                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: col.color, boxShadow: `0 0 8px ${col.color}`, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: col.color, fontWeight: 600 }}>
                     {col.label}
                   </span>
-                  <span style={{ ...chip, background: col.bg, color: col.color, fontSize: 11 }}>
+                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, padding: "1px 8px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "#c3cbc6" }}>
                     {colTasks.length}
                   </span>
                   {!ehOperacional && (
                     <button
+                      type="button"
+                      className="ds-text-btn"
                       onClick={() => setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id })}
-                      title="Nova task nesta coluna"
-                      style={{
-                        background: "none", border: "none", cursor: "pointer",
-                        color: "#5d6661", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
-                      }}
+                      aria-label={`Nova task em ${col.label}`}
+                      title="Nova task"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#8a948e", fontSize: 16, lineHeight: 1, padding: 0, marginLeft: "auto" }}
                     >
                       +
                     </button>
                   )}
                 </div>
 
-                {/* Cards */}
                 {colTasks.length === 0 ? (
-                  <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <span style={{ color: "#5d6661", fontSize: 12 }}>Nenhuma task</span>
+                  <div style={{ padding: "28px 12px", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 12, textAlign: "center", fontSize: 13, color: "#5d6661" }}>
+                    Nenhuma task
                   </div>
                 ) : (
-                  colTasks.map((t) => (
+                  visiveis.map((t) => (
                     <TaskCard
                       key={t.id}
                       task={t}
@@ -1472,6 +1475,17 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                       onClick={() => setEditModal(t)}
                     />
                   ))
+                )}
+                {col.id === "concluida" && colTasks.length > CONCLUIDAS_VISIVEIS && (
+                  <button
+                    type="button"
+                    className="ds-text-btn"
+                    aria-expanded={concluidasAbertas}
+                    onClick={() => setConcluidasAbertas((v) => !v)}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "center", fontSize: 12.5, color: "#8a948e", padding: 6 }}
+                  >
+                    {concluidasAbertas ? "Mostrar menos" : `+ ${colTasks.length - CONCLUIDAS_VISIVEIS} tasks concluídas`}
+                  </button>
                 )}
               </div>
             );

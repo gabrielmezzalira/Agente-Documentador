@@ -7,7 +7,7 @@ import { createProject, type Subarea } from "../../../lib/api";
 import { ds } from "../../../lib/ds";
 import { Button, Card, Chip, ErrorNotice, Field, Input, Textarea } from "../../../components/ds";
 
-const LABEL: Record<Subarea, string> = { dados: "Dados", dev: "Dev", produto: "Produto" };
+const LABEL: Record<Subarea, string> = { dados: "Dados", dev: "Dev" };
 
 export default function NewProject() {
   const router = useRouter();
@@ -42,9 +42,7 @@ export default function NewProject() {
         <Chip tone="green" dot>Subárea de {subareaLabel}</Chip>
         <h1 style={{ fontSize: 38, lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.03em", color: ds.white }}>Novo projeto de {subareaLabel}</h1>
         <p style={{ fontSize: 14.5, lineHeight: 1.6, color: ds.muted }}>
-          {subarea === "produto"
-            ? "O projeto nasce em Produto para o discovery. Quando estiver maduro, é encaminhado para Dados ou Dev levando todo o contexto."
-            : `O projeto será cadastrado automaticamente em ${subareaLabel}. Você poderá alterar essa classificação nas configurações do projeto.`}
+          {`O projeto será cadastrado automaticamente em ${subareaLabel}. Você poderá alterar essa classificação nas configurações do projeto.`}
         </p>
       </div>
 
