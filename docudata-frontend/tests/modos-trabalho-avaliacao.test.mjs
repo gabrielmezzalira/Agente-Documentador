@@ -27,7 +27,9 @@ const SPRINT_CARD = readFileSync(new URL("../app/components/SprintCard.tsx", imp
 test("SprintCard mostra o contador N/M de avaliação semanal", () => {
   assert.ok(SPRINT_CARD.includes("const avaliacaoPendente ="));
   assert.ok(SPRINT_CARD.includes("sprint.elegiveis_avaliacao_count > 0"));
-  assert.ok(SPRINT_CARD.includes("{sprint.avaliados_count}/{sprint.elegiveis_avaliacao_count} Avaliação"));
+  // O contador agora é um item da lista de documentos da sprint (rótulo "Avaliação" + "N/M").
+  assert.ok(SPRINT_CARD.includes('label: "Avaliação"'));
+  assert.ok(SPRINT_CARD.includes("count: `${sprint.avaliados_count}/${sprint.elegiveis_avaliacao_count}`"));
 });
 
 const PROJECT_PAGE = readFileSync(new URL("../app/[subarea]/projects/[id]/page.tsx", import.meta.url), "utf8");
@@ -48,7 +50,10 @@ test("Configurações mostram o select de modo de trabalho, o modo de avaliaçã
   assert.ok(PROJECT_PAGE.includes("<ModosTrabalhoSection"));
 });
 
-const PAINEL = readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8");
+// O Painel foi dividido em componentes (app/components/painel/*); os cartões de pontos ficam em PontosCards.
+const PAINEL =
+  readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8") +
+  readFileSync(new URL("../app/components/painel/PontosCards.tsx", import.meta.url), "utf8");
 
 test("Painel recebe operacionais e mostra o extrato de pontos", () => {
   assert.ok(PAINEL.includes("function ExtratoPontosCard("));

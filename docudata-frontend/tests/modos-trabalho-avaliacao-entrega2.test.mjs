@@ -12,7 +12,10 @@ test("api.ts tem os tipos e funções de elegibilidade e comparação de modos",
   assert.ok(API.includes("export async function getComparacaoModosEntreProjetos("));
 });
 
-const PAINEL = readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8");
+// O Painel foi dividido em componentes (app/components/painel/*); os cartões de pontos ficam em PontosCards.
+const PAINEL =
+  readFileSync(new URL("../app/components/PainelTab.tsx", import.meta.url), "utf8") +
+  readFileSync(new URL("../app/components/painel/PontosCards.tsx", import.meta.url), "utf8");
 
 test("PainelTab mostra a seção de elegibilidade da sprint", () => {
   assert.ok(PAINEL.includes("function ElegibilidadeCard("));

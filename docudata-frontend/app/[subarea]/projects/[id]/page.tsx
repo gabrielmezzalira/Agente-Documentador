@@ -67,10 +67,12 @@ import { Button as DsButton, EmptyState, ErrorNotice, Field as DsField, TabSecti
 import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
-import DocTypeCard, { DocTypeGeneratePanel } from "../../../components/DocTypeCard";
+import DocTypeCard from "../../../components/DocTypeCard";
+import { DocTypeGeneratePanel } from "../../../components/DocTypeCard";
 import DocRow from "../../../components/docs/DocRow";
 import { PanelCard } from "../../../components/painel/PanelCard";
-import TutorialBanner, { PROJECT_HELP_SLOT_ID } from "../../../components/TutorialBanner";
+import TutorialBanner from "../../../components/TutorialBanner";
+import { PROJECT_HELP_SLOT_ID } from "../../../components/TutorialBanner";
 import { DOC_TYPES, docTypeLabel, type DocTypeKey } from "../../../lib/doc_types";
 
 // A aba Sprints é a que abre por padrão, então Tabs/SprintCard/DocTypeCard
