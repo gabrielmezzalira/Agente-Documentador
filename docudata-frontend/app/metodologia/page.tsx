@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "../components/AuthGuard";
+import { Card, Chip, ErrorNotice, PageHeader } from "../components/ds";
+import { ds, labelStyle } from "../lib/ds";
 import {
   listMetodologia,
   getMetodologia,
@@ -12,38 +13,53 @@ import {
   type MetodologiaResponse,
 } from "../lib/api";
 
-/* O reset global (`* { margin: 0; padding: 0 }`) zera tipografia de markdown —
-   estes documentos são longos e cheios de tabelas, então precisam da folha
-   abaixo para serem legíveis. Escopada em .doc para não vazar pro resto do app. */
+/* O reset global zera a tipografia de markdown; estes documentos são longos e cheios de
+   tabelas, então precisam da folha abaixo (tipografia do protótipo 09). Escopada em .doc. */
 const DOC_CSS = `
-.doc { color: #c3cbc6; font-size: 15px; line-height: 1.75; }
-.doc h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #f2f5f3; line-height: 1.2; margin: 0 0 20px; }
-.doc h2 { font-size: 21px; font-weight: 700; color: #f2f5f3; margin: 44px 0 14px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); }
-.doc h3 { font-size: 16px; font-weight: 700; color: #f2f5f3; margin: 28px 0 10px; }
-.doc p { margin: 0 0 14px; }
-.doc ul, .doc ol { margin: 0 0 16px; padding-left: 22px; }
+.doc { color: #c3cbc6; font-size: 15.5px; line-height: 1.7; display: flex; flex-direction: column; gap: 18px; }
+.doc > * { margin: 0; }
+.doc h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; color: #fff; line-height: 1.1; }
+.doc h2 { font-size: 22px; font-weight: 700; color: #fff; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); scroll-margin-top: 24px; }
+.doc h1 + p { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #8a948e; }
+.doc hr + h2 { border-top: none; padding-top: 0; }
+.doc h3 { font-size: 17px; font-weight: 700; color: #fff; }
+.doc ul, .doc ol { padding-left: 22px; }
 .doc li { margin-bottom: 6px; }
 .doc li > ul, .doc li > ol { margin: 6px 0 0; }
 .doc a { color: #3ee06f; }
 .doc a:hover { text-decoration: underline; }
-.doc strong { color: #f2f5f3; font-weight: 700; }
-.doc hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 36px 0; }
-.doc code { background: rgba(62,224,111,0.055); border-radius: 4px; padding: 1px 5px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #f2f5f3; }
-.doc pre { background: rgba(62,224,111,0.055); border: 1px solid rgba(62,224,111,0.2); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 0 0 18px; line-height: 1.6; }
+.doc strong { color: #fff; font-weight: 700; }
+.doc hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); }
+.doc code { background: rgba(62,224,111,0.055); border-radius: 4px; padding: 1px 5px; font-size: 13px; font-family: 'Geist Mono', ui-monospace, monospace; color: #f2f5f3; }
+.doc pre { background: rgba(62,224,111,0.055); border: 1px solid rgba(62,224,111,0.17); border-radius: 12px; padding: 16px 18px; overflow-x: auto; line-height: 1.6; }
 .doc pre code { background: none; padding: 0; font-size: 12.5px; }
-.doc blockquote { border-left: 3px solid #3ee06f; background: rgba(62,224,111,0.12); border-radius: 0 8px 8px 0; padding: 12px 18px; margin: 0 0 18px; color: #7cf0a0; }
-.doc blockquote p:last-child { margin-bottom: 0; }
-.doc table { border-collapse: collapse; width: 100%; margin: 0 0 20px; font-size: 13.5px; display: block; overflow-x: auto; }
-.doc th, .doc td { border: 1px solid rgba(62,224,111,0.2); padding: 8px 12px; text-align: left; vertical-align: top; }
-.doc th { background: rgba(62,224,111,0.055); font-weight: 700; color: #f2f5f3; white-space: nowrap; }
+.doc blockquote { border-left: 3px solid #3ee06f; background: rgba(62,224,111,0.08); border-radius: 0 10px 10px 0; padding: 12px 18px; color: #c3cbc6; }
+.doc blockquote p { margin: 0; }
+.doc table { border-collapse: collapse; width: 100%; font-size: 13.5px; display: block; overflow-x: auto; }
+.doc th, .doc td { border-bottom: 1px solid rgba(255,255,255,0.08); padding: 10px 12px; text-align: left; vertical-align: top; }
+.doc th { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a948e; font-weight: 500; white-space: nowrap; }
+@media (max-width: 900px) { .doc-layout { grid-template-columns: 1fr !important; padding: 28px 22px !important; gap: 24px !important; } .doc-toc { display: none !important; } }
 `;
+
+/** Id estável para um título (âncora do índice "Nesta página"). */
+function slugify(texto: string): string {
+  return texto.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function textoDe(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") return String(children);
+  if (Array.isArray(children)) return children.map(textoDe).join("");
+  if (children && typeof children === "object" && "props" in children) return textoDe((children as { props: { children?: ReactNode } }).props.children);
+  return "";
+}
 
 export default function DocumentosPage() {
   const auth = useAuth();
   const [itens, setItens] = useState<MetodologiaItem[]>([]);
   const [slug, setSlug] = useState<string | null>(null);
-  const [doc, setDoc] = useState<MetodologiaResponse | null>(null);
+  const [docs, setDocs] = useState<Record<string, MetodologiaResponse>>({});
   const [erro, setErro] = useState("");
+  const [secaoAtiva, setSecaoAtiva] = useState<string | null>(null);
 
   useEffect(() => {
     if (!auth) return;
@@ -51,75 +67,99 @@ export default function DocumentosPage() {
       .then((lista) => {
         setItens(lista);
         if (lista.length > 0) setSlug((atual) => atual ?? lista[0].slug);
+        // Poucos documentos: carrega todos para saber quais são restritos e trocar sem espera.
+        lista.forEach((item) => {
+          getMetodologia(item.slug)
+            .then((d) => setDocs((prev) => ({ ...prev, [item.slug]: d })))
+            .catch((e: Error) => { if (item.slug === lista[0].slug) setErro(e.message); });
+        });
       })
       .catch((e: Error) => setErro(e.message));
   }, [auth]);
 
-  useEffect(() => {
-    if (!slug) return;
-    setDoc(null);
-    setErro("");
-    getMetodologia(slug)
-      .then(setDoc)
-      .catch((e: Error) => setErro(e.message));
-  }, [slug]);
+  const doc = slug ? docs[slug] : undefined;
+  const secoes = useMemo(
+    () => (doc?.conteudo ?? "").split("\n").filter((l) => /^##\s+/.test(l)).map((l) => l.replace(/^##\s+/, "").trim()),
+    [doc],
+  );
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 24px 96px" }}>
+    <>
       <style>{DOC_CSS}</style>
+      <PageHeader title="Documentos" subtitle="A metodologia do DocuData, documentada dentro do próprio sistema." />
 
-      <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
-
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 20px" }}>
-        Documentos
-      </h1>
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
-        {itens.map((item) => (
-          <button
-            key={item.slug}
-            onClick={() => setSlug(item.slug)}
-            style={{
-              textAlign: "left",
-              flex: "1 1 240px",
-              padding: "12px 16px",
-              borderRadius: 10,
-              border: item.slug === slug ? "2px solid #3ee06f" : "1px solid rgba(62,224,111,0.2)",
-              background: item.slug === slug ? "rgba(62,224,111,0.12)" : "#0d1711",
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#f2f5f3" }}>
-              {item.titulo}
-            </span>
-            <span style={{ display: "block", fontSize: 12, color: "#8a948e", marginTop: 3 }}>
-              {item.resumo}
-            </span>
-          </button>
-        ))}
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+        {itens.map((item) => {
+          const ativo = item.slug === slug;
+          const restrito = docs[item.slug]?.restrito ?? false;
+          return (
+            <button
+              key={item.slug}
+              type="button"
+              aria-pressed={ativo}
+              className="ds-task-card"
+              onClick={() => { setSlug(item.slug); setSecaoAtiva(null); }}
+              style={{
+                textAlign: "left", fontFamily: "inherit", cursor: "pointer",
+                padding: "20px 22px", borderRadius: 14, display: "flex", flexDirection: "column", gap: 8,
+                ...(ativo
+                  ? { border: `1px solid ${ds.greenLine}`, background: "rgba(62,224,111,0.07)" }
+                  : { border: "1px solid rgba(62,224,111,0.2)", background: `linear-gradient(180deg, ${ds.cardTop} 0%, ${ds.cardBottom} 100%)` }),
+              }}
+            >
+              <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span style={{ ...labelStyle, color: ativo ? ds.green : ds.muted }}>{restrito ? "Líderes e gerentes" : "Aberto a todos"}</span>
+                {restrito && <Chip tone="amber">Restrito</Chip>}
+              </span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: ds.white, lineHeight: 1.3 }}>{item.titulo}</span>
+              <span style={{ fontSize: 13, lineHeight: 1.45, color: ds.muted }}>{item.resumo}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {doc?.restrito && (
-        <div style={{
-          background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 10,
-          padding: "12px 16px", marginBottom: 24, fontSize: 13, color: "#f2c14e",
-        }}>
-          Documento interno, restrito a Gerente para cima. Pesos, fórmulas e notas
-          cruas não são divulgados a operacionais.
-        </div>
-      )}
-
-      {erro && <p style={{ color: "#ff6b6b" }}>{erro}</p>}
-      {!doc && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
+      {erro && <ErrorNotice>{erro}</ErrorNotice>}
+      {!doc && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
 
       {doc && (
-        <div
-          className="doc"
-          style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12, padding: "36px 40px" }}
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.conteudo}</ReactMarkdown>
-        </div>
+        <Card>
+          <div className="doc-layout" style={{ display: "grid", gridTemplateColumns: "220px minmax(0,1fr)", gap: 56, padding: "44px 52px" }}>
+            <nav className="doc-toc" aria-label="Nesta página" style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 6, position: "sticky", top: 24, alignSelf: "start" }}>
+              <span style={labelStyle}>Nesta página</span>
+              {secoes.map((s, i) => {
+                const ativa = (secaoAtiva ?? secoes[0]) === s;
+                return (
+                  <a
+                    key={`${s}-${i}`}
+                    href={`#${slugify(s)}`}
+                    onClick={() => setSecaoAtiva(s)}
+                    style={{ fontSize: 13.5, lineHeight: 1.4, color: ativa ? ds.green : ds.text2, fontWeight: ativa ? 600 : 400 }}
+                  >
+                    {s}
+                  </a>
+                );
+              })}
+            </nav>
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 720, minWidth: 0 }}>
+              {doc.restrito && (
+                <div role="note" style={{ fontSize: 13, color: ds.amber, background: ds.amberSoft, border: `1px solid ${ds.amberLine}`, borderRadius: 12, padding: "12px 16px" }}>
+                  Documento interno, restrito a Gerente para cima. Pesos, fórmulas e notas cruas não são divulgados a operacionais.
+                </div>
+              )}
+              <div className="doc">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h2: ({ children }) => <h2 id={slugify(textoDe(children))}>{children}</h2>,
+                  }}
+                >
+                  {doc.conteudo}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        </Card>
       )}
-    </main>
+    </>
   );
 }
