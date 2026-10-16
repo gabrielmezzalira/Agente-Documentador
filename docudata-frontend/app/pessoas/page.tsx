@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "../components/AuthGuard";
+import { Card, Chip, EmptyState, ErrorNotice, PageHeader, Select } from "../components/ds";
+import { ds, labelStyle, type Tone } from "../lib/ds";
 import {
   listPessoas,
   alterarCargoPessoa,
@@ -17,30 +18,14 @@ const CARGOS: { valor: Cargo; label: string; descricao: string }[] = [
   { valor: "operacional", label: "Operacional", descricao: "Só os projetos em que está" },
 ];
 
-const CARGO_COR: Record<Cargo, { bg: string; fg: string }> = {
-  owner: { bg: "rgba(177,151,252,0.10)", fg: "#b197fc" },
-  lider: { bg: "rgba(62,224,111,0.12)", fg: "#3ee06f" },
-  gerente: { bg: "#b197fc", fg: "#b197fc" },
-  operacional: { bg: "rgba(62,224,111,0.055)", fg: "#c3cbc6" },
+const CARGO_TOM: Record<Cargo, Tone> = {
+  owner: "violet",
+  lider: "green",
+  gerente: "amber",
+  operacional: "neutral",
 };
 
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 14px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#8a948e",
-  textTransform: "uppercase",
-  whiteSpace: "nowrap",
-};
-
-const td: React.CSSProperties = {
-  padding: "12px 14px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  color: "#c3cbc6",
-  fontSize: 13,
-};
+const COLUNAS = "minmax(0,1.4fr) minmax(0,1.6fr) 180px";
 
 export default function PessoasPage() {
   const auth = useAuth();
@@ -77,119 +62,76 @@ export default function PessoasPage() {
     }
   }
 
-  if (auth && !podeVer) {
-    return (
-      <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
-        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
-      </main>
-    );
-  }
+  if (auth && !podeVer) return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
 
   return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: "48px 24px 96px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
+    <>
+      <PageHeader
+        title="Pessoas"
+        subtitle={`Quem tem acesso ao sistema e o que cada um enxerga.${podeEditar ? " Como Owner, você pode mudar o cargo de qualquer pessoa." : " Só o Owner altera cargos."}`}
+      />
 
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 6px" }}>
-        Pessoas
-      </h1>
-      <p style={{ color: "#8a948e", fontSize: 14, marginBottom: 28 }}>
-        Quem tem acesso ao sistema e o que cada um enxerga.
-        {podeEditar
-          ? " Como Owner, você pode mudar o cargo de qualquer pessoa."
-          : " Só o Owner altera cargos."}
-      </p>
+      {erro && <ErrorNotice>{erro}</ErrorNotice>}
 
-      {erro && (
-        <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 16 }}>{erro}</p>
-      )}
-
-      <div style={{
-        background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
-        padding: "16px 20px", marginBottom: 24,
-      }}>
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
         {CARGOS.map((c) => (
-          <div key={c.valor} style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 6 }}>
-            <span style={{
-              background: CARGO_COR[c.valor].bg, color: CARGO_COR[c.valor].fg,
-              borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 700,
-              minWidth: 96, textAlign: "center",
-            }}>
-              {c.label}
-            </span>
-            <span style={{ fontSize: 12, color: "#8a948e" }}>{c.descricao}</span>
-          </div>
+          <Card key={c.valor}>
+            <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
+              <Chip tone={CARGO_TOM[c.valor]}>{c.label}</Chip>
+              <span style={{ fontSize: 13, lineHeight: 1.45, color: ds.muted }}>{c.descricao}</span>
+            </div>
+          </Card>
         ))}
       </div>
 
-      {!pessoas && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
-
-      {pessoas && pessoas.length === 0 && (
-        <p style={{ color: "#8a948e" }}>Nenhuma pessoa cadastrada ainda.</p>
-      )}
+      {!pessoas && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
+      {pessoas && pessoas.length === 0 && <EmptyState>Nenhuma pessoa cadastrada ainda.</EmptyState>}
 
       {pessoas && pessoas.length > 0 && (
-        <div style={{
-          background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12,
-          overflowX: "auto",
-        }}>
-          <table style={{ borderCollapse: "collapse", width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={th}>Pessoa</th>
-                <th style={th}>Projetos</th>
-                <th style={th}>Cargo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pessoas.map((p) => (
-                <tr key={p.id}>
-                  <td style={td}>
-                    <div style={{ fontWeight: 700, color: "#f2f5f3" }}>{p.nome}</div>
-                    <div style={{ fontSize: 12, color: "#8a948e" }}>{p.email}</div>
-                  </td>
-                  <td style={{ ...td, fontSize: 12, color: "#8a948e" }}>
-                    {p.projetos.length > 0 ? p.projetos.join(", ") : "—"}
-                  </td>
-                  <td style={td}>
-                    {podeEditar ? (
-                      <select
-                        value={p.cargo}
-                        disabled={salvandoId === p.id}
-                        onChange={(e) => handleCargo(p, e.target.value as Cargo)}
-                        style={{
-                          padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(62,224,111,0.2)",
-                          fontSize: 13, color: "#f2f5f3", background: "#0d1711",
-                          opacity: salvandoId === p.id ? 0.5 : 1,
-                        }}
-                      >
-                        {CARGOS.map((c) => (
-                          <option key={c.valor} value={c.valor}>{c.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span style={{
-                        background: CARGO_COR[p.cargo].bg, color: CARGO_COR[p.cargo].fg,
-                        borderRadius: 999, padding: "3px 12px", fontSize: 12, fontWeight: 700,
-                      }}>
-                        {CARGOS.find((c) => c.valor === p.cargo)?.label ?? p.cargo}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Card style={{ overflowX: "auto" }}>
+          <div role="table" style={{ display: "flex", flexDirection: "column", minWidth: 640 }}>
+            <div role="row" style={{ display: "grid", gridTemplateColumns: COLUNAS, gap: 12, padding: "10px 16px", borderBottom: `1px solid ${ds.border}` }}>
+              <span role="columnheader" style={labelStyle}>Pessoa</span>
+              <span role="columnheader" style={labelStyle}>Projetos</span>
+              <span role="columnheader" style={labelStyle}>Cargo</span>
+            </div>
+            {pessoas.map((p, i) => (
+              <div key={p.id} role="row" style={{ display: "grid", gridTemplateColumns: COLUNAS, gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none" }}>
+                <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: ds.white }}>{p.nome}</span>
+                  <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{p.email}</span>
+                </span>
+                <span role="cell" style={{ fontSize: 13, color: ds.text2, lineHeight: 1.45 }}>
+                  {p.projetos.length > 0 ? p.projetos.join(", ") : <span style={{ color: ds.dim }}>—</span>}
+                </span>
+                <span role="cell">
+                  {podeEditar ? (
+                    <Select
+                      aria-label={`Cargo de ${p.nome}`}
+                      value={p.cargo}
+                      disabled={salvandoId === p.id}
+                      onChange={(e) => handleCargo(p, e.target.value as Cargo)}
+                      style={{ height: 36, fontSize: 13, opacity: salvandoId === p.id ? 0.5 : 1 }}
+                    >
+                      {CARGOS.map((c) => <option key={c.valor} value={c.valor}>{c.label}</option>)}
+                    </Select>
+                  ) : (
+                    <Chip tone={CARGO_TOM[p.cargo]}>{CARGOS.find((c) => c.valor === p.cargo)?.label ?? p.cargo}</Chip>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {podeEditar && (
-        <p style={{ fontSize: 12, color: "#8a948e", marginTop: 16, lineHeight: 1.6 }}>
+        <p style={{ margin: 0, fontSize: 12.5, color: ds.muted, lineHeight: 1.6, maxWidth: 760 }}>
           Você não consegue mudar o próprio cargo: rebaixar a si mesmo tiraria seu acesso a
           esta tela e não teria como ser desfeito por aqui. Se precisar sair, promova outra
           pessoa a Owner antes. Toda troca de cargo fica registrada.
         </p>
       )}
-    </main>
+    </>
   );
 }

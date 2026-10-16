@@ -1,37 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
 import { useAuth } from "../components/AuthGuard";
+import { Button, EmptyState, ErrorNotice, PageHeader } from "../components/ds";
+import { BarGroups, ChartLegend } from "../components/metricas/Charts";
+import { PanelCard } from "../components/painel/PanelCard";
+import { ds } from "../lib/ds";
 import {
   listProjects,
   getComparacaoModosEntreProjetos,
   type Project,
   type ComparacaoModoPonto,
 } from "../lib/api";
-
-const card: React.CSSProperties = {
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  marginBottom: 20,
-};
-
-const linkProjetosStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#8a948e",
-};
 
 export default function ComparacaoModosPage() {
   const auth = useAuth();
@@ -50,9 +30,7 @@ export default function ComparacaoModosPage() {
   }, [auth]);
 
   function toggleProjeto(id: string) {
-    setSelecionados((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
+    setSelecionados((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
     setBuscou(false);
     setResultado([]);
   }
@@ -74,86 +52,71 @@ export default function ComparacaoModosPage() {
   }
 
   if (auth && auth.cargo !== "lider" && auth.cargo !== "owner") {
-    return (
-      <main style={{ maxWidth: 820, margin: "0 auto", padding: "52px 24px" }}>
-        <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
-        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Líder e Owner.</p>
-      </main>
-    );
+    return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "52px 24px" }}>
-      <Link href="/" style={linkProjetosStyle}>← Projetos</Link>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 24px" }}>
-        Comparação de modos entre projetos
-      </h1>
+    <>
+      <PageHeader
+        eyebrow="Leitura restrita a líderes"
+        title="Comparação de modos"
+        subtitle="Compare sprints fechadas de dois ou mais projetos, agrupadas pelo modo de trabalho e de avaliação vigente em cada fechamento."
+      />
 
-      <div style={card}>
-        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Escolha 2 ou mais projetos</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {projects.map((p) => (
-            <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={selecionados.includes(p.id)}
-                onChange={() => toggleProjeto(p.id)}
-              />
-              {p.name}
-            </label>
-          ))}
+      <PanelCard label="Escolha 2 ou mais projetos" action={<span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{selecionados.length} selecionados</span>}>
+        {projects.length === 0 ? (
+          <EmptyState>Nenhum projeto de Dados ou Dev encontrado.</EmptyState>
+        ) : (
+          <div role="group" aria-label="Projetos para comparar" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {projects.map((p) => {
+              const ativo = selecionados.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={ativo}
+                  onClick={() => toggleProjeto(p.id)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 999,
+                    fontFamily: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    background: ativo ? ds.greenSoft : "rgba(255,255,255,0.04)",
+                    color: ativo ? ds.green : ds.text2,
+                    border: `1px solid ${ativo ? ds.greenLine : ds.border}`,
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${ativo ? ds.green : ds.dim}`, background: ativo ? ds.green : "transparent", color: "#04120a", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {ativo ? "✓" : ""}
+                  </span>
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Button variant="primary" onClick={buscar} disabled={loading || selecionados.length < 2}>
+            {loading ? "Comparando..." : "Comparar"}
+          </Button>
+          {erro && <span role="alert" style={{ fontSize: 13, color: ds.red }}>{erro}</span>}
         </div>
-        <button
-          type="button"
-          onClick={buscar}
-          disabled={loading || selecionados.length < 2}
-          style={{
-            background: "#3ee06f",
-            color: "#04120a",
-            border: "none",
-            borderRadius: 8,
-            padding: "8px 16px",
-            fontSize: 13,
-            cursor: loading || selecionados.length < 2 ? "not-allowed" : "pointer",
-            opacity: loading || selecionados.length < 2 ? 0.5 : 1,
-          }}
-        >
-          {loading ? "Comparando..." : "Comparar"}
-        </button>
-        {erro && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 8 }}>{erro}</p>}
-      </div>
+      </PanelCard>
 
       {buscou && resultado.length === 0 && !erro && (
-        <div style={card}>
-          <p style={{ fontSize: 13, color: "#8a948e" }}>
-            Nenhuma sprint fechada encontrada pros projetos selecionados.
-          </p>
-        </div>
+        <EmptyState>Nenhuma sprint fechada encontrada para os projetos selecionados.</EmptyState>
       )}
 
       {resultado.length > 0 && (
-        <div style={card}>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Resultado</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart
-              data={resultado.map((r) => ({
-                modo: `${r.modo_trabalho}/${r.modo_avaliacao}`,
-                spi_medio: r.spi_medio,
-                entrega_media: r.entrega_media,
-              }))}
-              margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="modo" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Legend formatter={(v) => (v === "spi_medio" ? "SPI médio" : "Entrega média")} />
-              <Bar dataKey="spi_medio" fill="#64748b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="entrega_media" fill="#166534" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <PanelCard label="Resultado · SPI médio e entrega média por modo" action={<ChartLegend items={[{ label: "SPI médio", color: ds.chartGrey }, { label: "Entrega média", color: ds.green }]} />}>
+          <BarGroups
+            label="SPI médio e entrega média por modo"
+            categories={resultado.map((r) => `${r.modo_trabalho}/${r.modo_avaliacao}`)}
+            series={[
+              { key: "spi", label: "SPI médio", color: ds.chartGrey, values: resultado.map((r) => r.spi_medio ?? 0) },
+              { key: "ent", label: "Entrega média", color: ds.green, values: resultado.map((r) => r.entrega_media ?? 0) },
+            ]}
+          />
+        </PanelCard>
       )}
-    </main>
+    </>
   );
 }

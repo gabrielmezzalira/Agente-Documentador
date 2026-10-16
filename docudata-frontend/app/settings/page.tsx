@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-
+import { Button, Chip, Field, Input, PageHeader } from "../components/ds";
+import { PanelCard } from "../components/painel/PanelCard";
+import { ds } from "../lib/ds";
 import {
   getGeminiApiKeyStatus,
   updateGeminiApiKey,
   type GeminiApiKeyStatus,
 } from "../lib/api";
-
 
 export default function SettingsPage() {
   const [status, setStatus] = useState<GeminiApiKeyStatus | null>(null);
@@ -46,117 +46,66 @@ export default function SettingsPage() {
   const showForm = status?.configured !== true || editing;
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "52px 24px" }}>
-      <Link href="/" style={{ fontSize: 13, color: "#8a948e" }}>← Projetos</Link>
-      <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "#f2f5f3", marginTop: 28, marginBottom: 6 }}>
-        Configurações
-      </h1>
-      <p style={{ color: "#8a948e", marginBottom: 32, fontSize: 14 }}>
-        Configurações compartilhadas por toda a aplicação.
-      </p>
+    <>
+      <PageHeader title="Configurações" subtitle="Configurações compartilhadas por toda a aplicação." />
 
-      <section style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12, padding: 24 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 750, color: "#f2f5f3", margin: 0 }}>Gemini</h2>
-        <p style={{ marginTop: 6, color: "#8a948e", fontSize: 14 }}>
-          Chave utilizada pelos recursos de IA de toda a aplicação.
-        </p>
+      <div style={{ maxWidth: 760 }}>
+        <PanelCard
+          label="Gemini"
+          action={!loading && <Chip tone={status?.configured ? "green" : "red"} dot={status?.configured}>{status?.configured ? "Chave configurada" : "Chave não configurada"}</Chip>}
+        >
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: ds.muted }}>Chave utilizada pelos recursos de IA de toda a aplicação.</p>
 
-        {loading ? (
-          <p style={{ marginTop: 24, color: "#8a948e", fontSize: 14 }}>Carregando...</p>
-        ) : (
-          <div style={{ marginTop: 24 }}>
-            <p style={{ color: status?.configured ? "#3ee06f" : "#ff6b6b", fontSize: 14, fontWeight: 700, margin: 0 }}>
-              {status?.configured ? "Chave configurada" : "Chave não configurada"}
-            </p>
-            {status?.configured && (
-              <div style={{ marginTop: 8 }}>
-                <code style={{ fontSize: 14, color: "#f2f5f3" }}>{status.key_hint}</code>
-                {status.updated_at && (
-                  <p style={{ marginTop: 6, color: "#8a948e", fontSize: 12 }}>
-                    Atualizada em {new Date(status.updated_at).toLocaleString("pt-BR")}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {showForm ? (
-              <form onSubmit={handleSubmit} style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
-                <label htmlFor="gemini-new-key" style={labelStyle}>Nova chave Gemini</label>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <input
-                    id="gemini-new-key"
-                    type="password"
-                    autoComplete="new-password"
-                    value={newKey}
-                    onChange={(event) => setNewKey(event.target.value)}
-                    placeholder="AIza..."
-                    style={{ ...inputStyle, flex: 1 }}
-                    required
-                  />
-                  <button type="submit" disabled={saving || !newKey.trim()} style={btnPrimary}>
-                    {saving ? "Salvando..." : "Salvar chave"}
-                  </button>
-                  {status?.configured && (
-                    <button type="button" disabled={saving} onClick={() => { setEditing(false); setNewKey(""); }} style={btnSecondary}>
-                      Cancelar
-                    </button>
+          {loading ? (
+            <p role="status" style={{ margin: 0, color: ds.muted, fontSize: 14 }}>Carregando...</p>
+          ) : (
+            <>
+              {status?.configured && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+                  <code style={{ fontFamily: ds.fontMono, fontSize: 14, color: ds.text }}>{status.key_hint}</code>
+                  {status.updated_at && (
+                    <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>
+                      atualizada em {new Date(status.updated_at).toLocaleString("pt-BR")}
+                    </span>
                   )}
                 </div>
-              </form>
-            ) : (
-              <button type="button" onClick={() => { setEditing(true); setMessage(null); }} style={{ ...btnSecondary, marginTop: 18 }}>
-                Alterar chave
-              </button>
-            )}
+              )}
 
-            {message && (
-              <p style={{ marginTop: 14, fontSize: 13, color: message.ok ? "#3ee06f" : "#ff6b6b" }}>
-                {message.text}
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-    </main>
+              {showForm ? (
+                <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <Field label="Nova chave Gemini" htmlFor="gemini-new-key" required>
+                    <Input
+                      id="gemini-new-key"
+                      type="password"
+                      autoComplete="new-password"
+                      value={newKey}
+                      onChange={(event) => setNewKey(event.target.value)}
+                      placeholder="AIza..."
+                      required
+                    />
+                  </Field>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Button type="submit" variant="primary" disabled={saving || !newKey.trim()}>
+                      {saving ? "Salvando..." : "Salvar chave"}
+                    </Button>
+                    {status?.configured && (
+                      <Button variant="ghost" disabled={saving} onClick={() => { setEditing(false); setNewKey(""); }}>Cancelar</Button>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <div>
+                  <Button variant="secondary" onClick={() => { setEditing(true); setMessage(null); }}>Alterar chave</Button>
+                </div>
+              )}
+
+              {message && (
+                <p role={message.ok ? "status" : "alert"} style={{ margin: 0, fontSize: 13, color: message.ok ? ds.green : ds.red }}>{message.text}</p>
+              )}
+            </>
+          )}
+        </PanelCard>
+      </div>
+    </>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#8a948e",
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-};
-
-const inputStyle: React.CSSProperties = {
-  minWidth: 0,
-  padding: "11px 14px",
-  background: "#0d1711",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  fontSize: 14,
-  color: "#f2f5f3",
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "none",
-  borderRadius: 8,
-  padding: "11px 16px",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  background: "#0d1711",
-  color: "#8a948e",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  padding: "10px 14px",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-};
