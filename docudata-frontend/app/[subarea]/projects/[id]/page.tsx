@@ -1477,7 +1477,7 @@ export default function ProjectDashboard() {
 
       {/* ABA: MÉTRICAS */}
       {activeTab === "metricas" && (
-        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} />
+        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} onGoToPlanejamento={() => setActiveTab("escopo")} />
       )}
 
       {/* ABA: TECNOLOGIAS */}
