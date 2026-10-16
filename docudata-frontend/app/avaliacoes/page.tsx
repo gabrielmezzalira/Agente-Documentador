@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "../components/AuthGuard";
+import { Button, Card, EmptyState, ErrorNotice, Field, Modal, PageHeader, Select, Textarea } from "../components/ds";
+import { ds, labelStyle } from "../lib/ds";
 import {
   editarAvaliacao,
   getEdicoesAvaliacao,
@@ -77,110 +78,97 @@ export default function AvaliacoesPage() {
     setEditando(null);
   }
 
-  if (bloqueado) {
-    return (
-      <main style={pageStyle}>
-        <Link href="/" style={linkVoltarStyle}>← Projetos</Link>
-        <p style={{ color: "#ff6b6b", marginTop: 20 }}>Acesso restrito a Gerente, Líder e Owner.</p>
-      </main>
-    );
-  }
+  if (bloqueado) return <ErrorNotice>Acesso restrito a Gerente, Líder e Owner.</ErrorNotice>;
 
   return (
-    <main style={pageStyle}>
-      <Link href="/" style={linkVoltarStyle}>← Projetos</Link>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#f2f5f3", margin: "20px 0 8px" }}>Avaliações do gerente</h1>
-      <p style={{ color: "#8a948e", fontSize: 14, marginBottom: 24 }}>
-        Notas da avaliação semanal por operacional e sprint. Corrigir uma nota atualiza o ranking.
-      </p>
+    <>
+      <PageHeader title="Avaliações do gerente" subtitle="Notas da avaliação semanal por operacional e sprint. Corrigir uma nota atualiza o ranking." />
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
-        <label style={filtroLabelStyle}>
-          Projeto
-          <select
-            value={projetoId}
-            onChange={(e) => { setProjetoId(e.target.value); setSprintId(""); }}
-            style={selectStyle}
-          >
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <Field label="Projeto" htmlFor="filtro-projeto">
+          <Select id="filtro-projeto" value={projetoId} onChange={(e) => { setProjetoId(e.target.value); setSprintId(""); }} style={{ width: 320, height: 40, fontSize: 13.5 }}>
             <option value="">Todos</option>
             {projetos.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-          </select>
-        </label>
-        <label style={filtroLabelStyle}>
-          Sprint
-          <select
-            value={sprintId}
-            onChange={(e) => setSprintId(e.target.value)}
-            disabled={!projetoId}
-            style={selectStyle}
-          >
+          </Select>
+        </Field>
+        <Field label="Sprint" htmlFor="filtro-sprint">
+          <Select id="filtro-sprint" value={sprintId} onChange={(e) => setSprintId(e.target.value)} disabled={!projetoId} style={{ width: 220, height: 40, fontSize: 13.5 }}>
             <option value="">Todas</option>
             {sprintsDoProjeto.map(([id, numero]) => <option key={id} value={id}>Sprint {numero ?? "—"}</option>)}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
-      {erro && <p role="alert" style={{ color: "#ff6b6b" }}>{erro}</p>}
-      {!itens && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
+      {erro && <ErrorNotice>{erro}</ErrorNotice>}
+      {!itens && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
       {itens && filtrados.length === 0 && (
-        <p style={{ color: "#8a948e" }}>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</p>
+        <EmptyState>Nenhuma avaliação registrada{projetoId ? " para este filtro" : " ainda"}.</EmptyState>
       )}
 
-      {grupos.map((g) => (
-        <section key={g.chave} style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, color: "#f2f5f3", margin: "0 0 10px" }}>
-            {g.projeto} <span style={{ color: "#8a948e", fontWeight: 600 }}>· Sprint {g.sprint ?? "—"}</span>
-          </h2>
-          <div style={{ overflowX: "auto", background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 12 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Operacional</th>
-                  <th style={thStyle}>Avaliador</th>
-                  {perguntas(g.linhas[0].modo_trabalho).map((texto, idx) => (
-                    <th key={idx} style={{ ...thStyle, textAlign: "center" }} title={texto}>P{idx + 1}</th>
-                  ))}
-                  <th style={{ ...thStyle, textAlign: "center" }}>Média</th>
-                  <th style={thStyle}><span style={srOnly}>Ações</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.linhas.map((a) => (
-                  <tr key={a.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <td style={tdStyle}>
-                      <span style={{ fontWeight: 650, color: "#f2f5f3" }}>{a.operacional_nome}</span>
+      {grupos.map((g) => {
+        const textos = perguntas(g.linhas[0].modo_trabalho);
+        const colunas = `minmax(0,1.6fr) minmax(0,1.3fr) repeat(${textos.length}, 48px) 80px 150px`;
+        return (
+          <section key={g.chave} aria-label={`${g.projeto} · Sprint ${g.sprint ?? "—"}`} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em", color: ds.white }}>{g.projeto}</h2>
+              <span style={{ fontSize: 15, color: ds.muted }}>· Sprint {g.sprint ?? "—"}</span>
+            </div>
+            <Card style={{ overflowX: "auto" }}>
+              <div role="table" style={{ display: "flex", flexDirection: "column", minWidth: 760 }}>
+                <div role="row" style={{ display: "grid", gridTemplateColumns: colunas, gap: 12, padding: "10px 16px", borderBottom: `1px solid ${ds.border}` }}>
+                  <span role="columnheader" style={labelStyle}>Operacional</span>
+                  <span role="columnheader" style={labelStyle}>Avaliador</span>
+                  {textos.map((texto, idx) => <span key={idx} role="columnheader" title={texto} style={{ ...labelStyle, cursor: "help" }}>P{idx + 1}</span>)}
+                  <span role="columnheader" style={labelStyle}>Média</span>
+                  <span role="columnheader" style={srOnly}>Ações</span>
+                </div>
+                {g.linhas.map((a, i) => (
+                  <div key={a.id} role="row" style={{ display: "grid", gridTemplateColumns: colunas, gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none", fontSize: 14, color: ds.text2 }}>
+                    <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                      <span style={{ color: ds.white, fontWeight: 600 }}>{a.operacional_nome}</span>
                       {a.total_edicoes > 0 && a.ultima_edicao_em && (
-                        <span style={badgeEditadaStyle}>
-                          editada por {a.ultima_edicao_por} em {formatData(a.ultima_edicao_em)}
-                        </span>
+                        <span style={{ fontSize: 11.5, color: ds.amber }}>editada por {a.ultima_edicao_por} em {formatData(a.ultima_edicao_em)}</span>
                       )}
-                    </td>
-                    <td style={{ ...tdStyle, color: "#8a948e" }}>{a.avaliador_nome}</td>
-                    {CAMPOS_RESPOSTA.map((c) => (
-                      <td key={c} style={{ ...tdStyle, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{a[c]}</td>
-                    ))}
-                    <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                      {mediaGerente100(notasDe(a))}
-                    </td>
-                    <td style={{ ...tdStyle, whiteSpace: "nowrap", textAlign: "right" }}>
+                    </span>
+                    <span role="cell">{a.avaliador_nome}</span>
+                    {CAMPOS_RESPOSTA.map((c, idx) => <span key={c} role="cell"><NotaCelula valor={a[c]} pergunta={textos[idx]} /></span>)}
+                    <span role="cell" style={{ fontFamily: ds.fontMono, fontSize: 15, fontWeight: 700, color: ds.white }}>{mediaGerente100(notasDe(a))}</span>
+                    <span role="cell" style={{ display: "flex", gap: 10, justifyContent: "flex-end", whiteSpace: "nowrap" }}>
                       <button type="button" onClick={() => setEditando(a)} style={btnLinkStyle}>Editar</button>
                       {a.total_edicoes > 0 && (
-                        <button type="button" onClick={() => setVendoHistorico(a)} style={btnLinkStyle}>
-                          Histórico ({a.total_edicoes})
-                        </button>
+                        <button type="button" onClick={() => setVendoHistorico(a)} style={{ ...btnLinkStyle, color: ds.text2 }}>Histórico ({a.total_edicoes})</button>
                       )}
-                    </td>
-                  </tr>
+                    </span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ))}
+              </div>
+            </Card>
+          </section>
+        );
+      })}
 
       {editando && <EditarModal avaliacao={editando} onClose={() => setEditando(null)} onSalvo={onSalvo} />}
       {vendoHistorico && <HistoricoModal avaliacao={vendoHistorico} onClose={() => setVendoHistorico(null)} />}
-    </main>
+    </>
+  );
+}
+
+/** Nota 0–5 numa célula de calor: quanto maior, mais verde (protótipo 11). Zero fica apagado. */
+function NotaCelula({ valor, pergunta }: { valor: number | null | undefined; pergunta?: string }) {
+  const v = valor ?? 0;
+  return (
+    <span
+      title={pergunta ? `${pergunta}: ${valor ?? "—"}` : undefined}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8,
+        fontFamily: ds.fontMono, fontSize: 13, fontWeight: 600,
+        background: v > 0 ? `rgba(62,224,111,${(0.055 * v).toFixed(3)})` : "rgba(255,255,255,0.03)",
+        color: v > 0 ? ds.white : ds.dim,
+      }}
+    >
+      {valor ?? "—"}
+    </span>
   );
 }
 
@@ -213,60 +201,64 @@ function EditarModal({
   }
 
   return (
-    <Overlay onClose={onClose} titulo={`Corrigir nota · ${avaliacao.operacional_nome}`}>
-      <p style={{ fontSize: 13, color: "#8a948e", margin: "0 0 16px" }}>
-        {avaliacao.projeto_nome} · Sprint {avaliacao.sprint_numero ?? "—"} · avaliado por {avaliacao.avaliador_nome}
-      </p>
-      {perguntas(avaliacao.modo_trabalho).map((texto, idx) => {
-        const campo = CAMPOS_RESPOSTA[idx];
-        return (
-          <fieldset key={campo} style={{ border: "none", padding: 0, margin: "0 0 14px" }}>
-            <legend style={{ fontSize: 13, color: "#f2f5f3", fontWeight: 600, marginBottom: 6 }}>
-              {idx + 1}. {texto}
-            </legend>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[0, 1, 2, 3, 4, 5].map((n) => {
-                const ativo = notas[campo] === n;
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    aria-pressed={ativo}
-                    onClick={() => setNotas((prev) => ({ ...prev, [campo]: n }))}
-                    style={{
-                      width: 36, height: 36, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer",
-                      border: ativo ? "2px solid #3ee06f" : "1px solid rgba(62,224,111,0.2)",
-                      background: ativo ? "rgba(62,224,111,0.12)" : "#0d1711",
-                      color: "#f2f5f3",
-                    }}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-        );
-      })}
-      <label htmlFor="motivo-correcao" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#c3cbc6", margin: "8px 0 4px" }}>
-        Motivo da correção
-      </label>
-      <textarea
-        id="motivo-correcao"
-        value={motivo}
-        onChange={(e) => setMotivo(e.target.value)}
-        rows={3}
-        placeholder="Ex.: nota lançada errada, conversei com o gerente"
-        style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: 10, fontSize: 13, resize: "vertical" }}
-      />
-      {erro && <p role="alert" style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>{erro}</p>}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-        <button type="button" onClick={onClose} style={btnGhostStyle}>Cancelar</button>
-        <button type="button" onClick={salvar} disabled={!podeSalvar} style={{ ...btnPrimaryStyle, opacity: podeSalvar ? 1 : 0.5 }}>
-          {salvando ? "Salvando…" : "Salvar correção"}
-        </button>
+    <Modal
+      title={`Corrigir nota · ${avaliacao.operacional_nome}`}
+      onClose={onClose}
+      width={560}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={salvar} disabled={!podeSalvar}>{salvando ? "Salvando…" : "Salvar correção"}</Button>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <p style={{ margin: 0, fontSize: 13, color: ds.muted }}>
+          {avaliacao.projeto_nome} · Sprint {avaliacao.sprint_numero ?? "—"} · avaliado por {avaliacao.avaliador_nome}
+        </p>
+        {perguntas(avaliacao.modo_trabalho).map((texto, idx) => {
+          const campo = CAMPOS_RESPOSTA[idx];
+          return (
+            <fieldset key={campo} style={{ border: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <legend style={{ fontSize: 13.5, color: ds.text, fontWeight: 600, marginBottom: 8, padding: 0 }}>
+                {idx + 1}. {texto}
+              </legend>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[0, 1, 2, 3, 4, 5].map((n) => {
+                  const ativo = notas[campo] === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      aria-pressed={ativo}
+                      aria-label={`Nota ${n}`}
+                      onClick={() => setNotas((prev) => ({ ...prev, [campo]: n }))}
+                      style={{
+                        width: 36, height: 36, borderRadius: 8, fontFamily: ds.fontMono, fontSize: 14, fontWeight: 600, cursor: "pointer",
+                        border: `1px solid ${ativo ? ds.green : ds.innerBorder}`,
+                        background: ativo ? ds.greenSoft : ds.inner,
+                        color: ativo ? ds.green : ds.text2,
+                      }}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          );
+        })}
+        <Field label="Motivo da correção" htmlFor="motivo-correcao" required error={erro || null}>
+          <Textarea
+            id="motivo-correcao"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+            placeholder="Ex.: nota lançada errada, conversei com o gerente"
+          />
+        </Field>
       </div>
-    </Overlay>
+    </Modal>
   );
 }
 
@@ -280,56 +272,27 @@ function HistoricoModal({ avaliacao, onClose }: { avaliacao: AvaliacaoHistoricoI
   }, [avaliacao.id]);
 
   return (
-    <Overlay onClose={onClose} titulo={`Histórico · ${avaliacao.operacional_nome}`}>
-      {erro && <p role="alert" style={{ color: "#ff6b6b" }}>{erro}</p>}
-      {!edicoes && !erro && <p style={{ color: "#8a948e" }}>Carregando...</p>}
-      {edicoes?.map((e) => (
-        <div key={e.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "12px 0" }}>
-          <p style={{ fontSize: 12, color: "#8a948e", margin: "0 0 6px" }}>
+    <Modal title={`Histórico · ${avaliacao.operacional_nome}`} onClose={onClose} width={560}>
+      {erro && <ErrorNotice>{erro}</ErrorNotice>}
+      {!edicoes && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
+      {edicoes?.map((e, i) => (
+        <div key={e.id} style={{ borderTop: i > 0 ? `1px solid ${ds.border}` : "none", padding: "12px 0" }}>
+          <p style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted, margin: "0 0 6px" }}>
             {e.editor_nome} · {formatData(e.criado_em)}
           </p>
-          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 13, color: "#f2f5f3" }}>
+          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 13, color: ds.text }}>
             {CAMPOS_RESPOSTA.map((c, idx) =>
               e.antes[c] !== e.depois[c] ? (
                 <li key={c} title={textos[idx]}>P{idx + 1}: {e.antes[c] ?? "—"} → {e.depois[c] ?? "—"}</li>
               ) : null
             )}
           </ul>
-          <p style={{ fontSize: 13, color: "#c3cbc6", margin: 0 }}>“{e.motivo}”</p>
+          <p style={{ fontSize: 13, color: ds.text2, margin: 0 }}>“{e.motivo}”</p>
         </div>
       ))}
-    </Overlay>
+    </Modal>
   );
 }
 
-function Overlay({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
-    >
-      <div role="dialog" aria-modal="true" aria-label={titulo} style={{ background: "#0d1711", borderRadius: 16, padding: "24px 28px", width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
-        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 12px" }}>{titulo}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-const pageStyle: React.CSSProperties = { maxWidth: 1000, margin: "0 auto", padding: "52px 24px" };
-const linkVoltarStyle: React.CSSProperties = { fontSize: 13, color: "#8a948e" };
-const filtroLabelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.06em" };
-const selectStyle: React.CSSProperties = { minWidth: 200, padding: "8px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, fontSize: 13, background: "#0d1711", color: "#f2f5f3", textTransform: "none", letterSpacing: 0, fontWeight: 500 };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#8a948e", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "default" };
-const tdStyle: React.CSSProperties = { padding: "10px 12px", verticalAlign: "top" };
-const badgeEditadaStyle: React.CSSProperties = { display: "block", marginTop: 4, fontSize: 11, color: "#f2c14e" };
-const btnLinkStyle: React.CSSProperties = { background: "none", border: "none", color: "#3ee06f", fontSize: 13, fontWeight: 650, cursor: "pointer", padding: "4px 6px" };
-const btnGhostStyle: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#c3cbc6" };
-const btnPrimaryStyle: React.CSSProperties = { background: "#f2f5f3", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: "#04120a" };
+const btnLinkStyle: React.CSSProperties = { background: "none", border: "none", color: "#3ee06f", fontSize: 13.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" };
 const srOnly: React.CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" };
