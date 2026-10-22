@@ -20,6 +20,28 @@ def on_task_transition(
     return _detectar_funcionalidade_completa(client, task, campo, para)
 
 
+_ROTULO_COLUNA = {
+    "planejado": "Planejado",
+    "em_andamento": "Em andamento",
+    "pendente_aprovacao": "Pendente de aprovação",
+    "concluida": "Concluída",
+}
+
+
+def _rotulo_coluna(valor: Optional[str]) -> str:
+    if not valor:
+        return "—"
+    return _ROTULO_COLUNA.get(valor, valor.replace("_", " ").capitalize())
+
+
+def _resumo_transicao(titulo: str, campo: str, de, para) -> str:
+    """Frase legível do histórico da sprint: o nome interno da coluna
+    (`em_andamento`) não aparece para quem lê a ingestão."""
+    if campo == "coluna_kanban":
+        return f"Task '{titulo}' movida de {_rotulo_coluna(de)} para {_rotulo_coluna(para)}"
+    return f"Task '{titulo}': {campo.replace('_', ' ')} mudou de {de or '—'} para {para or '—'}"
+
+
 def _log_ingestion(client, task: dict, campo: str, de, para) -> None:
     sprint_id = task.get("sprint_id")
     if not sprint_id:
@@ -36,7 +58,7 @@ def _log_ingestion(client, task: dict, campo: str, de, para) -> None:
         "file_name": f"task_event:{task['id']}",
         "file_type": "task_event",
         "extracted_content": {
-            "resumo": f"Task '{task['titulo']}': {campo} {de} → {para}",
+            "resumo": _resumo_transicao(task["titulo"], campo, de, para),
             "tarefas": [task["titulo"]],
             "decisoes": [],
             "problemas": [],

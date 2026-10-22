@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import TutorialBanner from "./TutorialBanner";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { ds, labelStyle } from "../lib/ds";
-import { Button, Chip } from "./ds";
+import { Button, Chip, InfoTip } from "./ds";
 import { BigNumber, PanelCard, fmtNum } from "./painel/PanelCard";
 import { BarGroups, ChartEmpty, ChartLegend } from "./metricas/Charts";
 import {
@@ -43,33 +43,7 @@ const TOOLTIPS: Record<string, string> = {
 };
 
 function InfoTooltip({ id }: { id: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span style={{ position: "relative", display: "inline-flex", verticalAlign: "middle" }}>
-      <button
-        type="button"
-        aria-label="O que significa"
-        aria-expanded={show}
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onFocus={() => setShow(true)}
-        onBlur={() => setShow(false)}
-        style={{ cursor: "help", fontSize: 10, color: ds.muted, fontWeight: 700, background: "none", border: `1px solid ${ds.borderStrong}`, borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
-      >
-        i
-      </button>
-      {show && (
-        <span role="tooltip" style={{
-          position: "absolute", right: 0, top: 22, zIndex: 100,
-          background: ds.cardTop, color: ds.text2, border: `1px solid ${ds.greenLine}`, fontSize: 12, lineHeight: 1.55,
-          borderRadius: 10, padding: "10px 12px", width: 280, whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontFamily: ds.fontSans,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
-        }}>
-          {TOOLTIPS[id]}
-        </span>
-      )}
-    </span>
-  );
+  return <InfoTip text={TOOLTIPS[id]} />;
 }
 
 function spiColor(spi: number | null): string {
@@ -218,8 +192,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {avgCT !== null && <Chip>Média {fmtHoras(avgCT)}</Chip>}
-              {ctStats?.p50_horas != null && <Chip>p50 {fmtNum(ctStats.p50_horas)}h</Chip>}
-              {ctStats?.p85_horas != null && <Chip>p85 {fmtNum(ctStats.p85_horas)}h</Chip>}
+              {ctStats?.p50_horas != null && <Chip>mediana {fmtNum(ctStats.p50_horas)}h</Chip>}
+              {ctStats?.p85_horas != null && <Chip>85% em até {fmtNum(ctStats.p85_horas)}h</Chip>}
               <Chip>{cycleTime.length} task{cycleTime.length !== 1 ? "s" : ""} com histórico</Chip>
             </div>
             <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 36, alignItems: "start", paddingTop: 10 }}>

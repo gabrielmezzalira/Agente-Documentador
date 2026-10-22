@@ -1,14 +1,18 @@
 import type { ReactNode } from "react";
 import { ds, labelStyle } from "../../lib/ds";
-import { Card } from "../ds";
+import { Card, InfoTip } from "../ds";
 
-/** Cartão do Painel: rótulo mono no topo, ação opcional à direita (protótipo 05). */
-export function PanelCard({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) {
+/** Cartão do Painel: rótulo mono no topo, ação opcional à direita (protótipo 05).
+ *  `info` põe o "i" com a explicação do cartão ao lado do rótulo. */
+export function PanelCard({ label, info, action, children }: { label: string; info?: string; action?: ReactNode; children: ReactNode }) {
   return (
     <Card>
       <div style={{ padding: "24px 26px", display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <span style={labelStyle}>{label}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={labelStyle}>{label}</span>
+            {info && <InfoTip text={info} align="left" />}
+          </span>
           {action}
         </div>
         {children}
@@ -27,11 +31,14 @@ export function BigNumber({ value, unit, color = ds.white }: { value: ReactNode;
   );
 }
 
-/** Indicador com legenda curta acima do número grande. */
-export function Metric({ caption, value, unit, color }: { caption: string; value: ReactNode; unit?: ReactNode; color?: string }) {
+/** Indicador com legenda curta acima do número grande; `info` põe o "i" ao lado da legenda. */
+export function Metric({ caption, value, unit, color, info }: { caption: string; value: ReactNode; unit?: ReactNode; color?: string; info?: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 13, color: ds.text2 }}>{caption}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: ds.text2 }}>
+        {caption}
+        {info && <InfoTip text={info} align="left" />}
+      </span>
       <BigNumber value={value} unit={unit} color={color} />
     </div>
   );
