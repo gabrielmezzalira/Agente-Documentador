@@ -186,7 +186,7 @@ async def delete_sprint(sprint_id: str):
 async def iniciar_sprint(sprint_id: str):
     """Tira a sprint do modo planejamento e a faz aparecer na aba Sprints, com
     Planning/Daily/Review/Kanban/Avaliação Semanal. Sem volta pela API: uma vez
-    iniciada, a sprint é execução real, não mais um slot de orçamento."""
+    iniciada, a sprint é execução real, não mais uma sprint só de planejamento."""
     client = get_client()
     check = client.table("sprints").select("id").eq("id", sprint_id).execute()
     if not check.data:

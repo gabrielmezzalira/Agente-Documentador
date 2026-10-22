@@ -242,7 +242,7 @@ class IngestionResponse(BaseModel):
 
 class SprintCreate(BaseModel):
     numero: Optional[int] = None  # se None, auto = max(numero)+1
-    iniciada: bool = True  # False = criada só pra planejar orçamento, some da aba Sprints
+    iniciada: bool = True  # False = criada só pra planejar, some da aba Sprints
 
 
 class SprintHealthUpdate(BaseModel):
@@ -479,7 +479,7 @@ class TaskCreate(BaseModel):
     coluna_kanban: str = "planejado"
     checklist: Optional[list[dict]] = None  # [{texto, done}]
     ordem: int = 0
-    extra: bool = False  # task concedida além do que a pessoa tinha; não consome orçamento
+    extra: bool = False  # task concedida além do que a pessoa tinha; não entra no previsto da sprint
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
 
     @field_validator("pontos")

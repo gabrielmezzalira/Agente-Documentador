@@ -72,13 +72,12 @@ Onde vive o escopo contratado.
   versão. Serve para alinhar expectativa com o cliente.
 - **Status**: Não iniciada, Em andamento, Concluída. É o que alimenta o "escopo
   concluído" do Painel.
-- **Distribuir os 100 pontos**: todo projeto vale 100 pontos, fixo. Aqui você diz
-  quanto cada sprint recebe desses 100. A soma não pode passar de 100, e uma
-  sprint não pode receber menos do que as tasks dela já somam. Sprint sem
-  orçamento não trava nada.
-- **Valor do projeto**: se você informar o valor do contrato em reais, cada ponto
-  passa a valer um centésimo desse valor e o faturamento previsto de cada sprint
-  sai sozinho. O valor congela quando a primeira sprint recebe orçamento.
+- **Pontos**: só nível de dificuldade, numa régua única: 1 (simples), 2
+  (moderada), 3 (complexa) e 5 (muito complexa). Não existe total de pontos do
+  projeto, e os pontos só se somam dentro de uma sprint.
+- **Aprovação**: uma funcionalidade concluída precisa da sua aprovação para contar
+  no "Escopo concluído" do Painel. A aprovação cai se uma task dela for reaberta ou
+  entrar uma task nova, e só dá para aprovar de novo com todas as tasks concluídas.
 
 ### Tasks e Kanban
 
@@ -104,8 +103,8 @@ O coração do sistema. É daqui que sai quase tudo.
   suprimir o alerta quando o atraso não é responsabilidade de quem está nela.
 - **Pedir mais trabalho**: quando alguém termina tudo que tinha, aparece no
   Kanban dela o botão "Quero mais uma task", que avisa o gerente por e-mail.
-- **Task extra** é a concedida além do planejado. Ela não consome o orçamento de
-  pontos da sprint.
+- **Task extra** é a concedida além do planejado. Ela não entra no previsto da
+  sprint.
 - **Sugestões do review**: quando um review é registrado, o sistema detecta as
   tasks mencionadas como concluídas e sugere movê-las. Você aceita ou ignora.
 
@@ -161,7 +160,8 @@ Os números de fluxo do projeto.
 
 - **SPI** mede se a sprint entregou o que planejou: pontos concluídos sobre
   pontos previstos. Acima de 0,9 é saudável, entre 0,7 e 0,9 pede atenção, abaixo
-  de 0,7 é crítico. Só aparece se a sprint tiver orçamento de pontos.
+  de 0,7 é crítico. O previsto é a foto das tasks (sem extras) quando a sprint começa mais as tasks
+  que surgiram depois; o SPI aparece quando a sprint começa com tasks.
 - **Throughput**: quantas tasks foram concluídas por sprint.
 - **Cycle-time**: quanto tempo cada task ficou em Em andamento. Task com mais de
   três dias costuma indicar bloqueio, escopo grande demais ou dependência externa.

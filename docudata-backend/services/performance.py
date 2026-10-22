@@ -121,7 +121,7 @@ def _calcular_janela(client, linhas: list[dict], tamanho_esperado: int, pesos_po
 
 def _bonus_extra(linhas: list[dict]) -> float:
     """Task extra é a que o operacional pediu depois de fechar tudo que tinha.
-    Ela não entra em Entrega (não consumiu orçamento da sprint, e entrar no
+    Ela não entra em Entrega (não entra no previsto da sprint, e entrar no
     denominador puniria quem pediu mais trabalho): vira um bônus somado ao score
     final, com teto, para que o ranking não vire "quem pediu mais task"."""
     pontos = sum(l.get("bonus_pontos_extra") or 0 for l in linhas)

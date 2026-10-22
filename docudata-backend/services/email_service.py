@@ -97,7 +97,7 @@ def email_solicitacao_task(
     corpo = f"""
     <p><strong>{operacional_nome}</strong> concluiu tudo que estava atribuído a ele(a){onde} no projeto <strong>{projeto_nome}</strong> e está pedindo mais trabalho.</p>
     {sugestao_html}
-    <p>Abra o Kanban do projeto e, se houver algo disponível, atribua uma task marcada como <strong>extra</strong>. Task extra não consome o orçamento de pontos da sprint.</p>
+    <p>Abra o Kanban do projeto e, se houver algo disponível, atribua uma task marcada como <strong>extra</strong>. Task extra não entra no previsto da sprint.</p>
     <p>Se não houver nada agora, é só recusar o pedido. Ele não fica pendente pra sempre.</p>
     """
     return subject, _base_template("Pedido de nova task", corpo)
