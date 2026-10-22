@@ -85,3 +85,56 @@ def test_task_nova_em_funcionalidade_aprovada_revoga(monkeypatch, autenticar):
     )
     assert resp.status_code == 201, resp.text
     assert fake.tables["funcionalidades"][0]["aprovada_em"] is None
+
+
+def _task(**extra):
+    return {
+        "id": "t1", "project_id": "p1", "sprint_id": "s1", "titulo": "Tarefa",
+        "pontos": 3, "coluna_kanban": "concluida", "bloqueado": False,
+        "checklist": [], "ordem": 0, "extra": False, "operacional_id": None,
+        "funcionalidade_id": "f1",
+        "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
+        **extra,
+    }
+
+
+def _tc_tasks(monkeypatch, autenticar, fake):
+    import routers.tasks as tasks_router
+    monkeypatch.setattr(tasks_router, "check_wip", lambda *a, **k: (True, None))
+    monkeypatch.setattr(tasks_router, "on_task_transition", lambda *a, **k: False)
+    monkeypatch.setattr(tasks_router, "rotear_evento_pos_fechamento", lambda *a, **k: None)
+    return _tc(monkeypatch, autenticar, fake)
+
+
+def test_reabrir_task_revoga_aprovacao(monkeypatch, autenticar):
+    fake = _fake(aprovada_em="2026-10-01T00:00:00+00:00")
+    fake.tables["tasks"].append(_task())
+    resp = _tc_tasks(monkeypatch, autenticar, fake).patch(
+        "/tasks/t1", json={"coluna_kanban": "em_andamento", "motivo": "voltou"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["funcionalidades"][0]["aprovada_em"] is None
+    assert fake.tables["transicoes_status"][0]["motivo"] == "revogada: task reaberta"
+
+
+def test_vincular_task_a_funcionalidade_aprovada_revoga(monkeypatch, autenticar):
+    fake = _fake(aprovada_em="2026-10-01T00:00:00+00:00")
+    fake.tables["tasks"].append(_task(funcionalidade_id=None, coluna_kanban="em_andamento"))
+    resp = _tc_tasks(monkeypatch, autenticar, fake).patch("/tasks/t1", json={"funcionalidade_id": "f1"})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["funcionalidades"][0]["aprovada_em"] is None
+    assert fake.tables["transicoes_status"][0]["motivo"] == "revogada: task nova"
+
+
+def test_mudar_status_da_funcionalidade_revoga_aprovacao(monkeypatch, autenticar):
+    fake = _fake(aprovada_em="2026-10-01T00:00:00+00:00")
+    resp = _tc(monkeypatch, autenticar, fake).patch("/funcionalidades/f1", json={"status": "em_andamento"})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["funcionalidades"][0]["aprovada_em"] is None
+    assert resp.json()["aprovada_em"] is None
+    assert fake.tables["transicoes_status"][-1]["motivo"] == "revogada: status alterado"
+
+
+def test_aprovar_inexistente_404(monkeypatch, autenticar):
+    resp = _tc(monkeypatch, autenticar, _fake()).post("/funcionalidades/nao-existe/aprovar")
+    assert resp.status_code == 404
