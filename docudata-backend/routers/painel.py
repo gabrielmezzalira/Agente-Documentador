@@ -47,7 +47,7 @@ def calcular_bloco_a(proj: dict, funcs: list[dict]) -> dict:
         pct_prazo = round(min(dias_consumidos / total_dias * 100, 100.0), 1)
 
     total_funcs = len(funcs)
-    concluidas = sum(1 for f in funcs if f.get("status") == "concluida")
+    concluidas = sum(1 for f in funcs if f.get("status") == "concluida" and f.get("aprovada_em"))
 
     pct_escopo = round(concluidas / total_funcs * 100, 1) if total_funcs > 0 else 0.0
 

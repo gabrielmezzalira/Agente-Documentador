@@ -21,11 +21,19 @@ def _projeto(dias_corridos: int, dias_restantes: int, tolerancia: int) -> dict:
     }
 
 
-def _funcs(total: int, concluidas: int) -> list[dict]:
+def _funcs(total: int, aprovadas: int) -> list[dict]:
     return [
-        {"id": f"f-{i}", "titulo": f"Func {i}", "status": "concluida" if i < concluidas else "em_andamento"}
+        {"id": f"f-{i}", "titulo": f"Func {i}",
+         "status": "concluida" if i < aprovadas else "em_andamento",
+         "aprovada_em": "2026-10-01T00:00:00+00:00" if i < aprovadas else None}
         for i in range(total)
     ]
+
+
+def test_concluida_sem_aprovacao_nao_conta_no_escopo():
+    funcs = _funcs(4, 1) + [{"id": "f-x", "titulo": "X", "status": "concluida", "aprovada_em": None}]
+    bloco = calcular_bloco_a(_projeto(50, 50, tolerancia=100), funcs)
+    assert bloco["pct_escopo_concluido"] == 20.0
 
 
 def test_projeto_em_dia_nao_acusa_desvio():
