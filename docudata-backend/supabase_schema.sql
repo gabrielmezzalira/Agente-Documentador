@@ -1169,3 +1169,47 @@ WHERE a.sprint_id = p.sprint_id
 -- Rollback (aditivo; só se não houver dado que importe):
 -- (as políticas de RLS somem junto com as tabelas; para só desligar: ALTER TABLE <tabela> DISABLE ROW LEVEL SECURITY;)
 -- DROP TABLE IF EXISTS requisito_transicoes, requisito_evidencias, requisitos, discovery_transcricoes, discovery_reunioes;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Rodada A1 (2026-10-22): régua única 1/2/3/5, aprovação de
+-- funcionalidade pelo gerente e previsto da sprint (foto do início +
+-- o que surgiu). Spec: docs/superpowers/specs/2026-10-22-regua-aprovacao-previsto-design.md
+-- Aplicar imediatamente ANTES do deploy do backend desta rodada.
+-- Idempotente: pode ser reaplicada sem alterar dados já convertidos.
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pontos_legado int;
+
+-- Espelha services/regua.py::converter_pontos_legado. Concluídas ficam como
+-- estão: o fechamento das sprints já registrou os números delas.
+UPDATE tasks
+SET pontos_legado = pontos,
+    pontos = CASE
+        WHEN pontos <= 1 THEN 1
+        WHEN pontos = 2 THEN 2
+        WHEN pontos <= 4 THEN 3
+        ELSE 5
+    END
+WHERE coluna_kanban <> 'concluida' AND pontos NOT IN (1, 2, 3, 5);
+
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_pontos_check;
+ALTER TABLE tasks ADD CONSTRAINT tasks_pontos_check
+    CHECK (pontos IN (1, 2, 3, 5) OR coluna_kanban = 'concluida');
+
+ALTER TABLE funcionalidades ADD COLUMN IF NOT EXISTS aprovada_em  timestamptz;
+ALTER TABLE funcionalidades ADD COLUMN IF NOT EXISTS aprovada_por uuid REFERENCES pessoa(id) ON DELETE SET NULL;
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS prevista_no_inicio boolean NOT NULL DEFAULT false;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS surgiu_na_sprint   boolean NOT NULL DEFAULT false;
+
+-- Aproximação: sprints já iniciadas não têm registro de quais tasks estavam
+-- lá no começo; as tasks atuais (não extras) viram a foto.
+UPDATE tasks t
+SET prevista_no_inicio = true
+FROM sprints s
+WHERE t.sprint_id = s.id AND s.iniciada = true AND t.extra = false AND t.surgiu_na_sprint = false
+  AND t.prevista_no_inicio = false;
+
+COMMENT ON COLUMN sprints.pontos_orcamento IS 'ORFA desde 2026-10-22 (rodada A1): orçamento de 100 pontos removido; previsto vem de services/previsto_sprint.py';
+COMMENT ON COLUMN projects.valor_por_ponto  IS 'ORFA desde 2026-10-22 (rodada A1): pontos são só dificuldade';
+COMMENT ON COLUMN projects.valor_projeto    IS 'ORFA desde 2026-10-22 (rodada A1): campo saiu da tela';

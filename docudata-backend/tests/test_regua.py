@@ -84,3 +84,20 @@ def test_reabrir_task_legada_converte_pontos(monkeypatch, autenticar):
     task = fake.tables["tasks"][0]
     assert task["pontos"] == 5
     assert task["pontos_legado"] == 8
+
+
+def test_migracao_regua_espelha_converter_pontos_legado():
+    from pathlib import Path
+
+    sql = (Path(__file__).resolve().parents[1] / "supabase_schema.sql").read_text(encoding="utf-8")
+    bloco = sql.split("Rodada A1")[1]
+    assert "WHEN pontos <= 1 THEN 1" in bloco
+    assert "WHEN pontos = 2 THEN 2" in bloco
+    assert "WHEN pontos <= 4 THEN 3" in bloco
+    assert "ELSE 5" in bloco
+    assert "CHECK (pontos IN (1, 2, 3, 5) OR coluna_kanban = 'concluida')" in bloco
+    for coluna in ("pontos_legado", "aprovada_em", "aprovada_por", "prevista_no_inicio", "surgiu_na_sprint"):
+        assert coluna in bloco
+    assert "coluna_kanban <> 'concluida'" in bloco
+    assert "t.surgiu_na_sprint = false" in bloco
+    assert bloco.index("UPDATE tasks\nSET pontos_legado") < bloco.index("ADD CONSTRAINT tasks_pontos_check")
