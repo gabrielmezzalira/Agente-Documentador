@@ -26,6 +26,7 @@ from services.email_service import (
 )
 from services.supabase_client import get_client
 from services.wip_check import check_wip
+from services.regua import ajuste_pontos_reabertura
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
@@ -932,6 +933,11 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["extra"] = data.extra
     if houve_reabertura:
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
+    # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora
+    # dela; ao sair de concluida ela volta a ser trabalho aberto e precisa de
+    # um nível válido. O original fica em pontos_legado.
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida" and data.pontos is None:
+        updates.update(ajuste_pontos_reabertura(task))
 
     # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
     # desmarcar um bloqueio interno, bloqueado_resolvido_por veio válido).

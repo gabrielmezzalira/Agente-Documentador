@@ -47,3 +47,40 @@ def test_task_update_rejeita_fora_da_regua_e_aceita_none():
     with pytest.raises(ValidationError) as exc:
         TaskUpdate(pontos=4)
     assert MENSAGEM_NIVEL_INVALIDO in str(exc.value)
+
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from tests.fake_supabase import FakeClient  # noqa: E402
+
+
+def _client_task_concluida_legada():
+    return FakeClient({
+        "projects": [{"id": "p1", "modo_trabalho": "ATRIBUICAO"}],
+        "sprints": [{"id": "s1", "project_id": "p1", "iniciada": True}],
+        "tasks": [{
+            "id": "t1", "project_id": "p1", "sprint_id": "s1", "titulo": "Legada",
+            "pontos": 8, "coluna_kanban": "concluida", "bloqueado": False,
+            "checklist": [], "ordem": 0, "extra": False, "operacional_id": None,
+            "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
+        }],
+    })
+
+
+def test_reabrir_task_legada_converte_pontos(monkeypatch, autenticar):
+    import routers.tasks as tasks_router
+    from main import app
+
+    fake = _client_task_concluida_legada()
+    monkeypatch.setattr(tasks_router, "get_client", lambda: fake)
+    monkeypatch.setattr(tasks_router, "check_wip", lambda *a, **k: (True, None))
+    monkeypatch.setattr(tasks_router, "on_task_transition", lambda *a, **k: False)
+    monkeypatch.setattr(tasks_router, "rotear_evento_pos_fechamento", lambda *a, **k: None)
+    tc = autenticar(TestClient(app))
+
+    resp = tc.patch("/tasks/t1", json={"coluna_kanban": "em_andamento", "motivo": "voltou"})
+
+    assert resp.status_code == 200, resp.text
+    task = fake.tables["tasks"][0]
+    assert task["pontos"] == 5
+    assert task["pontos_legado"] == 8
