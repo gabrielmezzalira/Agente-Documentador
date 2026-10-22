@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 from datetime import date, datetime
 
+from services.regua import MENSAGEM_NIVEL_INVALIDO, NIVEIS
+
 
 class ConteudoEstruturado(BaseModel):
     """Schema de extracao de conhecimento de projetos de dados."""
@@ -50,7 +52,6 @@ class ProjectCreate(BaseModel):
     subarea: Subarea
     description: Optional[str] = None
     squad: Optional[str] = None
-    valor_projeto: Optional[float] = None
 
 
 class ProjectResponse(BaseModel):
@@ -61,8 +62,6 @@ class ProjectResponse(BaseModel):
     subarea: Subarea = "dados"
     description: Optional[str] = None
     squad: Optional[str] = None
-    valor_projeto: Optional[float] = None
-    valor_por_ponto: Optional[float] = None
     is_delivered: bool = False
     created_at: datetime
     last_ingestion_at: Optional[datetime] = None
@@ -243,7 +242,7 @@ class IngestionResponse(BaseModel):
 
 class SprintCreate(BaseModel):
     numero: Optional[int] = None  # se None, auto = max(numero)+1
-    iniciada: bool = True  # False = criada só pra planejar orçamento, some da aba Sprints
+    iniciada: bool = True  # False = criada só pra planejar, some da aba Sprints
 
 
 class SprintHealthUpdate(BaseModel):
@@ -257,7 +256,6 @@ class SprintResponse(BaseModel):
     numero: int
     status_saude: Optional[str] = None
     plano_correcao: Optional[str] = None
-    pontos_orcamento: Optional[int] = None
     avaliacao_completa_em: Optional[datetime] = None
     iniciada: bool = True
     created_at: datetime
@@ -275,10 +273,11 @@ class SprintStatusResponse(SprintResponse):
     ingestions_count: int = 0          # total de ingestões da sprint (qualquer tipo)
     docs_gerados_count: int = 0        # total de generated_docs da sprint
     pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
-    pontos_usados: int = 0
-    faturamento_previsto: Optional[float] = None
     avaliados_count: int = 0
     elegiveis_avaliacao_count: int = 0
+    previsto: int = 0
+    planejado_no_inicio: int = 0
+    surgiu_na_sprint: int = 0
 
 
 class SprintDocResponse(BaseModel):
@@ -379,6 +378,9 @@ class FuncionalidadeResponse(BaseModel):
     responsavel: Optional[str] = None
     sprint_alvo: Optional[str] = None
     created_at: datetime
+    aprovada_em: Optional[datetime] = None
+    aprovada_por: Optional[str] = None
+    aprovada_por_nome: Optional[str] = None
 
 
 class TransicaoStatusResponse(BaseModel):
@@ -421,7 +423,6 @@ class ContratoUpdate(BaseModel):
     tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
     arquetipo: Optional[Literal["padrao", "consultoria_discovery"]] = None
-    valor_projeto: Optional[float] = None
 
 
 class ResumoSemanalRequest(BaseModel):
@@ -470,7 +471,7 @@ _COLUNAS_VALIDAS = {"planejado", "em_andamento", "pendente_aprovacao", "concluid
 class TaskCreate(BaseModel):
     project_id: str
     titulo: str
-    pontos: int = Field(..., gt=0)
+    pontos: int
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -478,8 +479,15 @@ class TaskCreate(BaseModel):
     coluna_kanban: str = "planejado"
     checklist: Optional[list[dict]] = None  # [{texto, done}]
     ordem: int = 0
-    extra: bool = False  # task concedida além do que a pessoa tinha; não consome orçamento
+    extra: bool = False  # task concedida além do que a pessoa tinha; não entra no previsto da sprint
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
+
+    @field_validator("pontos")
+    @classmethod
+    def pontos_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -496,7 +504,7 @@ _BLOQUEIO_TIPOS_VALIDOS = {"interno", "cliente"}
 class TaskUpdate(BaseModel):
     titulo: Optional[str] = None
     descricao: Optional[str] = None
-    pontos: Optional[int] = Field(default=None, gt=0)
+    pontos: Optional[int] = None
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -513,6 +521,13 @@ class TaskUpdate(BaseModel):
     bloqueio_tipo: Optional[str] = None
     extra: Optional[bool] = None
     requer_aprovacao: Optional[bool] = None
+
+    @field_validator("pontos")
+    @classmethod
+    def pontos_na_regua(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -545,6 +560,7 @@ class TaskResponse(BaseModel):
     titulo: str
     descricao: Optional[str] = None
     pontos: int
+    pontos_legado: Optional[int] = None
     coluna_kanban: str
     bloqueado: bool
     motivo_bloqueio: Optional[str] = None
@@ -563,6 +579,8 @@ class TaskResponse(BaseModel):
     travado_override_por: Optional[str] = None
     travado_override_em: Optional[datetime] = None
     extra: bool = False
+    prevista_no_inicio: bool = False
+    surgiu_na_sprint: bool = False
     created_at: datetime
     updated_at: datetime
     entrou_na_fila_em: Optional[datetime] = None
@@ -595,12 +613,6 @@ class TaskTransicaoResponse(BaseModel):
     timestamp: datetime
     motivo: Optional[str] = None
     duracao_fase_anterior_segundos: Optional[int] = None
-
-
-# ── Sprint orçamento ─────────────────────────────────────────────────────────
-
-class SprintOrcamentoUpdate(BaseModel):
-    pontos_orcamento: int = Field(..., ge=0)
 
 
 # ── Task sugestões ────────────────────────────────────────────────────────────
@@ -911,13 +923,6 @@ class SolicitacaoTaskResponse(BaseModel):
     status: str
     criado_em: datetime
     respondido_em: Optional[datetime] = None
-
-
-class RedistribuirPontosRequest(BaseModel):
-    """Encolhe proporcionalmente as tasks já existentes na sprint para caber
-    `pontos_novos`, em vez de simplesmente recusar a task nova."""
-    sprint_id: str
-    pontos_novos: int
 
 
 # ── Painel de pessoas com acesso ao sistema ──────────────────────────────────

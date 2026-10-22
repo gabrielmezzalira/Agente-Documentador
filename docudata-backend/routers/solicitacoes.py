@@ -4,7 +4,7 @@ Nasceu de um feedback real: operacional termina o que tinha e não tem
 proximidade (ou jeito) de pedir mais trabalho, então fica parado. O botão troca
 uma conversa social por uma ação de um clique, e o gerente recebe por e-mail.
 
-A task concedida é marcada como extra: ela não consome o orçamento de pontos da
+A task concedida é marcada como extra: ela não entra no previsto da
 sprint e, se concluída antes do fechamento, vira bônus no score em vez de entrar
 em Entrega (services/performance.py::_bonus_extra).
 """

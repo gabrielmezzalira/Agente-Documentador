@@ -184,7 +184,6 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
         <TempoEscopoCard
           bloco={data.bloco_a}
           project={project}
-          sprints={sprints}
           onSaved={(updated) => {
             onProjectUpdated?.(updated);
             getPainel(projectId).then(setData).catch(() => {});

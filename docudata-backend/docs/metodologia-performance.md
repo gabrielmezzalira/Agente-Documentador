@@ -297,7 +297,7 @@ depender dos outros.
 Não é uma dimensão, é um acréscimo direto no score final.
 
 Quando o operacional termina tudo o que tinha e pede mais trabalho (seção 8.9), a
-task concedida é marcada como **extra**. Ela não consome o orçamento de pontos da
+task concedida é marcada como **extra**. Ela não entra no previsto da
 sprint e não entra em Entrega. Se for concluída antes do fechamento:
 
 > **Bônus** = 1 ponto de score por ponto de task extra concluída, somado ao score
@@ -305,7 +305,7 @@ sprint e não entra em Entrega. Se for concluída antes do fechamento:
 
 Duas escolhas de desenho por trás disso:
 
-- **Não entra em Entrega** porque a task extra não consumiu orçamento. Colocá-la
+- **Não entra em Entrega** porque a task extra não entra no previsto da sprint. Colocá-la
   no denominador puniria justamente quem pediu mais trabalho, e no numerador não
   faria efeito nenhum por causa do teto de 100.
 - **Tem teto** porque sem ele o ranking viraria "quem pediu mais task", que é
@@ -435,59 +435,44 @@ reaproveitada entra na conta com o mesmo peso de uma avaliação pensada.
 Nada nesta seção é "preencher planilha de performance". É o trabalho normal de
 gestão de sprint. O ponto é que **o sistema só enxerga o que passou pelo Kanban**.
 
-### 8.1 Os 100 pontos do projeto
+### 8.1 O que os pontos significam
 
-Todo projeto vale **100 pontos, fixo**. Não é um número que o gerente escolhe.
+Ponto aqui é só **nível de dificuldade**, numa régua única: **1** (simples),
+**2** (moderada), **3** (complexa) e **5** (muito complexa). Não existe total de
+pontos do projeto, nem valor do projeto, preço por ponto ou faturamento previsto
+dentro do sistema. Os pontos só se somam **dentro de uma sprint**.
 
-Se o gerente informar o valor do projeto em reais, cada ponto passa a valer um
-centésimo desse valor, e o faturamento previsto de cada sprint sai daí
-automaticamente. O valor do projeto só pode ser mudado enquanto nenhuma sprint
-tiver recebido orçamento de pontos: depois disso ele congela, porque mudá-lo
-desalinharia em silêncio todo o faturamento já calculado.
+### 8.2 O previsto da sprint
 
-### 8.2 Quanto cada sprint recebe dos 100 pontos
+O **previsto** da sprint é a foto das tasks (as que não são extras) quando a
+sprint começa, mais as tasks que surgiram depois dela. Task extra fica fora: é
+trabalho concedido além do planejado.
 
-No planejamento, na aba Escopo, o gerente distribui os 100 pontos entre as sprints.
-Se o projeto tem 10 sprints previstas e todas são parecidas, cada uma recebe por
-volta de 10 pontos. Se uma sprint concentra a parte pesada, ela recebe mais.
-
-Três regras governam essa distribuição:
-
-- A soma de todas as sprints **não pode passar de 100**, porque 100 é o projeto
-  inteiro.
-- Uma sprint **não pode receber menos pontos do que as tasks dela já somam**. Não
-  dá para prometer menos do que já foi gasto.
-- Sprint sem orçamento definido não entra na soma e não trava nada. Planejamento
-  incompleto não impede trabalhar.
-
-Ao marcar o projeto como entregue, se a soma não for exatamente 100 o sistema
-avisa, mas não bloqueia. Exigir 100 exato só incentivaria inflar pontos para
-fechar a conta.
+Isso dá o SPI: **pontos concluídos (sem extras) divididos pelo previsto**. Ele
+aparece assim que a sprint começa com tasks. Planejar a sprint não exige distribuir
+pontos de antemão: o previsto sai das próprias tasks.
 
 ### 8.3 Quantos pontos cada task vale
 
-Os pontos da sprint são divididos entre as tasks dela. Uma sprint de 10 pontos
-pode ter cinco tasks de 2, ou duas de 3 mais uma de 4. O que não pode é a soma
-das tasks passar do que a sprint recebeu.
+Cada task recebe um dos valores da régua (1, 2, 3 ou 5). Uma sprint pode ter cinco
+tasks de 2, ou duas de 3 mais uma de 5, e não há teto de pontos por sprint.
 
 Na prática:
 
-- **Se a sprint tem orçamento definido**, o sistema recusa uma task nova que faria
-  a soma estourar, e diz quantos pontos ainda sobram.
-- **Se estourou mas o trabalho existe mesmo**, aparece o botão **"Redistribuir
-  pontos"**. Ele encolhe proporcionalmente as tasks que já estão na sprint para
-  abrir espaço, e mostra o antes e o depois de cada uma. Cada task fica com no
-  mínimo 1 ponto, então sprint muito cheia pode não conseguir abrir o espaço
-  pedido, e aí o sistema diz qual é o máximo liberável.
-- **Se a sprint não tem orçamento definido**, não há validação nenhuma. Você pode
-  trabalhar normalmente e planejar depois.
-- **Se você move uma task de uma sprint para outra**, a validação é refeita contra
-  a sprint de destino, que é quem vai pagar por aqueles pontos.
-- **Task marcada como extra não entra nessa conta.** Ela é trabalho concedido
-  além do planejado, então por definição não cabe no orçamento e não é validada
-  contra ele (seção 8.9).
-- **Tasks e sprints criadas antes desta regra existir** não são revalidadas. Nada
-  quebra retroativamente.
+- **Task nova numa sprint que já começou** entra no previsto como "surgiu na
+  sprint".
+- **Se você move uma task de uma sprint para outra**, ela deixa a foto da sprint de
+  origem e passa a contar na de destino: como "surgiu" se a sprint de destino já
+  começou, ou na foto, quando ela começar.
+- **Task marcada como extra não entra no previsto.** Ela é trabalho concedido além
+  do planejado (seção 8.9). Se uma extra for desmarcada numa sprint que já
+  começou, passa a contar como "surgiu".
+- **Funcionalidade concluída precisa da aprovação do gerente.** Só as aprovadas
+  contam no "Escopo concluído" do Painel. A aprovação cai se uma task dela for
+  reaberta ou se entrar uma task nova nela, e só dá para aprovar de novo quando
+  todas as tasks dela estiverem concluídas.
+- **Task concluída antes da régua existir** pode ter pontos fora dela. Se for
+  reaberta, precisa de um nível válido, e o valor original fica guardado.
 
 **Por que isso importa para o acompanhamento:** os pontos da task são o
 denominador de Entrega. Se uma task de 2 pontos é cadastrada como 8, a Entrega
@@ -680,7 +665,7 @@ Como funciona:
 3. O gerente pode **criar uma task extra** para a pessoa ou responder **"nada
    agora"**. Recusar é uma resposta legítima e não penaliza ninguém.
 4. Ao criar a task, o gerente marca a caixa **"Task extra"**. Isso faz duas coisas:
-   a task não consome o orçamento de pontos da sprint, e os pontos dela não entram
+   a task não entra no previsto da sprint, e os pontos dela não entram
    em Entrega.
 5. Se a pessoa concluir a task extra antes do fechamento, ela ganha o bônus da
    seção 5.5.
@@ -1060,8 +1045,7 @@ O anúncio é feito pela liderança, fora do sistema.
 ### 14.1 Antes da primeira sprint
 
 1. **Preencha o contrato do projeto:** tipo de projeto (Padrão ou Consultoria),
-   datas e, se houver, o valor em reais. Lembre que o valor congela assim que a
-   primeira sprint receber orçamento de pontos.
+   datas.
 2. **Cadastre os operacionais com e-mail e usuário do GitHub.** Os dois são
    obrigatórios na prática, mesmo que o formulário aceite em branco. Sem usuário
    do GitHub os commits dela não pontuam de primeira: o e-mail é o segundo
@@ -1074,8 +1058,8 @@ O anúncio é feito pela liderança, fora do sistema.
    projeto?"** e selecione o nome dela: o cadastro vem preenchido com o mesmo
    e-mail, nome, papel e usuário do GitHub, o que evita erro de digitação e
    mantém o cadastro dela consistente entre os projetos em que atua.
-3. **Distribua os 100 pontos entre as sprints,** na aba Escopo. Pode ser aos
-   poucos, sprint sem orçamento não trava nada.
+3. **Cadastre as tasks da primeira sprint com pontos da régua** (1, 2, 3 ou 5)
+   antes de iniciá-la: elas viram o previsto da sprint.
 4. **Configure os limites de tasks simultâneas** se o squad tende a começar muita
    coisa ao mesmo tempo.
 
@@ -1231,9 +1215,6 @@ pesando ainda mais do que os 50% nominais.
 |---|---|---|
 | "Ainda há avaliações pendentes" | Confirmar a Avaliação Semanal com gente por avaliar | Avaliar os nomes listados e confirmar de novo |
 | "Janela de edição de 48h já encerrada" | Editar avaliação antiga | Não há correção pela tela. Se for grave, o Líder reabre o fechamento |
-| "Orçamento da sprint excedido" | Task com pontos além do que a sprint recebeu | Usar o botão "Redistribuir pontos", reduzir os pontos, mover a task para outra sprint, ou marcá-la como extra se for trabalho concedido além do planejado |
-| "Não dá para abrir N pontos" | Redistribuir numa sprint onde as tasks já estão no mínimo | A mensagem diz qual é o máximo liberável. Aumentar o orçamento da sprint ou mover alguma task |
-| "Restam só N pontos para distribuir entre as sprints" | Orçamento de sprint estourando os 100 do projeto | Reduzir o orçamento de outra sprint primeiro |
 | "Associe a task a uma sprint antes de movê-la" | Mover para Em Andamento uma task sem sprint | Escolher a sprint e mover de novo |
 | "Itens do checklist ainda não concluídos" | Concluir task com checklist aberto | Marcar os itens ou tirá-los do checklist |
 | "Limite atingido" ao mover para Em Andamento | Estourou o limite de tasks simultâneas | Concluir ou devolver outra task antes |

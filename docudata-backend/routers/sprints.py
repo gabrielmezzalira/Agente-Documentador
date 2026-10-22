@@ -8,12 +8,11 @@ from models.schemas import (
     SprintHealthUpdate,
     SprintResponse,
     SprintStatusResponse,
-    SprintOrcamentoUpdate,
 )
 from core.observability import falha_externa
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
-from services.spi_health import auto_update_sprint_health
+from services.previsto_sprint import previsto_da_sprint
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.avaliacoes import contar_avaliacao_por_sprint
 
@@ -92,22 +91,6 @@ async def list_sprints(project_id: str):
     if not sprints:
         return []
 
-    valor_por_ponto = (
-        client.table("projects").select("valor_por_ponto").eq("id", project_id).execute()
-    ).data[0].get("valor_por_ponto")
-
-    tasks_resp = (
-        client.table("tasks")
-        .select("sprint_id, pontos")
-        .eq("project_id", project_id)
-        .execute()
-    )
-    pontos_usados_por_sprint: defaultdict = defaultdict(int)
-    for t in (tasks_resp.data or []):
-        sid = t.get("sprint_id")
-        if sid:
-            pontos_usados_por_sprint[sid] += t["pontos"]
-
     ing_resp = (
         client.table("ingestions")
         .select("sprint_number, tipo_documentacao")
@@ -160,69 +143,11 @@ async def list_sprints(project_id: str):
             "ingestions_count": agg["total"],
             "docs_gerados_count": docs_by_sprint[n],
             "pendencias": pendencias,
+            **previsto_da_sprint(client, sprint["id"]),
             "avaliados_count": contagem_avaliacao.get(sprint["id"], {}).get("avaliados", 0),
             "elegiveis_avaliacao_count": contagem_avaliacao.get(sprint["id"], {}).get("elegiveis", 0),
-            "pontos_usados": pontos_usados_por_sprint.get(sprint["id"], 0),
-            "faturamento_previsto": (
-                round(sprint["pontos_orcamento"] * valor_por_ponto, 2)
-                if sprint.get("pontos_orcamento") is not None and valor_por_ponto is not None
-                else None
-            ),
         })
     return enriched
-
-
-@router.patch("/sprints/{sprint_id}/orcamento", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
-async def update_orcamento(sprint_id: str, data: SprintOrcamentoUpdate):
-    """Define quantos dos 100 pontos do projeto esta sprint recebe (planejamento, aba Escopo)."""
-    client = get_client()
-    check = client.table("sprints").select("*").eq("id", sprint_id).execute()
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Sprint not found")
-    sprint = check.data[0]
-    project_id = sprint["project_id"]
-
-    tasks_existentes = (
-        client.table("tasks")
-        .select("pontos")
-        .eq("sprint_id", sprint_id)
-        .execute()
-    ).data or []
-    usados = sum(t["pontos"] for t in tasks_existentes)
-    if data.pontos_orcamento < usados:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Não é possível reduzir o orçamento abaixo dos {usados} pontos já usados em tasks desta sprint.",
-        )
-
-    outras_sprints = (
-        client.table("sprints")
-        .select("pontos_orcamento")
-        .eq("project_id", project_id)
-        .neq("id", sprint_id)
-        .execute()
-    ).data or []
-    total_outras = sum(s["pontos_orcamento"] or 0 for s in outras_sprints)
-    if total_outras + data.pontos_orcamento > 100:
-        mensagem = (
-            f"Orçamento do projeto excedido: restam {100 - total_outras} pontos "
-            "pra distribuir entre as sprints."
-        )
-        raise HTTPException(
-            status_code=409,
-            detail=mensagem,
-        )
-
-    resp = client.table("sprints").update({"pontos_orcamento": data.pontos_orcamento}).eq("id", sprint_id).execute()
-    if not resp.data:
-        raise HTTPException(status_code=500, detail="Failed to update orcamento")
-
-    try:
-        auto_update_sprint_health(client, sprint_id)
-    except Exception:
-        pass  # best-effort
-
-    return resp.data[0]
 
 
 @router.delete("/sprints/{sprint_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
@@ -261,7 +186,7 @@ async def delete_sprint(sprint_id: str):
 async def iniciar_sprint(sprint_id: str):
     """Tira a sprint do modo planejamento e a faz aparecer na aba Sprints, com
     Planning/Daily/Review/Kanban/Avaliação Semanal. Sem volta pela API: uma vez
-    iniciada, a sprint é execução real, não mais um slot de orçamento."""
+    iniciada, a sprint é execução real, não mais uma sprint só de planejamento."""
     client = get_client()
     check = client.table("sprints").select("id").eq("id", sprint_id).execute()
     if not check.data:

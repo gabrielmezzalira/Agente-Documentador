@@ -6,76 +6,29 @@ from unittest.mock import MagicMock
 
 from services.auth import criar_jwt
 from services.sprints import iniciar_sprint_e_ancorar_tasks
+from tests.fake_supabase import FakeClient
 
 
 # ── services.sprints.iniciar_sprint_e_ancorar_tasks (unitário) ────────────
 
-def _make_mock_client(tasks_pendentes):
-    client = MagicMock()
-    calls = {"sprint_update": [], "tasks_update": []}
-
-    def table_side_effect(name):
-        tbl = MagicMock()
-        if name == "sprints":
-            def update_side_effect(payload):
-                calls["sprint_update"].append(payload)
-                q = MagicMock()
-                exec_q = MagicMock()
-                exec_q.execute = MagicMock(return_value=MagicMock(data=[dict(payload, id="sprint-1")]))
-                q.eq = MagicMock(return_value=exec_q)
-                return q
-
-            tbl.update = MagicMock(side_effect=update_side_effect)
-        elif name == "tasks":
-            def select_side_effect(cols):
-                q = MagicMock()
-                q.eq = MagicMock(return_value=q)
-                q.neq = MagicMock(return_value=q)
-                q.is_ = MagicMock(return_value=q)
-                resp = MagicMock()
-                resp.data = tasks_pendentes
-                q.execute = MagicMock(return_value=resp)
-                return q
-
-            def update_side_effect(payload):
-                q = MagicMock()
-
-                def eq_then_execute(field, value):
-                    calls["tasks_update"].append({"id": value, "payload": payload})
-                    exec_q = MagicMock()
-                    exec_q.execute = MagicMock(return_value=MagicMock(data=[dict(payload, id=value)]))
-                    return exec_q
-
-                q.eq = MagicMock(side_effect=eq_then_execute)
-                return q
-
-            tbl.select = MagicMock(side_effect=select_side_effect)
-            tbl.update = MagicMock(side_effect=update_side_effect)
-        return tbl
-
-    client.table = MagicMock(side_effect=table_side_effect)
-    return client, calls
-
-
 def test_iniciar_sprint_marca_iniciada_e_ancora_tasks_pendentes():
-    client, calls = _make_mock_client(tasks_pendentes=[{"id": "task-1"}, {"id": "task-2"}])
-
-    iniciar_sprint_e_ancorar_tasks(client, "sprint-1")
-
-    assert calls["sprint_update"][0]["iniciada"] is True
-    ids_ancoradas = {u["id"] for u in calls["tasks_update"]}
-    assert ids_ancoradas == {"task-1", "task-2"}
-    for u in calls["tasks_update"]:
-        assert u["payload"]["entrou_em_andamento_em"] is not None
+    fake = FakeClient({
+        "sprints": [{"id": "sprint-1", "iniciada": False}],
+        "tasks": [
+            {"id": "task-1", "sprint_id": "sprint-1", "coluna_kanban": "planejado", "entrou_em_andamento_em": None, "extra": False},
+            {"id": "task-2", "sprint_id": "sprint-1", "coluna_kanban": "em_andamento", "entrou_em_andamento_em": None, "extra": False},
+        ],
+    })
+    iniciar_sprint_e_ancorar_tasks(fake, "sprint-1")
+    assert fake.tables["sprints"][0]["iniciada"] is True
+    assert all(t["entrou_em_andamento_em"] is not None for t in fake.tables["tasks"])
 
 
 def test_iniciar_sprint_sem_tasks_pendentes_nao_toca_tasks():
-    client, calls = _make_mock_client(tasks_pendentes=[])
-
-    iniciar_sprint_e_ancorar_tasks(client, "sprint-1")
-
-    assert calls["sprint_update"][0]["iniciada"] is True
-    assert calls["tasks_update"] == []
+    fake = FakeClient({"sprints": [{"id": "sprint-1", "iniciada": False}], "tasks": []})
+    iniciar_sprint_e_ancorar_tasks(fake, "sprint-1")
+    assert fake.tables["sprints"][0]["iniciada"] is True
+    assert fake.tables["tasks"] == []
 
 
 # ── PATCH /sprints/{id}/iniciar (endpoint) ─────────────────────────────────

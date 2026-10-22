@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 _PROJETO_BASE = {
     "id": "proj-1", "name": "Projeto Teste", "client": "CITi", "subarea": "dados",
-    "description": None, "squad": None, "valor_projeto": None, "valor_por_ponto": None,
+    "description": None, "squad": None,
     "is_delivered": False, "created_at": "2026-09-01T00:00:00+00:00",
     "data_inicio": None, "data_fim_contratada": None, "tolerancia_desvio_pontos": None,
     "periodo_garantia_dias": None, "gerente_email": None, "arquetipo": "padrao",

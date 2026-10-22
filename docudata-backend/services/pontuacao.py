@@ -129,7 +129,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         concluida = task.get("coluna_kanban") == "concluida"
 
         # Task extra (pedida pelo operacional depois de fechar tudo que tinha)
-        # não entra em Entrega: ela não consumiu orçamento da sprint e entrar no
+        # não entra em Entrega: ela não entra no previsto da sprint e entrar no
         # denominador puniria quem pediu mais trabalho. Vira bônus, só se
         # concluída dentro da sprint.
         if task.get("extra"):

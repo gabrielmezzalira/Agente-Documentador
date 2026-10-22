@@ -5,7 +5,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
-    RedistribuirPontosRequest,
     RejeitarTaskRequest,
     TaskCreate,
     TaskUpdate,
@@ -26,6 +25,9 @@ from services.email_service import (
 )
 from services.supabase_client import get_client
 from services.wip_check import check_wip
+from services.previsto_sprint import marcas_ao_entrar_na_sprint
+from services.regua import ajuste_pontos_reabertura
+from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
@@ -218,94 +220,6 @@ def _registrar_reabertura(
     }).execute()
 
 
-def _pontos_usados_na_sprint(client, sprint_id: str, ignorar_task_id: str | None = None) -> int:
-    """Soma dos pontos das tasks da sprint que consomem orçamento. Tasks extras
-    ficam de fora: elas são trabalho concedido além do planejado."""
-    query = client.table("tasks").select("id, pontos, extra").eq("sprint_id", sprint_id)
-    if ignorar_task_id is not None:
-        query = query.neq("id", ignorar_task_id)
-    rows = query.execute().data or []
-    return sum(t["pontos"] for t in rows if not t.get("extra"))
-
-
-@router.post("/redistribuir-pontos", dependencies=[Depends(require_not_operacional)])
-async def redistribuir_pontos(data: RedistribuirPontosRequest):
-    """Encolhe proporcionalmente os pontos das tasks já existentes na sprint para
-    abrir espaço para `pontos_novos`, em vez de simplesmente recusar a task nova.
-
-    Cada task fica com no mínimo 1 ponto (a tabela não aceita 0), então sprints
-    muito cheias podem não conseguir abrir o espaço pedido — nesse caso o pedido
-    é recusado com o quanto daria para liberar."""
-    client = get_client()
-
-    sprint = (
-        client.table("sprints")
-        .select("id, pontos_orcamento")
-        .eq("id", data.sprint_id)
-        .execute()
-    )
-    if not sprint.data:
-        raise HTTPException(status_code=404, detail="Sprint not found")
-    orcamento = sprint.data[0].get("pontos_orcamento")
-    if orcamento is None:
-        raise HTTPException(status_code=409, detail="Esta sprint não tem orçamento de pontos definido.")
-
-    tasks = (
-        client.table("tasks")
-        .select("id, titulo, pontos, extra")
-        .eq("sprint_id", data.sprint_id)
-        .execute()
-        .data or []
-    )
-    elegiveis = [t for t in tasks if not t.get("extra")]
-    if not elegiveis:
-        raise HTTPException(status_code=409, detail="Não há tasks para redistribuir nesta sprint.")
-
-    alvo = orcamento - data.pontos_novos
-    if alvo < len(elegiveis):
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Não dá para abrir {data.pontos_novos} pontos: as {len(elegiveis)} tasks da sprint "
-                f"precisam de pelo menos 1 ponto cada, então o máximo liberável é "
-                f"{orcamento - len(elegiveis)}."
-            ),
-        )
-
-    total_atual = sum(t["pontos"] for t in elegiveis)
-    novos: list[dict] = []
-    for t in elegiveis:
-        proporcional = max(1, round(t["pontos"] * alvo / total_atual))
-        novos.append({**t, "novo": proporcional})
-
-    # Arredondamento pode estourar ou sobrar; ajusta na task maior até bater.
-    def soma():
-        return sum(n["novo"] for n in novos)
-
-    while soma() > alvo:
-        maior = max((n for n in novos if n["novo"] > 1), key=lambda n: n["novo"], default=None)
-        if maior is None:
-            break
-        maior["novo"] -= 1
-    while soma() < alvo:
-        maior = max(novos, key=lambda n: n["novo"])
-        maior["novo"] += 1
-
-    for n in novos:
-        if n["novo"] != n["pontos"]:
-            client.table("tasks").update({"pontos": n["novo"]}).eq("id", n["id"]).execute()
-
-    return {
-        "sprint_id": data.sprint_id,
-        "pontos_orcamento": orcamento,
-        "pontos_liberados": data.pontos_novos,
-        "ajustes": [
-            {"task_id": n["id"], "titulo": n["titulo"], "de": n["pontos"], "para": n["novo"]}
-            for n in novos
-        ],
-    }
-
-
 @router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
 async def create_task(data: TaskCreate):
     client = get_client()
@@ -346,24 +260,13 @@ async def create_task(data: TaskCreate):
     if data.sprint_id:
         sp_check = (
             client.table("sprints")
-            .select("id, pontos_orcamento, iniciada")
+            .select("id, iniciada")
             .eq("id", data.sprint_id)
             .eq("project_id", data.project_id)
             .execute()
         )
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
-        orcamento = sp_check.data[0].get("pontos_orcamento")
-        # Task extra é trabalho concedido além do planejado: por definição ela não
-        # cabe no orçamento, então não é validada contra ele nem entra na soma.
-        if orcamento is not None and not data.extra:
-            usados = _pontos_usados_na_sprint(client, data.sprint_id)
-            if usados + data.pontos > orcamento:
-                mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
-                raise HTTPException(
-                    status_code=409,
-                    detail=mensagem,
-                )
 
     payload: dict = {
         "project_id": data.project_id,
@@ -388,14 +291,18 @@ async def create_task(data: TaskCreate):
     # começado (sprints.iniciada) — task de sprint futura não deve contar tempo
     # parado antes da hora (evita alerta em massa quando a sprint finalmente
     # inicia; nesse momento iniciar_sprint_e_ancorar_tasks ancora essas tasks).
-    if payload.get("coluna_kanban") != "concluida" and data.sprint_id:
-        sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
-        if sprint_iniciada:
-            payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+    sprint_iniciada = bool(data.sprint_id and sp_check.data and sp_check.data[0].get("iniciada"))
+    if payload.get("coluna_kanban") != "concluida" and sprint_iniciada:
+        payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+
+    if data.sprint_id:
+        payload.update(marcas_ao_entrar_na_sprint(sprint_iniciada, data.extra))
 
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
+
+    revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if payload.get("operacional_id"):
         _avisar_operacional_atribuicao(client, resp.data[0])
@@ -788,22 +695,6 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
-    if data.pontos is not None or data.sprint_id is not None:
-        sprint_id_efetivo = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
-        pontos_efetivo = data.pontos if data.pontos is not None else task["pontos"]
-        if sprint_id_efetivo:
-            sp_orc = client.table("sprints").select("pontos_orcamento").eq("id", sprint_id_efetivo).execute()
-            orcamento = sp_orc.data[0].get("pontos_orcamento") if sp_orc.data else None
-            extra_efetivo = data.extra if data.extra is not None else task.get("extra", False)
-            if orcamento is not None and not extra_efetivo:
-                usados = _pontos_usados_na_sprint(client, sprint_id_efetivo, ignorar_task_id=task_id)
-                if usados + pontos_efetivo > orcamento:
-                    mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
-                    raise HTTPException(
-                        status_code=409,
-                        detail=mensagem,
-                    )
-
     # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado
     coluna_nova = data.coluna_kanban
     coluna_atual = task.get("coluna_kanban")
@@ -930,8 +821,30 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["bloqueado"] = data.bloqueado
     if data.extra is not None:
         updates["extra"] = data.extra
+    if data.sprint_id is not None and str(data.sprint_id) != str(task.get("sprint_id") or ""):
+        sp_dest = client.table("sprints").select("iniciada").eq("id", data.sprint_id).execute()
+        destino_iniciada = bool(sp_dest.data and sp_dest.data[0].get("iniciada"))
+        extra_efetivo = data.extra if data.extra is not None else bool(task.get("extra"))
+        updates.update(marcas_ao_entrar_na_sprint(destino_iniciada, extra_efetivo))
+    elif (
+        data.extra is False
+        and task.get("extra")
+        and task.get("sprint_id")
+        and not task.get("prevista_no_inicio")
+        and not task.get("surgiu_na_sprint")
+    ):
+        # Extra que vira normal numa sprint já iniciada entra no previsto como
+        # "surgiu": sem marca, contaria no realizado mas em nenhum previsto.
+        sp_atual = client.table("sprints").select("iniciada").eq("id", task["sprint_id"]).execute()
+        atual_iniciada = bool(sp_atual.data and sp_atual.data[0].get("iniciada"))
+        updates.update(marcas_ao_entrar_na_sprint(atual_iniciada, False))
     if houve_reabertura:
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
+    # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora
+    # dela; ao sair de concluida ela volta a ser trabalho aberto e precisa de
+    # um nível válido. O original fica em pontos_legado.
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida" and data.pontos is None:
+        updates.update(ajuste_pontos_reabertura(task))
 
     # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
     # desmarcar um bloqueio interno, bloqueado_resolvido_por veio válido).
@@ -967,6 +880,12 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["travado_automatico"] = False
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    func_efetiva = data.funcionalidade_id if data.funcionalidade_id is not None else task.get("funcionalidade_id")
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
+        revogar_se_aprovada(client, func_efetiva, "revogada: task reaberta")
+    elif data.funcionalidade_id is not None and data.funcionalidade_id != task.get("funcionalidade_id"):
+        revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if virou_cliente:
         # Mesma válvula do override de travamento: atraso por espera do

@@ -1,45 +1,29 @@
 """
 Auto-derivação de status_saude a partir do SPI da sprint.
 
-Regras:
-  SPI >= 0.9  → verde
-  SPI >= 0.7  → amarelo
-  SPI <  0.7  → vermelho
-  sem orçamento (pontos_orcamento = NULL) → não altera (mantém manual)
+  SPI >= 0.9 → verde · SPI >= 0.7 → amarelo · SPI < 0.7 → vermelho
+  previsto = 0 (sprint sem tasks previstas) → não altera (mantém manual)
 
-Chamado após:
-  - orçamento de sprint definido (pontos_orcamento)
-  - task movida para concluida
+SPI = pontos concluídos (sem extras) ÷ previsto (services/previsto_sprint.py).
+Chamado depois que uma task vai para concluída.
 """
+from services.previsto_sprint import previsto_da_sprint
 
 
 def auto_update_sprint_health(client, sprint_id: str) -> str | None:
-    """
-    Recalcula status_saude da sprint com base no SPI atual.
-    Retorna o novo status_saude, ou None se não havia orçamento definido.
-    """
-    sprint = (
-        client.table("sprints")
-        .select("pontos_orcamento")
-        .eq("id", sprint_id)
-        .execute()
-    )
-    if not sprint.data:
-        return None
-
-    pontos_orcamento = sprint.data[0].get("pontos_orcamento")
-    if not pontos_orcamento or pontos_orcamento <= 0:
+    previsto = previsto_da_sprint(client, sprint_id)["previsto"]
+    if previsto <= 0:
         return None
 
     tasks = (
         client.table("tasks")
-        .select("pontos, coluna_kanban")
+        .select("pontos, coluna_kanban, extra")
         .eq("sprint_id", sprint_id)
         .execute()
         .data or []
     )
-    pontos_realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida")
-    spi = pontos_realizados / pontos_orcamento
+    realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida" and not t.get("extra"))
+    spi = realizados / previsto
 
     if spi >= 0.9:
         novo_status = "verde"

@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
+from services.previsto_sprint import previsto_da_sprint
 from services.supabase_client import get_client
-from services.metricas_comparacao import comparar_modos_do_projeto, comparar_modos_entre_projetos
 
 router = APIRouter(prefix="/metricas", tags=["metricas"])
 
@@ -74,7 +74,7 @@ def _percentiles(cycle_times_horas: list[float]) -> dict:
 
 @router.get("/{project_id}/spi")
 async def get_spi(project_id: str):
-    """SPI por sprint: pontos_previstos (derivado de pontos_orcamento), pontos_realizados, spi."""
+    """SPI por sprint: realizado (tasks concluídas, sem extras) ÷ previsto (foto do início + o que surgiu)."""
     client = get_client()
     proj = client.table("projects").select("id").eq("id", project_id).execute()
     if not proj.data:
@@ -82,7 +82,7 @@ async def get_spi(project_id: str):
 
     sprints = (
         client.table("sprints")
-        .select("id, numero, pontos_orcamento")
+        .select("id, numero")
         .eq("project_id", project_id)
         .order("numero")
         .execute()
@@ -91,18 +91,19 @@ async def get_spi(project_id: str):
 
     result = []
     for s in sprints:
-        tasks_resp = (
+        tasks = (
             client.table("tasks")
-            .select("pontos, coluna_kanban")
+            .select("pontos, coluna_kanban, extra")
             .eq("sprint_id", s["id"])
             .execute()
+            .data or []
         )
-        tasks = tasks_resp.data or []
-        pontos_realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida")
-        pontos_previstos = s.get("pontos_orcamento")
-        spi = None
-        if pontos_previstos and pontos_previstos > 0:
-            spi = round(pontos_realizados / pontos_previstos, 3)
+        pontos_realizados = sum(
+            t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida" and not t.get("extra")
+        )
+        previsto = previsto_da_sprint(client, s["id"])["previsto"]
+        pontos_previstos = previsto or None
+        spi = round(pontos_realizados / previsto, 3) if previsto > 0 else None
         result.append({
             "sprint_numero": s["numero"],
             "pontos_previstos": pontos_previstos,
@@ -363,27 +364,3 @@ async def get_cycle_time_stats(project_id: str):
         cycle_times_horas.append(round(duracao_s / 3600, 1))
 
     return _percentiles(cycle_times_horas)
-
-
-@router.get("/{project_id}/comparacao-modos")
-async def get_comparacao_modos(project_id: str):
-    """Entrega 2 — compara métricas entre os modos que este projeto já usou
-    (sprints agrupadas pelo modo congelado no fechamento de cada uma)."""
-    client = get_client()
-    proj = client.table("projects").select("id").eq("id", project_id).execute()
-    if not proj.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return comparar_modos_do_projeto(client, project_id)
-
-
-@router.get("/comparacao-modos")
-async def get_comparacao_modos_entre_projetos(
-    projeto_ids: str = Query(..., description="IDs de projeto separados por vírgula, mínimo 2"),
-):
-    """Entrega 2 — compara métricas entre os modos usados por 2+ projetos
-    escolhidos, agrupando pelo modo congelado de cada sprint deles."""
-    ids = [p.strip() for p in projeto_ids.split(",") if p.strip()]
-    if len(ids) < 2:
-        raise HTTPException(status_code=422, detail="Informe ao menos 2 projeto_ids")
-    client = get_client()
-    return comparar_modos_entre_projetos(client, ids)

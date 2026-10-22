@@ -2,6 +2,8 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from services.previsto_sprint import marcar_foto_do_inicio
+
 
 def ensure_sprint_row(client, project_id: str, numero: int) -> None:
     """Cria sprint no banco se ainda não existir. Idempotente.
@@ -129,11 +131,21 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     antes da sprint iniciar o tempo parado não deveria contar.
 
     Chamado tanto pelo botão "Iniciar próxima sprint" quanto, implicitamente,
-    pela confirmação da Avaliação Semanal da sprint anterior (routers/avaliacoes.py)."""
+    pela confirmação da Avaliação Semanal da sprint anterior (routers/avaliacoes.py).
+
+    Também tira a foto do previsto (tasks não extras da sprint ganham
+    prevista_no_inicio)."""
+    ja_iniciada = bool(
+        (client.table("sprints").select("iniciada").eq("id", sprint_id).execute().data or [{}])[0].get("iniciada")
+    )
     client.table("sprints").update({
         "iniciada": True,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", sprint_id).execute()
+    # A foto pertence ao momento em que a sprint realmente começou: chamadas
+    # repetidas não podem promover tasks que surgiram depois.
+    if not ja_iniciada:
+        marcar_foto_do_inicio(client, sprint_id)
 
     agora_iso = datetime.now(timezone.utc).isoformat()
     pendentes = (

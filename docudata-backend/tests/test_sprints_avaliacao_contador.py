@@ -27,7 +27,7 @@ def _make_mock_client(sprints_data=None, tasks_data=None, avaliacoes_data=None, 
                 q = MagicMock()
                 q.eq = MagicMock(return_value=q)
                 resp = MagicMock()
-                resp.data = [{"id": "proj-1", "valor_por_ponto": None}]
+                resp.data = [{"id": "proj-1"}]
                 q.execute = MagicMock(return_value=resp)
                 return q
             tbl.select = MagicMock(side_effect=select_side_effect)

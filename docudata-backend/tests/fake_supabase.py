@@ -8,7 +8,8 @@ class _Resp:
 
 
 class _Query:
-    def __init__(self, tables, name, op, payload=None):
+    def __init__(self, tables, name, op, payload=None, defaults=None):
+        self._defaults = defaults or {}
         self._tables = tables
         self._name = name
         self._op = op
@@ -22,6 +23,10 @@ class _Query:
 
     def eq(self, col, val):
         self._filtros.append(lambda r: r.get(col) == val)
+        return self
+
+    def neq(self, col, val):
+        self._filtros.append(lambda r: r.get(col) != val)
         return self
 
     def is_(self, col, val):
@@ -50,12 +55,16 @@ class _Query:
             itens = self._payload if isinstance(self._payload, list) else [self._payload]
             saida = []
             for item in itens:
-                row = dict(item)
+                row = {**self._defaults, **item}
                 row.setdefault("id", f"{self._name}-{len(linhas) + 1}")
                 linhas.append(row)
                 saida.append(dict(row))
             return _Resp(saida)
         casadas = [r for r in linhas if all(f(r) for f in self._filtros)]
+        if self._op == "delete":
+            for r in casadas:
+                linhas.remove(r)
+            return _Resp([dict(r) for r in casadas])
         if self._op == "update":
             for r in casadas:
                 r.update(self._payload)
@@ -69,23 +78,29 @@ class _Query:
 
 
 class _Table:
-    def __init__(self, tables, name):
+    def __init__(self, tables, name, defaults=None):
         self._tables = tables
         self._name = name
+        self._defaults = defaults
 
     def select(self, *_args, **_kwargs):
         return _Query(self._tables, self._name, "select")
 
     def insert(self, payload):
-        return _Query(self._tables, self._name, "insert", payload)
+        return _Query(self._tables, self._name, "insert", payload, self._defaults)
 
     def update(self, payload):
         return _Query(self._tables, self._name, "update", payload)
 
+    def delete(self):
+        return _Query(self._tables, self._name, "delete")
+
 
 class FakeClient:
-    def __init__(self, tables=None):
+    def __init__(self, tables=None, defaults=None):
+        """`defaults` ({tabela: {coluna: valor}}) simula os DEFAULTs de coluna do banco nos inserts."""
         self.tables = {k: [dict(r) for r in v] for k, v in (tables or {}).items()}
+        self._defaults = defaults or {}
 
     def table(self, name):
-        return _Table(self.tables, name)
+        return _Table(self.tables, name, self._defaults.get(name))

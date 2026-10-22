@@ -1,18 +1,46 @@
 "use client";
 
 import { useState } from "react";
-import { updateContrato, type BlocoD, type PainelData, type Project, type SprintWithStatus } from "../../lib/api";
+import { updateContrato, type BlocoD, type PainelData, type Project } from "../../lib/api";
 import { ds } from "../../lib/ds";
-import { Button, ErrorNotice, Field, Input, ProgressBar, Select } from "../ds";
+import { Button, ErrorNotice, Field, InfoTip, Input, ProgressBar, Select } from "../ds";
 import { BigNumber, CardTextAction, Metric, Muted, PanelCard, fmtNum } from "./PanelCard";
+
+/** Explicação de cada métrica do Painel, mostrada no "i" ao lado dela. */
+const INFO = {
+  tempoEscopo: "Compara quanto do prazo do contrato já passou com quanto do escopo já foi concluído. Se o prazo avança mais que o escopo além da tolerância do projeto, o painel acusa desvio.",
+  prazo: "Dias desde o início do projeto ÷ dias totais até o fim contratado.",
+  escopo: "Funcionalidades aprovadas pelo gerente ÷ total de funcionalidades do projeto. Cada funcionalidade pesa igual.",
+  atencao: "Funcionalidades em andamento há mais de 7 dias sem mudar de status. Precisam de atenção ou desbloqueio.",
+  fluxo: "Como o trabalho anda: quanto está aberto agora, quanto sai por semana e quanto tempo cada funcionalidade leva.",
+  wip: "Funcionalidades em andamento ou em ajuste agora. Muitas abertas ao mesmo tempo espalham o time e atrasam as entregas.",
+  throughput: "Funcionalidades concluídas por semana, contando desde a criação da primeira funcionalidade do projeto.",
+  cycleTime: "Tempo de uma funcionalidade entre entrar em andamento e ser concluída. Mediana: metade das funcionalidades levou até esse tempo. 85% em até: só 15% demoraram mais que isso.",
+  fases: "Quanto tempo as funcionalidades passaram em cada etapa: a média e o tempo em que 85% delas já tinham saído da etapa. Clique numa etapa para ver cada funcionalidade.",
+  eficiencia: "Parte do tempo de vida de uma funcionalidade em que ela esteve em andamento, na média do projeto. 100% seria uma funcionalidade que começou no dia em que foi criada e terminou sem nenhuma espera. Times reais costumam ficar entre 15% e 40%.",
+};
+
+const ROTULO_FASE: Record<string, string> = {
+  nao_iniciada: "Não iniciada",
+  em_andamento: "Em andamento",
+  em_ajuste: "Em ajuste",
+  concluida: "Concluída",
+};
+
+/** Nome legível da fase; fase desconhecida vira "Texto com espaços". */
+function rotuloFase(fase: string): string {
+  const conhecido = ROTULO_FASE[fase];
+  if (conhecido) return conhecido;
+  const texto = fase.replace(/_/g, " ");
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
 
 /** Bloco A — Tempo × Escopo, com o formulário de datas do contrato. */
 export function TempoEscopoCard({
-  bloco, project, sprints, onSaved,
+  bloco, project, onSaved,
 }: {
   bloco: PainelData["bloco_a"];
   project: Project;
-  sprints: SprintWithStatus[];
   onSaved?: (updated: Project) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -20,11 +48,8 @@ export function TempoEscopoCard({
   const [dataFim, setDataFim] = useState(project.data_fim_contratada ?? "");
   const [tolerancia, setTolerancia] = useState(project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : "");
   const [arquetipo, setArquetipo] = useState<"padrao" | "consultoria_discovery">(project.arquetipo ?? "padrao");
-  const [valorProjeto, setValorProjeto] = useState(project.valor_projeto != null ? String(project.valor_projeto) : "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-
-  const valorTravado = sprints.some((s) => s.pontos_orcamento != null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +62,6 @@ export function TempoEscopoCard({
         data_fim_contratada: dataFim,
         tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
         arquetipo,
-        valor_projeto: !valorTravado && valorProjeto !== "" ? Number(valorProjeto) : undefined,
       });
       onSaved?.(updated);
       setEditing(false);
@@ -53,7 +77,7 @@ export function TempoEscopoCard({
     : undefined;
 
   return (
-    <PanelCard label="Tempo × Escopo" action={action}>
+    <PanelCard label="Tempo × Escopo" info={INFO.tempoEscopo} action={action}>
       {editing ? (
         <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -75,13 +99,6 @@ export function TempoEscopoCard({
               </Select>
             </Field>
           </div>
-          <Field
-            label="Valor do projeto (R$)"
-            htmlFor="contrato-valor"
-            hint={valorTravado ? "Travado: já existe orçamento de pontos definido em pelo menos uma sprint." : "Opcional"}
-          >
-            <Input id="contrato-valor" type="number" min={0} step="0.01" value={valorProjeto} onChange={(e) => setValorProjeto(e.target.value)} placeholder="ex: 35000" disabled={valorTravado} />
-          </Field>
           {err && <ErrorNotice>{err}</ErrorNotice>}
           <div>
             <Button type="submit" variant="primary" disabled={saving}>{saving ? "Salvando..." : "Salvar datas"}</Button>
@@ -97,8 +114,8 @@ export function TempoEscopoCard({
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <Metric caption="Prazo consumido" value={`${fmtNum(bloco.pct_prazo_consumido ?? 0)}%`} />
-            <Metric caption="Escopo concluído" value={`${fmtNum(bloco.pct_escopo_concluido ?? 0)}%`} color={ds.green} />
+            <Metric caption="Prazo consumido" info={INFO.prazo} value={`${fmtNum(bloco.pct_prazo_consumido ?? 0)}%`} />
+            <Metric caption="Escopo concluído" info={INFO.escopo} value={`${fmtNum(bloco.pct_escopo_concluido ?? 0)}%`} color={ds.green} />
           </div>
           {bloco.desvio_detectado ? (
             <p role="status" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: ds.amber }}>
@@ -118,7 +135,7 @@ export function TempoEscopoCard({
 export function ItensAtencaoCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
   const n = bloco.travadas.length;
   return (
-    <PanelCard label="Itens em atenção">
+    <PanelCard label="Itens em atenção" info={INFO.atencao}>
       <BigNumber value={n} unit={n === 1 ? "travada" : "travadas"} color={n === 0 ? ds.green : ds.red} />
       {n === 0 ? (
         <Muted>Nenhuma funcionalidade travada.</Muted>
@@ -139,16 +156,19 @@ export function ItensAtencaoCard({ bloco }: { bloco: PainelData["bloco_b"] }) {
 /** Bloco C — Métricas de fluxo (WIP, throughput e cycle time). */
 export function MetricasFluxoCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
   return (
-    <PanelCard label="Métricas de fluxo">
+    <PanelCard label="Métricas de fluxo" info={INFO.fluxo}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <Metric caption="WIP agora" value={bloco.wip} unit="funcionalidades" />
-        <Metric caption="Throughput" value={fmtNum(bloco.throughput_por_semana ?? 0)} unit="/ semana" />
+        <Metric caption="WIP agora" info={INFO.wip} value={bloco.wip} unit="funcionalidades" />
+        <Metric caption="Throughput" info={INFO.throughput} value={fmtNum(bloco.throughput_por_semana ?? 0)} unit="/ semana" />
       </div>
-      <Muted small>
-        {bloco.total_concluidas === 0
-          ? "Nenhuma funcionalidade concluída · cycle time indisponível"
-          : `Cycle time p50 ${fmtNum(bloco.cycle_time_p50_dias)} dias · p85 ${fmtNum(bloco.cycle_time_p85_dias)} dias`}
-      </Muted>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Muted small>
+          {bloco.total_concluidas === 0
+            ? "Nenhuma funcionalidade concluída · cycle time indisponível"
+            : `Cycle time: mediana ${fmtNum(bloco.cycle_time_p50_dias)} dias · 85% em até ${fmtNum(bloco.cycle_time_p85_dias)} dias`}
+        </Muted>
+        <InfoTip text={INFO.cycleTime} align="left" />
+      </div>
     </PanelCard>
   );
 }
@@ -160,8 +180,8 @@ export function TempoPorFaseCard({ bloco }: { bloco: BlocoD }) {
   const eficiencia = bloco.eficiencia_fluxo_pct;
 
   return (
-    <PanelCard label="Tempo por fase">
-      <Metric caption="Eficiência de fluxo" value={eficiencia != null ? `${fmtNum(eficiencia)}%` : "—"} color={ds.green} />
+    <PanelCard label="Tempo por fase" info={INFO.fases}>
+      <Metric caption="Eficiência de fluxo" info={INFO.eficiencia} value={eficiencia != null ? `${fmtNum(eficiencia)}%` : "—"} color={ds.green} />
       {eficiencia != null && <ProgressBar pct={eficiencia} label="Eficiência de fluxo" />}
       {fases.length === 0 ? (
         <Muted small>Sem transições de status registradas ainda.</Muted>
@@ -182,9 +202,9 @@ export function TempoPorFaseCard({ bloco }: { bloco: BlocoD }) {
                     padding: "12px 0", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, textAlign: "left",
                   }}
                 >
-                  <span style={{ fontFamily: ds.fontMono, color: ds.white }}>{fase}</span>
+                  <span style={{ color: ds.white }}>{rotuloFase(fase)}</span>
                   <span style={{ color: ds.text2 }}>
-                    {fmtNum(resumo.media_dias)} dias (média) · {fmtNum(resumo.p85_dias)} p85 <span aria-hidden="true" style={{ color: ds.muted }}>{aberta ? "▴" : "▾"}</span>
+                    média {fmtNum(resumo.media_dias)} dias · 85% em até {fmtNum(resumo.p85_dias)} dias <span aria-hidden="true" style={{ color: ds.muted }}>{aberta ? "▴" : "▾"}</span>
                   </span>
                 </button>
                 {aberta && (

@@ -7,7 +7,7 @@ import { cardStyle, ds } from "../../lib/ds";
 import { Chip } from "../ds";
 import { CARGO_LABEL, navItemsFor } from "./navItems";
 
-const ORDEM_CHOOSER = ["/metodologia", "/pessoas", "/performance", "/comparacao-modos", "/avaliacoes", "/settings"];
+const ORDEM_CHOOSER = ["/metodologia", "/pessoas", "/performance", "/avaliacoes", "/settings"];
 
 /** Cabeçalho da escolha de subárea: logo, acessos globais e identificação do usuário. */
 export default function ChooserHeader({ pessoa }: { pessoa: MeResponse }) {

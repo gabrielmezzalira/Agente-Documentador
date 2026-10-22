@@ -158,8 +158,6 @@ export interface Project {
   client: string;
   subarea: Subarea;
   description?: string;
-  valor_projeto?: number | null;
-  valor_por_ponto?: number | null;
   is_delivered: boolean;
   created_at: string;
   last_ingestion_at?: string | null;
@@ -301,9 +299,9 @@ export interface SprintWithStatus extends Sprint {
   ingestions_count: number;
   docs_gerados_count: number;
   pendencias: string[];          // subset de ['planning','review']
-  pontos_orcamento: number | null;
-  pontos_usados: number;
-  faturamento_previsto: number | null;
+  previsto: number;
+  planejado_no_inicio: number;
+  surgiu_na_sprint: number;
   avaliacao_completa_em?: string | null;
   avaliados_count: number;
   elegiveis_avaliacao_count: number;
@@ -387,7 +385,6 @@ export async function updateContrato(
     tolerancia_desvio_pontos?: number | null;
     periodo_garantia_dias?: number | null;
     arquetipo?: "padrao" | "consultoria_discovery";
-    valor_projeto?: number | null;
   }
 ): Promise<Project> {
   const res = await apiFetch(`${API}/projects/${projectId}/contrato`, {
@@ -540,7 +537,6 @@ export async function createProject(data: {
   subarea: Subarea;
   description?: string;
   squad?: string;
-  valor_projeto?: number | null;
 }): Promise<Project> {
   const res = await apiFetch(`${API}/projects`, {
     method: "POST",
@@ -685,22 +681,6 @@ export async function searchStack(query: string, subarea: Subarea): Promise<Stac
 export async function listSprints(projectId: string): Promise<SprintWithStatus[]> {
   const res = await apiFetch(`${API}/projects/${projectId}/sprints`);
   if (!res.ok) throw new Error("Erro ao buscar sprints");
-  return res.json();
-}
-
-export async function updateSprintOrcamento(
-  sprintId: string,
-  pontosOrcamento: number
-): Promise<SprintWithStatus> {
-  const res = await apiFetch(`${API}/sprints/${sprintId}/orcamento`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pontos_orcamento: pontosOrcamento }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Erro ao definir orçamento da sprint");
-  }
   return res.json();
 }
 
@@ -1235,6 +1215,9 @@ export interface FuncionalidadeResponse {
   status: "nao_iniciada" | "em_andamento" | "concluida";
   responsavel?: string | null;
   sprint_alvo?: string | null;
+  aprovada_em?: string | null;
+  aprovada_por?: string | null;
+  aprovada_por_nome?: string | null;
   created_at: string;
 }
 
@@ -1355,6 +1338,24 @@ export async function updateFuncionalidade(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "Erro ao atualizar funcionalidade");
+  }
+  return res.json();
+}
+
+export async function aprovarFuncionalidade(id: string): Promise<FuncionalidadeResponse> {
+  const res = await apiFetch(`${API}/funcionalidades/${id}/aprovar`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao aprovar funcionalidade");
+  }
+  return res.json();
+}
+
+export async function desfazerAprovacaoFuncionalidade(id: string): Promise<FuncionalidadeResponse> {
+  const res = await apiFetch(`${API}/funcionalidades/${id}/aprovacao`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao desfazer aprovação");
   }
   return res.json();
 }
@@ -1739,6 +1740,7 @@ export interface TaskKanbanResponse {
   motivo_atribuicao_manual?: string | null;
   ordem_fila?: number | null;
   requer_aprovacao: boolean;
+  pontos_legado?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -2194,29 +2196,6 @@ export async function resolverSolicitacaoTask(
   return res.json();
 }
 
-export interface AjustePontos {
-  task_id: string;
-  titulo: string;
-  de: number;
-  para: number;
-}
-
-export async function redistribuirPontos(
-  sprintId: string,
-  pontosNovos: number,
-): Promise<{ ajustes: AjustePontos[] }> {
-  const res = await apiFetch(`${API}/tasks/redistribuir-pontos`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sprint_id: sprintId, pontos_novos: pontosNovos }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail ?? "Erro ao redistribuir pontos");
-  }
-  return res.json();
-}
-
 export async function reabrirAvaliacaoSemanal(sprintId: string): Promise<void> {
   const res = await apiFetch(`${API}/avaliacoes/${sprintId}/confirmar`, { method: "DELETE" });
   if (!res.ok) {
@@ -2235,7 +2214,7 @@ export async function removerOperacionalDoProjeto(id: string): Promise<Operacion
 }
 
 // ---------------------------------------------------------------------------
-// Elegibilidade e comparação de modos (Entrega 2)
+// Elegibilidade (Entrega 2)
 // ---------------------------------------------------------------------------
 
 export interface ElegivelPonto {
@@ -2248,28 +2227,6 @@ export interface ElegivelPonto {
 export async function getElegiveis(sprintId: string): Promise<ElegivelPonto[]> {
   const res = await apiFetch(`${API}/avaliacoes/${sprintId}/elegiveis`);
   if (!res.ok) throw new Error("Erro ao buscar elegíveis da sprint");
-  return res.json();
-}
-
-export interface ComparacaoModoPonto {
-  modo_trabalho: string;
-  modo_avaliacao: string;
-  sprints_count: number;
-  pontos_previstos_total: number | null;
-  pontos_realizados_total: number;
-  spi_medio: number | null;
-  entrega_media: number | null;
-}
-
-export async function getComparacaoModos(projectId: string): Promise<ComparacaoModoPonto[]> {
-  const res = await apiFetch(`${API}/metricas/${projectId}/comparacao-modos`);
-  if (!res.ok) throw new Error("Erro ao buscar comparação de modos");
-  return res.json();
-}
-
-export async function getComparacaoModosEntreProjetos(projetoIds: string[]): Promise<ComparacaoModoPonto[]> {
-  const res = await apiFetch(`${API}/metricas/comparacao-modos?projeto_ids=${projetoIds.join(",")}`);
-  if (!res.ok) throw new Error("Erro ao buscar comparação entre projetos");
   return res.json();
 }
 

@@ -41,8 +41,6 @@ interface Props {
   onDeleteSprint: (sprintId: string) => void;
   onSprintUpdated?: (updated: SprintWithStatus) => void;
   onOpenAvaliacaoSemanal?: (sprint: SprintWithStatus) => void;
-  /** Leva à aba Planejamento, onde o orçamento de pontos é definido. */
-  onGoToPlanejamento?: () => void;
 }
 
 // ---------- styles ----------
@@ -191,7 +189,6 @@ export default function SprintCard({
   onDeleteSprint,
   onSprintUpdated,
   onOpenAvaliacaoSemanal,
-  onGoToPlanejamento,
 }: Props) {
   const cargo = useAuth()?.cargo ?? "lider";
   const [expanded, setExpanded] = useState(false);
@@ -406,24 +403,10 @@ export default function SprintCard({
         <SprintChecklist items={checklist} />
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-          {sprint.pontos_orcamento == null ? (
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: ds.muted }}>
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: ds.amber }} />
-              Orçamento de pontos não definido
-              {onGoToPlanejamento && (
-                <button type="button" onClick={onGoToPlanejamento} style={{ ...textBtn, color: ds.amber }}>Definir →</button>
-              )}
-            </span>
-          ) : (
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: ds.muted }}>
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: ds.green }} />
-              <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.text2 }}>{sprint.pontos_usados}/{sprint.pontos_orcamento} pts</span>
-              em tasks
-              {sprint.faturamento_previsto != null && (
-                <span>· R$ {sprint.faturamento_previsto.toLocaleString("pt-BR")} previstos</span>
-              )}
-            </span>
-          )}
+          <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.text2 }}>
+            Previsto {sprint.previsto} pts
+            {sprint.surgiu_na_sprint > 0 && ` · ${sprint.planejado_no_inicio} planejados + ${sprint.surgiu_na_sprint} surgiram na sprint`}
+          </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Button variant="secondary" onClick={() => onAddManualDoc(sprint.numero)}>+ Documento</Button>
             <Button

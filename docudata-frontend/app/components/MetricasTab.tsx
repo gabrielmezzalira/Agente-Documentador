@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import TutorialBanner from "./TutorialBanner";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { ds, labelStyle } from "../lib/ds";
-import { Button, Chip } from "./ds";
+import { Chip, InfoTip } from "./ds";
 import { BigNumber, PanelCard, fmtNum } from "./painel/PanelCard";
 import { BarGroups, ChartEmpty, ChartLegend } from "./metricas/Charts";
 import {
@@ -15,7 +15,6 @@ import {
   getMetricasPerformanceOperacional,
   getSpiDoProjeto,
   getMetricasCycleTimeStats,
-  getComparacaoModos,
   type SpiPoint,
   type ThroughputPoint,
   type CycleTimePoint,
@@ -23,18 +22,15 @@ import {
   type PerformanceOperacionalPoint,
   type SpiPorOperacionalDoProjeto,
   type CycleTimeStats,
-  type ComparacaoModoPonto,
 } from "../lib/api";
 
 interface Props {
   projectId: string;
   modoTrabalho?: "ATRIBUICAO" | "PULL";
-  /** Leva à aba Planejamento (orçamento de pontos), usado no estado vazio do SPI. */
-  onGoToPlanejamento?: () => void;
 }
 
 const TOOLTIPS: Record<string, string> = {
-  spi: "SPI = pontos concluídos ÷ pontos previstos na sprint. 1.0 = entregou exatamente o planejado. ≥0.9 = saudável (verde) · 0.7–0.9 = atenção (amarelo) · <0.7 = crítico (vermelho). Requer baseline (pontos previstos) definido na sprint.",
+  spi: "SPI = pontos concluídos ÷ pontos previstos na sprint (as tasks que estavam nela quando começou + as que surgiram depois; extras ficam de fora). 1,0 = entregou o previsto. ≥0,9 saudável (verde) · 0,7–0,9 atenção (amarelo) · <0,7 crítico (vermelho).",
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
@@ -43,33 +39,7 @@ const TOOLTIPS: Record<string, string> = {
 };
 
 function InfoTooltip({ id }: { id: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span style={{ position: "relative", display: "inline-flex", verticalAlign: "middle" }}>
-      <button
-        type="button"
-        aria-label="O que significa"
-        aria-expanded={show}
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onFocus={() => setShow(true)}
-        onBlur={() => setShow(false)}
-        style={{ cursor: "help", fontSize: 10, color: ds.muted, fontWeight: 700, background: "none", border: `1px solid ${ds.borderStrong}`, borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
-      >
-        i
-      </button>
-      {show && (
-        <span role="tooltip" style={{
-          position: "absolute", right: 0, top: 22, zIndex: 100,
-          background: ds.cardTop, color: ds.text2, border: `1px solid ${ds.greenLine}`, fontSize: 12, lineHeight: 1.55,
-          borderRadius: 10, padding: "10px 12px", width: 280, whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontFamily: ds.fontSans,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
-        }}>
-          {TOOLTIPS[id]}
-        </span>
-      )}
-    </span>
-  );
+  return <InfoTip text={TOOLTIPS[id]} />;
 }
 
 function spiColor(spi: number | null): string {
@@ -86,7 +56,7 @@ function _cfdLabel(v: string): string {
   return "Planejado";
 }
 
-export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", onGoToPlanejamento }: Props) {
+export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: Props) {
   const labelPontosVinculados = modoTrabalho === "PULL" ? "Puxados" : "Atribuídos";
   const [spi, setSpi] = useState<SpiPoint[]>([]);
   const [throughput, setThroughput] = useState<ThroughputPoint[]>([]);
@@ -95,7 +65,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
   const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
   const [spiPorPessoa, setSpiPorPessoa] = useState<SpiPorOperacionalDoProjeto[]>([]);
   const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
-  const [comparacaoModos, setComparacaoModos] = useState<ComparacaoModoPonto[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -124,17 +93,12 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  useEffect(() => {
-    getComparacaoModos(projectId).then(setComparacaoModos).catch(() => setComparacaoModos([]));
-  }, [projectId]);
-
   if (loading) return <p role="status" style={{ color: ds.muted, fontSize: 13, margin: 0 }}>Carregando métricas...</p>;
   if (err) return <p role="alert" style={{ color: ds.red, fontSize: 13, margin: 0 }}>{err}</p>;
 
   const tutorialSteps = [
-    { title: "Pontos por task", body: "Todo projeto vale 100 pontos, fixo. Esses 100 são distribuídos entre as sprints na aba Planejamento, e os pontos de cada sprint entre as tasks dela. Se você informou o valor do projeto em reais, cada ponto vale um centésimo desse valor, e o faturamento previsto de cada sprint sai daí." },
-    { title: "SPI — Schedule Performance Index", body: "Mede se você está entregando o que planejou por sprint. SPI = pontos concluídos ÷ pontos previstos (baseline). ≥ 0,9 = saudável (verde) · 0,7–0,89 = atenção (amarelo) · < 0,7 = crítico (vermelho). Um SPI baixo significa faturamento abaixo do esperado." },
-    { title: "Como definir o previsto da sprint", body: "O SPI só aparece se a sprint tiver orçamento de pontos. Vá na aba Planejamento e distribua os 100 pontos do projeto entre as sprints. O card de cada sprint passa a mostrar quanto ela recebeu e quanto já foi gasto em tasks." },
+    { title: "Pontos por task", body: "Cada task vale 1, 2, 3 ou 5 pontos, conforme o tamanho. O previsto de cada sprint é a soma dos pontos das tasks que estavam nela quando começou, mais as que surgiram depois." },
+    { title: "SPI — Schedule Performance Index", body: "Mede se você está entregando o que planejou por sprint. SPI = pontos concluídos ÷ pontos previstos (planejadas + surgiram na sprint). ≥ 0,9 = saudável (verde) · 0,7–0,89 = atenção (amarelo) · < 0,7 = crítico (vermelho)." },
     { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
@@ -169,8 +133,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
       <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 16 }}>
         <PanelCard label="SPI · Schedule Performance Index" action={<InfoTooltip id="spi" />}>
           {spiComBaseline.length === 0 ? (
-            <ChartEmpty action={onGoToPlanejamento && <Button variant="secondary" onClick={onGoToPlanejamento}>Definir orçamento de pontos</Button>}>
-              Nenhuma sprint com baseline definido ainda.
+            <ChartEmpty>
+              O SPI aparece quando a sprint começa com tasks dentro dela.
             </ChartEmpty>
           ) : (
             <>
@@ -218,8 +182,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {avgCT !== null && <Chip>Média {fmtHoras(avgCT)}</Chip>}
-              {ctStats?.p50_horas != null && <Chip>p50 {fmtNum(ctStats.p50_horas)}h</Chip>}
-              {ctStats?.p85_horas != null && <Chip>p85 {fmtNum(ctStats.p85_horas)}h</Chip>}
+              {ctStats?.p50_horas != null && <Chip>mediana {fmtNum(ctStats.p50_horas)}h</Chip>}
+              {ctStats?.p85_horas != null && <Chip>85% em até {fmtNum(ctStats.p85_horas)}h</Chip>}
               <Chip>{cycleTime.length} task{cycleTime.length !== 1 ? "s" : ""} com histórico</Chip>
             </div>
             <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 36, alignItems: "start", paddingTop: 10 }}>
@@ -328,22 +292,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
           </div>
         )}
       </PanelCard>
-
-      {/* Comparação de modos (Entrega 2) */}
-      {comparacaoModos.length >= 2 && (
-        <PanelCard label="Comparação de modos">
-          <p style={{ margin: 0, fontSize: 13, color: ds.muted }}>Sprints fechadas agrupadas pelo modo vigente no momento do fechamento de cada uma.</p>
-          <BarGroups
-            label="SPI médio e entrega média por modo"
-            categories={comparacaoModos.map((c) => `${c.modo_trabalho}/${c.modo_avaliacao}`)}
-            series={[
-              { key: "spi", label: "SPI médio", color: chartGrey, values: comparacaoModos.map((c) => c.spi_medio ?? 0) },
-              { key: "ent", label: "Entrega média", color: ds.green, values: comparacaoModos.map((c) => c.entrega_media ?? 0) },
-            ]}
-          />
-          <ChartLegend items={[{ label: "SPI médio", color: chartGrey }, { label: "Entrega média", color: ds.green }]} />
-        </PanelCard>
-      )}
     </div>
   );
 }
