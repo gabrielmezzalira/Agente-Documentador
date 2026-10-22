@@ -7,7 +7,6 @@ import { ds, labelStyle, type Tone } from "../lib/ds";
 import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
-  SprintWithStatus,
   importarFuncionalidades,
   importarFuncionalidadesArquivo,
   confirmarImportacao,

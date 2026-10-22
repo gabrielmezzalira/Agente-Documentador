@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateContrato, type BlocoD, type PainelData, type Project, type SprintWithStatus } from "../../lib/api";
+import { updateContrato, type BlocoD, type PainelData, type Project } from "../../lib/api";
 import { ds } from "../../lib/ds";
 import { Button, ErrorNotice, Field, InfoTip, Input, ProgressBar, Select } from "../ds";
 import { BigNumber, CardTextAction, Metric, Muted, PanelCard, fmtNum } from "./PanelCard";
