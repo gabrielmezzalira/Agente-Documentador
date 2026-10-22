@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 from datetime import date, datetime
 
+from services.regua import MENSAGEM_NIVEL_INVALIDO, NIVEIS
+
 
 class ConteudoEstruturado(BaseModel):
     """Schema de extracao de conhecimento de projetos de dados."""
@@ -470,7 +472,7 @@ _COLUNAS_VALIDAS = {"planejado", "em_andamento", "pendente_aprovacao", "concluid
 class TaskCreate(BaseModel):
     project_id: str
     titulo: str
-    pontos: int = Field(..., gt=0)
+    pontos: int
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -480,6 +482,13 @@ class TaskCreate(BaseModel):
     ordem: int = 0
     extra: bool = False  # task concedida além do que a pessoa tinha; não consome orçamento
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
+
+    @field_validator("pontos")
+    @classmethod
+    def pontos_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -496,7 +505,7 @@ _BLOQUEIO_TIPOS_VALIDOS = {"interno", "cliente"}
 class TaskUpdate(BaseModel):
     titulo: Optional[str] = None
     descricao: Optional[str] = None
-    pontos: Optional[int] = Field(default=None, gt=0)
+    pontos: Optional[int] = None
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -513,6 +522,13 @@ class TaskUpdate(BaseModel):
     bloqueio_tipo: Optional[str] = None
     extra: Optional[bool] = None
     requer_aprovacao: Optional[bool] = None
+
+    @field_validator("pontos")
+    @classmethod
+    def pontos_na_regua(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
 
     @field_validator("coluna_kanban")
     @classmethod
@@ -545,6 +561,7 @@ class TaskResponse(BaseModel):
     titulo: str
     descricao: Optional[str] = None
     pontos: int
+    pontos_legado: Optional[int] = None
     coluna_kanban: str
     bloqueado: bool
     motivo_bloqueio: Optional[str] = None

@@ -133,7 +133,7 @@ def test_create_task_sem_validacao_quando_sprint_sem_orcamento(monkeypatch):
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.post("/tasks", json={
-        "project_id": "proj-1", "titulo": "Nova task", "pontos": 50, "sprint_id": "sprint-1",
+        "project_id": "proj-1", "titulo": "Nova task", "pontos": 5, "sprint_id": "sprint-1",
     })
 
     assert resp.status_code == 201
@@ -161,7 +161,7 @@ def test_patch_task_permitido_quando_dentro_do_orcamento(monkeypatch):
     )
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.patch("/tasks/task-1", json={"pontos": 4})
+    resp = tc.patch("/tasks/task-1", json={"pontos": 3})
 
     assert resp.status_code == 200
     assert len(calls["update"]) == 1

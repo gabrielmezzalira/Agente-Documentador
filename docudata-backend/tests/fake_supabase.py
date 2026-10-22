@@ -24,6 +24,10 @@ class _Query:
         self._filtros.append(lambda r: r.get(col) == val)
         return self
 
+    def neq(self, col, val):
+        self._filtros.append(lambda r: r.get(col) != val)
+        return self
+
     def is_(self, col, val):
         """Só o caso `.is_(col, "null")` (IS NULL), usado pelo compare-and-swap da reserva de análise."""
         if val != "null":
@@ -56,6 +60,10 @@ class _Query:
                 saida.append(dict(row))
             return _Resp(saida)
         casadas = [r for r in linhas if all(f(r) for f in self._filtros)]
+        if self._op == "delete":
+            for r in casadas:
+                linhas.remove(r)
+            return _Resp([dict(r) for r in casadas])
         if self._op == "update":
             for r in casadas:
                 r.update(self._payload)
@@ -81,6 +89,9 @@ class _Table:
 
     def update(self, payload):
         return _Query(self._tables, self._name, "update", payload)
+
+    def delete(self):
+        return _Query(self._tables, self._name, "delete")
 
 
 class FakeClient:
