@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
+from services.previsto_sprint import previsto_da_sprint
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/metricas", tags=["metricas"])
@@ -73,7 +74,7 @@ def _percentiles(cycle_times_horas: list[float]) -> dict:
 
 @router.get("/{project_id}/spi")
 async def get_spi(project_id: str):
-    """SPI por sprint: pontos_previstos (derivado de pontos_orcamento), pontos_realizados, spi."""
+    """SPI por sprint: realizado (tasks concluídas, sem extras) ÷ previsto (foto do início + o que surgiu)."""
     client = get_client()
     proj = client.table("projects").select("id").eq("id", project_id).execute()
     if not proj.data:
@@ -81,7 +82,7 @@ async def get_spi(project_id: str):
 
     sprints = (
         client.table("sprints")
-        .select("id, numero, pontos_orcamento")
+        .select("id, numero")
         .eq("project_id", project_id)
         .order("numero")
         .execute()
@@ -90,18 +91,19 @@ async def get_spi(project_id: str):
 
     result = []
     for s in sprints:
-        tasks_resp = (
+        tasks = (
             client.table("tasks")
-            .select("pontos, coluna_kanban")
+            .select("pontos, coluna_kanban, extra")
             .eq("sprint_id", s["id"])
             .execute()
+            .data or []
         )
-        tasks = tasks_resp.data or []
-        pontos_realizados = sum(t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida")
-        pontos_previstos = s.get("pontos_orcamento")
-        spi = None
-        if pontos_previstos and pontos_previstos > 0:
-            spi = round(pontos_realizados / pontos_previstos, 3)
+        pontos_realizados = sum(
+            t["pontos"] for t in tasks if t["coluna_kanban"] == "concluida" and not t.get("extra")
+        )
+        previsto = previsto_da_sprint(client, s["id"])["previsto"]
+        pontos_previstos = previsto or None
+        spi = round(pontos_realizados / previsto, 3) if previsto > 0 else None
         result.append({
             "sprint_numero": s["numero"],
             "pontos_previstos": pontos_previstos,

@@ -275,6 +275,9 @@ class SprintStatusResponse(SprintResponse):
     pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
     avaliados_count: int = 0
     elegiveis_avaliacao_count: int = 0
+    previsto: int = 0
+    planejado_no_inicio: int = 0
+    surgiu_na_sprint: int = 0
 
 
 class SprintDocResponse(BaseModel):

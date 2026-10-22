@@ -4,6 +4,9 @@ from services.previsto_sprint import (
     marcas_ao_entrar_na_sprint,
     previsto_da_sprint,
 )
+from fastapi.testclient import TestClient
+
+from services.spi_health import auto_update_sprint_health
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from tests.fake_supabase import FakeClient
 
@@ -146,3 +149,39 @@ def test_iniciar_de_novo_nao_refaz_a_foto():
     iniciar_sprint_e_ancorar_tasks(fake, "s1")
     assert fake.tables["tasks"][1]["prevista_no_inicio"] is False
     assert previsto_da_sprint(fake, "s1") == antes == {"previsto": 8, "planejado_no_inicio": 3, "surgiu_na_sprint": 5}
+
+
+def _fake_spi():
+    return FakeClient({
+        "projects": [{"id": "p1"}],
+        "sprints": [{"id": "s1", "project_id": "p1", "numero": 1, "iniciada": True, "status_saude": None}],
+        "tasks": [
+            _task("a", 5, prevista_no_inicio=True, coluna_kanban="concluida"),
+            _task("b", 3, prevista_no_inicio=True),
+            _task("c", 2, surgiu_na_sprint=True, coluna_kanban="concluida"),
+        ],
+    })
+
+
+def test_spi_usa_previsto(monkeypatch, autenticar):
+    import routers.metricas as metricas_router
+    from main import app
+    fake = _fake_spi()
+    monkeypatch.setattr(metricas_router, "get_client", lambda: fake)
+    tc = autenticar(TestClient(app))
+    item = tc.get("/metricas/p1/spi").json()[0]
+    assert item["pontos_previstos"] == 10
+    assert item["pontos_realizados"] == 7
+    assert item["spi"] == 0.7
+
+
+def test_saude_usa_previsto():
+    fake = _fake_spi()
+    assert auto_update_sprint_health(fake, "s1") == "amarelo"
+    assert fake.tables["sprints"][0]["status_saude"] == "amarelo"
+
+
+def test_saude_sem_previsto_nao_altera():
+    fake = FakeClient({"sprints": [{"id": "s1", "status_saude": "verde"}], "tasks": []})
+    assert auto_update_sprint_health(fake, "s1") is None
+    assert fake.tables["sprints"][0]["status_saude"] == "verde"

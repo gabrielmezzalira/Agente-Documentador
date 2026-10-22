@@ -12,6 +12,7 @@ from models.schemas import (
 from core.observability import falha_externa
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
+from services.previsto_sprint import previsto_da_sprint
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.avaliacoes import contar_avaliacao_por_sprint
 
@@ -142,6 +143,7 @@ async def list_sprints(project_id: str):
             "ingestions_count": agg["total"],
             "docs_gerados_count": docs_by_sprint[n],
             "pendencias": pendencias,
+            **previsto_da_sprint(client, sprint["id"]),
             "avaliados_count": contagem_avaliacao.get(sprint["id"], {}).get("avaliados", 0),
             "elegiveis_avaliacao_count": contagem_avaliacao.get(sprint["id"], {}).get("elegiveis", 0),
         })
