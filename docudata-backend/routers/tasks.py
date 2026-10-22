@@ -27,6 +27,7 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
+from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
@@ -300,6 +301,8 @@ async def create_task(data: TaskCreate):
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
+
+    revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if payload.get("operacional_id"):
         _avisar_operacional_atribuicao(client, resp.data[0])
@@ -865,6 +868,12 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["travado_automatico"] = False
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    func_efetiva = data.funcionalidade_id if data.funcionalidade_id is not None else task.get("funcionalidade_id")
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
+        revogar_se_aprovada(client, func_efetiva, "revogada: task reaberta")
+    elif data.funcionalidade_id is not None and data.funcionalidade_id != task.get("funcionalidade_id"):
+        revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if virou_cliente:
         # Mesma válvula do override de travamento: atraso por espera do

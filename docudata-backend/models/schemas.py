@@ -378,6 +378,9 @@ class FuncionalidadeResponse(BaseModel):
     responsavel: Optional[str] = None
     sprint_alvo: Optional[str] = None
     created_at: datetime
+    aprovada_em: Optional[datetime] = None
+    aprovada_por: Optional[str] = None
+    aprovada_por_nome: Optional[str] = None
 
 
 class TransicaoStatusResponse(BaseModel):

@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
@@ -16,6 +16,8 @@ from models.schemas import (
     ImportConfirmarRequest,
     FuncionalidadeProposta,
 )
+from services.aprovacao_funcionalidade import aprovar, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
+from services.auth import require_not_operacional
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -243,7 +245,7 @@ async def list_funcionalidades(project_id: str = Query(...)):
         .order("created_at", desc=False)
         .execute()
     )
-    return response.data or []
+    return nomes_dos_aprovadores(client, response.data or [])
 
 
 @router.get("/{funcionalidade_id}/transicoes", response_model=list[TransicaoStatusResponse])
@@ -259,13 +261,23 @@ async def list_transicoes(funcionalidade_id: str):
     return response.data or []
 
 
+@router.post("/{funcionalidade_id}/aprovar", response_model=FuncionalidadeResponse)
+async def aprovar_funcionalidade(funcionalidade_id: str, pessoa: dict = Depends(require_not_operacional)):
+    return aprovar(get_client(), funcionalidade_id, pessoa["id"])
+
+
+@router.delete("/{funcionalidade_id}/aprovacao", response_model=FuncionalidadeResponse)
+async def desfazer_aprovacao_funcionalidade(funcionalidade_id: str, pessoa: dict = Depends(require_not_operacional)):
+    return desfazer_aprovacao(get_client(), funcionalidade_id, pessoa["id"])
+
+
 @router.get("/{funcionalidade_id}", response_model=FuncionalidadeResponse)
 async def get_funcionalidade(funcionalidade_id: str):
     client = get_client()
     response = client.table("funcionalidades").select("*").eq("id", funcionalidade_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Funcionalidade not found")
-    return response.data[0]
+    return nomes_dos_aprovadores(client, [response.data[0]])[0]
 
 
 @router.patch("/{funcionalidade_id}", response_model=FuncionalidadeResponse)
@@ -329,7 +341,10 @@ async def patch_funcionalidade(
         return func
 
     result = client.table("funcionalidades").update(updates).eq("id", funcionalidade_id).execute()
-    return result.data[0]
+    if data.status is not None and data.status != "concluida":
+        revogar_se_aprovada(client, funcionalidade_id, "revogada: status alterado")
+        return nomes_dos_aprovadores(client, client.table("funcionalidades").select("*").eq("id", funcionalidade_id).execute().data)[0]
+    return nomes_dos_aprovadores(client, result.data)[0]
 
 
 @router.delete("/{funcionalidade_id}", status_code=204)
