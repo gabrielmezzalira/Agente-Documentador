@@ -826,6 +826,18 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         destino_iniciada = bool(sp_dest.data and sp_dest.data[0].get("iniciada"))
         extra_efetivo = data.extra if data.extra is not None else bool(task.get("extra"))
         updates.update(marcas_ao_entrar_na_sprint(destino_iniciada, extra_efetivo))
+    elif (
+        data.extra is False
+        and task.get("extra")
+        and task.get("sprint_id")
+        and not task.get("prevista_no_inicio")
+        and not task.get("surgiu_na_sprint")
+    ):
+        # Extra que vira normal numa sprint já iniciada entra no previsto como
+        # "surgiu": sem marca, contaria no realizado mas em nenhum previsto.
+        sp_atual = client.table("sprints").select("iniciada").eq("id", task["sprint_id"]).execute()
+        atual_iniciada = bool(sp_atual.data and sp_atual.data[0].get("iniciada"))
+        updates.update(marcas_ao_entrar_na_sprint(atual_iniciada, False))
     if houve_reabertura:
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
     # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora

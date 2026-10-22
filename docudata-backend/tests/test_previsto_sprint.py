@@ -185,3 +185,56 @@ def test_saude_sem_previsto_nao_altera():
     fake = FakeClient({"sprints": [{"id": "s1", "status_saude": "verde"}], "tasks": []})
     assert auto_update_sprint_health(fake, "s1") is None
     assert fake.tables["sprints"][0]["status_saude"] == "verde"
+
+
+# ── extra true -> false numa sprint já iniciada ───────────────────────────
+
+def test_extra_vira_normal_em_sprint_iniciada_surge_na_sprint(monkeypatch, autenticar):
+    fake = _base_fake([_task("t1", 3, sprint="s-ini", **_COMPLETA, extra=True)])
+    tc = _app_tasks(monkeypatch, autenticar, fake)
+    resp = tc.patch("/tasks/t1", json={"extra": False})
+    assert resp.status_code == 200, resp.text
+    t = fake.tables["tasks"][0]
+    assert t["surgiu_na_sprint"] is True and t["prevista_no_inicio"] is False
+    assert previsto_da_sprint(fake, "s-ini")["previsto"] == 3
+
+
+def test_extra_vira_normal_em_sprint_futura_nao_marca(monkeypatch, autenticar):
+    fake = _base_fake([_task("t1", 3, sprint="s-fut", **_COMPLETA, extra=True)])
+    tc = _app_tasks(monkeypatch, autenticar, fake)
+    assert tc.patch("/tasks/t1", json={"extra": False}).status_code == 200
+    t = fake.tables["tasks"][0]
+    assert t["surgiu_na_sprint"] is False and t["prevista_no_inicio"] is False
+
+
+def test_normal_vira_extra_nao_mexe_nas_marcas(monkeypatch, autenticar):
+    fake = _base_fake([_task("t1", 3, sprint="s-ini", **_COMPLETA, prevista_no_inicio=True)])
+    tc = _app_tasks(monkeypatch, autenticar, fake)
+    assert tc.patch("/tasks/t1", json={"extra": True}).status_code == 200
+    t = fake.tables["tasks"][0]
+    assert t["prevista_no_inicio"] is True and t["surgiu_na_sprint"] is False
+
+
+# ── GET /projects/{id}/sprints expõe o previsto ───────────────────────────
+
+def test_listar_sprints_traz_previsto(monkeypatch, autenticar):
+    import routers.sprints as sprints_router
+    from main import app
+    fake = FakeClient({
+        "projects": [{"id": "p1"}],
+        "sprints": [{"id": "s1", "project_id": "p1", "numero": 1, "iniciada": True,
+                    "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00"}],
+        "ingestions": [], "generated_docs": [],
+        "tasks": [
+            _task("a", 3, prevista_no_inicio=True),
+            _task("b", 2, prevista_no_inicio=True),
+            _task("c", 5, surgiu_na_sprint=True),
+            _task("d", 8, extra=True, surgiu_na_sprint=True),
+        ],
+    })
+    monkeypatch.setattr(sprints_router, "get_client", lambda: fake)
+    tc = autenticar(TestClient(app))
+    resp = tc.get("/projects/p1/sprints")
+    assert resp.status_code == 200, resp.text
+    s = resp.json()[0]
+    assert (s["previsto"], s["planejado_no_inicio"], s["surgiu_na_sprint"]) == (10, 5, 5)
