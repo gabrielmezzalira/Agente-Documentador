@@ -56,3 +56,12 @@ def test_contrato_ignora_valor_projeto(monkeypatch, autenticar):
     assert resp.status_code == 200, resp.text
     assert "valor_projeto" not in fake.tables["projects"][0]
     assert "valor_por_ponto" not in resp.json()
+
+
+def test_comparacao_de_modos_nao_existe(monkeypatch, autenticar):
+    import routers.metricas as metricas_router
+    fake = FakeClient({"projects": [{"id": "p1"}]})
+    monkeypatch.setattr(metricas_router, "get_client", lambda: fake)
+    tc = _app(monkeypatch, autenticar, fake)
+    assert tc.get("/metricas/p1/comparacao-modos").status_code == 404
+    assert tc.get("/metricas/comparacao-modos?projeto_ids=p1").status_code in (404, 422)
