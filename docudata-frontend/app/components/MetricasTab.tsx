@@ -93,9 +93,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  useEffect(() => {
-  }, [projectId]);
-
   if (loading) return <p role="status" style={{ color: ds.muted, fontSize: 13, margin: 0 }}>Carregando métricas...</p>;
   if (err) return <p role="alert" style={{ color: ds.red, fontSize: 13, margin: 0 }}>{err}</p>;
 
