@@ -135,11 +135,17 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
 
     Também tira a foto do previsto (tasks não extras da sprint ganham
     prevista_no_inicio)."""
+    ja_iniciada = bool(
+        (client.table("sprints").select("iniciada").eq("id", sprint_id).execute().data or [{}])[0].get("iniciada")
+    )
     client.table("sprints").update({
         "iniciada": True,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", sprint_id).execute()
-    marcar_foto_do_inicio(client, sprint_id)
+    # A foto pertence ao momento em que a sprint realmente começou: chamadas
+    # repetidas não podem promover tasks que surgiram depois.
+    if not ja_iniciada:
+        marcar_foto_do_inicio(client, sprint_id)
 
     agora_iso = datetime.now(timezone.utc).isoformat()
     pendentes = (

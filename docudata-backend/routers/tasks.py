@@ -290,13 +290,11 @@ async def create_task(data: TaskCreate):
     # começado (sprints.iniciada) — task de sprint futura não deve contar tempo
     # parado antes da hora (evita alerta em massa quando a sprint finalmente
     # inicia; nesse momento iniciar_sprint_e_ancorar_tasks ancora essas tasks).
-    if payload.get("coluna_kanban") != "concluida" and data.sprint_id:
-        sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
-        if sprint_iniciada:
-            payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+    sprint_iniciada = bool(data.sprint_id and sp_check.data and sp_check.data[0].get("iniciada"))
+    if payload.get("coluna_kanban") != "concluida" and sprint_iniciada:
+        payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
 
     if data.sprint_id:
-        sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
         payload.update(marcas_ao_entrar_na_sprint(sprint_iniciada, data.extra))
 
     resp = client.table("tasks").insert(payload).execute()

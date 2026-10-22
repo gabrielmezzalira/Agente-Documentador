@@ -136,3 +136,13 @@ def test_patch_com_mesma_sprint_nao_mexe_nas_marcas(monkeypatch, autenticar):
     resp = tc.patch("/tasks/t1", json={"sprint_id": "s-ini", "titulo": "Novo"})
     assert resp.status_code == 200, resp.text
     assert fake.tables["tasks"][0]["prevista_no_inicio"] is True
+
+
+def test_iniciar_de_novo_nao_refaz_a_foto():
+    fake = FakeClient({"sprints": [{"id": "s1", "iniciada": False}], "tasks": [_task("a", 3)]})
+    iniciar_sprint_e_ancorar_tasks(fake, "s1")
+    fake.tables["tasks"].append(_task("b", 5, surgiu_na_sprint=True))
+    antes = previsto_da_sprint(fake, "s1")
+    iniciar_sprint_e_ancorar_tasks(fake, "s1")
+    assert fake.tables["tasks"][1]["prevista_no_inicio"] is False
+    assert previsto_da_sprint(fake, "s1") == antes == {"previsto": 8, "planejado_no_inicio": 3, "surgiu_na_sprint": 5}
