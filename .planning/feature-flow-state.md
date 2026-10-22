@@ -3,17 +3,18 @@ feature: "Alinhamento à proposta (Cultura Data Driven / pull / piso / pontuaç�
 modo: "FULL"
 tier: "COMPLEXA"
 stack: "FastAPI (Python) + Supabase PostgreSQL + Next.js 15 / React 19 (inline styles, design system em app/components/ds)"
-etapa: 1
-etapa_nome: "Plano de implementação (write-plan) — A1"
+etapa: 2
+etapa_nome: "Execução do back-end (Onda 1) — A1, Tasks 1-9 do plano"
 gates_reusados: ["knowledge-graph"]
 started_at: "2026-10-22T13:00:00Z"
-last_saved: "2026-10-22T13:00:00Z"
+last_saved: "2026-10-22T15:00:00Z"
 status: "em_progresso"
 
 ## Concluído
 - [x] Etapa 0 — graphify update (código) em docudata-backend e docudata-frontend/app, sem docs
 - [x] Etapa 1 — Brainstorm A1 (spec docs/superpowers/specs/2026-10-22-regua-aprovacao-previsto-design.md)
-- [ ] Etapa 2 — Plano A1 via /write-plan ← PRÓXIMA (aguardando revisão da spec pelo usuário)
+- [x] Etapa 2 — Plano A1 (docs/superpowers/plans/2026-10-22-regua-aprovacao-previsto.md; Onda 1 = Tasks 1-9, Onda 2 = Tasks 10-15)
+- [ ] Etapa 3 — Onda 1 back-end ← PRÓXIMA (perguntar ao usuário: subagent-driven com sonnet ou inline)
 
 ## Contexto relevante
 - Worktree ../Documentador-proposta, branch feat/regua-aprovacao-escopo, base fix/painel-ajustes-pequenos (2e4e250, sobre origin/main 48d0c87).
