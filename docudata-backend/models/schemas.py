@@ -52,7 +52,6 @@ class ProjectCreate(BaseModel):
     subarea: Subarea
     description: Optional[str] = None
     squad: Optional[str] = None
-    valor_projeto: Optional[float] = None
 
 
 class ProjectResponse(BaseModel):
@@ -63,8 +62,6 @@ class ProjectResponse(BaseModel):
     subarea: Subarea = "dados"
     description: Optional[str] = None
     squad: Optional[str] = None
-    valor_projeto: Optional[float] = None
-    valor_por_ponto: Optional[float] = None
     is_delivered: bool = False
     created_at: datetime
     last_ingestion_at: Optional[datetime] = None
@@ -259,7 +256,6 @@ class SprintResponse(BaseModel):
     numero: int
     status_saude: Optional[str] = None
     plano_correcao: Optional[str] = None
-    pontos_orcamento: Optional[int] = None
     avaliacao_completa_em: Optional[datetime] = None
     iniciada: bool = True
     created_at: datetime
@@ -277,8 +273,6 @@ class SprintStatusResponse(SprintResponse):
     ingestions_count: int = 0          # total de ingestões da sprint (qualquer tipo)
     docs_gerados_count: int = 0        # total de generated_docs da sprint
     pendencias: list[str] = []          # subset de ['planning','review'] que estão faltando
-    pontos_usados: int = 0
-    faturamento_previsto: Optional[float] = None
     avaliados_count: int = 0
     elegiveis_avaliacao_count: int = 0
 
@@ -423,7 +417,6 @@ class ContratoUpdate(BaseModel):
     tolerancia_desvio_pontos: Optional[int] = Field(default=None, ge=0)
     periodo_garantia_dias: Optional[int] = Field(default=None, ge=0)
     arquetipo: Optional[Literal["padrao", "consultoria_discovery"]] = None
-    valor_projeto: Optional[float] = None
 
 
 class ResumoSemanalRequest(BaseModel):
@@ -612,12 +605,6 @@ class TaskTransicaoResponse(BaseModel):
     timestamp: datetime
     motivo: Optional[str] = None
     duracao_fase_anterior_segundos: Optional[int] = None
-
-
-# ── Sprint orçamento ─────────────────────────────────────────────────────────
-
-class SprintOrcamentoUpdate(BaseModel):
-    pontos_orcamento: int = Field(..., ge=0)
 
 
 # ── Task sugestões ────────────────────────────────────────────────────────────
@@ -928,13 +915,6 @@ class SolicitacaoTaskResponse(BaseModel):
     status: str
     criado_em: datetime
     respondido_em: Optional[datetime] = None
-
-
-class RedistribuirPontosRequest(BaseModel):
-    """Encolhe proporcionalmente as tasks já existentes na sprint para caber
-    `pontos_novos`, em vez de simplesmente recusar a task nova."""
-    sprint_id: str
-    pontos_novos: int
 
 
 # ── Painel de pessoas com acesso ao sistema ──────────────────────────────────

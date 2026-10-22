@@ -35,7 +35,7 @@ _LOG = logging.getLogger("docudata.projects")
 # legado por projeto que vinha do banco a cada listagem só para ser descartado
 # depois por _sanitize.
 _CAMPOS_PROJETO = (
-    "id, name, client, subarea, description, squad, valor_projeto, valor_por_ponto, "
+    "id, name, client, subarea, description, squad, "
     "is_delivered, created_at, data_inicio, data_fim_contratada, "
     "tolerancia_desvio_pontos, periodo_garantia_dias, gerente_email, arquetipo, "
     "github_token, github_repo, "
@@ -61,9 +61,6 @@ async def create_project(data: ProjectCreate):
         "description": data.description,
         "squad": data.squad,
     }
-    if data.valor_projeto is not None:
-        payload["valor_projeto"] = data.valor_projeto
-        payload["valor_por_ponto"] = round(data.valor_projeto / 100, 2)
     response = client.table("projects").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
@@ -277,41 +274,16 @@ async def encaminhar_projeto(
 
 @router.patch("/{project_id}/contrato", response_model=ProjectResponse)
 async def update_contrato(project_id: str, data: ContratoUpdate):
-    """Atualiza campos de contrato do projeto: datas, tolerancia, garantia e valor do projeto."""
+    """Atualiza campos de contrato do projeto: datas, tolerância, garantia e arquétipo."""
     client = get_client()
     check = client.table("projects").select("id").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
     campos = data.model_dump()
-    valor_projeto_novo = campos.pop("valor_projeto", None)
     payload = {k: v for k, v in campos.items() if v is not None}
 
     try:
-        if valor_projeto_novo is not None:
-            valor_projeto_ja_salvo = (
-                client.table("projects").select("valor_projeto").eq("id", project_id).execute()
-            ).data[0].get("valor_projeto")
-            # Reenviar o mesmo valor que já estava salvo (form completo, sem
-            # mudança de fato nesse campo) não deve travar mesmo com sprint já
-            # orçada — a trava é só contra MUDAR o valor depois do orçamento
-            # existir, não contra resalvar o formulário inteiro sem tocar nele.
-            if valor_projeto_novo != valor_projeto_ja_salvo:
-                sprints_do_projeto = (
-                    client.table("sprints")
-                    .select("id, pontos_orcamento")
-                    .eq("project_id", project_id)
-                    .execute()
-                ).data or []
-                tem_orcamento = any(s.get("pontos_orcamento") is not None for s in sprints_do_projeto)
-                if tem_orcamento:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Não é possível alterar o valor do projeto: já existe orçamento de pontos definido em pelo menos uma sprint.",
-                    )
-                payload["valor_projeto"] = valor_projeto_novo
-                payload["valor_por_ponto"] = round(valor_projeto_novo / 100, 2)
-
         if not payload:
             raise HTTPException(status_code=422, detail="Nenhum campo fornecido")
         for k, v in list(payload.items()):

@@ -139,14 +139,6 @@ def test_operacional_nao_pode_criar_task(monkeypatch):
     assert resp.status_code == 403
 
 
-def test_operacional_nao_pode_redistribuir_pontos(monkeypatch):
-    mock_sb = _make_mock_client(_BASE_TASK)
-    tc = _client_como(monkeypatch, mock_sb, "operacional")
-
-    resp = tc.post("/tasks/redistribuir-pontos", json={"sprint_id": "sprint-1", "pontos_novos": 2})
-    assert resp.status_code == 403
-
-
 def test_operacional_pode_mover_coluna_kanban(monkeypatch):
     mock_sb = _make_mock_client(_BASE_TASK)
     tc = _client_como(monkeypatch, mock_sb, "operacional")

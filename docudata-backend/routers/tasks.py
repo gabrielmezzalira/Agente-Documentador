@@ -5,7 +5,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
-    RedistribuirPontosRequest,
     RejeitarTaskRequest,
     TaskCreate,
     TaskUpdate,
@@ -219,94 +218,6 @@ def _registrar_reabertura(
     }).execute()
 
 
-def _pontos_usados_na_sprint(client, sprint_id: str, ignorar_task_id: str | None = None) -> int:
-    """Soma dos pontos das tasks da sprint que consomem orçamento. Tasks extras
-    ficam de fora: elas são trabalho concedido além do planejado."""
-    query = client.table("tasks").select("id, pontos, extra").eq("sprint_id", sprint_id)
-    if ignorar_task_id is not None:
-        query = query.neq("id", ignorar_task_id)
-    rows = query.execute().data or []
-    return sum(t["pontos"] for t in rows if not t.get("extra"))
-
-
-@router.post("/redistribuir-pontos", dependencies=[Depends(require_not_operacional)])
-async def redistribuir_pontos(data: RedistribuirPontosRequest):
-    """Encolhe proporcionalmente os pontos das tasks já existentes na sprint para
-    abrir espaço para `pontos_novos`, em vez de simplesmente recusar a task nova.
-
-    Cada task fica com no mínimo 1 ponto (a tabela não aceita 0), então sprints
-    muito cheias podem não conseguir abrir o espaço pedido — nesse caso o pedido
-    é recusado com o quanto daria para liberar."""
-    client = get_client()
-
-    sprint = (
-        client.table("sprints")
-        .select("id, pontos_orcamento")
-        .eq("id", data.sprint_id)
-        .execute()
-    )
-    if not sprint.data:
-        raise HTTPException(status_code=404, detail="Sprint not found")
-    orcamento = sprint.data[0].get("pontos_orcamento")
-    if orcamento is None:
-        raise HTTPException(status_code=409, detail="Esta sprint não tem orçamento de pontos definido.")
-
-    tasks = (
-        client.table("tasks")
-        .select("id, titulo, pontos, extra")
-        .eq("sprint_id", data.sprint_id)
-        .execute()
-        .data or []
-    )
-    elegiveis = [t for t in tasks if not t.get("extra")]
-    if not elegiveis:
-        raise HTTPException(status_code=409, detail="Não há tasks para redistribuir nesta sprint.")
-
-    alvo = orcamento - data.pontos_novos
-    if alvo < len(elegiveis):
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Não dá para abrir {data.pontos_novos} pontos: as {len(elegiveis)} tasks da sprint "
-                f"precisam de pelo menos 1 ponto cada, então o máximo liberável é "
-                f"{orcamento - len(elegiveis)}."
-            ),
-        )
-
-    total_atual = sum(t["pontos"] for t in elegiveis)
-    novos: list[dict] = []
-    for t in elegiveis:
-        proporcional = max(1, round(t["pontos"] * alvo / total_atual))
-        novos.append({**t, "novo": proporcional})
-
-    # Arredondamento pode estourar ou sobrar; ajusta na task maior até bater.
-    def soma():
-        return sum(n["novo"] for n in novos)
-
-    while soma() > alvo:
-        maior = max((n for n in novos if n["novo"] > 1), key=lambda n: n["novo"], default=None)
-        if maior is None:
-            break
-        maior["novo"] -= 1
-    while soma() < alvo:
-        maior = max(novos, key=lambda n: n["novo"])
-        maior["novo"] += 1
-
-    for n in novos:
-        if n["novo"] != n["pontos"]:
-            client.table("tasks").update({"pontos": n["novo"]}).eq("id", n["id"]).execute()
-
-    return {
-        "sprint_id": data.sprint_id,
-        "pontos_orcamento": orcamento,
-        "pontos_liberados": data.pontos_novos,
-        "ajustes": [
-            {"task_id": n["id"], "titulo": n["titulo"], "de": n["pontos"], "para": n["novo"]}
-            for n in novos
-        ],
-    }
-
-
 @router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
 async def create_task(data: TaskCreate):
     client = get_client()
@@ -347,24 +258,13 @@ async def create_task(data: TaskCreate):
     if data.sprint_id:
         sp_check = (
             client.table("sprints")
-            .select("id, pontos_orcamento, iniciada")
+            .select("id, iniciada")
             .eq("id", data.sprint_id)
             .eq("project_id", data.project_id)
             .execute()
         )
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
-        orcamento = sp_check.data[0].get("pontos_orcamento")
-        # Task extra é trabalho concedido além do planejado: por definição ela não
-        # cabe no orçamento, então não é validada contra ele nem entra na soma.
-        if orcamento is not None and not data.extra:
-            usados = _pontos_usados_na_sprint(client, data.sprint_id)
-            if usados + data.pontos > orcamento:
-                mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
-                raise HTTPException(
-                    status_code=409,
-                    detail=mensagem,
-                )
 
     payload: dict = {
         "project_id": data.project_id,
@@ -788,22 +688,6 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         )
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
-
-    if data.pontos is not None or data.sprint_id is not None:
-        sprint_id_efetivo = data.sprint_id if data.sprint_id is not None else task.get("sprint_id")
-        pontos_efetivo = data.pontos if data.pontos is not None else task["pontos"]
-        if sprint_id_efetivo:
-            sp_orc = client.table("sprints").select("pontos_orcamento").eq("id", sprint_id_efetivo).execute()
-            orcamento = sp_orc.data[0].get("pontos_orcamento") if sp_orc.data else None
-            extra_efetivo = data.extra if data.extra is not None else task.get("extra", False)
-            if orcamento is not None and not extra_efetivo:
-                usados = _pontos_usados_na_sprint(client, sprint_id_efetivo, ignorar_task_id=task_id)
-                if usados + pontos_efetivo > orcamento:
-                    mensagem = f"Orçamento da sprint excedido: restam {orcamento - usados} pontos."
-                    raise HTTPException(
-                        status_code=409,
-                        detail=mensagem,
-                    )
 
     # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado
     coluna_nova = data.coluna_kanban
