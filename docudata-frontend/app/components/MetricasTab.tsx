@@ -15,7 +15,6 @@ import {
   getMetricasPerformanceOperacional,
   getSpiDoProjeto,
   getMetricasCycleTimeStats,
-  getComparacaoModos,
   type SpiPoint,
   type ThroughputPoint,
   type CycleTimePoint,
@@ -23,7 +22,6 @@ import {
   type PerformanceOperacionalPoint,
   type SpiPorOperacionalDoProjeto,
   type CycleTimeStats,
-  type ComparacaoModoPonto,
 } from "../lib/api";
 
 interface Props {
@@ -67,7 +65,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
   const [perfOp, setPerfOp] = useState<PerformanceOperacionalPoint[]>([]);
   const [spiPorPessoa, setSpiPorPessoa] = useState<SpiPorOperacionalDoProjeto[]>([]);
   const [ctStats, setCtStats] = useState<CycleTimeStats | null>(null);
-  const [comparacaoModos, setComparacaoModos] = useState<ComparacaoModoPonto[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -97,7 +94,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
   }, [projectId]);
 
   useEffect(() => {
-    getComparacaoModos(projectId).then(setComparacaoModos).catch(() => setComparacaoModos([]));
   }, [projectId]);
 
   if (loading) return <p role="status" style={{ color: ds.muted, fontSize: 13, margin: 0 }}>Carregando métricas...</p>;
@@ -299,22 +295,6 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
           </div>
         )}
       </PanelCard>
-
-      {/* Comparação de modos (Entrega 2) */}
-      {comparacaoModos.length >= 2 && (
-        <PanelCard label="Comparação de modos">
-          <p style={{ margin: 0, fontSize: 13, color: ds.muted }}>Sprints fechadas agrupadas pelo modo vigente no momento do fechamento de cada uma.</p>
-          <BarGroups
-            label="SPI médio e entrega média por modo"
-            categories={comparacaoModos.map((c) => `${c.modo_trabalho}/${c.modo_avaliacao}`)}
-            series={[
-              { key: "spi", label: "SPI médio", color: chartGrey, values: comparacaoModos.map((c) => c.spi_medio ?? 0) },
-              { key: "ent", label: "Entrega média", color: ds.green, values: comparacaoModos.map((c) => c.entrega_media ?? 0) },
-            ]}
-          />
-          <ChartLegend items={[{ label: "SPI médio", color: chartGrey }, { label: "Entrega média", color: ds.green }]} />
-        </PanelCard>
-      )}
     </div>
   );
 }
