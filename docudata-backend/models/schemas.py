@@ -573,6 +573,8 @@ class TaskResponse(BaseModel):
     travado_override_por: Optional[str] = None
     travado_override_em: Optional[datetime] = None
     extra: bool = False
+    prevista_no_inicio: bool = False
+    surgiu_na_sprint: bool = False
     created_at: datetime
     updated_at: datetime
     entrou_na_fila_em: Optional[datetime] = None

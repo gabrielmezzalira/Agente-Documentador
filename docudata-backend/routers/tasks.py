@@ -25,6 +25,7 @@ from services.email_service import (
 )
 from services.supabase_client import get_client
 from services.wip_check import check_wip
+from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
@@ -293,6 +294,10 @@ async def create_task(data: TaskCreate):
         sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
         if sprint_iniciada:
             payload["entrou_em_andamento_em"] = datetime.now(timezone.utc).isoformat()
+
+    if data.sprint_id:
+        sprint_iniciada = bool(sp_check.data[0].get("iniciada")) if sp_check.data else False
+        payload.update(marcas_ao_entrar_na_sprint(sprint_iniciada, data.extra))
 
     resp = client.table("tasks").insert(payload).execute()
     if not resp.data:
@@ -815,6 +820,11 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["bloqueado"] = data.bloqueado
     if data.extra is not None:
         updates["extra"] = data.extra
+    if data.sprint_id is not None and str(data.sprint_id) != str(task.get("sprint_id") or ""):
+        sp_dest = client.table("sprints").select("iniciada").eq("id", data.sprint_id).execute()
+        destino_iniciada = bool(sp_dest.data and sp_dest.data[0].get("iniciada"))
+        extra_efetivo = data.extra if data.extra is not None else bool(task.get("extra"))
+        updates.update(marcas_ao_entrar_na_sprint(destino_iniciada, extra_efetivo))
     if houve_reabertura:
         updates["contador_reaberturas"] = (task.get("contador_reaberturas") or 0) + 1
     # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora
