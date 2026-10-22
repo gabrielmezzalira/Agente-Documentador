@@ -143,8 +143,11 @@ function TaskModal({
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
   const [pontos, setPontos] = useState<number>(
-    task?.pontos && (NIVEIS as readonly number[]).includes(task.pontos) ? task.pontos : 1
+    mode === "edit" && task?.pontos
+      ? task.pontos
+      : task?.pontos && (NIVEIS as readonly number[]).includes(task.pontos) ? task.pontos : 1
   );
+  const pontosLegado = mode === "edit" && !!task && !(NIVEIS as readonly number[]).includes(task.pontos);
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
   const [operacionalId, setOperacionalId] = useState(task?.operacional_id ?? "");
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
@@ -184,7 +187,7 @@ function TaskModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
-    if (!(NIVEIS as readonly number[]).includes(pontos)) { setErr("Use um nível da régua: 1, 2, 3 ou 5"); return; }
+    if (!(NIVEIS as readonly number[]).includes(pontos) && !(mode === "edit" && pontos === task?.pontos)) { setErr("Use um nível da régua: 1, 2, 3 ou 5"); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
@@ -210,7 +213,7 @@ function TaskModal({
         saved = await patchTaskKanban(task!.id, {
           titulo: titulo.trim(),
           descricao: descricao.trim() || undefined,
-          pontos,
+          ...(pontos !== task!.pontos ? { pontos } : {}),
           sprint_id: sprintId || undefined,
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
@@ -343,6 +346,7 @@ function TaskModal({
                 onChange={(e) => setPontos(Number(e.target.value))}
                 required
               >
+                {pontosLegado && <option value={task!.pontos}>{task!.pontos} (legado)</option>}
                 {NIVEIS.map((n) => (
                   <option key={n} value={n}>{rotuloNivel(n)}</option>
                 ))}
