@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import TutorialBanner from "./TutorialBanner";
+import { useAuth } from "./AuthGuard";
 import { Button, Card, Chip, EmptyState, ErrorNotice, Field, Input, Select, TabSectionHead, Textarea } from "./ds";
 import { ds, labelStyle, type Tone } from "../lib/ds";
 import {
@@ -13,6 +14,8 @@ import {
   createFuncionalidade,
   updateFuncionalidade,
   deleteFuncionalidade,
+  aprovarFuncionalidade,
+  desfazerAprovacaoFuncionalidade,
 } from "../lib/api";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
@@ -67,6 +70,25 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
   const [erroEdit, setErroEdit] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [funcList, setFuncList] = useState<FuncionalidadeResponse[]>(funcionalidades);
+  const auth = useAuth();
+  const podeAprovar = !!auth?.cargo && auth.cargo !== "operacional";
+  const [aprovandoId, setAprovandoId] = useState<string | null>(null);
+  const [erroAprov, setErroAprov] = useState("");
+
+  async function alterarAprovacao(id: string, acao: (id: string) => Promise<FuncionalidadeResponse>, msgErro: string) {
+    setAprovandoId(id);
+    setErroAprov("");
+    try {
+      const atualizada = await acao(id);
+      setFuncList((fs) => fs.map((f) => (f.id === id ? { ...f, ...atualizada } : f)));
+    } catch (e) {
+      setErroAprov(e instanceof Error ? e.message : msgErro);
+    } finally {
+      setAprovandoId(null);
+    }
+  }
+  const handleAprovar = (id: string) => alterarAprovacao(id, aprovarFuncionalidade, "Erro ao aprovar.");
+  const handleDesfazer = (id: string) => alterarAprovacao(id, desfazerAprovacaoFuncionalidade, "Erro ao desfazer aprovação.");
   useEffect(() => { setFuncList(funcionalidades); }, [funcionalidades]);
 
   function startEdit(f: FuncionalidadeResponse) {
@@ -236,7 +258,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     { title: "Importar do contrato", body: "Clique em 'Importar funcionalidades' e faça upload do PDF ou documento do contrato/proposta. O DocuData usa IA para extrair automaticamente as funcionalidades listadas. Você revisa antes de confirmar." },
     { title: "Adicionar manualmente", body: "Clique em '+ Adicionar manualmente' para criar uma funcionalidade sem IA. Preencha o nome, a prioridade (Must/Should/Could/Won't — metodologia MoSCoW) e a categoria." },
     { title: "Prioridades MoSCoW", body: "Must = obrigatório para entrega. Should = importante, mas não bloqueia. Could = desejável se houver tempo. Won't = fora do escopo desta versão. Use para alinhar expectativas com o cliente." },
-    { title: "Status das funcionalidades", body: "Cada funcionalidade tem: Não iniciada → Em andamento → Concluída. O status 'Concluída' é contabilizado no Painel como 'Escopo concluído %'. Atualize conforme o trabalho avança." },
+    { title: "Status das funcionalidades", body: "Cada funcionalidade passa por Não iniciada → Em andamento → Concluída. Concluída ainda precisa da sua aprovação: só funcionalidades aprovadas contam no 'Escopo concluído' do Painel. Se uma task dela for reaberta ou entrar task nova, a aprovação cai e ela volta a aguardar." },
     { title: "Funcionalidade travada", body: "Marque uma funcionalidade como 'Travada' quando há um bloqueio externo (aguardando cliente, dependência técnica). Funcionalidades travadas aparecem em destaque no Painel > Itens em atenção." },
     { title: "Vincular à sprint", body: "Defina em qual sprint cada funcionalidade está planejada. Isso alimenta o Kanban de Sprint no Painel e ajuda a visualizar o progresso sprint a sprint." },
   ];
@@ -516,6 +538,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
         </EmptyState>
       ) : (
         step !== "review" && step !== "loading" && step !== "saving" && funcExibidas.length > 0 && (
+          <>
+          {erroAprov && <ErrorNotice>{erroAprov}</ErrorNotice>}
           <Card>
             {funcExibidas.map((f, idx) => {
               const aberta = expanded === f.id;
@@ -528,6 +552,28 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                     <span style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
                       <span style={{ fontSize: 15, fontWeight: 500, color: ds.white, overflow: "hidden", textOverflow: "ellipsis" }}>{f.titulo}</span>
                       {f.sprint_alvo && <span style={{ fontFamily: ds.fontMono, fontSize: 11.5, color: ds.muted, flexShrink: 0 }}>Sprint {f.sprint_alvo}</span>}
+                      {f.status === "concluida" && (f.aprovada_em ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: ds.text2, flexShrink: 0 }}>
+                          <Chip tone="green" dot>
+                            Aprovada em {new Date(f.aprovada_em).toLocaleDateString("pt-BR")}{f.aprovada_por_nome ? ` por ${f.aprovada_por_nome}` : ""}
+                          </Chip>
+                          {podeAprovar && (
+                            <button type="button" className="ds-text-btn" onClick={() => handleDesfazer(f.id)} disabled={aprovandoId === f.id}
+                              style={{ background: "none", border: "none", padding: 0, cursor: aprovandoId === f.id ? "default" : "pointer", fontFamily: "inherit", fontSize: 12.5, color: ds.muted }}>
+                              {aprovandoId === f.id ? "Desfazendo..." : "Desfazer aprovação"}
+                            </button>
+                          )}
+                        </span>
+                      ) : (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          <Chip tone="amber">Aguardando aprovação</Chip>
+                          {podeAprovar && (
+                            <Button size="sm" variant="primary" onClick={() => handleAprovar(f.id)} disabled={aprovandoId === f.id}>
+                              {aprovandoId === f.id ? "Aprovando..." : "Aprovar"}
+                            </Button>
+                          )}
+                        </span>
+                      ))}
                     </span>
                     {!editando ? (
                       <div style={{ display: "flex", gap: 2 }}>
@@ -619,6 +665,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
               );
             })}
           </Card>
+          </>
         )
       )}
     </div>
