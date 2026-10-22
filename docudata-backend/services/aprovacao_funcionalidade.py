@@ -58,6 +58,16 @@ def aprovar(client, funcionalidade_id: str, pessoa_id: str) -> dict:
         raise HTTPException(status_code=409, detail="Só dá para aprovar uma funcionalidade concluída.")
     if func.get("aprovada_em"):
         raise HTTPException(status_code=409, detail="Funcionalidade já está aprovada.")
+    abertas = (
+        client.table("tasks")
+        .select("id")
+        .eq("funcionalidade_id", funcionalidade_id)
+        .neq("coluna_kanban", "concluida")
+        .limit(1)
+        .execute()
+    )
+    if abertas.data:
+        raise HTTPException(status_code=409, detail="Há tasks desta funcionalidade ainda não concluídas.")
     agora = datetime.now(timezone.utc)
     _registrar(client, func, "pendente", "aprovada", pessoa_id, None, agora)
     resp = client.table("funcionalidades").update({

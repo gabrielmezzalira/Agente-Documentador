@@ -138,3 +138,20 @@ def test_mudar_status_da_funcionalidade_revoga_aprovacao(monkeypatch, autenticar
 def test_aprovar_inexistente_404(monkeypatch, autenticar):
     resp = _tc(monkeypatch, autenticar, _fake()).post("/funcionalidades/nao-existe/aprovar")
     assert resp.status_code == 404
+
+
+def test_aprovar_com_task_aberta_409(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="em_andamento"))
+    resp = _tc(monkeypatch, autenticar, fake).post("/funcionalidades/f1/aprovar")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Há tasks desta funcionalidade ainda não concluídas."
+    assert fake.tables["funcionalidades"][0]["aprovada_em"] is None
+
+
+def test_aprovar_com_todas_as_tasks_concluidas(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["tasks"].append(_task(id="t2"))
+    resp = _tc(monkeypatch, autenticar, fake).post("/funcionalidades/f1/aprovar")
+    assert resp.status_code == 200, resp.text
