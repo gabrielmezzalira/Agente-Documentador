@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
 import { Button as DsButton, Select as DsSelect } from "./ds";
 import { useAuth } from "./AuthGuard";
+import { NIVEIS, rotuloNivel } from "../lib/regua";
 import {
   listTasksKanban,
   createTaskKanban,
@@ -15,7 +16,6 @@ import {
   listTaskSugestoes,
   resolveTaskSugestao,
   overrideTravamentoTask,
-  redistribuirPontos,
   criarSolicitacaoTask,
   listSolicitacoesTask,
   resolverSolicitacaoTask,
@@ -142,7 +142,9 @@ function TaskModal({
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
-  const [pontos, setPontos] = useState(task?.pontos ?? 1);
+  const [pontos, setPontos] = useState<number>(
+    task?.pontos && (NIVEIS as readonly number[]).includes(task.pontos) ? task.pontos : 1
+  );
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
   const [operacionalId, setOperacionalId] = useState(task?.operacional_id ?? "");
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
@@ -157,8 +159,6 @@ function TaskModal({
   );
   const [extra, setExtra] = useState(task?.extra ?? false);
   const [requerAprovacao, setRequerAprovacao] = useState(task?.requer_aprovacao ?? false);
-  const [orcamentoEstourado, setOrcamentoEstourado] = useState(false);
-  const [redistribuindo, setRedistribuindo] = useState(false);
   const [travadoOverridePor, setTravadoOverridePor] = useState("");
   const [overridingTravamento, setOverridingTravamento] = useState(false);
   const [checklist, setChecklist] = useState<{ texto: string; done: boolean }[]>(
@@ -184,7 +184,7 @@ function TaskModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
-    if (pontos < 1) { setErr("Pontos deve ser ≥ 1."); return; }
+    if (!(NIVEIS as readonly number[]).includes(pontos)) { setErr("Use um nível da régua: 1, 2, 3 ou 5"); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
@@ -230,28 +230,8 @@ function TaskModal({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro";
       setErr(msg);
-      setOrcamentoEstourado(msg.includes("Orçamento da sprint excedido"));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleRedistribuir() {
-    if (!sprintId) return;
-    setRedistribuindo(true);
-    try {
-      const { ajustes } = await redistribuirPontos(sprintId, pontos);
-      const resumo = ajustes
-        .filter((a) => a.de !== a.para)
-        .map((a) => `${a.titulo}: ${a.de} → ${a.para}`)
-        .join("\n");
-      alert(resumo ? `Pontos redistribuídos:\n\n${resumo}` : "Nada precisou mudar.");
-      setOrcamentoEstourado(false);
-      setErr("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erro ao redistribuir");
-    } finally {
-      setRedistribuindo(false);
     }
   }
 
@@ -356,12 +336,17 @@ function TaskModal({
               </select>
             </div>
             <div>
-              <label style={labelSt}>Pontos *</label>
-              <input
-                type="number" min={1} value={pontos}
+              <label htmlFor="task-pontos" style={labelSt}>Pontos *</label>
+              <DsSelect
+                id="task-pontos"
+                value={String(pontos)}
                 onChange={(e) => setPontos(Number(e.target.value))}
-                style={inputSt} required
-              />
+                required
+              >
+                {NIVEIS.map((n) => (
+                  <option key={n} value={n}>{rotuloNivel(n)}</option>
+                ))}
+              </DsSelect>
             </div>
           </div>
 
@@ -392,8 +377,8 @@ function TaskModal({
               <span style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>Task extra</span>
             </label>
             <p style={{ fontSize: 11, color: "#8a948e", margin: "6px 0 0" }}>
-              Trabalho concedido além do que a pessoa já tinha. Não consome o orçamento
-              de pontos da sprint e, se concluída antes do fechamento, vira bônus.
+              Trabalho concedido além do que a pessoa já tinha. Não entra no previsto
+              da sprint e, se concluída antes do fechamento, vira bônus.
             </p>
           </div>
 
@@ -676,22 +661,6 @@ function TaskModal({
           )}
 
           {err && <p style={{ fontSize: 12, color: "#ff6b6b", margin: 0 }}>{err}</p>}
-          {orcamentoEstourado && sprintId && (
-            <div style={{ background: "rgba(242,193,78,0.10)", border: "1px solid rgba(242,193,78,0.30)", borderRadius: 8, padding: "10px 12px" }}>
-              <p style={{ fontSize: 12, color: "#f2c14e", margin: "0 0 8px" }}>
-                Dá para encolher as tasks que já estão nesta sprint, proporcionalmente,
-                para abrir os {pontos} pontos que faltam.
-              </p>
-              <button
-                type="button"
-                onClick={handleRedistribuir}
-                disabled={redistribuindo}
-                style={{ background: "rgba(242,193,78,0.10)", color: "#ffffff", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-              >
-                {redistribuindo ? "Redistribuindo..." : "Redistribuir pontos"}
-              </button>
-            </div>
-          )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 4 }}>
             {mode === "edit" && (
@@ -766,7 +735,7 @@ function TaskViewModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }}>{task.pontos}pt</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={rotuloNivel(task.pontos)}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
           {task.bloqueado && (
@@ -1004,7 +973,7 @@ function TaskCard({
       </span>
 
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }}>{task.pontos}pt</span>
+        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={rotuloNivel(task.pontos)}>{task.pontos}pt</span>
 
         {op && (
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
@@ -1240,13 +1209,13 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const tasksSteps = [
     { title: "Tasks vs Funcionalidades", body: "Funcionalidades (aba Planejamento) são entregas de alto nível para o cliente. Tasks são o trabalho técnico interno: 'Criar endpoint de login', 'Estilizar header', etc. Uma funcionalidade geralmente envolve várias tasks." },
     { title: "Criar uma task", body: "Clique em '+ Nova task'. Informe título e pontos, e opcionalmente sprint, operacional, funcionalidade e checklist. O checklist já aparece na criação: são os itens que precisam estar prontos para a task poder ir para Concluída." },
-    { title: "Pontos da task", body: "Todo projeto vale 100 pontos, fixo. Você distribui esses 100 entre as sprints na aba Planejamento, e os pontos de cada sprint entre as tasks dela. A soma das tasks não pode passar do que a sprint recebeu; se passar, aparece o botão 'Redistribuir pontos', que encolhe as tasks existentes proporcionalmente. Pontue com honestidade: os pontos são o denominador da entrega de cada pessoa." },
+    { title: "Pontos da task", body: "Os pontos são o nível de dificuldade da task, numa régua única para todos os projetos: 1 (simples), 2 (moderada), 3 (complexa) e 5 (muito complexa). Não existe total de pontos do projeto; os pontos só são somados dentro de uma sprint, para comparar o que foi entregue com o que estava previsto." },
     { title: "Checklist e Definition of Done", body: "Dentro da task você monta uma lista de itens e vai marcando conforme fica pronto. O card mostra o progresso no formato '3/5'. Se sobrar item aberto, o sistema recusa mover a task para Concluída. Task sem checklist não trava nada: a regra só vale se você criou a lista." },
     { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
     { title: "WIP — limite de tasks simultâneas", body: "Cada operacional tem um limite de tasks em 'Em andamento' ao mesmo tempo, e o projeto também. Se o limite for atingido, o sistema bloqueia novos movimentos. Configure em Configurações." },
     { title: "Bloqueio: quem marca é quem trava", body: "Quando o trabalho para por algo que não depende de você (esperando cliente, acesso, outra task, uma decisão), marque a caixa 'Bloqueada' na task e escreva o motivo. O card ganha borda vermelha e o gerente vê no quadro. Ao destravar, alguém informa quem resolveu: Operacional ou Gerente. Essa resposta é o que alimenta a leitura de autonomia. Se o motivo for o cliente, o gerente escolhe 'Dependência do cliente': se a sprint fechar com a task ainda esperando, ela sai da conta de Entrega de todo mundo, não conta na Autonomia e o relógio de atraso fica pausado." },
     { title: "Task travada por tempo", body: "O relógio conta desde que a task está ativa — Planejado ou Em andamento, tanto faz — e a sprint dela já começou. Se passar de um dia e meio por ponto (uma de 2 pontos, 3 dias; uma de 4 pontos, 6 dias), ela ganha a etiqueta amarela 'Travada'. Se for concluída depois disso, os pontos dela são descontados da entrega. Mover a task pra uma sprint futura pausa o relógio; o gerente também pode suprimir o alerta dentro da task quando o atraso não é culpa de quem estava nela, e aí não há desconto." },
-    { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não consome o orçamento de pontos da sprint e, se for concluída antes do fechamento, rende um bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
+    { title: "Task extra", body: "Quando alguém termina tudo que tinha, aparece no Kanban dela o botão 'Quero mais uma task' e você recebe um e-mail. Ao criar a task para essa pessoa, marque a caixa 'Task extra': ela não entra no previsto da sprint e, se concluída antes do fechamento, vira bônus. Recusar o pedido é uma resposta válida; deixar sem resposta é a única errada." },
     { title: "Kanban alimenta Planning e Review", body: "Ao gerar um Planning ou Review pela aba Sprints, a IA captura o estado atual do kanban dessa sprint — cada task com coluna, pontos e se está bloqueada entra automaticamente no contexto. O que você vê aqui é exatamente o que a IA usa para escrever os documentos." },
     { title: "Sugestões automáticas do Review", body: "Quando um review é registrado na aba Sprints, o DocuData analisa o texto e detecta quais tasks foram mencionadas como concluídas. Sugestões aparecem no banner amarelo acima do kanban — você aceita ou ignora cada uma." },
     { title: "Mover tasks entre colunas", body: "Arraste a task ou use o botão de edição para mudar a coluna. Planejado → Em andamento → Concluída. Cada transição é registrada com quem estava na task naquele momento, e é isso que define quem recebe os pontos da entrega." },
