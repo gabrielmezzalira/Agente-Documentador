@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import TutorialBanner from "./TutorialBanner";
 import { Button, Card, Chip, EmptyState, ErrorNotice, Field, Input, Select, TabSectionHead, Textarea } from "./ds";
 import { ds, labelStyle, type Tone } from "../lib/ds";
-import SprintOrcamentoPlanner from "./SprintOrcamentoPlanner";
 import {
   FuncionalidadeResponse,
   FuncionalidadeProposta,
@@ -50,13 +49,10 @@ interface Props {
   projectId: string;
   funcionalidades: FuncionalidadeResponse[];
   onImported: (novas: FuncionalidadeResponse[]) => void;
-  sprints: SprintWithStatus[];
-  onSprintUpdated: (updated: SprintWithStatus) => void;
-  onSprintCreated: (created: SprintWithStatus) => void;
   onDeleted?: (id: string) => void;
 }
 
-export default function EscopoTab({ projectId, funcionalidades, onImported, sprints, onSprintUpdated, onSprintCreated, onDeleted }: Props) {
+export default function EscopoTab({ projectId, funcionalidades, onImported, onDeleted }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
@@ -244,8 +240,6 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
     { title: "Status das funcionalidades", body: "Cada funcionalidade tem: Não iniciada → Em andamento → Concluída. O status 'Concluída' é contabilizado no Painel como 'Escopo concluído %'. Atualize conforme o trabalho avança." },
     { title: "Funcionalidade travada", body: "Marque uma funcionalidade como 'Travada' quando há um bloqueio externo (aguardando cliente, dependência técnica). Funcionalidades travadas aparecem em destaque no Painel > Itens em atenção." },
     { title: "Vincular à sprint", body: "Defina em qual sprint cada funcionalidade está planejada. Isso alimenta o Kanban de Sprint no Painel e ajuda a visualizar o progresso sprint a sprint." },
-    { title: "Distribuir os 100 pontos", body: "Todo projeto vale 100 pontos, fixo — não é um número que você escolhe. Aqui você diz quanto cada sprint recebe desses 100. A soma não pode passar de 100, e uma sprint não pode receber menos pontos do que as tasks dela já somam. Sprint sem orçamento definido não trava nada: dá para trabalhar agora e planejar depois." },
-    { title: "Valor do projeto", body: "Se você informar o valor do contrato em reais (no formulário de Contrato, na aba Painel), cada ponto passa a valer um centésimo desse valor e o faturamento previsto de cada sprint é calculado sozinho. O valor congela assim que a primeira sprint recebe orçamento de pontos, porque mudá-lo depois desalinharia em silêncio tudo que já foi calculado." },
   ];
 
   const statusTone = (status: string): Tone =>
@@ -271,8 +265,6 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, spri
           </>
         ) : undefined}
       />
-
-      <SprintOrcamentoPlanner projectId={projectId} sprints={sprints} onSprintUpdated={onSprintUpdated} onSprintCreated={onSprintCreated} />
 
       {/* Fluxo de importação */}
       {step === "input" && (

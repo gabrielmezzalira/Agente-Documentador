@@ -954,15 +954,6 @@ export default function ProjectDashboard() {
   }
 
   async function handleToggleDelivered() {
-    if (!project?.is_delivered) {
-      const totalOrcamento = sprints.reduce((acc, s) => acc + (s.pontos_orcamento ?? 0), 0);
-      if (totalOrcamento !== 100) {
-        const ok = confirm(
-          `${totalOrcamento}/100 pontos alocados entre as sprints. Marcar como entregue mesmo assim?`
-        );
-        if (!ok) return;
-      }
-    }
     try {
       const updated = await toggleDelivered(id);
       setProject(updated);
@@ -1336,7 +1327,7 @@ export default function ProjectDashboard() {
             { title: "Daily", body: "Registre as dailys ao longo da sprint. Cada upload vira um registro no histórico da sprint. Não há mínimo obrigatório, mas quanto mais dailys, mais rica a documentação final e o repasse semanal gerado pela IA." },
             { title: "Review", body: "Ao final da sprint, registre o review preenchendo os campos do formulário (Percepção do cliente, Sinal de satisfação, Pedidos fora do escopo, etc.). O documento gerado captura automaticamente o estado do kanban da sprint no momento da geração — cada task com seu status atual (planejada, em andamento, concluída, bloqueada) é injetada no contexto da IA sem você precisar listar manualmente. Além disso, o DocuData detecta tasks mencionadas no texto e cria sugestões de mover para 'Concluída' na aba Tasks." },
             { title: "Retrospectiva", body: "Após o review, gere a retrospectiva clicando no botão dedicado na sprint. A IA usa planning, dailys, review, uploads e commits da sprint — com autoria e origem — para gerar: O que foi feito, O que funcionou, O que não funcionou e aprendizados." },
-            { title: "Orçamento de pontos da sprint", body: "Todo projeto vale 100 pontos, fixo. Na aba Planejamento você distribui esses 100 entre as sprints, e o card da sprint mostra quanto ela recebeu e quanto já foi gasto em tasks. É esse número que faz a aba Métricas calcular o SPI e o faturamento previsto." },
+            { title: "Previsto da sprint", body: "Quando a sprint começa, as tasks que estão nela viram a foto do planejado. Tasks criadas ou movidas para a sprint depois disso entram como 'surgiram na sprint'. Previsto = planejado + o que surgiu; tasks extras ficam de fora." },
             { title: "Avaliação Semanal", body: "No fim da sprint, o botão 'Avaliação Semanal' abre as sete perguntas sobre cada operacional que teve task na sprint. Só dá para confirmar quando não sobrar ninguém pendente. Confirmar fecha a semana e trava a pontuação: as tasks daquela sprint não podem mais ser excluídas. Antes de confirmar, confira se as tasks estão na coluna certa, se os bloqueios foram resolvidos com o responsável correto, e se as tasks concedidas fora do planejado estão marcadas como extra." },
             { title: "Reabrir um fechamento errado", body: "Se a semana foi fechada com o Kanban desatualizado, o Líder consegue desfazer pelo botão 'Reabrir fechamento' no card da sprint. Ele apaga a pontuação travada e devolve a sprint ao estado aberto, sem apagar as respostas do questionário. É conserto, não rotina." },
             { title: "Pendências", body: "Sprints sem planning ou review são marcadas com 'pend.' no badge da aba. O número total de pendências aparece no topo das abas como lembrete para o gerente." },
@@ -1380,7 +1371,6 @@ export default function ProjectDashboard() {
                 onDeleteSprint={handleDeleteSprint}
                 onSprintUpdated={(updated) => setSprints((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s))}
                 onOpenAvaliacaoSemanal={(s2) => setAvaliacaoModal({ sprintId: s2.id, sprintNumero: s2.numero })}
-                onGoToPlanejamento={() => setActiveTab("escopo")}
               />
             ))
           )}
@@ -1411,7 +1401,7 @@ export default function ProjectDashboard() {
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                       <span style={{ fontSize: 15, fontWeight: 600, color: "#ffffff" }}>Sprint {s.numero}</span>
                       <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#8a948e" }}>
-                        {s.pontos_orcamento != null ? `${s.pontos_orcamento} pts orçados` : "sem orçamento"}
+                        {`Previsto ${s.previsto} pts`}
                       </span>
                       <DsButton
                         variant="secondary"
@@ -1457,7 +1447,7 @@ export default function ProjectDashboard() {
 
       {/* ABA: MÉTRICAS */}
       {activeTab === "metricas" && (
-        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} onGoToPlanejamento={() => setActiveTab("escopo")} />
+        <MetricasTab projectId={id} modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"} />
       )}
 
       {/* ABA: TECNOLOGIAS */}
@@ -1853,13 +1843,6 @@ export default function ProjectDashboard() {
           funcionalidades={funcionalidades}
           onImported={(novas) => setFuncionalidades((prev) => [...prev, ...novas])}
           onDeleted={(deletedId) => setFuncionalidades((prev) => prev.filter((f) => f.id !== deletedId))}
-          sprints={sprints}
-          onSprintUpdated={(updated) =>
-            setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
-          }
-          onSprintCreated={(created) =>
-            setSprints((prev) => [...prev, created].sort((a, b) => a.numero - b.numero))
-          }
         />
       )}
 

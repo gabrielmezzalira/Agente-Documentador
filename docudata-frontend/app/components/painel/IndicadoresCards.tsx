@@ -10,7 +10,7 @@ import { BigNumber, CardTextAction, Metric, Muted, PanelCard, fmtNum } from "./P
 const INFO = {
   tempoEscopo: "Compara quanto do prazo do contrato já passou com quanto do escopo já foi concluído. Se o prazo avança mais que o escopo além da tolerância do projeto, o painel acusa desvio.",
   prazo: "Dias desde o início do projeto ÷ dias totais até o fim contratado.",
-  escopo: "Funcionalidades concluídas ÷ total de funcionalidades do projeto. Hoje conta a quantidade, sem pesar o tamanho de cada uma.",
+  escopo: "Funcionalidades aprovadas pelo gerente ÷ total de funcionalidades do projeto. Cada funcionalidade pesa igual.",
   atencao: "Funcionalidades em andamento há mais de 7 dias sem mudar de status. Precisam de atenção ou desbloqueio.",
   fluxo: "Como o trabalho anda: quanto está aberto agora, quanto sai por semana e quanto tempo cada funcionalidade leva.",
   wip: "Funcionalidades em andamento ou em ajuste agora. Muitas abertas ao mesmo tempo espalham o time e atrasam as entregas.",
@@ -37,11 +37,10 @@ function rotuloFase(fase: string): string {
 
 /** Bloco A — Tempo × Escopo, com o formulário de datas do contrato. */
 export function TempoEscopoCard({
-  bloco, project, sprints, onSaved,
+  bloco, project, onSaved,
 }: {
   bloco: PainelData["bloco_a"];
   project: Project;
-  sprints: SprintWithStatus[];
   onSaved?: (updated: Project) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -49,11 +48,8 @@ export function TempoEscopoCard({
   const [dataFim, setDataFim] = useState(project.data_fim_contratada ?? "");
   const [tolerancia, setTolerancia] = useState(project.tolerancia_desvio_pontos != null ? String(project.tolerancia_desvio_pontos) : "");
   const [arquetipo, setArquetipo] = useState<"padrao" | "consultoria_discovery">(project.arquetipo ?? "padrao");
-  const [valorProjeto, setValorProjeto] = useState(project.valor_projeto != null ? String(project.valor_projeto) : "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-
-  const valorTravado = sprints.some((s) => s.pontos_orcamento != null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -66,7 +62,6 @@ export function TempoEscopoCard({
         data_fim_contratada: dataFim,
         tolerancia_desvio_pontos: tolerancia !== "" ? Number(tolerancia) : null,
         arquetipo,
-        valor_projeto: !valorTravado && valorProjeto !== "" ? Number(valorProjeto) : undefined,
       });
       onSaved?.(updated);
       setEditing(false);
@@ -104,13 +99,6 @@ export function TempoEscopoCard({
               </Select>
             </Field>
           </div>
-          <Field
-            label="Valor do projeto (R$)"
-            htmlFor="contrato-valor"
-            hint={valorTravado ? "Travado: já existe orçamento de pontos definido em pelo menos uma sprint." : "Opcional"}
-          >
-            <Input id="contrato-valor" type="number" min={0} step="0.01" value={valorProjeto} onChange={(e) => setValorProjeto(e.target.value)} placeholder="ex: 35000" disabled={valorTravado} />
-          </Field>
           {err && <ErrorNotice>{err}</ErrorNotice>}
           <div>
             <Button type="submit" variant="primary" disabled={saving}>{saving ? "Salvando..." : "Salvar datas"}</Button>

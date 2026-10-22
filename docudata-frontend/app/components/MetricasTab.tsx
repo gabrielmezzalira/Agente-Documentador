@@ -29,12 +29,10 @@ import {
 interface Props {
   projectId: string;
   modoTrabalho?: "ATRIBUICAO" | "PULL";
-  /** Leva à aba Planejamento (orçamento de pontos), usado no estado vazio do SPI. */
-  onGoToPlanejamento?: () => void;
 }
 
 const TOOLTIPS: Record<string, string> = {
-  spi: "SPI = pontos concluídos ÷ pontos previstos na sprint. 1.0 = entregou exatamente o planejado. ≥0.9 = saudável (verde) · 0.7–0.9 = atenção (amarelo) · <0.7 = crítico (vermelho). Requer baseline (pontos previstos) definido na sprint.",
+  spi: "SPI = pontos concluídos ÷ pontos previstos na sprint (as tasks que estavam nela quando começou + as que surgiram depois; extras ficam de fora). 1,0 = entregou o previsto. ≥0,9 saudável (verde) · 0,7–0,9 atenção (amarelo) · <0,7 crítico (vermelho).",
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
@@ -60,7 +58,7 @@ function _cfdLabel(v: string): string {
   return "Planejado";
 }
 
-export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", onGoToPlanejamento }: Props) {
+export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: Props) {
   const labelPontosVinculados = modoTrabalho === "PULL" ? "Puxados" : "Atribuídos";
   const [spi, setSpi] = useState<SpiPoint[]>([]);
   const [throughput, setThroughput] = useState<ThroughputPoint[]>([]);
@@ -106,9 +104,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
   if (err) return <p role="alert" style={{ color: ds.red, fontSize: 13, margin: 0 }}>{err}</p>;
 
   const tutorialSteps = [
-    { title: "Pontos por task", body: "Todo projeto vale 100 pontos, fixo. Esses 100 são distribuídos entre as sprints na aba Planejamento, e os pontos de cada sprint entre as tasks dela. Se você informou o valor do projeto em reais, cada ponto vale um centésimo desse valor, e o faturamento previsto de cada sprint sai daí." },
+    { title: "Pontos por task", body: "Cada task vale 1, 2, 3 ou 5 pontos, conforme o tamanho. O previsto de cada sprint é a soma dos pontos das tasks que estavam nela quando começou, mais as que surgiram depois." },
     { title: "SPI — Schedule Performance Index", body: "Mede se você está entregando o que planejou por sprint. SPI = pontos concluídos ÷ pontos previstos (baseline). ≥ 0,9 = saudável (verde) · 0,7–0,89 = atenção (amarelo) · < 0,7 = crítico (vermelho). Um SPI baixo significa faturamento abaixo do esperado." },
-    { title: "Como definir o previsto da sprint", body: "O SPI só aparece se a sprint tiver orçamento de pontos. Vá na aba Planejamento e distribua os 100 pontos do projeto entre as sprints. O card de cada sprint passa a mostrar quanto ela recebeu e quanto já foi gasto em tasks." },
     { title: "Throughput", body: "Quantas tasks foram concluídas por sprint. Mede o ritmo de entrega da equipe. Se o throughput cai de uma sprint pra outra, pode ser sinal de tasks muito grandes ou bloqueios." },
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
@@ -143,8 +140,8 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO", on
       <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 16 }}>
         <PanelCard label="SPI · Schedule Performance Index" action={<InfoTooltip id="spi" />}>
           {spiComBaseline.length === 0 ? (
-            <ChartEmpty action={onGoToPlanejamento && <Button variant="secondary" onClick={onGoToPlanejamento}>Definir orçamento de pontos</Button>}>
-              Nenhuma sprint com baseline definido ainda.
+            <ChartEmpty>
+              O SPI aparece quando a sprint começa com tasks dentro dela.
             </ChartEmpty>
           ) : (
             <>
