@@ -3,8 +3,8 @@ feature: "Rodada A2 — classificador do nível da task (régua 1/2/3/5): propõ
 modo: "FULL"
 tier: "PADRAO"
 stack: "FastAPI (Python) + LangGraph/LangChain + Gemini + Supabase PostgreSQL + Next.js 15 / React 19 (inline styles, design system em app/components/ds)"
-etapa: 1
-etapa_nome: "Plano de implementação (aguardando revisão da spec pelo usuário)"
+etapa: 2
+etapa_nome: "Execução do back-end (Onda 1) — Tasks 1-11 do plano"
 gates_reusados: ["knowledge-graph"]
 started_at: "2026-10-22T19:00:00Z"
 last_saved: "2026-10-23T12:00:00Z"
@@ -13,7 +13,8 @@ status: "em_progresso"
 ## Concluído
 - [x] Etapa 0 — graphify-out reaproveitado (docudata-backend/graphify-out, docudata-frontend/app/graphify-out)
 - [x] Etapa 1 — Brainstorm A2 (spec docs/superpowers/specs/2026-10-23-classificador-nivel-design.md)
-- [ ] Etapa 2 — Plano ← PRÓXIMA (após o usuário revisar a spec)
+- [x] Etapa 2 — Plano (docs/superpowers/plans/2026-10-23-classificador-nivel.md; Onda 1 = Tasks 1-11, Onda 2 = Tasks 12-14)
+- [ ] Etapa 3 — Onda 1 back-end ← PRÓXIMA
 
 ## Contexto relevante
 - Worktree ../Documentador-proposta, branch feat/classificador-nivel a partir de origin/main e787d78 (A1 em produção).

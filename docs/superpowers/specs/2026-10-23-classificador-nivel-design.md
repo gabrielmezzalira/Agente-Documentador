@@ -122,11 +122,11 @@ O texto da task vai aos prompts como **dado delimitado**, nunca como instrução
 
 Fica em `services/classificador_aprendizado.py`, só com cálculo, sem modelo. Roda depois que a task é gravada como `concluida`, em modo melhor esforço: uma falha é registrada e não bloqueia a conclusão. Os passos:
 
-1. **Tempo limpo.** Vem de `task_transicoes`: do primeiro `em_andamento` até a última `concluida`, menos os intervalos em `pendente_aprovacao` e os intervalos com `bloqueado = true` e `bloqueio_tipo = 'cliente'`. Reabertura marca `reaberta = true`.
+1. **Tempo limpo.** Vem de `task_transicoes`: do primeiro `em_andamento` até a última `concluida`, menos os intervalos em `pendente_aprovacao`, o tempo parado em `concluida` antes de uma reabertura e os intervalos com `bloqueado = true` e `bloqueio_tipo = 'cliente'`. Reabertura marca `reaberta = true`.
 2. **Ritmo da pessoa.**
    - É a média de `tempo_limpo ÷ media_nivel[nivel_real]` nas tasks dela, encolhida para 1,0: `ritmo = (n × média + 10 × 1,0) ÷ (n + 10)`.
    - O tempo normalizado é `tempo_limpo ÷ ritmo`.
-3. **Nível pelo tempo.** É o nível cuja `media_nivel` (o valor **anterior** a esta atualização) fica mais próxima do tempo normalizado.
+3. **Nível pelo tempo.** É o nível cuja `media_nivel` (o valor **anterior** a esta atualização) fica mais próxima do tempo normalizado. **Semente:** se o nível sugerido ainda não tem média, o nível pelo tempo é o sugerido, para que cada nível ganhe a sua primeira média.
 4. **Nível real.**
    - É o nível pelo tempo, ajustado em no máximo um degrau pela `opiniao_operacional`.
    - O ajuste só acontece se a opinião tiver peso merecido maior que 0 e se o tempo normalizado estiver dentro de 25% da fronteira com o nível opinado.
@@ -209,7 +209,8 @@ Depois roda o recálculo completo. O script pode ser reexecutado sem duplicar na
 | `POST /tasks` (alterado) | gerente, líder, owner | Classifica e cria (§5). |
 | `POST /tasks/{id}/reclassificar` | líder, owner | Roda o grafo de novo; 409 se o nível estiver travado. |
 | `POST /tasks/{id}/revisao-nivel` | líder, owner | Resolve a revisão com nível e motivo. |
-| `PATCH /tasks/{id}` (alterado) | — | Ignora `pontos`. Grava `opiniao_operacional` quando a coluna vai para `concluida`. Dispara o aprendizado. |
+| `PATCH /tasks/{id}` (alterado) | — | Ignora `pontos` e dispara o aprendizado ao concluir. |
+| `POST /tasks/{id}/opiniao-nivel` | operacional da task, gerente+ | Grava a opinião do operacional numa task concluída (409 se não concluída) e recalcula. |
 | `GET /classificador/resumo?periodo=&gerente_id=` | líder, owner | Médias, alertas, acurácia e pesos. |
 | `GET /classificador/revisao` | líder, owner | Fila de revisão. |
 | `GET /classificador/tasks/{id}` | líder, owner | Detalhe completo da classificação. |
