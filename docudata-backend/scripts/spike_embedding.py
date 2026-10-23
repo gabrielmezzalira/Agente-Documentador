@@ -12,7 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import find_dotenv, load_dotenv
 
-load_dotenv(os.environ.get("ENV_FILE") or find_dotenv(usecwd=True))
+_env = os.environ.get("ENV_FILE") or find_dotenv(usecwd=True)
+if not _env:
+    print("aviso: nenhum .env encontrado")
+load_dotenv(_env or None)
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings  # noqa: E402
 
@@ -23,7 +26,14 @@ TEXTO = "Criar endpoint de login com JWT e tela de autenticação"
 
 
 def main() -> int:
-    chave = get_gemini_api_key()
+    try:
+        chave = get_gemini_api_key()
+    except Exception as exc:  # noqa: BLE001 — nunca imprime a mensagem (pode conter segredo)
+        print(
+            f"FALHOU ao obter a chave: {type(exc).__name__}. "
+            "Dica: defina SUPABASE_URL, SUPABASE_SERVICE_KEY e DOCUDATA_SECRETS_KEY (ou ENV_FILE)"
+        )
+        return 1
     for modelo in CANDIDATOS:
         # embed_query aceita output_dimensionality (langchain-google-genai 4.1.1);
         # o construtor não tem campo de dimensão, então o fallback é sem dimensão.
@@ -38,7 +48,10 @@ def main() -> int:
                 print(f"OK modelo={modelo} dim_pedida={dim} dim_recebida={len(vetor)}")
                 return 0
             except Exception as exc:  # noqa: BLE001 — é um teste exploratório
-                print(f"FALHOU modelo={modelo} dim={dim}: {type(exc).__name__}: {str(exc)[:200]}")
+                msg = str(exc)
+                if chave:
+                    msg = msg.replace(chave, "***")
+                print(f"FALHOU modelo={modelo} dim={dim}: {type(exc).__name__}: {msg[:200]}")
     return 1
 
 
