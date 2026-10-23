@@ -3,6 +3,7 @@
 
 Os critérios e sinais mudam só por revisão versionada deste arquivo (rito
 mensal). Cada classificação guarda VERSAO_REGUA."""
+import math
 import re
 import unicodedata
 
@@ -42,8 +43,11 @@ DESCRICAO_SINAIS: dict[str, dict[int, str]] = {
 _EVIDENCIA_MIN_CHARS = 8
 
 _PADROES_INSTRUCAO = [
-    r"\bignore\b.*\binstru", r"\bclassifique\b", r"\bclassifica(r)?\b.*\bcomo\b.*\bn[ií]vel\b",
-    r"\bvoc[eê] (é|e) um\b", r"\bresponda\b.*\bn[ií]vel\b", r"\bdesconsidere\b", r"\bprompt\b",
+    r"\b(ignore|ignora|desconsidere|esqueca|esquece)\b.{0,40}\b(instrucoes|regras|o que foi dito)\b",
+    r"\b(classifique|classifica|atribua|defina|marque|retorne|responda|coloque)\b.{0,40}\b(nivel|pontos)\b.{0,15}\b(1|2|3|5)\b",
+    r"\b(classifique|classifica)\b.{0,30}\bcomo\b.{0,10}\b(1|2|3|5)\b",
+    r"\bvoce e um (classificador|assistente|modelo)\b",
+    r"\bo nivel (desta|dessa) task e (1|2|3|5)\b",
 ]
 
 
@@ -53,6 +57,8 @@ def _normalizar(texto: str) -> str:
 
 
 def para_nivel(degrau: float) -> int:
+    if not math.isfinite(degrau):
+        raise ValueError("degrau precisa ser finito")
     i = int(max(0, min(3, round(degrau + 1e-9))))
     return NIVEL_DO_IDX[i]
 
@@ -80,5 +86,5 @@ def evidencia_valida(trecho: str, texto: str) -> bool:
 
 
 def parece_instrucao(texto: str) -> bool:
-    t = texto.lower()
+    t = _normalizar(texto)
     return any(re.search(p, t) for p in _PADROES_INSTRUCAO)
