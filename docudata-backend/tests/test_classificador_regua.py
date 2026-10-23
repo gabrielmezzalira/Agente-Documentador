@@ -71,3 +71,23 @@ def test_parece_instrucao(texto, esperado):
 def test_para_nivel_rejeita_nao_finito(valor):
     with pytest.raises(ValueError):
         r.para_nivel(valor)
+
+
+def test_migracao_a2_tem_tabelas_colunas_e_rpc():
+    from pathlib import Path
+
+    sql = (Path(__file__).resolve().parents[1] / "supabase_schema.sql").read_text(encoding="utf-8")
+    bloco = sql.split("Rodada A2")[1]
+    for trecho in (
+        "CREATE EXTENSION IF NOT EXISTS vector",
+        "CREATE TABLE IF NOT EXISTS task_embeddings",
+        "CREATE TABLE IF NOT EXISTS task_classificacoes",
+        "CREATE TABLE IF NOT EXISTS task_aprendizado",
+        "CREATE TABLE IF NOT EXISTS classificador_parametros",
+        "CREATE TABLE IF NOT EXISTS classificador_parametros_hist",
+        "ADD COLUMN IF NOT EXISTS nivel_travado_em",
+        "ADD COLUMN IF NOT EXISTS bloqueio_tipo",
+        "CREATE OR REPLACE FUNCTION buscar_tasks_parecidas",
+        "vector_cosine_ops",
+    ):
+        assert trecho in bloco, trecho

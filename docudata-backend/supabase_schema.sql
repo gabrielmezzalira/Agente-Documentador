@@ -1213,3 +1213,110 @@ WHERE t.sprint_id = s.id AND s.iniciada = true AND t.extra = false AND t.surgiu_
 COMMENT ON COLUMN sprints.pontos_orcamento IS 'ORFA desde 2026-10-22 (rodada A1): orçamento de 100 pontos removido; previsto vem de services/previsto_sprint.py';
 COMMENT ON COLUMN projects.valor_por_ponto  IS 'ORFA desde 2026-10-22 (rodada A1): pontos são só dificuldade';
 COMMENT ON COLUMN projects.valor_projeto    IS 'ORFA desde 2026-10-22 (rodada A1): campo saiu da tela';
+
+-- ═══════════════════════════════════════════════════════════════
+-- Rodada A2 (2026-10-23): classificador do nível da task.
+-- Spec: docs/superpowers/specs/2026-10-23-classificador-nivel-design.md
+-- Idempotente. Aplicar ANTES do deploy do backend desta rodada.
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS task_embeddings (
+    task_id       uuid PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    embedding     vector(768) NOT NULL,
+    modelo        text NOT NULL,
+    hash_texto    text NOT NULL,
+    atualizado_em timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_task_embeddings_hnsw
+    ON task_embeddings USING hnsw (embedding vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS task_classificacoes (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id             uuid NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    tipo                text NOT NULL CHECK (tipo IN ('criacao','reclassificacao')),
+    criado_por          uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+    criado_em           timestamptz NOT NULL DEFAULT now(),
+    versao_regua        text NOT NULL,
+    modelo              text,
+    sinais              jsonb,
+    nivel_sinais        int,
+    parecidas           jsonb,
+    nivel_parecidas     int,
+    nivel_geral         int,
+    justificativa_geral text,
+    opiniao_gerente     int CHECK (opiniao_gerente IS NULL OR opiniao_gerente IN (1,2,3,5)),
+    nivel_combinado     int,
+    ajuste_tempo        int NOT NULL DEFAULT 0 CHECK (ajuste_tempo IN (-1,0,1)),
+    nivel_final         int NOT NULL CHECK (nivel_final IN (1,2,3,5)),
+    status              text NOT NULL CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida')),
+    motivo_revisao      text,
+    resolvido_por       uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+    resolvido_em        timestamptz,
+    parametros          jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_task_classificacoes_task ON task_classificacoes(task_id, criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_task_classificacoes_status ON task_classificacoes(status);
+
+CREATE TABLE IF NOT EXISTS task_aprendizado (
+    task_id             uuid PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    classificacao_id    uuid REFERENCES task_classificacoes(id) ON DELETE SET NULL,
+    nivel_sugerido      int NOT NULL,
+    operacional_id      uuid,
+    gerente_id          uuid,
+    sinais              jsonb,
+    tempo_bruto_s       int,
+    tempo_limpo_s       int,
+    ritmo_usado         numeric,
+    tempo_normalizado_s numeric,
+    reaberta            boolean NOT NULL DEFAULT false,
+    nivel_pelo_tempo    int,
+    opiniao_operacional int CHECK (opiniao_operacional IS NULL OR opiniao_operacional IN (1,2,3,5)),
+    nivel_real          int,
+    alerta              boolean NOT NULL DEFAULT false,
+    excluida            boolean NOT NULL DEFAULT false,
+    excluida_por        uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+    excluida_em         timestamptz,
+    motivo_exclusao     text,
+    concluida_em        timestamptz NOT NULL,
+    atualizado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_task_aprendizado_concluida ON task_aprendizado(concluida_em);
+
+CREATE TABLE IF NOT EXISTS classificador_parametros (
+    tipo          text NOT NULL,
+    chave         text NOT NULL,
+    valor         numeric NOT NULL,
+    n_amostras    int NOT NULL DEFAULT 0,
+    atualizado_em timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tipo, chave)
+);
+
+CREATE TABLE IF NOT EXISTS classificador_parametros_hist (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tipo       text NOT NULL,
+    chave      text NOT NULL,
+    valor      numeric NOT NULL,
+    n_amostras int NOT NULL DEFAULT 0,
+    criado_em  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_classificador_hist ON classificador_parametros_hist(tipo, chave, criado_em);
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS nivel_travado_em timestamptz;
+
+-- Tipo de cada trecho bloqueado, gravado a partir da A2. Trecho antigo sem
+-- tipo conta como interno (não é descontado do tempo limpo).
+ALTER TABLE task_transicoes ADD COLUMN IF NOT EXISTS bloqueio_tipo text
+    CHECK (bloqueio_tipo IS NULL OR bloqueio_tipo IN ('interno','cliente'));
+
+CREATE OR REPLACE FUNCTION buscar_tasks_parecidas(consulta vector(768), n int)
+RETURNS TABLE(task_id uuid, similaridade float8)
+LANGUAGE sql STABLE AS $$
+    SELECT e.task_id, 1 - (e.embedding <=> consulta) AS similaridade
+    FROM task_embeddings e
+    JOIN task_aprendizado a ON a.task_id = e.task_id
+    WHERE a.excluida = false AND a.nivel_real IS NOT NULL
+    ORDER BY e.embedding <=> consulta
+    LIMIT n
+$$;
