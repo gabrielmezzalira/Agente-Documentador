@@ -30,6 +30,8 @@ from services.gemini_key import (
     GeminiApiKeyStorageError,
 )
 from services.notification_checker import check_and_send_notifications
+from services.classificador_aprendizado import recalcular_diario
+from services.classificador_ciclo import reclassificar_provisorias
 from services.travamento_checker import check_travamento_automatico
 from services.auth import get_current_pessoa, require_not_operacional
 
@@ -42,6 +44,8 @@ _scheduler = AsyncIOScheduler()
 async def lifespan(app: FastAPI):
     _scheduler.add_job(check_and_send_notifications, "interval", hours=1, id="sprint_notifications")
     _scheduler.add_job(check_travamento_automatico, "interval", hours=24, id="task_travamento_check")
+    _scheduler.add_job(reclassificar_provisorias, "interval", minutes=10, id="classificador_provisorias")
+    _scheduler.add_job(recalcular_diario, "interval", hours=24, id="classificador_recalculo_diario")
     _scheduler.start()
     yield
     _scheduler.shutdown()

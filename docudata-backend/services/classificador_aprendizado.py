@@ -1,12 +1,14 @@
 """Persistência do aprendizado do classificador (spec A2 §4): um exemplo por
 task concluída, rótulos recalculados sobre todos os exemplos e parâmetros
 vigentes com histórico só quando mudam."""
+import logging
 from datetime import datetime, timezone
 
 from services.classificador_estatistica import recalcular
 from services.classificador_tempo import tempo_limpo
 from services.regua import converter_pontos_legado
 
+_LOG = logging.getLogger("docudata.classificador")
 _EPS = 1e-9
 _LOTE_IN = 100
 _COLUNAS_ROTULO = ("ritmo_usado", "tempo_normalizado_s", "nivel_pelo_tempo", "nivel_real", "alerta")
@@ -160,3 +162,22 @@ def definir_exclusao(client, task_id: str, excluida: bool, motivo: str | None, p
     recalcular_tudo(client)
     atual = client.table("task_aprendizado").select("*").eq("task_id", task_id).execute().data
     return atual[0] if atual else {}
+
+
+def recalcular_diario() -> None:
+    """Job diário (spec A2 §8): cria o exemplo das tasks concluídas que ficaram
+    sem ele (falha do gancho de conclusão) e recalcula tudo. Best-effort."""
+    try:
+        from services.supabase_client import get_client
+
+        client = get_client()
+        concluidas = {r["id"] for r in (client.table("tasks").select("id").eq("coluna_kanban", "concluida").execute().data or [])}
+        com_exemplo = {r["task_id"] for r in (client.table("task_aprendizado").select("task_id").execute().data or [])}
+        for task_id in sorted(concluidas - com_exemplo):
+            try:
+                registrar_conclusao(client, task_id)
+            except Exception as exc:
+                _LOG.warning("recalculo_diario_conclusao_falhou exc=%s", type(exc).__name__)
+        recalcular_tudo(client)
+    except Exception as exc:
+        _LOG.warning("recalculo_diario_falhou exc=%s", type(exc).__name__)

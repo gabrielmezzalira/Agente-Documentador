@@ -5,7 +5,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
+    OpiniaoNivelRequest,
+    ReclassificarResponse,
     RejeitarTaskRequest,
+    RevisaoNivelRequest,
     TaskCreate,
     TaskUpdate,
     TaskResponse,
@@ -15,7 +18,14 @@ from models.schemas import (
     TaskSugestaoResolve,
     _COLUNAS_VALIDAS,
 )
-from services.auth import get_current_pessoa, require_not_operacional, require_project_access
+from services import classificador_ciclo as ciclo
+from services.auth import (
+    get_current_pessoa,
+    nivel as nivel_do_cargo,
+    require_not_operacional,
+    require_project_access,
+    require_role,
+)
 from services.email_service import (
     email_task_atribuida,
     email_task_concluida,
@@ -27,7 +37,8 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
-from services.classificador_aprendizado import registrar_conclusao
+from services.classificador_aprendizado import registrar_conclusao, registrar_opiniao_operacional
+from services.classificador_regua import texto_da_task
 from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
@@ -124,6 +135,13 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         send_email(operacional_email, subject, html)
     except Exception as exc:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
+
+
+def _travar_e_atualizar(client, linha: dict) -> dict:
+    """Trava o nível da task e devolve a linha com o `nivel_travado_em` novo."""
+    ciclo.travar_nivel(client, [linha["id"]])
+    fresca = client.table("tasks").select("nivel_travado_em").eq("id", linha["id"]).execute().data
+    return {**linha, "nivel_travado_em": fresca[0].get("nivel_travado_em")} if fresca else linha
 
 
 def _registrar_aprendizado_best_effort(client, task_id: str) -> None:
@@ -230,8 +248,8 @@ def _registrar_reabertura(
     }).execute()
 
 
-@router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
-async def create_task(data: TaskCreate):
+@router.post("", response_model=TaskResponse, status_code=201)
+async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
 
     check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
@@ -278,10 +296,17 @@ async def create_task(data: TaskCreate):
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
+    # O nível vem do agente (spec A2): o `pontos` enviado pelo cliente é ignorado.
+    # Um 422 com `faltando` sai aqui, antes de criar a task.
+    resultado = await ciclo.classificar_para_criacao(
+        client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
+        opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
+    )
+
     payload: dict = {
         "project_id": data.project_id,
         "titulo": data.titulo,
-        "pontos": data.pontos,
+        "pontos": resultado["nivel_final"],
         "coluna_kanban": data.coluna_kanban,
         "ordem": data.ordem,
         "checklist": data.checklist or [],
@@ -312,12 +337,24 @@ async def create_task(data: TaskCreate):
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
 
+    criada = resp.data[0]
+    ciclo.gravar_classificacao(
+        client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
+        texto=texto_da_task(data.titulo, data.descricao, data.checklist),
+    )
+    if (sprint_iniciada and payload.get("coluna_kanban") != "concluida") or payload.get("coluna_kanban") == "em_andamento":
+        criada = _travar_e_atualizar(client, criada)
+
     revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if payload.get("operacional_id"):
-        _avisar_operacional_atribuicao(client, resp.data[0])
+        _avisar_operacional_atribuicao(client, criada)
 
-    return resp.data[0]
+    return {
+        **criada,
+        "classificacao_status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+    }
 
 
 @router.get("", response_model=list[TaskResponse], dependencies=[Depends(require_project_access)])
@@ -491,7 +528,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not result.data:
         raise HTTPException(status_code=409, detail="Esta task já foi puxada.")
 
-    return result.data[0]
+    return _travar_e_atualizar(client, result.data[0])
 
 
 @router.post("/{task_id}/devolver", response_model=TaskResponse)
@@ -633,6 +670,52 @@ async def rejeitar_task(
     _avisar_operacional_rejeicao(client, task, data.motivo)
 
     return result.data[0]
+
+
+@router.post("/{task_id}/reclassificar", response_model=ReclassificarResponse)
+async def reclassificar_task(task_id: str, pessoa: dict = Depends(require_role("lider"))):
+    client = get_client()
+    resultado = await ciclo.reclassificar(client, task_id, pessoa["id"])
+    return {
+        "task_id": task_id,
+        "nivel_final": resultado["nivel_final"],
+        "status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+        "motivo_revisao": resultado.get("motivo_revisao"),
+    }
+
+
+@router.post("/{task_id}/revisao-nivel", response_model=ReclassificarResponse)
+async def revisar_nivel_task(task_id: str, data: RevisaoNivelRequest, pessoa: dict = Depends(require_role("lider"))):
+    client = get_client()
+    resultado = ciclo.resolver_revisao(client, task_id, data.nivel, data.motivo, pessoa["id"])
+    return {
+        "task_id": task_id,
+        "nivel_final": resultado["nivel_final"],
+        "status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+        "motivo_revisao": resultado.get("motivo_revisao"),
+    }
+
+
+@router.post("/{task_id}/opiniao-nivel", status_code=204)
+async def opiniao_nivel_task(task_id: str, data: OpiniaoNivelRequest, pessoa: dict = Depends(get_current_pessoa)):
+    """Opinião do operacional sobre o nível, depois de concluir (spec A2 §4)."""
+    client = get_client()
+    rows = client.table("tasks").select("id, project_id, operacional_id, coluna_kanban").eq("id", task_id).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = rows[0]
+    if nivel_do_cargo(pessoa["cargo"]) < nivel_do_cargo("gerente"):
+        # operacionais (por projeto) e pessoa (login) se reconciliam por e-mail
+        dono = task.get("operacional_id") and _resolver_operacional_id_da_pessoa(
+            client, task["project_id"], pessoa["email"]
+        ) == task["operacional_id"]
+        if not dono:
+            raise HTTPException(status_code=403, detail="Só o responsável pela task opina sobre o nível.")
+    if task.get("coluna_kanban") != "concluida":
+        raise HTTPException(status_code=409, detail="A opinião sobre o nível só vale depois de concluir a task.")
+    registrar_opiniao_operacional(client, task_id, data.nivel)
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
@@ -828,8 +911,9 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             updates["travado_override"] = False
             updates["travado_override_por"] = None
             updates["travado_override_em"] = None
+    # `pontos` do cliente é ignorado: o nível é do classificador (spec A2).
     for field in (
-        "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
+        "titulo", "descricao", "funcionalidade_id", "sprint_id",
         "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
         "checklist", "ordem", "requer_aprovacao",
     ):
@@ -863,7 +947,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora
     # dela; ao sair de concluida ela volta a ser trabalho aberto e precisa de
     # um nível válido. O original fica em pontos_legado.
-    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida" and data.pontos is None:
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
         updates.update(ajuste_pontos_reabertura(task))
 
     # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
@@ -914,6 +998,9 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         updates["travado_automatico"] = False
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if coluna_nova == "em_andamento" and coluna_atual != "em_andamento":
+        result.data[0] = _travar_e_atualizar(client, result.data[0])
 
     func_efetiva = data.funcionalidade_id if data.funcionalidade_id is not None else task.get("funcionalidade_id")
     if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
