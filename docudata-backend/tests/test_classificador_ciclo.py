@@ -319,3 +319,151 @@ def test_recalcular_diario_cria_exemplo_faltante(monkeypatch):
     monkeypatch.setattr(ap, "recalcular_tudo", lambda c: recalc.append(1))
     ap.recalcular_diario()
     assert criadas == ["t1"] and recalc == [1]
+
+
+# --- rodada de correção 1 ---
+
+def _durante(monkeypatch, fake, acao):
+    async def cls(**kw):
+        acao()
+        return _resultado()
+
+    monkeypatch.setattr(ciclo, "classificar", cls)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    monkeypatch.setattr(ciclo, "salvar_embedding", lambda *a, **k: None)
+    monkeypatch.setattr(ciclo, "get_client", lambda: fake)
+
+
+async def test_job_task_vai_para_em_andamento_durante_a_chamada_e_trava(monkeypatch):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    _durante(monkeypatch, fake, lambda: fake.tables["tasks"][0].update(coluna_kanban="em_andamento"))
+    await ciclo.reclassificar_provisorias()
+    t = fake.tables["tasks"][0]
+    assert t["pontos"] == 3 and t["nivel_travado_em"] is not None
+    assert fake.tables["task_classificacoes"][-1]["status"] == "aplicada"
+
+
+async def test_job_task_travada_durante_a_chamada_nao_grava(monkeypatch):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    _durante(monkeypatch, fake, lambda: fake.tables["tasks"][0].update(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    await ciclo.reclassificar_provisorias()
+    assert fake.tables["tasks"][0]["pontos"] == 2 and len(fake.tables["task_classificacoes"]) == 1
+
+
+async def test_job_outra_classificacao_durante_a_chamada_nao_grava(monkeypatch):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    _durante(monkeypatch, fake, lambda: fake.tables["task_classificacoes"].append(
+        _clas("resolvida", 5, criado_em="2026-01-01T00:05:00+00:00")))
+    await ciclo.reclassificar_provisorias()
+    assert fake.tables["tasks"][0]["pontos"] == 2 and len(fake.tables["task_classificacoes"]) == 2
+
+
+def test_rota_reclassificar_trava_ou_muda_durante_a_chamada_409(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2))
+    _durante(monkeypatch, fake, lambda: fake.tables["tasks"][0].update(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    resp = _tc(monkeypatch, autenticar, fake, cargo="lider").post("/tasks/t1/reclassificar")
+    assert resp.status_code == 409 and len(fake.tables["task_classificacoes"]) == 1
+
+    fake2 = _fake()
+    fake2.tables["tasks"].append(_task())
+    fake2.tables["task_classificacoes"].append(_clas("em_revisao", 2))
+    _durante(monkeypatch, fake2, lambda: fake2.tables["task_classificacoes"].append(
+        _clas("resolvida", 5, criado_em="2026-01-01T00:05:00+00:00")))
+    resp = _tc(monkeypatch, autenticar, fake2, cargo="lider").post("/tasks/t1/reclassificar")
+    assert resp.status_code == 409 and fake2.tables["tasks"][0]["pontos"] == 2
+
+
+def test_rota_reclassificar_503_e_422(monkeypatch, autenticar):
+    async def quebra(**kw):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(ciclo, "classificar", quebra)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    assert _tc(monkeypatch, autenticar, fake, cargo="lider").post("/tasks/t1/reclassificar").status_code == 503
+
+    async def falta(**kw):
+        return _resultado(status="faltando", faltando=["descricao"])
+
+    monkeypatch.setattr(ciclo, "classificar", falta)
+    resp = _tc(monkeypatch, autenticar, fake, cargo="lider").post("/tasks/t1/reclassificar")
+    assert resp.status_code == 422 and resp.json()["detail"] == {"faltando": ["descricao"]}
+
+
+async def test_job_faltando_manda_provisoria_para_revisao(monkeypatch):
+    async def falta(**kw):
+        return _resultado(status="faltando", faltando=["descricao"])
+
+    monkeypatch.setattr(ciclo, "classificar", falta)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    monkeypatch.setattr(ciclo, "get_client", lambda: fake)
+    await ciclo.reclassificar_provisorias()
+    c = fake.tables["task_classificacoes"][0]
+    assert c["status"] == "em_revisao" and c["motivo_revisao"] == "texto insuficiente para classificar"
+
+
+def test_opiniao_nivel_gerente_ok(monkeypatch, autenticar):
+    chamadas = []
+    monkeypatch.setattr("routers.tasks.registrar_opiniao_operacional", lambda c, t, n: chamadas.append((t, n)))
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida", operacional_id="op1"))
+    resp = _tc(monkeypatch, autenticar, fake, cargo="gerente").post("/tasks/t1/opiniao-nivel", json={"nivel": 2})
+    assert resp.status_code == 204 and chamadas == [("t1", 2)]
+
+
+@pytest.mark.parametrize("campo,valor", [("titulo", "Outro título"), ("descricao", "outra"),
+                                         ("checklist", [{"texto": "novo", "done": False}])])
+def test_editar_texto_manda_aplicada_para_revisao(monkeypatch, autenticar, campo, valor):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(checklist=[{"texto": "a", "done": False}]))
+    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={campo: valor})
+    assert resp.status_code == 200, resp.text
+    c = fake.tables["task_classificacoes"][0]
+    assert c["status"] == "em_revisao" and c["motivo_revisao"] == "texto editado após a classificação"
+
+
+def test_editar_texto_em_task_travada_ou_so_done_nao_mexe(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    assert _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={"titulo": "Novo"}).status_code == 200
+    assert fake.tables["task_classificacoes"][0]["status"] == "aplicada"
+
+    fake2 = _fake()
+    fake2.tables["tasks"].append(_task(checklist=[{"texto": "a", "done": False}]))
+    fake2.tables["task_classificacoes"].append(_clas("resolvida", 2))
+    resp = _tc(monkeypatch, autenticar, fake2).patch("/tasks/t1", json={"checklist": [{"texto": "a", "done": True}]})
+    assert resp.status_code == 200
+    assert fake2.tables["task_classificacoes"][0]["status"] == "resolvida"
+
+
+@pytest.mark.parametrize("destino", ["pendente_aprovacao", "concluida"])
+def test_sair_de_planejado_direto_para_fim_trava(monkeypatch, autenticar, destino):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={"coluna_kanban": destino})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["tasks"][0]["nivel_travado_em"] is not None
+
+
+async def test_job_trava_apos_sucesso_se_task_em_andamento(monkeypatch, classificar_ok):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="em_andamento"))
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    monkeypatch.setattr(ciclo, "get_client", lambda: fake)
+    await ciclo.reclassificar_provisorias()
+    assert fake.tables["tasks"][0]["nivel_travado_em"] is not None and fake.tables["tasks"][0]["pontos"] == 3

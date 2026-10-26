@@ -20,6 +20,8 @@ from services.supabase_client import get_client
 _LOG = logging.getLogger("docudata.classificador")
 
 MODELO_CLASSIFICADOR = "gemini-3.5-flash-lite"
+MOTIVO_TEXTO_EDITADO = "texto editado após a classificação"
+MOTIVO_TEXTO_INSUFICIENTE = "texto insuficiente para classificar"
 _COLUNAS_EM_TRABALHO = ("em_andamento", "pendente_aprovacao", "concluida")
 _COLUNAS_CLASSIFICACAO = (
     "sinais", "nivel_sinais", "parecidas", "nivel_parecidas", "nivel_geral",
@@ -126,18 +128,34 @@ def _travar_se_em_trabalho(client, task: dict) -> None:
         travar_nivel(client, [task["id"]])
 
 
+class ReclassificacaoObsoleta(Exception):
+    """A task mudou (trava ou outra classificação) enquanto o modelo respondia."""
+
+
 async def _reclassificar_task(client, task: dict, pessoa_id: str | None) -> dict:
-    """Roda e grava uma reclassificação. Propaga exceções do classificador."""
+    """Roda e grava uma reclassificação. Propaga exceções do classificador.
+
+    O modelo demora até TIMEOUT_CLASSIFICACAO_S; ao voltar, a task é relida e
+    nada é gravado se ela foi travada ou se a classificação atual já não é a
+    que existia antes (compare-and-set). A trava usa a coluna fresca."""
     atual = classificacao_atual(client, task["id"])
+    id_antes = atual["id"] if atual else None
     opiniao = atual.get("opiniao_gerente") if atual else None
     resultado = await _rodar_classificador(
         client, titulo=task["titulo"], descricao=task.get("descricao"),
         checklist=task.get("checklist") or [], opiniao_gerente=opiniao, gerente_id=pessoa_id,
     )
     _levantar_se_faltando(resultado)
-    texto = texto_da_task(task["titulo"], task.get("descricao"), task.get("checklist"))
+    rows = client.table("tasks").select("*").eq("id", task["id"]).execute().data
+    if not rows or rows[0].get("nivel_travado_em"):
+        raise ReclassificacaoObsoleta()
+    depois = classificacao_atual(client, task["id"])
+    if (depois["id"] if depois else None) != id_antes:
+        raise ReclassificacaoObsoleta()
+    fresca = rows[0]
+    texto = texto_da_task(fresca["titulo"], fresca.get("descricao"), fresca.get("checklist"))
     gravar_classificacao(client, task["id"], resultado, tipo="reclassificacao", criado_por=pessoa_id, texto=texto)
-    _travar_se_em_trabalho(client, task)
+    _travar_se_em_trabalho(client, fresca)
     return resultado
 
 
@@ -152,6 +170,8 @@ async def reclassificar(client, task_id: str, pessoa_id: str) -> dict:
         resultado = await _reclassificar_task(client, task, pessoa_id)
     except HTTPException:
         raise
+    except ReclassificacaoObsoleta:
+        raise HTTPException(status_code=409, detail="A task mudou durante a classificação. Tente de novo.")
     except Exception as exc:
         _LOG.warning("reclassificacao_falhou exc=%s", type(exc).__name__)
         raise HTTPException(status_code=503, detail="Classificador indisponível. Tente novamente em instantes.")
@@ -192,6 +212,13 @@ async def reclassificar_provisorias() -> None:
                 continue
             try:
                 await _reclassificar_task(client, rows[0], atual.get("criado_por"))
+            except ReclassificacaoObsoleta:
+                continue
+            except HTTPException as exc:
+                if exc.status_code == 422:  # texto insuficiente: vai para a revisão do líder
+                    client.table("task_classificacoes").update(
+                        {"status": "em_revisao", "motivo_revisao": MOTIVO_TEXTO_INSUFICIENTE}
+                    ).eq("id", atual["id"]).execute()
             except Exception as exc:
                 _LOG.warning("reclassificar_provisoria_falhou exc=%s", type(exc).__name__)
     except Exception as exc:

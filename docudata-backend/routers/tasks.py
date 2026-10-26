@@ -137,6 +137,19 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
 
 
+def _texto_mudou(task: dict, data) -> bool:
+    """Título, descrição ou texto do checklist mudaram (marcar `done` não conta)."""
+    if data.titulo is not None and data.titulo != task.get("titulo"):
+        return True
+    if data.descricao is not None and data.descricao != task.get("descricao"):
+        return True
+    if data.checklist is not None:
+        novos = [str(i.get("texto", "")) for i in data.checklist]
+        antigos = [str(i.get("texto", "")) for i in (task.get("checklist") or [])]
+        return novos != antigos
+    return False
+
+
 def _travar_e_atualizar(client, linha: dict) -> dict:
     """Trava o nível da task e devolve a linha com o `nivel_travado_em` novo."""
     ciclo.travar_nivel(client, [linha["id"]])
@@ -706,7 +719,9 @@ async def opiniao_nivel_task(task_id: str, data: OpiniaoNivelRequest, pessoa: di
     if not rows:
         raise HTTPException(status_code=404, detail="Task not found")
     task = rows[0]
-    if nivel_do_cargo(pessoa["cargo"]) < nivel_do_cargo("gerente"):
+    if nivel_do_cargo(pessoa["cargo"]) >= nivel_do_cargo("gerente"):
+        await require_project_access(task["project_id"], pessoa)
+    else:
         # operacionais (por projeto) e pessoa (login) se reconciliam por e-mail
         dono = task.get("operacional_id") and _resolver_operacional_id_da_pessoa(
             client, task["project_id"], pessoa["email"]
@@ -999,7 +1014,14 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
 
-    if coluna_nova == "em_andamento" and coluna_atual != "em_andamento":
+    if _texto_mudou(task, data) and not task.get("nivel_travado_em"):
+        atual = ciclo.classificacao_atual(client, task_id)
+        if atual and atual["status"] in ("aplicada", "resolvida"):
+            client.table("task_classificacoes").update(
+                {"status": "em_revisao", "motivo_revisao": ciclo.MOTIVO_TEXTO_EDITADO}
+            ).eq("id", atual["id"]).execute()
+
+    if coluna_nova in ("em_andamento", "pendente_aprovacao", "concluida") and coluna_nova != coluna_atual:
         result.data[0] = _travar_e_atualizar(client, result.data[0])
 
     func_efetiva = data.funcionalidade_id if data.funcionalidade_id is not None else task.get("funcionalidade_id")
