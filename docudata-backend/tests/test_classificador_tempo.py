@@ -216,3 +216,25 @@ def test_trocar_tipo_junto_com_bloqueado_nao_duplica_transicao(monkeypatch):
 
     assert tc.patch("/tasks/task-1", json={"bloqueado": True, "bloqueio_tipo": "cliente"}).status_code == 200
     assert len([g for g in gravadas if g["campo"] == "bloqueado"]) == 1
+
+
+def test_par_de_troca_de_tipo_em_ordem_invertida_interno_para_cliente():
+    trans = [
+        _col("planejado", "em_andamento", _t(1, 8)),
+        _bloq(True, _t(1, 9), "interno"),
+        _bloq(True, _t(1, 10), "cliente"), _bloq(False, _t(1, 10), "interno"),  # invertido
+        _bloq(False, _t(1, 12), "cliente"),
+        _col("em_andamento", "concluida", _t(1, 14)),
+    ]
+    assert tempo_limpo(trans, TASK)["tempo_limpo_s"] == 4 * 3600   # 6h - 2h de cliente
+
+
+def test_par_de_troca_de_tipo_em_ordem_invertida_cliente_para_interno():
+    trans = [
+        _col("planejado", "em_andamento", _t(1, 8)),
+        _bloq(True, _t(1, 9), "cliente"),
+        _bloq(True, _t(1, 11), "interno"), _bloq(False, _t(1, 11), "cliente"),  # invertido
+        _bloq(False, _t(1, 12), "interno"),
+        _col("em_andamento", "concluida", _t(1, 14)),
+    ]
+    assert tempo_limpo(trans, TASK)["tempo_limpo_s"] == 4 * 3600   # 6h - 2h de cliente

@@ -26,7 +26,12 @@ def _uniao(intervalos: list[tuple[datetime, datetime]]) -> float:
 
 
 def tempo_limpo(transicoes: list[dict], task: dict) -> dict | None:
-    trans = sorted(transicoes, key=lambda t: _ts(t["timestamp"]))
+    # Desempate em timestamps iguais: fechar bloqueio (False) antes de abrir (True),
+    # pois a troca de tipo grava o par no mesmo instante. sorted é estável.
+    trans = sorted(
+        transicoes,
+        key=lambda t: (_ts(t["timestamp"]), t.get("campo") == "bloqueado" and str(t.get("para")).lower() == "true"),
+    )
     colunas = [t for t in trans if t.get("campo") == "coluna_kanban"]
     conclusoes = [t for t in colunas if t.get("para") == "concluida"]
     if not conclusoes or colunas[-1].get("para") != "concluida":
