@@ -189,6 +189,7 @@ function TaskModal({
   const tituloMudou = mode === "edit" && titulo !== (task?.titulo ?? "");
   const descricaoMudou = mode === "edit" && descricao !== (task?.descricao ?? "");
   const checklistMudou = mode === "edit" && JSON.stringify(checklist.map((i) => [i.texto, i.done])) !== JSON.stringify((task?.checklist ?? []).map((i) => [i.texto, i.done]));
+  const edicaoPendente = tituloMudou || descricaoMudou || checklistMudou;
   const textoMudou = tituloMudou || descricaoMudou
     || (mode === "edit" && JSON.stringify(checklist.map((i) => i.texto)) !== JSON.stringify((task?.checklist ?? []).map((i) => i.texto)));
 
@@ -515,10 +516,11 @@ function TaskModal({
                 nível travado desde {new Date(task.nivel_travado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
               </p>
             ) : (
-              <div>
-                <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving} style={btnGhost}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
                   {reclassificando ? "Reclassificando…" : "Reclassificar"}
                 </button>
+                {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
               </div>
             )
           )}

@@ -178,13 +178,17 @@ function RevisaoModal({ item, onClose, onFeito }: { item: ClassificadorRevisaoIt
                 <Tabela minWidth={480}>
                   <thead><tr><th style={th}>Sinal</th><th style={th}>Nota</th><th style={th}>Evidência citada</th></tr></thead>
                   <tbody>
-                    {Object.entries(c.sinais).map(([s, v]) => (
+                    {Object.entries(c.sinais).map(([s, bruto]) => {
+                      // sinais legados podem ser só o número da nota
+                      const v = (typeof bruto === "object" && bruto !== null ? bruto : { nota: bruto, evidencia: null }) as { nota: number | null; evidencia?: string | null };
+                      return (
                       <tr key={s}>
                         <td style={td}>{s}</td>
                         <td style={{ ...td, ...mono }}>{v.nota}</td>
                         <td style={{ ...td, fontStyle: v.evidencia ? "italic" : "normal", color: v.evidencia ? ds.text2 : ds.dim }}>{v.evidencia ? `“${v.evidencia}”` : "sem evidência"}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </Tabela>
               ) : <span style={{ fontSize: 13, color: ds.muted }}>Sem sinais registrados.</span>}
