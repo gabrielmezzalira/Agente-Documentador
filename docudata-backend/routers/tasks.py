@@ -57,6 +57,7 @@ def _registrar_task_transicao(
     autor: Optional[str],
     motivo: Optional[str],
     agora: datetime,
+    bloqueio_tipo: Optional[str] = None,
 ) -> Optional[str]:
     anterior = (
         client.table("task_transicoes")
@@ -91,6 +92,7 @@ def _registrar_task_transicao(
         "motivo": motivo,
         "duracao_fase_anterior_segundos": duracao,
         "operacional_id": task_atual.get("operacional_id"),
+        "bloqueio_tipo": bloqueio_tipo,
     }).execute()
     return resp.data[0]["id"] if resp.data else None
 
@@ -775,7 +777,16 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             houve_reabertura = True
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
-        _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
+        # Tipo do trecho que abre (o novo, padrão interno) ou fecha (o que a task tinha).
+        tipo_trecho = (
+            (data.bloqueio_tipo or task.get("bloqueio_tipo") or "interno")
+            if data.bloqueado
+            else task.get("bloqueio_tipo")
+        )
+        _registrar_task_transicao(
+            client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora,
+            bloqueio_tipo=tipo_trecho,
+        )
 
     updates: dict = {"updated_at": agora.isoformat()}
     # ALERT-01/ALERT-04: o relógio de travamento automático conta desde que a
