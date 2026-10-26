@@ -27,6 +27,7 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
+from services.classificador_aprendizado import registrar_conclusao
 from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
@@ -123,6 +124,13 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         send_email(operacional_email, subject, html)
     except Exception as exc:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
+
+
+def _registrar_aprendizado_best_effort(client, task_id: str) -> None:
+    try:
+        registrar_conclusao(client, task_id)
+    except Exception as exc:
+        _LOG.warning("aprendizado_classificador_falhou task=%s exc=%s", task_id, type(exc).__name__)
 
 
 def _avisar_gerente_task_concluida(client, task: dict) -> None:
@@ -577,6 +585,7 @@ async def aprovar_task(
     }).eq("id", task_id).execute()
 
     on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "concluida")
+    _registrar_aprendizado_best_effort(client, task_id)
     sprint_id_atual = task.get("sprint_id")
     if sprint_id_atual:
         try:
@@ -943,6 +952,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     if coluna_nova is not None and coluna_nova != coluna_atual:
         on_task_transition(client, task, "coluna_kanban", coluna_atual, coluna_nova)
         if coluna_nova == "concluida":
+            _registrar_aprendizado_best_effort(client, task_id)
             sprint_id_atual = task.get("sprint_id")
             if sprint_id_atual:
                 try:
