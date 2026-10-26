@@ -68,3 +68,22 @@ async def test_gerar_embedding_valida_dimensao(monkeypatch):
     Fake.n = 5
     with pytest.raises(ValueError):
         await b.gerar_embedding("k", "oi")
+
+
+def test_salvar_embedding_reescreve_se_modelo_mudou(monkeypatch):
+    fake = FakeClient({"task_embeddings": []})
+    b.salvar_embedding(fake, "t1", "texto", [0.1, 0.2])
+    monkeypatch.setattr(b, "EMBED_MODELO", "models/outro")
+    b.salvar_embedding(fake, "t1", "texto", [0.7, 0.8])
+    rows = fake.tables["task_embeddings"]
+    assert len(rows) == 1 and rows[0]["modelo"] == "models/outro" and rows[0]["embedding"] == "[0.7,0.8]"
+
+
+@pytest.mark.parametrize("ruim", [float("nan"), float("inf")])
+def test_vetor_nao_finito_levanta(ruim):
+    fake = FakeClient({"task_embeddings": []})
+    with pytest.raises(ValueError):
+        b.salvar_embedding(fake, "t1", "x", [0.1, ruim])
+    fake.rpcs = {"buscar_tasks_parecidas": lambda p: []}
+    with pytest.raises(ValueError):
+        b.buscar_parecidas(fake, [ruim])

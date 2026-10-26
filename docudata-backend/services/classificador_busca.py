@@ -1,6 +1,7 @@
 """Embeddings das tasks e busca de tasks concluídas parecidas (pgvector)."""
 import asyncio
 import hashlib
+import math
 import os
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -13,6 +14,8 @@ EMBED_DIM = 768
 
 def _vetor_str(vetor: list[float]) -> str:
     """PostgREST/pgvector esperam o vetor como string '[x,y,...]', nunca lista."""
+    if not all(math.isfinite(x) for x in vetor):
+        raise ValueError("Embedding contém valores não finitos (NaN/inf)")
     return "[" + ",".join(repr(float(x)) for x in vetor) + "]"
 
 
@@ -30,8 +33,8 @@ async def gerar_embedding(api_key: str, texto: str) -> list[float]:
 
 def salvar_embedding(client, task_id: str, texto: str, vetor: list[float]) -> None:
     h = hash_texto(texto)
-    atual = client.table("task_embeddings").select("hash_texto").eq("task_id", task_id).execute().data or []
-    if atual and atual[0].get("hash_texto") == h:
+    atual = client.table("task_embeddings").select("hash_texto,modelo").eq("task_id", task_id).execute().data or []
+    if atual and atual[0].get("hash_texto") == h and atual[0].get("modelo") == EMBED_MODELO:
         return
     client.table("task_embeddings").upsert(
         {"task_id": task_id, "embedding": _vetor_str(vetor), "hash_texto": h, "modelo": EMBED_MODELO},
