@@ -238,3 +238,14 @@ def test_par_de_troca_de_tipo_em_ordem_invertida_cliente_para_interno():
         _col("em_andamento", "concluida", _t(1, 14)),
     ]
     assert tempo_limpo(trans, TASK)["tempo_limpo_s"] == 4 * 3600   # 6h - 2h de cliente
+
+
+def test_tempo_em_planejado_depois_de_iniciar_nao_conta():
+    trans = [
+        _col("planejado", "em_andamento", _t(1, 8)),
+        _col("em_andamento", "planejado", _t(1, 10)),     # devolvida: 1h parada
+        _col("planejado", "em_andamento", _t(1, 11)),
+        _col("em_andamento", "concluida", _t(1, 14)),
+    ]
+    r = tempo_limpo(trans, TASK)
+    assert r["tempo_bruto_s"] == 6 * 3600 and r["tempo_limpo_s"] == 5 * 3600

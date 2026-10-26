@@ -39,6 +39,7 @@ from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
 from services.classificador_aprendizado import registrar_conclusao, registrar_opiniao_operacional
 from services.classificador_regua import texto_da_task
+from services.supabase_paginacao import ler_tudo
 from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
@@ -94,7 +95,7 @@ def _registrar_task_transicao(
         ts_anterior = datetime.fromisoformat(task_atual["created_at"]).replace(tzinfo=timezone.utc)
 
     duracao = int((agora - ts_anterior).total_seconds())
-    resp = client.table("task_transicoes").insert({
+    linha = {
         "task_id": task_id,
         "campo": campo,
         "de": str(task_atual.get(campo)) if task_atual.get(campo) is not None else None,
@@ -104,8 +105,10 @@ def _registrar_task_transicao(
         "motivo": motivo,
         "duracao_fase_anterior_segundos": duracao,
         "operacional_id": task_atual.get("operacional_id"),
-        "bloqueio_tipo": bloqueio_tipo,
-    }).execute()
+    }
+    if bloqueio_tipo is not None:  # só envia a coluna quando há valor (tolera deploy antes da migração)
+        linha["bloqueio_tipo"] = bloqueio_tipo
+    resp = client.table("task_transicoes").insert(linha).execute()
     return resp.data[0]["id"] if resp.data else None
 
 
@@ -137,15 +140,42 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
 
 
+_LOTE_IN = 100
+
+
+def _status_classificacao_por_task(client, task_ids: list[str]) -> dict[str, str]:
+    """Status da classificação mais recente de cada task (em lotes de 100 ids)."""
+    status: dict[str, str] = {}
+    for i in range(0, len(task_ids), _LOTE_IN):
+        lote = task_ids[i:i + _LOTE_IN]
+        linhas = ler_tudo(
+            lambda: client.table("task_classificacoes").select("task_id, status, criado_em")
+            .in_("task_id", lote).order("criado_em", desc=True).order("id")
+        )
+        for l in linhas:
+            status.setdefault(l["task_id"], l["status"])
+    return status
+
+
+def _com_classificacao_status(client, tasks: list[dict]) -> list[dict]:
+    status = _status_classificacao_por_task(client, [t["id"] for t in tasks])
+    return [{**t, "classificacao_status": status.get(t["id"])} for t in tasks]
+
+
+def _norm(texto) -> str:
+    """None, "" e diferenças de espaço/quebra de linha contam como o mesmo texto."""
+    return " ".join(str(texto or "").split())
+
+
 def _texto_mudou(task: dict, data) -> bool:
     """Título, descrição ou texto do checklist mudaram (marcar `done` não conta)."""
-    if data.titulo is not None and data.titulo != task.get("titulo"):
+    if data.titulo is not None and _norm(data.titulo) != _norm(task.get("titulo")):
         return True
-    if data.descricao is not None and data.descricao != task.get("descricao"):
+    if data.descricao is not None and _norm(data.descricao) != _norm(task.get("descricao")):
         return True
     if data.checklist is not None:
-        novos = [str(i.get("texto", "")) for i in data.checklist]
-        antigos = [str(i.get("texto", "")) for i in (task.get("checklist") or [])]
+        novos = [_norm(i.get("texto")) for i in data.checklist]
+        antigos = [_norm(i.get("texto")) for i in (task.get("checklist") or [])]
         return novos != antigos
     return False
 
@@ -395,7 +425,7 @@ async def list_tasks(
     if funcionalidade_id is not None:
         query = query.eq("funcionalidade_id", funcionalidade_id)
 
-    return query.execute().data or []
+    return _com_classificacao_status(client, query.execute().data or [])
 
 
 # ── Sugestões — rotas fixas antes de /{task_id} para evitar captura pelo path param ──
@@ -739,7 +769,7 @@ async def get_task(task_id: str):
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
-    return resp.data[0]
+    return _com_classificacao_status(client, [resp.data[0]])[0]
 
 
 @router.get("/{task_id}/transicoes", response_model=list[TaskTransicaoResponse])

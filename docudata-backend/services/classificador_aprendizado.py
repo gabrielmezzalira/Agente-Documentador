@@ -4,6 +4,8 @@ vigentes com histórico só quando mudam."""
 import logging
 from datetime import datetime, timezone
 
+from fastapi import HTTPException
+
 from services.classificador_estatistica import recalcular
 from services.classificador_tempo import tempo_limpo
 from services.regua import converter_pontos_legado
@@ -32,6 +34,12 @@ def registrar_conclusao(client, task_id: str) -> None:
         .order("criado_em", desc=True).limit(1).execute().data
     )
     clas = clas[0] if clas else None
+    # O gerente é quem criou a task: reclassificação e revisão são do líder.
+    criacao = (
+        client.table("task_classificacoes").select("criado_por").eq("task_id", task_id).eq("tipo", "criacao")
+        .order("criado_em").limit(1).execute().data
+    )
+    gerente_id = criacao[0].get("criado_por") if criacao else (clas.get("criado_por") if clas else None)
 
     tempo = tempo_limpo(transicoes, task)
     if tempo:
@@ -59,7 +67,7 @@ def registrar_conclusao(client, task_id: str) -> None:
         "classificacao_id": clas["id"] if clas else None,
         "nivel_sugerido": nivel_sugerido,
         "operacional_id": task.get("operacional_id"),
-        "gerente_id": clas.get("criado_por") if clas else None,
+        "gerente_id": gerente_id,
         "sinais": sinais,
         "tempo_bruto_s": tempo["tempo_bruto_s"] if tempo else None,
         "tempo_limpo_s": tempo["tempo_limpo_s"] if tempo else None,
@@ -150,6 +158,13 @@ def parametros_vigentes(client) -> dict[tuple[str, str], float]:
 
 
 def registrar_opiniao_operacional(client, task_id: str, nivel: int) -> None:
+    def _existe() -> bool:
+        return bool(client.table("task_aprendizado").select("task_id").eq("task_id", task_id).execute().data)
+
+    if not _existe():  # o gancho de conclusão pode ter falhado: cria o exemplo agora
+        registrar_conclusao(client, task_id)
+        if not _existe():
+            raise HTTPException(status_code=409, detail="Esta task ainda não tem exemplo de aprendizado para receber a opinião.")
     client.table("task_aprendizado").update(
         {"opiniao_operacional": nivel, "atualizado_em": _agora()}
     ).eq("task_id", task_id).execute()

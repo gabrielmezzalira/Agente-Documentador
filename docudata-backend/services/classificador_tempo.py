@@ -1,9 +1,9 @@
 """Tempo limpo de uma task concluída (spec A2 §4.1): do primeiro Em Andamento
-até a última conclusão, sem a espera em pendente_aprovacao, sem o tempo
+até a última conclusão, sem a espera em pendente_aprovacao, sem o tempo devolvido a planejado, sem o tempo
 parado em concluida antes de uma reabertura e sem bloqueio de cliente."""
 from datetime import datetime, timezone
 
-_PAUSAS_DE_COLUNA = {"pendente_aprovacao", "concluida"}
+_PAUSAS_DE_COLUNA = {"pendente_aprovacao", "concluida", "planejado"}
 
 
 def _ts(valor: str) -> datetime:

@@ -151,7 +151,9 @@ async def test_reclassificar_provisorias_mantem_se_modelo_segue_fora(monkeypatch
     fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
     monkeypatch.setattr(ciclo, "get_client", lambda: fake)
     await ciclo.reclassificar_provisorias()
-    assert fake.tables["tasks"][0]["pontos"] == 2 and len(fake.tables["task_classificacoes"]) == 1
+    # a falha deixa uma linha provisória (contador de tentativas); o nível segue o mesmo
+    assert fake.tables["tasks"][0]["pontos"] == 2 and len(fake.tables["task_classificacoes"]) == 2
+    assert fake.tables["task_classificacoes"][-1]["status"] == "provisoria"
 
 
 def test_travar_nivel_nao_trava_provisoria_e_trava_aplicada():
@@ -467,3 +469,166 @@ async def test_job_trava_apos_sucesso_se_task_em_andamento(monkeypatch, classifi
     monkeypatch.setattr(ciclo, "get_client", lambda: fake)
     await ciclo.reclassificar_provisorias()
     assert fake.tables["tasks"][0]["nivel_travado_em"] is not None and fake.tables["tasks"][0]["pontos"] == 3
+
+
+# ── Rodada final: correções da revisão da branch ──
+
+class _Dados:
+    def __init__(self, **kw):
+        self.titulo = kw.get("titulo")
+        self.descricao = kw.get("descricao")
+        self.checklist = kw.get("checklist")
+
+
+@pytest.mark.parametrize("task,dados", [
+    ({"descricao": None}, _Dados(descricao="")),
+    ({"descricao": "x"}, _Dados(descricao="x ")),
+    ({"descricao": "a\nb"}, _Dados(descricao="a\n\nb")),
+    ({"titulo": "Login"}, _Dados(titulo=" Login  ")),
+    ({"checklist": [{"texto": "item", "done": False}]}, _Dados(checklist=[{"texto": "item ", "done": True}])),
+])
+def test_texto_mudou_ignora_espacos_e_none(task, dados):
+    from routers.tasks import _texto_mudou
+    assert _texto_mudou(task, dados) is False
+
+
+def test_texto_mudou_detecta_mudanca_real():
+    from routers.tasks import _texto_mudou
+    assert _texto_mudou({"descricao": "a"}, _Dados(descricao="b")) is True
+    assert _texto_mudou({"checklist": [{"texto": "a"}]}, _Dados(checklist=[{"texto": "b"}])) is True
+
+
+def test_get_tasks_traz_classificacao_status(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"] += [_task(id="t1"), _task(id="t2"), _task(id="t3")]
+    fake.tables["task_classificacoes"] += [
+        _clas("aplicada", task_id="t1", criado_em="2026-01-01T00:00:00+00:00"),
+        _clas("provisoria", task_id="t1", criado_em="2026-01-02T00:00:00+00:00"),
+        _clas("em_revisao", task_id="t2"),
+    ]
+    tc = _tc(monkeypatch, autenticar, fake)
+    lista = {t["id"]: t["classificacao_status"] for t in tc.get("/tasks", params={"project_id": "p1"}).json()}
+    assert lista == {"t1": "provisoria", "t2": "em_revisao", "t3": None}
+    assert tc.get("/tasks/t1").json()["classificacao_status"] == "provisoria"
+
+
+def test_gerente_do_aprendizado_e_o_autor_da_criacao(monkeypatch, autenticar, classificar_ok):
+    from services import classificador_aprendizado as ap
+    fake = _fake()
+    fake.tables["tasks"].append(_task(pontos=2, coluna_kanban="concluida"))
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2, id="c-cri", criado_por="gerente-1"))
+    fake.tables["task_classificacoes"].append(
+        _clas("resolvida", 3, criado_em="2026-01-02T00:00:00+00:00", tipo="reclassificacao", criado_por="lider-1"))
+    ap.registrar_conclusao(fake, "t1")
+    assert fake.tables["task_aprendizado"][0]["gerente_id"] == "gerente-1"
+
+
+async def test_reclassificacao_passa_o_gerente_da_criacao(monkeypatch):
+    vistos = []
+
+    async def fake_cls(**kw):
+        vistos.append(kw["gerente_id"])
+        return _resultado()
+
+    monkeypatch.setattr(ciclo, "classificar", fake_cls)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    monkeypatch.setattr(ciclo, "salvar_embedding", lambda *a, **k: None)
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2, criado_por="gerente-1"))
+    await ciclo.reclassificar(fake, "t1", "lider-1")
+    assert vistos == ["gerente-1"]
+    assert fake.tables["task_classificacoes"][-1]["criado_por"] == "lider-1"
+
+
+def test_reclassificar_task_concluida_409(monkeypatch, autenticar, classificar_ok):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida"))
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2))
+    resp = _tc(monkeypatch, autenticar, fake, cargo="lider").post("/tasks/t1/reclassificar")
+    assert resp.status_code == 409 and "concluída" in resp.json()["detail"]
+
+
+def test_resolver_revisao_de_task_concluida_registra_aprendizado(monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(ciclo, "registrar_conclusao", lambda c, t: chamadas.append(t))
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida"))
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2))
+    ciclo.resolver_revisao(fake, "t1", 3, "motivo", "lider-1")
+    assert chamadas == ["t1"]
+
+
+def test_resolver_revisao_nao_falha_se_aprendizado_falha(monkeypatch):
+    def quebra(c, t):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(ciclo, "registrar_conclusao", quebra)
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida"))
+    fake.tables["task_classificacoes"].append(_clas("em_revisao", 2))
+    assert ciclo.resolver_revisao(fake, "t1", 3, "motivo", "lider-1")["nivel_final"] == 3
+
+
+async def test_job_desiste_depois_de_6_tentativas(monkeypatch):
+    async def quebra(**kw):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(ciclo, "classificar", quebra)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    fake = _fake()
+    fake.tables["tasks"].append(_task(pontos=2))
+    fake.tables["task_classificacoes"].append(_clas("provisoria", 2))
+    monkeypatch.setattr(ciclo, "get_client", lambda: fake)
+    for _ in range(5):
+        await ciclo.reclassificar_provisorias()
+    assert fake.tables["task_classificacoes"][-1]["status"] == "provisoria"
+    await ciclo.reclassificar_provisorias()
+    ultima = fake.tables["task_classificacoes"][-1]
+    assert ultima["status"] == "em_revisao" and ultima["motivo_revisao"] == "classificador indisponível"
+    n = len(fake.tables["task_classificacoes"])
+    await ciclo.reclassificar_provisorias()  # em_revisao não é mais candidata
+    assert len(fake.tables["task_classificacoes"]) == n
+
+
+async def test_job_ignora_task_cuja_classificacao_atual_nao_e_provisoria(monkeypatch, classificar_ok):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(pontos=2))
+    fake.tables["task_classificacoes"] += [
+        _clas("provisoria", 2, criado_em="2026-01-01T00:00:00+00:00"),
+        _clas("resolvida", 5, criado_em="2026-01-02T00:00:00+00:00", tipo="reclassificacao"),
+    ]
+    monkeypatch.setattr(ciclo, "get_client", lambda: fake)
+    await ciclo.reclassificar_provisorias()
+    assert len(fake.tables["task_classificacoes"]) == 2 and fake.tables["tasks"][0]["pontos"] == 2
+
+
+def test_opiniao_sem_exemplo_cria_pelo_aprendizado_e_retenta():
+    from services import classificador_aprendizado as ap
+    from tests.test_classificador_aprendizado import _fake as fake_ap
+    fake = fake_ap()
+    ap.registrar_opiniao_operacional(fake, "t1", 5)
+    assert fake.tables["task_aprendizado"][0]["opiniao_operacional"] == 5
+
+
+def test_opiniao_sem_exemplo_possivel_devolve_409(monkeypatch, autenticar):
+    def falha(c, t, n):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=409, detail="x")
+
+    monkeypatch.setattr("routers.tasks.registrar_opiniao_operacional", falha)
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida", operacional_id="op1"))
+    resp = _tc(monkeypatch, autenticar, fake, cargo="operacional").post("/tasks/t1/opiniao-nivel", json={"nivel": 3})
+    assert resp.status_code == 409
+
+
+def test_opiniao_sem_exemplo_e_sem_task_409():
+    import pytest as _p
+    from fastapi import HTTPException
+    from services import classificador_aprendizado as ap
+    fake = FakeClient({"tasks": [], "task_transicoes": [], "task_classificacoes": [], "task_aprendizado": [],
+                       "classificador_parametros": [], "classificador_parametros_hist": []})
+    with _p.raises(HTTPException) as e:
+        ap.registrar_opiniao_operacional(fake, "t1", 5)
+    assert e.value.status_code == 409
