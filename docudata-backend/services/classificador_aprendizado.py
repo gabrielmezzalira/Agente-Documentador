@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from services.classificador_estatistica import recalcular
 from services.classificador_tempo import tempo_limpo
 from services.regua import converter_pontos_legado
+from services.supabase_paginacao import ler_tudo
 
 _LOG = logging.getLogger("docudata.classificador")
 _EPS = 1e-9
@@ -81,7 +82,7 @@ def _rotulo_mudou(linha: dict, r: dict) -> bool:
 
 
 def recalcular_tudo(client) -> None:
-    linhas = client.table("task_aprendizado").select("*").execute().data or []
+    linhas = ler_tudo(lambda: client.table("task_aprendizado").select("*").order("task_id"))
     if not linhas:
         return
     clas_ids = [l["classificacao_id"] for l in linhas if l.get("classificacao_id")]
@@ -115,7 +116,7 @@ def recalcular_tudo(client) -> None:
 
     atuais = {
         (p["tipo"], p["chave"]): p
-        for p in client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
+        for p in _ler_parametros(client)
     }
     for (tipo, chave), (valor, n) in res["parametros"].items():
         valor = float(valor)
@@ -135,8 +136,12 @@ def recalcular_tudo(client) -> None:
             ).execute()
 
 
+def _ler_parametros(client) -> list[dict]:
+    return ler_tudo(lambda: client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").order("tipo").order("chave"))
+
+
 def parametros_vigentes_com_amostras(client) -> dict[tuple[str, str], tuple[float, int]]:
-    linhas = client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
+    linhas = _ler_parametros(client)
     return {(p["tipo"], p["chave"]): (float(p["valor"]), int(p.get("n_amostras") or 0)) for p in linhas}
 
 
@@ -171,8 +176,8 @@ def recalcular_diario() -> None:
         from services.supabase_client import get_client
 
         client = get_client()
-        concluidas = {r["id"] for r in (client.table("tasks").select("id").eq("coluna_kanban", "concluida").execute().data or [])}
-        com_exemplo = {r["task_id"] for r in (client.table("task_aprendizado").select("task_id").execute().data or [])}
+        concluidas = {r["id"] for r in ler_tudo(lambda: client.table("tasks").select("id").eq("coluna_kanban", "concluida").order("id"))}
+        com_exemplo = {r["task_id"] for r in ler_tudo(lambda: client.table("task_aprendizado").select("task_id").order("task_id"))}
         for task_id in sorted(concluidas - com_exemplo):
             try:
                 registrar_conclusao(client, task_id)

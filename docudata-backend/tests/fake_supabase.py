@@ -16,8 +16,9 @@ class _Query:
         self._op = op
         self._payload = payload
         self._filtros = []
-        self._ordem = None
+        self._ordens = []
         self._limite = None
+        self._faixa = None
 
     def select(self, *_args, **_kwargs):
         return self
@@ -43,7 +44,11 @@ class _Query:
         return self
 
     def order(self, col, desc=False):
-        self._ordem = (col, desc)
+        self._ordens.append((col, desc))
+        return self
+
+    def range(self, ini, fim):
+        self._faixa = (ini, fim)
         return self
 
     def limit(self, n):
@@ -84,9 +89,10 @@ class _Query:
             for r in casadas:
                 r.update(self._payload)
             return _Resp([dict(r) for r in casadas])
-        if self._ordem:
-            col, desc = self._ordem
-            casadas = sorted(casadas, key=lambda r: str(r.get(col) or ""), reverse=desc)
+        for col, desc in reversed(self._ordens):  # ordenações estáveis, da menos à mais significativa
+            casadas = sorted(casadas, key=lambda r, c=col: str(r.get(c) or ""), reverse=desc)
+        if self._faixa is not None:
+            casadas = casadas[self._faixa[0]: self._faixa[1] + 1]
         if self._limite is not None:
             casadas = casadas[: self._limite]
         return _Resp([dict(r) for r in casadas])

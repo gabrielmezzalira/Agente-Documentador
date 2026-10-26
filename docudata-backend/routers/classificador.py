@@ -9,6 +9,7 @@ from services.classificador_aprendizado import definir_exclusao, parametros_vige
 from services.classificador_ciclo import classificacao_atual
 from services.classificador_estatistica import metricas_acuracia
 from services.supabase_client import get_client
+from services.supabase_paginacao import ler_tudo
 
 router = APIRouter(prefix="/classificador", tags=["classificador"], dependencies=[Depends(require_role("lider"))])
 
@@ -74,7 +75,7 @@ def _opinioes(exemplos: list[dict], opiniao_de, chave_pessoa: str, params, tipo:
 @router.get("/resumo")
 def resumo(periodo: str = Query("tudo", pattern="^(30|90|tudo)$"), gerente_id: str | None = None):
     client = get_client()
-    todos = client.table("task_aprendizado").select(_COLUNAS_EXEMPLO).execute().data or []
+    todos = ler_tudo(lambda: client.table("task_aprendizado").select(_COLUNAS_EXEMPLO).order("task_id"))
     params = parametros_vigentes_com_amostras(client)
 
     # Médias por nível: todas as tasks (inclusive excluídas) x as que contam.
@@ -109,7 +110,7 @@ def resumo(periodo: str = Query("tudo", pattern="^(30|90|tudo)$"), gerente_id: s
         for m, p in sorted(por_mes.items())
     ]
 
-    alertas_ex = [e for e in filtrados if e.get("alerta") and not e.get("excluida")]
+    alertas_ex = [e for e in filtrados if e.get("alerta") and not e.get("excluida") and e.get("nivel_real") is not None]
     excl_ex = [e for e in todos if e.get("excluida") and (gerente_id is None or e.get("gerente_id") == gerente_id)]
     info = _titulos_projetos(client, [e["task_id"] for e in alertas_ex + excl_ex])
 
@@ -134,7 +135,10 @@ def resumo(periodo: str = Query("tudo", pattern="^(30|90|tudo)$"), gerente_id: s
         "motivo_exclusao": e.get("motivo_exclusao"), "excluida_em": e.get("excluida_em"),
     } for e in excl_ex]
 
-    hist = client.table("classificador_parametros_hist").select("tipo, chave, valor, criado_em").execute().data or []
+    hist = ler_tudo(lambda: (
+        client.table("classificador_parametros_hist").select("tipo, chave, valor, criado_em")
+        .in_("tipo", ["media_nivel", "peso_sinal"]).order("criado_em").order("id")
+    ))
     evolucao_medias = [
         {"semana": s, "nivel": int(c), "media_s": float(l["valor"])}
         for (t, c, s), l in sorted(_ultimo_por_grupo(
@@ -184,14 +188,20 @@ def resumo(periodo: str = Query("tudo", pattern="^(30|90|tudo)$"), gerente_id: s
 @router.get("/revisao")
 def revisao():
     client = get_client()
-    linhas = (
-        client.table("task_classificacoes")
-        .select("task_id, status, nivel_final, motivo_revisao, criado_em")
-        .order("criado_em", desc=True).execute().data or []
-    )
+    candidatas = ler_tudo(lambda: (
+        client.table("task_classificacoes").select("task_id, criado_em")
+        .in_("status", ["em_revisao", "provisoria"]).order("criado_em").order("id")
+    ))
+    ids = list(dict.fromkeys(c["task_id"] for c in candidatas))
     atuais: dict[str, dict] = {}
-    for l in linhas:  # já em ordem decrescente: a primeira de cada task é a atual
-        atuais.setdefault(l["task_id"], l)
+    for i in range(0, len(ids), _LOTE_IN):
+        linhas = ler_tudo(lambda: (
+            client.table("task_classificacoes")
+            .select("task_id, status, nivel_final, motivo_revisao, criado_em")
+            .in_("task_id", ids[i:i + _LOTE_IN]).order("criado_em", desc=True).order("id")
+        ))
+        for l in linhas:  # decrescente: a primeira de cada task é a atual
+            atuais.setdefault(l["task_id"], l)
     pendentes = [l for l in atuais.values() if l["status"] in ("em_revisao", "provisoria")]
     info = _titulos_projetos(client, [l["task_id"] for l in pendentes])
     return [
