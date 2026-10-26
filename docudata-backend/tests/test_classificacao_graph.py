@@ -35,7 +35,10 @@ def _patch(monkeypatch, sinais, geral, parecidas=(), vigentes=None):
     monkeypatch.setattr(g, "_invocar_geral", fake_geral)
     monkeypatch.setattr(g, "gerar_embedding", fake_emb)
     monkeypatch.setattr(g, "buscar_parecidas", lambda client, vetor, k=8: list(parecidas))
-    monkeypatch.setattr(g, "parametros_vigentes", lambda client: dict(vigentes or {}))
+    monkeypatch.setattr(
+        g, "parametros_vigentes_com_amostras",
+        lambda client: {k: (v if isinstance(v, tuple) else (v, 1)) for k, v in (vigentes or {}).items()},
+    )
 
 
 TEXTO = dict(titulo="Integrar cotação", descricao="Integrar com a API do Banco Central e gravar a cotação diária no banco",
@@ -84,6 +87,9 @@ async def test_aplicada_quando_leituras_concordam(monkeypatch):
     assert r["nivel_final"] == 3   # sinais: 6 × 1 × 0,25 = 1,5 degrau; geral 2 degraus → média 1,75 → 3
     assert r["justificativa_geral"] == "integração externa"
     assert r["vetor"] == [0.0, 0.1]
+    assert r["nivel_sinais"] in g.NIVEIS and r["nivel_sinais"] == 3   # 1,5 degrau arredonda para degrau 2 = nível 3
+    assert r["degrau_sinais"] == pytest.approx(1.5)
+    assert r["nivel_parecidas"] is None and r["degrau_parecidas"] is None
     assert set(r["parametros"]) >= {"pesos", "vies", "peso_opiniao", "medias"}
 
 
@@ -148,3 +154,87 @@ async def test_falha_do_modelo_propaga(monkeypatch):
     monkeypatch.setattr(g, "_invocar_sinais", quebra)
     with pytest.raises(RuntimeError):
         await g.classificar(**TEXTO, client=FakeClient())
+
+
+def _parecida(nivel, tempo, sim=0.9):
+    return {"task_id": "t", "similaridade": sim, "nivel_real": nivel, "tempo_normalizado_s": tempo}
+
+
+@pytest.mark.asyncio
+async def test_parecidas_viram_nivel_inteiro(monkeypatch):
+    _patch(monkeypatch, _sinais(nota=1), g.SaidaGeral(nivel=3, justificativa="x"), parecidas=[_parecida(5, None)])
+    r = await g.classificar(**TEXTO, client=FakeClient())
+    assert r["nivel_parecidas"] == 5 and r["degrau_parecidas"] == 3.0
+
+
+@pytest.mark.asyncio
+async def test_opiniao_do_gerente_com_peso_dos_parametros_muda_o_nivel(monkeypatch):
+    vig = {("peso_opiniao_gerente", "g1"): 0.15}
+    _patch(monkeypatch, _sinais(nota=1), g.SaidaGeral(nivel=2, justificativa="x"), vigentes=vig)
+    # agente: (1,5 + 1)/2 = 1,25
+    r = await g.classificar(**{**TEXTO, "opiniao_gerente": 1}, client=FakeClient())
+    assert r["nivel_combinado"] == 2   # 0,85*1,25 + 0 = 1,0625 -> degrau 1
+    r = await g.classificar(**{**TEXTO, "opiniao_gerente": 5}, client=FakeClient())
+    assert r["nivel_combinado"] == 3   # 0,85*1,25 + 0,15*3 = 1,5125 -> degrau 2
+    assert r["parametros"]["peso_opiniao"] == 0.15
+
+
+@pytest.mark.asyncio
+async def test_vies_do_gerente_vem_dos_parametros(monkeypatch):
+    vig = {("vies_gerente", "g1"): 0.5}
+    _patch(monkeypatch, _sinais(nota=1), g.SaidaGeral(nivel=2, justificativa="x"), vigentes=vig)
+    r = await g.classificar(**TEXTO, client=FakeClient())
+    assert r["parametros"]["vies"] == 0.5
+    assert r["nivel_combinado"] == 3   # 1,25 + 0,5 = 1,75 -> degrau 2
+
+
+@pytest.mark.asyncio
+async def test_ajuste_tempo_de_ponta_a_ponta(monkeypatch):
+    vig = {("media_nivel", "1"): (2.0, 5), ("media_nivel", "2"): (4.0, 5), ("media_nivel", "3"): (8.0, 5),
+           ("media_nivel", "5"): (30.0, 0)}
+    _patch(monkeypatch, _sinais(nota=1), g.SaidaGeral(nivel=3, justificativa="x"),
+           parecidas=[_parecida(3, 8.0, sim=0.0001)], vigentes=vig)
+    r = await g.classificar(**TEXTO, client=FakeClient())
+    assert r["parametros"]["medias"] == {0: 2.0, 1: 4.0, 2: 8.0}   # nível 5 sem amostras fica de fora
+    assert r["nivel_combinado"] == 3 and r["ajuste_tempo"] == 0
+    _patch(monkeypatch, _sinais(nota=1), g.SaidaGeral(nivel=3, justificativa="x"),
+           parecidas=[_parecida(3, 2.0, sim=0.0001)], vigentes=vig)
+    r = await g.classificar(**TEXTO, client=FakeClient())
+    assert r["ajuste_tempo"] == -1 and r["nivel_final"] == 2
+
+
+@pytest.mark.asyncio
+async def test_espalhamento_exatamente_um_nao_vai_para_revisao(monkeypatch):
+    _patch(monkeypatch, _sinais(nota=0), g.SaidaGeral(nivel=2, justificativa="x"))   # leituras 0 e 1
+    r = await g.classificar(**TEXTO, client=FakeClient())
+    assert r["status"] == "aplicada" and r["motivo_revisao"] is None
+
+
+@pytest.mark.asyncio
+async def test_geral_invalida_tenta_de_novo_e_falha(monkeypatch):
+    chamadas = []
+
+    async def geral(api_key, msgs):
+        chamadas.append(1)
+        g.SaidaGeral(nivel=4, justificativa="x")   # ValidationError
+
+    _patch(monkeypatch, _sinais(nota=1), None)
+    monkeypatch.setattr(g, "_invocar_geral", geral)
+    with pytest.raises(g.ClassificacaoFalhou):
+        await g.classificar(**TEXTO, client=FakeClient())
+    assert len(chamadas) == 3
+
+
+@pytest.mark.asyncio
+async def test_faltando_em_branco_nao_conta(monkeypatch):
+    chamadas = []
+
+    async def sinais(api_key, msgs):
+        chamadas.append(1)
+        return g.SaidaSinais(faltando=["   "])
+
+    _patch(monkeypatch, None, None)
+    monkeypatch.setattr(g, "_invocar_sinais", sinais)
+    with pytest.raises(g.ClassificacaoFalhou):
+        await g.classificar(**TEXTO, client=FakeClient())
+    assert len(chamadas) == 3

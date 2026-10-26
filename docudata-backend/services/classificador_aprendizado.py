@@ -133,9 +133,13 @@ def recalcular_tudo(client) -> None:
             ).execute()
 
 
-def parametros_vigentes(client) -> dict[tuple[str, str], float]:
+def parametros_vigentes_com_amostras(client) -> dict[tuple[str, str], tuple[float, int]]:
     linhas = client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
-    return {(p["tipo"], p["chave"]): float(p["valor"]) for p in linhas}
+    return {(p["tipo"], p["chave"]): (float(p["valor"]), int(p.get("n_amostras") or 0)) for p in linhas}
+
+
+def parametros_vigentes(client) -> dict[tuple[str, str], float]:
+    return {k: valor for k, (valor, _n) in parametros_vigentes_com_amostras(client).items()}
 
 
 def registrar_opiniao_operacional(client, task_id: str, nivel: int) -> None:

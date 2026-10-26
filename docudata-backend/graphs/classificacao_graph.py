@@ -7,10 +7,10 @@ import logging
 from typing import Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from services.classificador_busca import buscar_parecidas, gerar_embedding, nivel_das_parecidas
-from services.classificador_aprendizado import parametros_vigentes
+from services.classificador_aprendizado import parametros_vigentes_com_amostras
 from services.classificador_estatistica import pesos_iniciais
 from services.classificador_regua import (
     CRITERIOS_NIVEL,
@@ -58,9 +58,12 @@ class SaidaGeral(BaseModel):
     nivel: int
     justificativa: str
 
-    def model_post_init(self, _ctx) -> None:
-        if self.nivel not in NIVEIS:
+    @field_validator("nivel")
+    @classmethod
+    def _nivel_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
             raise ValueError("nivel fora da régua")
+        return v
 
 
 def _neutralizar(texto: str) -> str:
@@ -163,14 +166,13 @@ def ajuste_tempo(nivel_combinado: int, parecidas: list[dict], medias: dict[int, 
     return (alvo > atual) - (alvo < atual)
 
 
-def _medias_vigentes(client) -> dict[int, float]:
+def _medias(vigentes: dict) -> dict[int, float]:
     """Média de segundos por degrau, só de níveis com amostras (n_amostras > 0)."""
-    linhas = client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
     medias = {}
-    for p in linhas:
-        if p.get("tipo") == "media_nivel" and (p.get("n_amostras") or 0) > 0:
+    for (tipo, chave), (valor, n) in vigentes.items():
+        if tipo == "media_nivel" and n > 0:
             try:
-                medias[IDX[int(p["chave"])]] = float(p["valor"])
+                medias[IDX[int(chave)]] = valor
             except (KeyError, ValueError):
                 continue
     return medias
@@ -188,10 +190,10 @@ class _Estado(TypedDict, total=False):
     status: str
     faltando: list
     sinais: dict
-    nivel_sinais: Optional[float]
+    degrau_sinais: Optional[float]
     vetor: list
     parecidas: list
-    nivel_parecidas: Optional[float]
+    degrau_parecidas: Optional[float]
     nivel_geral: int
     justificativa_geral: str
     nivel_combinado: int
@@ -212,7 +214,8 @@ async def _verificar_suficiencia(e: _Estado) -> dict:
 def _sinais_validos(s: SaidaSinais) -> bool:
     if not isinstance(s, SaidaSinais):
         return False
-    return all(getattr(s, n) is not None or s.faltando for n in SINAIS)
+    listados = any(str(f).strip() for f in s.faltando)
+    return all(getattr(s, n) is not None or listados for n in SINAIS)
 
 
 def _validar_notas(s: SaidaSinais, texto: str) -> dict:
@@ -232,8 +235,11 @@ def _validar_notas(s: SaidaSinais, texto: str) -> dict:
 async def _extrair_sinais(e: _Estado) -> dict:
     texto = e["texto"]
     for tentativa in range(_MAX_RETRIES + 1):
-        s = await _invocar_sinais(e["api_key"], _msgs_sinais(texto, tentativa > 0))
-        if _sinais_validos(s):
+        try:
+            s = await _invocar_sinais(e["api_key"], _msgs_sinais(texto, tentativa > 0))
+        except ValidationError:
+            s = None
+        if s is not None and _sinais_validos(s):
             break
         _LOG.warning("classificacao_sinais_invalidos tentativa=%s", tentativa + 1)
     else:
@@ -242,17 +248,18 @@ async def _extrair_sinais(e: _Estado) -> dict:
     if faltando:
         return {"status": "faltando", "faltando": faltando}
     sinais = _validar_notas(s, texto)
-    vigentes = parametros_vigentes(e["client"])
+    com_amostras = parametros_vigentes_com_amostras(e["client"])
+    vigentes = {k: v for k, (v, _n) in com_amostras.items()}
     padrao = pesos_iniciais()
     pesos = {n: vigentes.get(("peso_sinal", n), padrao[n]) for n in SINAIS}
     return {
         "sinais": sinais,
-        "nivel_sinais": sum(pesos[n] * sinais[n]["nota"] for n in SINAIS),
+        "degrau_sinais": sum(pesos[n] * sinais[n]["nota"] for n in SINAIS),
         "parametros": {
             "pesos": pesos,
             "vies": vigentes.get(("vies_gerente", e["gerente_id"]), 0.0),
             "peso_opiniao": vigentes.get(("peso_opiniao_gerente", e["gerente_id"]), 0.0),
-            "medias": _medias_vigentes(e["client"]),
+            "medias": _medias(com_amostras),
         },
     }
 
@@ -260,19 +267,26 @@ async def _extrair_sinais(e: _Estado) -> dict:
 async def _buscar_parecidas(e: _Estado) -> dict:
     vetor = await gerar_embedding(e["api_key"], e["texto"])
     parecidas = buscar_parecidas(e["client"], vetor, K_PARECIDAS)
-    return {"vetor": vetor, "parecidas": parecidas, "nivel_parecidas": nivel_das_parecidas(parecidas)}
+    return {"vetor": vetor, "parecidas": parecidas, "degrau_parecidas": nivel_das_parecidas(parecidas)}
 
 
 async def _avaliacao_geral(e: _Estado) -> dict:
-    r = await _invocar_geral(e["api_key"], _msgs_geral(e["texto"], e["parecidas"]))
-    if not isinstance(r, SaidaGeral):
-        raise ClassificacaoFalhou("Saída da avaliação geral inválida")
-    return {"nivel_geral": r.nivel, "justificativa_geral": r.justificativa}
+    for tentativa in range(_MAX_RETRIES + 1):
+        mensagens = _msgs_geral(e["texto"], e["parecidas"])
+        if tentativa > 0:
+            mensagens[-1] = (mensagens[-1][0], mensagens[-1][1] + _SUFIXO_RETRY)
+        try:
+            r = await _invocar_geral(e["api_key"], mensagens)
+        except ValidationError:
+            continue
+        if isinstance(r, SaidaGeral):
+            return {"nivel_geral": r.nivel, "justificativa_geral": r.justificativa}
+    raise ClassificacaoFalhou("Saída da avaliação geral inválida")
 
 
 async def _combinar(e: _Estado) -> dict:
     p = e["parametros"]
-    r = combinar(e["nivel_sinais"], e["nivel_parecidas"], e["nivel_geral"], e.get("opiniao_gerente"),
+    r = combinar(e["degrau_sinais"], e["degrau_parecidas"], e["nivel_geral"], e.get("opiniao_gerente"),
                  p["peso_opiniao"], p["vies"])
     motivo = None
     if r["espalhamento"] > _ESPALHAMENTO_MAX:
@@ -327,9 +341,11 @@ async def classificar(
         "status": f["status"],
         "faltando": f.get("faltando") or [],
         "sinais": f.get("sinais"),
-        "nivel_sinais": f.get("nivel_sinais"),
+        "degrau_sinais": f.get("degrau_sinais"),
+        "nivel_sinais": None if f.get("degrau_sinais") is None else para_nivel(f["degrau_sinais"]),
         "parecidas": f.get("parecidas") or [],
-        "nivel_parecidas": f.get("nivel_parecidas"),
+        "degrau_parecidas": f.get("degrau_parecidas"),
+        "nivel_parecidas": None if f.get("degrau_parecidas") is None else para_nivel(f["degrau_parecidas"]),
         "nivel_geral": f.get("nivel_geral"),
         "justificativa_geral": f.get("justificativa_geral"),
         "nivel_combinado": f.get("nivel_combinado"),
