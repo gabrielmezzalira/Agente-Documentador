@@ -82,3 +82,58 @@ def test_metricas_acuracia():
     assert m["por_nivel"][2] == {"precisao": 0.5, "cobertura": 1.0}
     assert m["por_nivel"][5] == {"precisao": None, "cobertura": 0.0}
     assert metricas_acuracia([])["n"] == 0
+
+
+def test_tempo_zero_ou_nulo_so_rotula_e_nao_alimenta_parametros():
+    r = recalcular([_ex(1, 3, 0)])
+    assert r["rotulos"]["t1"]["nivel_real"] == 3
+    assert r["rotulos"]["t1"]["tempo_normalizado_s"] == 0
+    assert r["rotulos"]["t1"]["alerta"] is False
+    assert not any(k[0] == "media_nivel" for k in r["parametros"])
+    mistos = recalcular([_ex(1, 2, 4), _ex(2, 2, 0, op="b"), _ex(3, 2, 1, op="c", tempo_limpo_s=None), _ex(4, 2, 6, op="d")])
+    assert mistos["parametros"][("media_nivel", "2")] == (5 * H, 2)
+    assert ("ritmo_pessoa", "b") not in mistos["parametros"]
+    assert mistos["parametros"][("vies_gerente", "g1")][1] == 2
+
+
+def test_ritmo_diferente_de_um_normaliza_exemplo_posterior():
+    # pessoa lenta: 8h num nível cuja média é 4h -> ritmo > 1 nas seguintes
+    exs = [_ex(1, 2, 4, op="ref"), _ex(2, 2, 8, op="lenta"), _ex(3, 2, 8, op="lenta")]
+    r = recalcular(exs)
+    rit = r["rotulos"]["t3"]["ritmo_usado"]
+    assert rit > 1.0
+    assert abs(r["rotulos"]["t3"]["tempo_normalizado_s"] - 8 * H / rit) < 1e-6
+
+
+def test_empate_entre_medias_fica_com_o_degrau_menor():
+    exs = [_ex(1, 2, 4, op="a"), _ex(2, 3, 8, op="b"), _ex(3, 2, 6, op="c")]
+    assert recalcular(exs)["rotulos"]["t3"]["nivel_pelo_tempo"] == 2
+
+
+def test_acerto_de_opiniao_nao_conta_o_proprio_ajuste():
+    base = [_ex(1, 2, 4, op="a"), _ex(2, 3, 8, op="b")]
+    acertos = [_ex(i, 3, 8, op="z", opiniao_operacional=3) for i in range(3, 8)]
+    nudged = [_ex(9, 2, 6, op="z", opiniao_operacional=3)]  # empurrado para 3; tempo diz 2
+    r = recalcular(base + acertos + nudged)
+    assert r["rotulos"]["t9"]["nivel_real"] == 3
+    assert r["rotulos"]["t9"]["nivel_pelo_tempo"] == 2
+    assert r["parametros"][("peso_opiniao_operacional", "z")] == (5 / 16, 6)
+
+
+def test_peso_opiniao_gerente_limitado_ao_teto_e_pelo_tempo():
+    exs = [_ex(i, 2, 4, op=f"o{i}", opiniao_gerente=2) for i in range(1, 41)]
+    valor, n = recalcular(exs)["parametros"][("peso_opiniao_gerente", "g1")]
+    assert n == 40
+    assert valor == 0.15
+
+
+def test_nnls_com_doze_exemplos_recupera_padrao_de_pesos():
+    import itertools
+    exs = []
+    for i, (a, b) in enumerate(itertools.product([0, 1, 2, 3], [0, 1, 2]), start=1):
+        sinais = {"partes": a, "novidade": b, "incerteza": 0, "dependencia": 0, "tamanho": 0, "risco": 0}
+        exs.append(_ex(i, 3, 8, op=f"o{i}", sinais=sinais))
+    r = recalcular(exs)["parametros"]
+    assert r[("peso_sinal", "partes")][1] == 12
+    assert all(r[("peso_sinal", s)][0] >= 0 for s in ("partes", "novidade", "incerteza"))
+    assert r[("peso_sinal", "incerteza")][0] == 0.0

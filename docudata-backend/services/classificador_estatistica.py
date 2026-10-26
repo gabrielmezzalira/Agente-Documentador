@@ -58,13 +58,25 @@ def recalcular(exemplos: list[dict]) -> dict:
     # Opiniões do operacional já vistas (exemplos anteriores): pessoa -> [acertos, n].
     op_hist: dict[str, list[int]] = {}
     rotulos: dict[str, dict] = {}
-    reais: list[tuple[dict, int]] = []  # (exemplo, degrau real)
+    reais: list[tuple[dict, int, int]] = []  # (exemplo, degrau real, degrau pelo tempo)
 
     for e in ordenados:
         pessoa = e.get("operacional_id")
         razoes = ritmo_obs.get(pessoa, []) if pessoa else []
         ritmo = _encolher(sum(razoes), len(razoes), 1.0) if razoes else 1.0
-        tn = e["tempo_limpo_s"] / ritmo
+        tempo = e.get("tempo_limpo_s")
+        if tempo is None or tempo <= 0:
+            # Sem tempo utilizável: só rotula (nível sugerido); não alimenta nenhum parâmetro.
+            nivel = e["nivel_sugerido"]
+            rotulos[e["task_id"]] = {
+                "ritmo_usado": ritmo,
+                "tempo_normalizado_s": 0.0,
+                "nivel_pelo_tempo": nivel,
+                "nivel_real": nivel,
+                "alerta": False,
+            }
+            continue
+        tn = tempo / ritmo
         m = {d: _media(v) for d, v in medias.items() if v}
         sug = IDX[e["nivel_sugerido"]]
         atual = _mais_proximo(tn, m) if sug in m else sug
@@ -90,13 +102,13 @@ def recalcular(exemplos: list[dict]) -> dict:
             "nivel_real": NIVEL_DO_IDX[real],
             "alerta": alerta,
         }
-        reais.append((e, real))
+        reais.append((e, real, pelo_tempo))
         vistos.add(real)
 
         if op is not None and pessoa and not e.get("excluida"):
             h = op_hist.setdefault(pessoa, [0, 0])
             h[1] += 1
-            h[0] += int(IDX[op] == real)
+            h[0] += int(IDX[op] == pelo_tempo)  # acerto contra o tempo, nunca contra o próprio ajuste
 
         if not e.get("excluida"):
             medias.setdefault(real, []).append(tn)
@@ -112,36 +124,36 @@ def recalcular(exemplos: list[dict]) -> dict:
     for pessoa, razoes in ritmo_obs.items():
         parametros[("ritmo_pessoa", pessoa)] = (_encolher(sum(razoes), len(razoes), 1.0), len(razoes))
 
-    nao_excluidos = [(e, d) for e, d in reais if not e.get("excluida")]
+    nao_excluidos = [(e, d, pt) for e, d, pt in reais if not e.get("excluida")]
 
     vies: dict[str, list[int]] = {}
-    for e, d in nao_excluidos:
+    for e, d, _ in nao_excluidos:
         if e.get("gerente_id"):
             vies.setdefault(e["gerente_id"], []).append(d - IDX[e["nivel_sugerido"]])
     for g, difs in vies.items():
         parametros[("vies_gerente", g)] = (sum(difs) / (len(difs) + K_ENCOLHIMENTO), len(difs))
 
     ger: dict[str, list[int]] = {}
-    for e, d in nao_excluidos:
+    for e, _, pt in nao_excluidos:
         og = e.get("opiniao_gerente")
         if og is not None and e.get("gerente_id"):
             h = ger.setdefault(e["gerente_id"], [0, 0])
             h[1] += 1
-            h[0] += int(IDX[og] == d)
+            h[0] += int(IDX[og] == pt)
     for g, (acertos, n) in ger.items():
         parametros[("peso_opiniao_gerente", g)] = (min(TETO_OPINIAO_GERENTE, _peso_opiniao(acertos, n)), n)
 
     ops: dict[str, list[int]] = {}
-    for e, d in nao_excluidos:
+    for e, _, pt in nao_excluidos:
         op = e.get("opiniao_operacional")
         if op is not None and e.get("operacional_id"):
             h = ops.setdefault(e["operacional_id"], [0, 0])
             h[1] += 1
-            h[0] += int(IDX[op] == d)
+            h[0] += int(IDX[op] == pt)
     for p, (acertos, n) in ops.items():
         parametros[("peso_opiniao_operacional", p)] = (_peso_opiniao(acertos, n), n)
 
-    com_sinais = [(e["sinais"], d) for e, d in nao_excluidos if e.get("sinais")]
+    com_sinais = [(e["sinais"], d) for e, d, _ in nao_excluidos if e.get("sinais")]
     if len(com_sinais) < MIN_EXEMPLOS_PESOS:
         pesos = pesos_iniciais()
     else:
