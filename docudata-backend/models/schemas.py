@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal, Optional
 from datetime import date, datetime
 
@@ -974,3 +974,20 @@ class PessoaResponse(BaseModel):
 
 class PessoaCargoUpdate(BaseModel):
     cargo: Literal["owner", "lider", "gerente", "operacional"]
+
+
+class ExclusaoAprendizadoPayload(BaseModel):
+    excluida: bool
+    motivo: Optional[str] = None
+
+    @field_validator("motivo")
+    @classmethod
+    def _motivo_limpo(cls, v):
+        v = (v or "").strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _motivo_obrigatorio(self):
+        if self.excluida and not self.motivo:
+            raise ValueError("Informe o motivo da exclusão")
+        return self

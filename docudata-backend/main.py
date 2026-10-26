@@ -23,7 +23,7 @@ from core.observability import (
 )
 from core.rate_limit import limiter
 from core.security import require_app_key, require_discovery_key
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery, classificador
 from services.gemini_key import (
     GeminiApiKeyInvalid,
     GeminiApiKeyNotConfigured,
@@ -195,6 +195,7 @@ app.include_router(painel.router, dependencies=restricted)
 app.include_router(revisao_ingest.router, dependencies=app_key)
 app.include_router(discovery_ingest.router, dependencies=discovery_service)
 app.include_router(discovery.router, dependencies=authenticated)
+app.include_router(classificador.router, dependencies=authenticated)
 app.include_router(composer.router, dependencies=authenticated)
 app.include_router(boletins.router, dependencies=authenticated)
 app.include_router(sprint_funcionalidades.router, dependencies=authenticated)
