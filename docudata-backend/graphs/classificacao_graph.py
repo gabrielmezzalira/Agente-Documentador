@@ -120,6 +120,10 @@ def _msgs_geral(texto: str, parecidas: list[dict]) -> list[tuple[str, str]]:
     return [("system", _SISTEMA_GERAL), ("human", f"{bloco}<<<TASK>>>\n{_neutralizar(texto)}\n<<<FIM>>>")]
 
 
+def montar_mensagens_sinais(texto: str, retry: bool = False) -> list[tuple[str, str]]:
+    return _msgs_sinais(texto, retry)
+
+
 async def _invocar_sinais(api_key: str, mensagens) -> SaidaSinais:
     from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -230,6 +234,11 @@ def _validar_notas(s: SaidaSinais, texto: str) -> dict:
         ok = evidencia_valida(ev, texto) and len(ev) < limite  # citar a task inteira não prova nada
         saida[n] = {"nota": item.nota if ok else 0, "evidencia": ev}
     return saida
+
+
+def validar_notas_sinais(s: SaidaSinais, texto: str) -> dict:
+    """Notas com evidência validada (zera quando inválida ou >= 90% do texto)."""
+    return _validar_notas(s, texto)
 
 
 async def _extrair_sinais(e: _Estado) -> dict:
