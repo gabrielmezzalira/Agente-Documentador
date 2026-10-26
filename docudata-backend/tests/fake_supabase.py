@@ -116,11 +116,25 @@ class _Table:
         return _Query(self._tables, self._name, "delete")
 
 
+class _RpcQuery:
+    def __init__(self, fn, params):
+        self._fn = fn
+        self._params = params
+
+    def execute(self):
+        return _Resp(self._fn(self._params))
+
+
 class FakeClient:
     def __init__(self, tables=None, defaults=None):
         """`defaults` ({tabela: {coluna: valor}}) simula os DEFAULTs de coluna do banco nos inserts."""
         self.tables = {k: [dict(r) for r in v] for k, v in (tables or {}).items()}
         self._defaults = defaults or {}
+        self.rpcs = {}
+
+    def rpc(self, nome, params):
+        """`rpcs` ({nome: função(params) -> dados}) é injetado pelo teste."""
+        return _RpcQuery(self.rpcs[nome], params)
 
     def table(self, name):
         return _Table(self.tables, name, self._defaults.get(name))
