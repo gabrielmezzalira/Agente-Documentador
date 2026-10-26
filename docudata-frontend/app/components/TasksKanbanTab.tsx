@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
-import { Button as DsButton, Select as DsSelect } from "./ds";
+import { Button as DsButton, Select as DsSelect, ErrorNotice, Chip } from "./ds";
 import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
 import {
@@ -23,6 +23,8 @@ import {
   devolverTask,
   aprovarTask,
   rejeitarTask,
+  reclassificarTask,
+  opinarNivelTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
@@ -132,22 +134,22 @@ interface TaskModalProps {
   defaultSprintId?: string;
   modoTrabalho: "ATRIBUICAO" | "PULL";
   onClose: () => void;
-  onSaved: (t: TaskKanbanResponse) => void;
+  onSaved: (t: TaskKanbanResponse, criada?: boolean) => void;
+  onReclassified?: () => void;
   onDeleted?: (id: string) => void;
 }
 
 function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
-  defaultSprintId, modoTrabalho, onClose, onSaved, onDeleted,
+  defaultSprintId, modoTrabalho, onClose, onSaved, onReclassified, onDeleted,
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
-  const [pontos, setPontos] = useState<number>(
-    mode === "edit" && task?.pontos
-      ? task.pontos
-      : task?.pontos && (NIVEIS as readonly number[]).includes(task.pontos) ? task.pontos : 1
-  );
-  const pontosLegado = mode === "edit" && !!task && !(NIVEIS as readonly number[]).includes(task.pontos);
+  const auth = useAuth();
+  const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
+  const [opiniao, setOpiniao] = useState("");
+  const [faltando, setFaltando] = useState<string[]>([]);
+  const [reclassificando, setReclassificando] = useState(false);
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
   const [operacionalId, setOperacionalId] = useState(task?.operacional_id ?? "");
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
@@ -184,16 +186,22 @@ function TaskModal({
     }
   }, [showHist, task?.id, mode]);
 
+  const tituloMudou = mode === "edit" && titulo !== (task?.titulo ?? "");
+  const descricaoMudou = mode === "edit" && descricao !== (task?.descricao ?? "");
+  const checklistMudou = mode === "edit" && JSON.stringify(checklist.map((i) => [i.texto, i.done])) !== JSON.stringify((task?.checklist ?? []).map((i) => [i.texto, i.done]));
+  const textoMudou = tituloMudou || descricaoMudou
+    || (mode === "edit" && JSON.stringify(checklist.map((i) => i.texto)) !== JSON.stringify((task?.checklist ?? []).map((i) => i.texto)));
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
-    if (!(NIVEIS as readonly number[]).includes(pontos) && !(mode === "edit" && pontos === task?.pontos)) { setErr("Use um nível da régua: 1, 2, 3 ou 5"); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
     }
     setSaving(true);
     setErr("");
+    setFaltando([]);
     try {
       let saved: TaskKanbanResponse;
       if (mode === "create") {
@@ -201,25 +209,27 @@ function TaskModal({
           project_id: projectId,
           titulo: titulo.trim(),
           descricao: descricao.trim() || undefined,
-          pontos,
           sprint_id: sprintId || undefined,
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
           extra,
           requer_aprovacao: requerAprovacao,
           checklist,
+          ...(opiniao ? { opiniao_nivel: Number(opiniao) } : {}),
         });
       } else {
+        // O backend trata qualquer diferença de texto como mudança de escopo
+        // (null != ""), então titulo/descricao/checklist só vão no payload se
+        // realmente mudaram em relação à task carregada.
         saved = await patchTaskKanban(task!.id, {
-          titulo: titulo.trim(),
-          descricao: descricao.trim() || undefined,
-          ...(pontos !== task!.pontos ? { pontos } : {}),
+          ...(tituloMudou ? { titulo: titulo.trim() } : {}),
+          ...(descricaoMudou ? { descricao: descricao.trim() } : {}),
+          ...(checklistMudou ? { checklist } : {}),
           sprint_id: sprintId || undefined,
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
           bloqueado,
           motivo_bloqueio: bloqueado ? motivoBloqueio.trim() || undefined : undefined,
-          checklist,
           bloqueado_manual: bloqueado,
           bloqueio_tipo: bloqueado ? bloqueioTipo : undefined,
           bloqueado_por: (bloqueado && !jaEstavaBloqueadoManual) ? (bloqueadoPor.trim() || undefined) : undefined,
@@ -228,13 +238,33 @@ function TaskModal({
           requer_aprovacao: requerAprovacao,
         });
       }
-      onSaved(saved);
+      onSaved(saved, mode === "create");
       onClose();
     } catch (e) {
+      const f = (e as { status?: number; faltando?: string[] }).faltando;
+      if (mode === "create" && (e as { status?: number }).status === 422 && Array.isArray(f)) {
+        setFaltando(f);
+        return;
+      }
       const msg = e instanceof Error ? e.message : "Erro";
       setErr(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleReclassificar() {
+    if (!task) return;
+    setReclassificando(true);
+    setErr("");
+    try {
+      await reclassificarTask(task.id);
+      onReclassified?.();
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao reclassificar");
+    } finally {
+      setReclassificando(false);
     }
   }
 
@@ -323,35 +353,102 @@ function TaskModal({
         </h3>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {faltando.length > 0 && (
+            <ErrorNotice>
+              <strong>O classificador precisa de mais detalhes</strong>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {faltando.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </ErrorNotice>
+          )}
           <div>
             <label style={labelSt}>Título *</label>
             <input value={titulo} onChange={(e) => setTitulo(e.target.value)} style={inputSt} required />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 10 }}>
-            <div>
-              <label style={labelSt}>Sprint</label>
-              <select value={sprintId} onChange={(e) => setSprintId(e.target.value)} style={inputSt}>
-                <option value="">Sem sprint</option>
-                {sprints.map((s) => (
-                  <option key={s.id} value={s.id}>Sprint {s.numero}</option>
-                ))}
-              </select>
+          {mode === "edit" && task && (
+            <p style={{ fontSize: 12.5, color: "#c3cbc6", margin: 0 }}>
+              nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : "definido pelo classificador"}
+            </p>
+          )}
+
+          <div>
+            <label htmlFor="task-descricao" style={labelSt}>Descrição</label>
+            <textarea
+              id="task-descricao"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              rows={4}
+              aria-describedby="task-descricao-ajuda"
+              style={{ ...inputSt, resize: "vertical" }}
+            />
+            <p id="task-descricao-ajuda" style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+              Descreva o que precisa ser feito, quais partes do sistema mexe e o que ainda não está claro. O nível é definido a partir disso.
+            </p>
+          </div>
+
+          {/* Checklist */}
+          <div>
+            <label style={labelSt}>Checklist</label>
+            {checklist.map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={item.done}
+                  onChange={(e) => {
+                    const copy = [...checklist];
+                    copy[i] = { ...copy[i], done: e.target.checked };
+                    setChecklist(copy);
+                  }}
+                />
+                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#8a948e" : "#f2f5f3", textDecoration: item.done ? "line-through" : "none" }}>
+                  {item.texto}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setChecklist((prev) => prev.filter((_, j) => j !== i))}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ff6b6b", fontSize: 14, padding: 0 }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                value={novoItem}
+                onChange={(e) => setNovoItem(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); } }}
+                placeholder="Novo item..."
+                style={{ ...inputSt, flex: 1 }}
+              />
+              <button type="button" onClick={addChecklistItem} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
             </div>
-            <div>
-              <label htmlFor="task-pontos" style={labelSt}>Pontos *</label>
-              <DsSelect
-                id="task-pontos"
-                value={String(pontos)}
-                onChange={(e) => setPontos(Number(e.target.value))}
-                required
-              >
-                {pontosLegado && <option value={task!.pontos}>{task!.pontos} (legado)</option>}
-                {NIVEIS.map((n) => (
-                  <option key={n} value={n}>{rotuloNivel(n)}</option>
-                ))}
-              </DsSelect>
-            </div>
+          </div>
+
+          {mode === "edit" && textoMudou && (
+            <p role="status" style={{ fontSize: 12, color: "#f2c14e", margin: 0 }}>
+              Editar o texto não muda o nível. Se a task mudou de escopo, peça reclassificação a um líder.
+            </p>
+          )}
+
+          <div>
+            <label style={labelSt}>Funcionalidade</label>
+            <select value={funcId} onChange={(e) => setFuncId(e.target.value)} style={inputSt}>
+              <option value="">Sem funcionalidade</option>
+              {funcionalidades.map((f) => (
+                <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelSt}>Sprint</label>
+            <select value={sprintId} onChange={(e) => setSprintId(e.target.value)} style={inputSt}>
+              <option value="">Sem sprint</option>
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>Sprint {s.numero}</option>
+              ))}
+            </select>
           </div>
 
           {modoTrabalho === "PULL" ? (
@@ -397,63 +494,34 @@ function TaskModal({
             </p>
           </div>
 
-          {/* Checklist */}
-          <div>
-            <label style={labelSt}>Checklist</label>
-            {checklist.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={item.done}
-                  onChange={(e) => {
-                    const copy = [...checklist];
-                    copy[i] = { ...copy[i], done: e.target.checked };
-                    setChecklist(copy);
-                  }}
-                />
-                <span style={{ flex: 1, fontSize: 13, color: item.done ? "#8a948e" : "#f2f5f3", textDecoration: item.done ? "line-through" : "none" }}>
-                  {item.texto}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setChecklist((prev) => prev.filter((_, j) => j !== i))}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ff6b6b", fontSize: 14, padding: 0 }}
-                >
-                  ×
+          {mode === "create" && (
+            <div>
+              <label htmlFor="task-opiniao" style={labelSt}>Sua opinião sobre o nível (opcional)</label>
+              <DsSelect id="task-opiniao" value={opiniao} onChange={(e) => setOpiniao(e.target.value)}>
+                <option value="">sem opinião</option>
+                {NIVEIS.map((n) => (
+                  <option key={n} value={n}>{rotuloNivel(n)}</option>
+                ))}
+              </DsSelect>
+              <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+                Não define o nível. É usada pelo classificador como mais uma referência.
+              </p>
+            </div>
+          )}
+
+          {mode === "edit" && task && ehLider && (
+            task.nivel_travado_em ? (
+              <p style={{ fontSize: 12, color: "#8a948e", margin: 0 }}>
+                nível travado desde {new Date(task.nivel_travado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+              </p>
+            ) : (
+              <div>
+                <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving} style={btnGhost}>
+                  {reclassificando ? "Reclassificando…" : "Reclassificar"}
                 </button>
               </div>
-            ))}
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <input
-                value={novoItem}
-                onChange={(e) => setNovoItem(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); } }}
-                placeholder="Novo item..."
-                style={{ ...inputSt, flex: 1 }}
-              />
-              <button type="button" onClick={addChecklistItem} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
-            </div>
-          </div>
-
-          <div>
-            <label style={labelSt}>Funcionalidade</label>
-            <select value={funcId} onChange={(e) => setFuncId(e.target.value)} style={inputSt}>
-              <option value="">Sem funcionalidade</option>
-              {funcionalidades.map((f) => (
-                <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={labelSt}>Descrição</label>
-            <textarea
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              rows={2}
-              style={{ ...inputSt, resize: "vertical" }}
-            />
-          </div>
+            )
+          )}
 
           {mode === "edit" && (
             <>
@@ -676,7 +744,7 @@ function TaskModal({
             <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
               <button type="button" onClick={onClose} style={btnGhost}>Cancelar</button>
               <button type="submit" disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
-                {saving ? "Salvando…" : mode === "create" ? "Criar" : "Salvar"}
+                {saving ? (mode === "create" ? "Classificando…" : "Salvando…") : mode === "create" ? "Criar" : "Salvar"}
               </button>
             </div>
           </div>
@@ -739,7 +807,7 @@ function TaskViewModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={rotuloNivel(task.pontos)}>{task.pontos}pt</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
           {task.bloqueado && (
@@ -977,7 +1045,11 @@ function TaskCard({
       </span>
 
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={rotuloNivel(task.pontos)}>{task.pontos}pt</span>
+        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
+
+        {(task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
+          <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
+        )}
 
         {op && (
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
@@ -1079,6 +1151,19 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     }
   }
 
+  // aviso pós-criação (classificador) e opinião do operacional na conclusão
+  const [avisoCriacao, setAvisoCriacao] = useState<{ nivel: number; justificativa: string | null } | null>(null);
+  const [mostrarPorque, setMostrarPorque] = useState(false);
+  const [opiniaoTaskId, setOpiniaoTaskId] = useState<string | null>(null);
+
+  async function escolherOpiniao(nivel: number | null) {
+    const id = opiniaoTaskId;
+    setOpiniaoTaskId(null);
+    if (id && nivel !== null) {
+      try { await opinarNivelTask(id, nivel); } catch { /* opinião é opcional */ }
+    }
+  }
+
   // modals
   const [createModal, setCreateModal] = useState<{ defaultSprintId?: string } | null>(null);
   const [editModal, setEditModal] = useState<TaskKanbanResponse | null>(null);
@@ -1163,6 +1248,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 motivoReabertura.trim() || undefined
               );
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      if (ehOperacional && updated.coluna_kanban === "concluida") setOpiniaoTaskId(updated.id);
       setPendingMove(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao mover";
@@ -1212,7 +1298,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
 
   const tasksSteps = [
     { title: "Tasks vs Funcionalidades", body: "Funcionalidades (aba Planejamento) são entregas de alto nível para o cliente. Tasks são o trabalho técnico interno: 'Criar endpoint de login', 'Estilizar header', etc. Uma funcionalidade geralmente envolve várias tasks." },
-    { title: "Criar uma task", body: "Clique em '+ Nova task'. Informe título e pontos, e opcionalmente sprint, operacional, funcionalidade e checklist. O checklist já aparece na criação: são os itens que precisam estar prontos para a task poder ir para Concluída." },
+    { title: "Criar uma task", body: "Clique em '+ Nova task'. Informe título e descrição (o classificador define o nível a partir deles), e opcionalmente sprint, operacional, funcionalidade e checklist. O checklist já aparece na criação: são os itens que precisam estar prontos para a task poder ir para Concluída." },
     { title: "Pontos da task", body: "Os pontos são o nível de dificuldade da task, numa régua única para todos os projetos: 1 (simples), 2 (moderada), 3 (complexa) e 5 (muito complexa). Não existe total de pontos do projeto; os pontos só são somados dentro de uma sprint, para comparar o que foi entregue com o que estava previsto." },
     { title: "Checklist e Definition of Done", body: "Dentro da task você monta uma lista de itens e vai marcando conforme fica pronto. O card mostra o progresso no formato '3/5'. Se sobrar item aberto, o sistema recusa mover a task para Concluída. Task sem checklist não trava nada: a regra só vale se você criou a lista." },
     { title: "Sprint obrigatória para iniciar (DoR)", body: "Para mover uma task para 'Em andamento', ela precisa estar vinculada a uma sprint. Sem sprint não existe a quem creditar aquele trabalho quando a semana fechar." },
@@ -1477,7 +1563,11 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           defaultSprintId={createModal.defaultSprintId}
           modoTrabalho={modoTrabalho}
           onClose={() => setCreateModal(null)}
-          onSaved={(t) => { upsertTask(t); setCreateModal(null); }}
+          onSaved={(t, criada) => {
+            upsertTask(t);
+            setCreateModal(null);
+            if (criada) { setAvisoCriacao({ nivel: t.pontos, justificativa: t.justificativa_nivel ?? null }); setMostrarPorque(false); }
+          }}
         />
       )}
 
@@ -1503,9 +1593,46 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             modoTrabalho={modoTrabalho}
             onClose={() => setEditModal(null)}
             onSaved={(t) => { upsertTask(t); setEditModal(null); }}
+            onReclassified={() => { load(); setEditModal(null); }}
             onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
           />
         )
+      )}
+
+      {avisoCriacao && (
+        <div role="status" style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 1100, maxWidth: 480, width: "calc(100% - 32px)", background: "#0d1711", border: "1px solid rgba(62,224,111,0.35)", borderRadius: 12, padding: "12px 16px", boxShadow: "0 12px 40px rgba(0,0,0,0.4)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13.5, color: "#f2f5f3", fontWeight: 600 }}>
+              Task criada · nível {avisoCriacao.nivel} · {rotuloNivel(avisoCriacao.nivel)}
+            </span>
+            {avisoCriacao.justificativa && (
+              <button type="button" onClick={() => setMostrarPorque((v) => !v)} aria-expanded={mostrarPorque} style={btnGhost}>
+                por quê?
+              </button>
+            )}
+            <button type="button" onClick={() => setAvisoCriacao(null)} aria-label="Fechar aviso" style={{ marginLeft: "auto", background: "none", border: "none", color: "#8a948e", cursor: "pointer", fontSize: 16 }}>×</button>
+          </div>
+          {mostrarPorque && avisoCriacao.justificativa && (
+            <p style={{ fontSize: 12.5, color: "#c3cbc6", margin: "8px 0 0", lineHeight: 1.5 }}>{avisoCriacao.justificativa}</p>
+          )}
+        </div>
+      )}
+
+      {opiniaoTaskId !== null && (
+        <div role="dialog" aria-modal="true" aria-labelledby="opiniao-titulo" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200 }}>
+          <div style={{ background: "#0d1711", borderRadius: 16, padding: "24px 28px", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
+            <h3 id="opiniao-titulo" style={{ fontSize: 16, fontWeight: 800, color: "#f2f5f3", margin: "0 0 16px" }}>
+              Na sua visão, qual era o nível dessa task?
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(1)}>1 · simples</button>
+              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(2)}>2 · moderada</button>
+              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(3)}>3 · complexa</button>
+              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(5)}>5 · muito complexa</button>
+              <button type="button" style={{ ...btnGhost, border: "none", background: "none", color: "#8a948e" }} onClick={() => escolherOpiniao(null)}>Pular</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pendingMove !== null && (

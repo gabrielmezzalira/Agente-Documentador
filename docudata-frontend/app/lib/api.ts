@@ -1741,6 +1741,9 @@ export interface TaskKanbanResponse {
   ordem_fila?: number | null;
   requer_aprovacao: boolean;
   pontos_legado?: number | null;
+  nivel_travado_em?: string | null;
+  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | null;
+  justificativa_nivel?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1777,7 +1780,6 @@ export async function listTasksKanban(params: {
 export async function createTaskKanban(data: {
   project_id: string;
   titulo: string;
-  pontos: number;
   sprint_id?: string;
   operacional_id?: string;
   funcionalidade_id?: string;
@@ -1786,12 +1788,24 @@ export async function createTaskKanban(data: {
   extra?: boolean;
   checklist?: { texto: string; done: boolean }[];
   requer_aprovacao?: boolean;
+  opiniao_nivel?: number;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+  if (res.status === 422) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && Array.isArray((detail as { faltando?: unknown }).faltando)) {
+      throw Object.assign(new Error("Texto insuficiente"), {
+        status: 422,
+        faltando: (detail as { faltando: string[] }).faltando,
+      });
+    }
+    throw new Error(typeof detail === "string" ? detail : "Erro ao criar task");
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao criar task");
@@ -1799,12 +1813,50 @@ export async function createTaskKanban(data: {
   return res.json();
 }
 
+export interface ReclassificarResponse {
+  task_id: string;
+  nivel_final: number;
+  status: string;
+  justificativa_nivel?: string | null;
+  motivo_revisao?: string | null;
+}
+
+async function erroDetail(res: Response, padrao: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  const detail = (err as { detail?: unknown }).detail;
+  return new Error(typeof detail === "string" ? detail : padrao);
+}
+
+export async function reclassificarTask(id: string): Promise<ReclassificarResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/reclassificar`, { method: "POST" });
+  if (!res.ok) throw await erroDetail(res, "Erro ao reclassificar task");
+  return res.json();
+}
+
+export async function resolverRevisaoNivel(id: string, nivel: number, motivo: string): Promise<ReclassificarResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/revisao-nivel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel, motivo }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao resolver revisão de nível");
+  return res.json();
+}
+
+export async function opinarNivelTask(id: string, nivel: number): Promise<void> {
+  const res = await apiFetch(`${API}/tasks/${id}/opiniao-nivel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao registrar opinião");
+}
+
 export async function patchTaskKanban(
   id: string,
   data: {
     titulo?: string;
     descricao?: string;
-    pontos?: number;
     coluna_kanban?: string;
     operacional_id?: string;
     sprint_id?: string;
