@@ -9,6 +9,7 @@ from services.regua import converter_pontos_legado
 
 _EPS = 1e-9
 _LOTE_IN = 100
+_COLUNAS_ROTULO = ("ritmo_usado", "tempo_normalizado_s", "nivel_pelo_tempo", "nivel_real", "alerta")
 
 
 def _agora() -> str:
@@ -103,14 +104,12 @@ def recalcular_tudo(client) -> None:
     res = recalcular(exemplos)
     agora = _agora()
     por_id = {l["task_id"]: l for l in linhas}
-    mudadas = []
     for task_id, r in res["rotulos"].items():
-        linha = por_id[task_id]
-        if not _rotulo_mudou(linha, r):
+        if not _rotulo_mudou(por_id[task_id], r):
             continue
-        mudadas.append({**linha, **r, "atualizado_em": agora})  # linha inteira: o upsert exige as colunas NOT NULL
-    if mudadas:
-        client.table("task_aprendizado").upsert(mudadas, on_conflict="task_id").execute()
+        # Só colunas de rótulo: nunca sobrescreve exclusão/opinião alteradas em paralelo.
+        campos = {k: r[k] for k in _COLUNAS_ROTULO}
+        client.table("task_aprendizado").update({**campos, "atualizado_em": agora}).eq("task_id", task_id).execute()
 
     atuais = {
         (p["tipo"], p["chave"]): p

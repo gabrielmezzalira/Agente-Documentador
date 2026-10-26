@@ -150,20 +150,43 @@ def test_recalcular_sem_mudanca_nao_escreve_em_task_aprendizado():
     assert esp.escritas.get("classificador_parametros", 0) == 0
 
 
-def test_rotulos_mudados_vao_em_um_unico_upsert():
+def test_so_linhas_com_rotulo_alterado_sao_escritas_e_so_colunas_de_rotulo():
     fake = _fake()
-    for i in (2, 3, 4):
+    for i in (2, 3):
         fake.tables["tasks"].append({**fake.tables["tasks"][0], "id": f"t{i}"})
         for t in [x for x in fake.tables["task_transicoes"] if x["task_id"] == "t1"]:
             fake.tables["task_transicoes"].append({**t, "task_id": f"t{i}"})
         ap.registrar_conclusao(fake, f"t{i}")
     ap.registrar_conclusao(fake, "t1")
-    for l in fake.tables["task_aprendizado"]:
-        l["nivel_real"] = 99  # força rótulos desatualizados em todas as linhas
-    esp = _Espiao(fake)
-    ap.recalcular_tudo(esp)
-    assert esp.escritas["task_aprendizado"] == 1
-    assert all(l["nivel_real"] != 99 for l in fake.tables["task_aprendizado"])
+    por_id = {l["task_id"]: l for l in fake.tables["task_aprendizado"]}
+    por_id["t2"]["nivel_real"] = 99  # só t2 fica desatualizada
+    por_id["t3"]["excluida"] = True  # mudança "concorrente" que não pode ser revertida
+    por_id["t3"]["opiniao_operacional"] = 5
+    payloads = []
+
+    class _Capta(_Espiao):
+        def table(self, name):
+            t = super().table(name)
+            if name != "task_aprendizado":
+                return t
+
+            class _T:
+                def __getattr__(_, attr):
+                    alvo = getattr(t, attr)
+                    if attr in ("update", "upsert"):
+                        def f(payload, *a, **k):
+                            payloads.append(payload)
+                            return alvo(payload, *a, **k)
+                        return f
+                    return alvo
+            return _T()
+
+    ap.recalcular_tudo(_Capta(fake))
+    assert len(payloads) == 1
+    assert set(payloads[0]) <= {"ritmo_usado", "tempo_normalizado_s", "nivel_pelo_tempo", "nivel_real",
+                                "alerta", "atualizado_em"}
+    assert por_id["t2"]["nivel_real"] != 99
+    assert por_id["t3"]["excluida"] is True and por_id["t3"]["opiniao_operacional"] == 5
 
 
 def test_mais_de_100_classificacoes_funciona():
@@ -175,7 +198,33 @@ def test_mais_de_100_classificacoes_funciona():
             "task_id": f"y{i}", "classificacao_id": f"x{i}", "nivel_sugerido": 1, "operacional_id": None,
             "gerente_id": None, "sinais": None, "tempo_limpo_s": None, "excluida": False,
             "opiniao_operacional": None, "concluida_em": f"2026-10-02T00:{i % 60:02d}:00+00:00"})
-    ap.recalcular_tudo(fake)
+    tamanhos = []
+
+    class _Q:
+        def __init__(self, q):
+            self._q = q
+
+        def __getattr__(self, attr):
+            alvo = getattr(self._q, attr)
+            if attr == "in_":
+                def f(col, vals):
+                    tamanhos.append(len(vals))
+                    return _Q(alvo(col, vals))
+                return f
+            if attr == "eq":
+                return lambda *a, **k: _Q(alvo(*a, **k))
+            return alvo
+
+    class _Cli:
+        tables = fake.tables
+
+        def table(self, name):
+            t = fake.table(name)
+            return type("T", (), {"__getattr__": lambda _, a: (lambda *x, **k: _Q(getattr(t, a)(*x, **k)))
+                                  if a == "select" else getattr(t, a)})()
+
+    ap.recalcular_tudo(_Cli())
+    assert tamanhos and max(tamanhos) <= 100 and sum(tamanhos) >= 151
     assert all(l.get("nivel_real") == 1 for l in fake.tables["task_aprendizado"] if l["task_id"].startswith("y"))
 
 
