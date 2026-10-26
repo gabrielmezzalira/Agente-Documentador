@@ -114,3 +114,102 @@ def test_falha_no_aprendizado_nao_quebra_o_patch(monkeypatch, autenticar):
     tc = _rota(monkeypatch, autenticar, explode)
     resp = tc.patch("/tasks/t1", json={"coluna_kanban": "concluida"})
     assert resp.status_code == 200, resp.text
+
+
+class _Espiao:
+    """Conta escritas (insert/update/upsert/delete) por tabela, repassando ao FakeClient."""
+
+    def __init__(self, fake):
+        self._fake = fake
+        self.tables = fake.tables
+        self.escritas: dict[str, int] = {}
+
+    def table(self, name):
+        tabela = self._fake.table(name)
+        espiao = self
+
+        class _T:
+            def __getattr__(self, attr):
+                alvo = getattr(tabela, attr)
+                if attr in ("insert", "update", "upsert", "delete"):
+                    def contado(*a, **k):
+                        espiao.escritas[name] = espiao.escritas.get(name, 0) + 1
+                        return alvo(*a, **k)
+                    return contado
+                return alvo
+
+        return _T()
+
+
+def test_recalcular_sem_mudanca_nao_escreve_em_task_aprendizado():
+    fake = _fake()
+    ap.registrar_conclusao(fake, "t1")
+    esp = _Espiao(fake)
+    ap.recalcular_tudo(esp)
+    assert esp.escritas.get("task_aprendizado", 0) == 0
+    assert esp.escritas.get("classificador_parametros", 0) == 0
+
+
+def test_rotulos_mudados_vao_em_um_unico_upsert():
+    fake = _fake()
+    for i in (2, 3, 4):
+        fake.tables["tasks"].append({**fake.tables["tasks"][0], "id": f"t{i}"})
+        for t in [x for x in fake.tables["task_transicoes"] if x["task_id"] == "t1"]:
+            fake.tables["task_transicoes"].append({**t, "task_id": f"t{i}"})
+        ap.registrar_conclusao(fake, f"t{i}")
+    ap.registrar_conclusao(fake, "t1")
+    for l in fake.tables["task_aprendizado"]:
+        l["nivel_real"] = 99  # força rótulos desatualizados em todas as linhas
+    esp = _Espiao(fake)
+    ap.recalcular_tudo(esp)
+    assert esp.escritas["task_aprendizado"] == 1
+    assert all(l["nivel_real"] != 99 for l in fake.tables["task_aprendizado"])
+
+
+def test_mais_de_100_classificacoes_funciona():
+    fake = _fake()
+    ap.registrar_conclusao(fake, "t1")
+    for i in range(150):
+        fake.tables["task_classificacoes"].append({"id": f"x{i}", "task_id": f"y{i}", "nivel_final": 1})
+        fake.tables["task_aprendizado"].append({
+            "task_id": f"y{i}", "classificacao_id": f"x{i}", "nivel_sugerido": 1, "operacional_id": None,
+            "gerente_id": None, "sinais": None, "tempo_limpo_s": None, "excluida": False,
+            "opiniao_operacional": None, "concluida_em": f"2026-10-02T00:{i % 60:02d}:00+00:00"})
+    ap.recalcular_tudo(fake)
+    assert all(l.get("nivel_real") == 1 for l in fake.tables["task_aprendizado"] if l["task_id"].startswith("y"))
+
+
+def test_reconclusao_preserva_exclusao_e_opiniao():
+    fake = _fake()
+    ap.registrar_conclusao(fake, "t1")
+    ap.registrar_opiniao_operacional(fake, "t1", 5)
+    ap.definir_exclusao(fake, "t1", True, "motivo", "lider-1")
+    ap.registrar_conclusao(fake, "t1")
+    ex = fake.tables["task_aprendizado"][0]
+    assert ex["excluida"] is True and ex["opiniao_operacional"] == 5 and ex["motivo_exclusao"] == "motivo"
+
+
+def test_parametro_que_muda_grava_historico():
+    fake = _fake()
+    ap.registrar_conclusao(fake, "t1")
+    antes = len([h for h in fake.tables["classificador_parametros_hist"]
+                 if (h["tipo"], h["chave"]) == ("media_nivel", "3")])
+    fake.tables["task_transicoes"][1]["timestamp"] = "2026-10-01T10:00:00+00:00"  # 2h em vez de 4h
+    ap.registrar_conclusao(fake, "t1")
+    hist = [h for h in fake.tables["classificador_parametros_hist"]
+            if (h["tipo"], h["chave"]) == ("media_nivel", "3")]
+    assert len(hist) == antes + 1 and hist[-1]["valor"] == 2 * 3600
+
+
+def test_aprovar_chama_registrar_conclusao(monkeypatch, autenticar):
+    import routers.tasks as tasks_router
+    from main import app
+    from tests.test_aprovar_task import _TASK_PENDENTE, _mock_client
+
+    mock_sb, _, _ = _mock_client(_TASK_PENDENTE)
+    chamadas = []
+    monkeypatch.setattr(tasks_router, "get_client", lambda: mock_sb)
+    monkeypatch.setattr(tasks_router, "registrar_conclusao", lambda c, tid: chamadas.append(tid))
+    tc = autenticar(TestClient(app), cargo="gerente")
+    assert tc.post("/tasks/task-1/aprovar").status_code == 200
+    assert chamadas == ["task-1"]

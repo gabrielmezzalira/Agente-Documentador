@@ -8,6 +8,7 @@ from services.classificador_tempo import tempo_limpo
 from services.regua import converter_pontos_legado
 
 _EPS = 1e-9
+_LOTE_IN = 100
 
 
 def _agora() -> str:
@@ -15,15 +16,15 @@ def _agora() -> str:
 
 
 def registrar_conclusao(client, task_id: str) -> None:
-    resp = client.table("tasks").select("*").eq("id", task_id).execute()
+    resp = client.table("tasks").select("id, pontos, operacional_id, pull_em, entrou_em_andamento_em, updated_at").eq("id", task_id).execute()
     if not resp.data:
         return
     task = resp.data[0]
     transicoes = (
-        client.table("task_transicoes").select("*").eq("task_id", task_id).execute().data or []
+        client.table("task_transicoes").select("campo, de, para, timestamp, bloqueio_tipo").eq("task_id", task_id).execute().data or []
     )
     clas = (
-        client.table("task_classificacoes").select("*").eq("task_id", task_id)
+        client.table("task_classificacoes").select("id, nivel_final, criado_por, sinais").eq("task_id", task_id)
         .order("criado_em", desc=True).limit(1).execute().data
     )
     clas = clas[0] if clas else None
@@ -68,14 +69,23 @@ def registrar_conclusao(client, task_id: str) -> None:
     recalcular_tudo(client)
 
 
+def _rotulo_mudou(linha: dict, r: dict) -> bool:
+    for k in ("ritmo_usado", "tempo_normalizado_s"):
+        antes = linha.get(k)
+        if antes is None or abs(float(antes) - float(r[k])) > 1e-6:
+            return True
+    return any(linha.get(k) != r[k] for k in ("nivel_pelo_tempo", "nivel_real", "alerta"))
+
+
 def recalcular_tudo(client) -> None:
     linhas = client.table("task_aprendizado").select("*").execute().data or []
     if not linhas:
         return
     clas_ids = [l["classificacao_id"] for l in linhas if l.get("classificacao_id")]
     opinioes: dict[str, int | None] = {}
-    if clas_ids:
-        for c in client.table("task_classificacoes").select("*").in_("id", clas_ids).execute().data or []:
+    for i in range(0, len(clas_ids), _LOTE_IN):
+        lote = clas_ids[i:i + _LOTE_IN]
+        for c in client.table("task_classificacoes").select("id, opiniao_gerente").in_("id", lote).execute().data or []:
             opinioes[c["id"]] = c.get("opiniao_gerente")
 
     exemplos = []
@@ -92,12 +102,19 @@ def recalcular_tudo(client) -> None:
 
     res = recalcular(exemplos)
     agora = _agora()
+    por_id = {l["task_id"]: l for l in linhas}
+    mudadas = []
     for task_id, r in res["rotulos"].items():
-        client.table("task_aprendizado").update({**r, "atualizado_em": agora}).eq("task_id", task_id).execute()
+        linha = por_id[task_id]
+        if not _rotulo_mudou(linha, r):
+            continue
+        mudadas.append({**linha, **r, "atualizado_em": agora})  # linha inteira: o upsert exige as colunas NOT NULL
+    if mudadas:
+        client.table("task_aprendizado").upsert(mudadas, on_conflict="task_id").execute()
 
     atuais = {
         (p["tipo"], p["chave"]): p
-        for p in client.table("classificador_parametros").select("*").execute().data or []
+        for p in client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
     }
     for (tipo, chave), (valor, n) in res["parametros"].items():
         valor = float(valor)
@@ -118,7 +135,7 @@ def recalcular_tudo(client) -> None:
 
 
 def parametros_vigentes(client) -> dict[tuple[str, str], float]:
-    linhas = client.table("classificador_parametros").select("*").execute().data or []
+    linhas = client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").execute().data or []
     return {(p["tipo"], p["chave"]): float(p["valor"]) for p in linhas}
 
 
