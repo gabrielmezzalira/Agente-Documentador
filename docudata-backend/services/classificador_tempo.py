@@ -29,7 +29,7 @@ def tempo_limpo(transicoes: list[dict], task: dict) -> dict | None:
     trans = sorted(transicoes, key=lambda t: _ts(t["timestamp"]))
     colunas = [t for t in trans if t.get("campo") == "coluna_kanban"]
     conclusoes = [t for t in colunas if t.get("para") == "concluida"]
-    if not conclusoes:
+    if not conclusoes or colunas[-1].get("para") != "concluida":
         return None
     fim = _ts(conclusoes[-1]["timestamp"])
 

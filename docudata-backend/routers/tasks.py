@@ -886,6 +886,20 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     ):
         updates["bloqueio_tipo"] = data.bloqueio_tipo
         virou_cliente = data.bloqueio_tipo == "cliente"
+        # Troca de tipo com a task já bloqueada: fecha o trecho com o tipo antigo
+        # e abre outro com o novo, no mesmo instante, para o tempo limpo descontar
+        # só o trecho de cliente. Se `bloqueado` muda no mesmo PATCH, a transição
+        # acima já foi gravada.
+        tipo_antigo = task.get("bloqueio_tipo") or "interno"
+        if (data.bloqueado is None or data.bloqueado == task.get("bloqueado", False)) and data.bloqueio_tipo != tipo_antigo:
+            _registrar_task_transicao(
+                client, task_id, task, "bloqueado", False, data.autor, data.motivo, agora,
+                bloqueio_tipo=tipo_antigo,
+            )
+            _registrar_task_transicao(
+                client, task_id, task, "bloqueado", True, data.autor, data.motivo, agora,
+                bloqueio_tipo=data.bloqueio_tipo,
+            )
 
     if virou_cliente:
         updates["travado_automatico"] = False
