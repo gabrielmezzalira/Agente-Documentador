@@ -23,13 +23,15 @@ from core.observability import (
 )
 from core.rate_limit import limiter
 from core.security import require_app_key, require_discovery_key
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery, classificador
 from services.gemini_key import (
     GeminiApiKeyInvalid,
     GeminiApiKeyNotConfigured,
     GeminiApiKeyStorageError,
 )
 from services.notification_checker import check_and_send_notifications
+from services.classificador_aprendizado import recalcular_diario
+from services.classificador_ciclo import reclassificar_provisorias
 from services.travamento_checker import check_travamento_automatico
 from services.auth import get_current_pessoa, require_not_operacional
 
@@ -42,6 +44,8 @@ _scheduler = AsyncIOScheduler()
 async def lifespan(app: FastAPI):
     _scheduler.add_job(check_and_send_notifications, "interval", hours=1, id="sprint_notifications")
     _scheduler.add_job(check_travamento_automatico, "interval", hours=24, id="task_travamento_check")
+    _scheduler.add_job(reclassificar_provisorias, "interval", minutes=10, id="classificador_provisorias")
+    _scheduler.add_job(recalcular_diario, "interval", hours=24, id="classificador_recalculo_diario")
     _scheduler.start()
     yield
     _scheduler.shutdown()
@@ -191,6 +195,7 @@ app.include_router(painel.router, dependencies=restricted)
 app.include_router(revisao_ingest.router, dependencies=app_key)
 app.include_router(discovery_ingest.router, dependencies=discovery_service)
 app.include_router(discovery.router, dependencies=authenticated)
+app.include_router(classificador.router, dependencies=authenticated)
 app.include_router(composer.router, dependencies=authenticated)
 app.include_router(boletins.router, dependencies=authenticated)
 app.include_router(sprint_funcionalidades.router, dependencies=authenticated)

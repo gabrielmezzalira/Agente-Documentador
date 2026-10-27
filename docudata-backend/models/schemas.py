@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal, Optional
 from datetime import date, datetime
 
@@ -471,7 +471,8 @@ _COLUNAS_VALIDAS = {"planejado", "em_andamento", "pendente_aprovacao", "concluid
 class TaskCreate(BaseModel):
     project_id: str
     titulo: str
-    pontos: int
+    pontos: Optional[int] = None  # ignorado: o nível vem do classificador (spec A2)
+    opiniao_nivel: Optional[int] = None
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -482,10 +483,10 @@ class TaskCreate(BaseModel):
     extra: bool = False  # task concedida além do que a pessoa tinha; não entra no previsto da sprint
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
 
-    @field_validator("pontos")
+    @field_validator("pontos", "opiniao_nivel")
     @classmethod
-    def pontos_na_regua(cls, v: int) -> int:
-        if v not in NIVEIS:
+    def nivel_na_regua(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v not in NIVEIS:
             raise ValueError(MENSAGEM_NIVEL_INVALIDO)
         return v
 
@@ -589,6 +590,41 @@ class TaskResponse(BaseModel):
     motivo_atribuicao_manual: Optional[str] = None
     ordem_fila: Optional[int] = None
     requer_aprovacao: bool = False
+    nivel_travado_em: Optional[datetime] = None
+    classificacao_status: Optional[str] = None
+    justificativa_nivel: Optional[str] = None
+    faltando: Optional[list[str]] = None
+
+
+class ReclassificarResponse(BaseModel):
+    task_id: str
+    nivel_final: int
+    status: str
+    justificativa_nivel: Optional[str] = None
+    motivo_revisao: Optional[str] = None
+
+
+class RevisaoNivelRequest(BaseModel):
+    nivel: int
+    motivo: str = Field(..., min_length=3)
+
+    @field_validator("nivel")
+    @classmethod
+    def nivel_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
+
+
+class OpiniaoNivelRequest(BaseModel):
+    nivel: int
+
+    @field_validator("nivel")
+    @classmethod
+    def nivel_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
 
 
 class RejeitarTaskRequest(BaseModel):
@@ -938,3 +974,20 @@ class PessoaResponse(BaseModel):
 
 class PessoaCargoUpdate(BaseModel):
     cargo: Literal["owner", "lider", "gerente", "operacional"]
+
+
+class ExclusaoAprendizadoPayload(BaseModel):
+    excluida: bool
+    motivo: Optional[str] = None
+
+    @field_validator("motivo")
+    @classmethod
+    def _motivo_limpo(cls, v):
+        v = (v or "").strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _motivo_obrigatorio(self):
+        if self.excluida and not self.motivo:
+            raise ValueError("Informe o motivo da exclusão")
+        return self

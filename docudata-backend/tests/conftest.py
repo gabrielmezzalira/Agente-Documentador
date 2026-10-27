@@ -36,3 +36,29 @@ def limpar_rate_limiter():
     limiter.reset()
     yield
     limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def classificador_fixo(request, monkeypatch):
+    """Os testes antigos criam task sem chamar o modelo: o classificador devolve
+    uma classificação 'aplicada' com a opinião do gerente (ou 1). Desligue com
+    @pytest.mark.classificador_real nos testes que exercitam o ciclo de verdade."""
+    if request.node.get_closest_marker("classificador_real"):
+        yield
+        return
+
+    import services.classificador_ciclo as ciclo
+    from services.regua import NIVEIS
+
+    async def _fake(client, *, titulo, descricao, checklist, opiniao_gerente, gerente_id):
+        nivel = opiniao_gerente if opiniao_gerente in NIVEIS else 1
+        return {
+            "status": "aplicada", "faltando": [], "sinais": None, "nivel_sinais": None,
+            "parecidas": [], "nivel_parecidas": None, "nivel_geral": nivel,
+            "justificativa_geral": "classificador de teste", "opiniao_gerente": opiniao_gerente,
+            "nivel_combinado": nivel, "ajuste_tempo": 0, "nivel_final": nivel,
+            "motivo_revisao": None, "parametros": None, "vetor": None,
+        }
+
+    monkeypatch.setattr(ciclo, "classificar_para_criacao", _fake)
+    yield

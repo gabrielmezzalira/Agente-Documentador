@@ -1741,6 +1741,9 @@ export interface TaskKanbanResponse {
   ordem_fila?: number | null;
   requer_aprovacao: boolean;
   pontos_legado?: number | null;
+  nivel_travado_em?: string | null;
+  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | null;
+  justificativa_nivel?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1777,7 +1780,6 @@ export async function listTasksKanban(params: {
 export async function createTaskKanban(data: {
   project_id: string;
   titulo: string;
-  pontos: number;
   sprint_id?: string;
   operacional_id?: string;
   funcionalidade_id?: string;
@@ -1786,12 +1788,24 @@ export async function createTaskKanban(data: {
   extra?: boolean;
   checklist?: { texto: string; done: boolean }[];
   requer_aprovacao?: boolean;
+  opiniao_nivel?: number;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+  if (res.status === 422) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && Array.isArray((detail as { faltando?: unknown }).faltando)) {
+      throw Object.assign(new Error("Texto insuficiente"), {
+        status: 422,
+        faltando: (detail as { faltando: string[] }).faltando,
+      });
+    }
+    throw new Error(typeof detail === "string" ? detail : "Erro ao criar task");
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Erro ao criar task");
@@ -1799,12 +1813,181 @@ export async function createTaskKanban(data: {
   return res.json();
 }
 
+export interface ReclassificarResponse {
+  task_id: string;
+  nivel_final: number;
+  status: string;
+  justificativa_nivel?: string | null;
+  motivo_revisao?: string | null;
+}
+
+async function erroDetail(res: Response, padrao: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  const detail = (err as { detail?: unknown }).detail;
+  return new Error(typeof detail === "string" ? detail : padrao);
+}
+
+export async function reclassificarTask(id: string): Promise<ReclassificarResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/reclassificar`, { method: "POST" });
+  if (!res.ok) throw await erroDetail(res, "Erro ao reclassificar task");
+  return res.json();
+}
+
+export async function resolverRevisaoNivel(id: string, nivel: number, motivo: string): Promise<ReclassificarResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/revisao-nivel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel, motivo }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao resolver revisão de nível");
+  return res.json();
+}
+
+export async function opinarNivelTask(id: string, nivel: number): Promise<void> {
+  const res = await apiFetch(`${API}/tasks/${id}/opiniao-nivel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao registrar opinião");
+}
+
+// Classificador de nível — tela de acompanhamento (líder/owner)
+
+export interface ClassificadorMedia {
+  nivel: number;
+  media_s: number;
+  media_sem_excluidas_s: number;
+  n: number;
+  n_total: number;
+}
+
+export interface ClassificadorAlerta {
+  task_id: string;
+  titulo: string | null;
+  projeto: string | null;
+  operacional: string | null;
+  tempo_normalizado_s: number | null;
+  media_nivel_s: number;
+  nivel_real: number;
+}
+
+export interface ClassificadorExcluida {
+  task_id: string;
+  titulo: string | null;
+  motivo_exclusao: string | null;
+  excluida_em: string | null;
+}
+
+export interface ClassificadorAcuracia {
+  n: number;
+  exata: number;
+  mais_menos_um: number;
+  erro_medio_degraus: number;
+  /** matriz[sugerido][real] = contagem (chaves JSON, sempre string). */
+  matriz: Record<string, Record<string, number>>;
+  por_nivel: Record<string, { precisao: number | null; cobertura: number | null }>;
+}
+
+export interface ClassificadorOpiniao {
+  pessoa_id: string;
+  nome: string | null;
+  peso: number;
+  acuracia: number;
+  n: number;
+}
+
+export interface ClassificadorResumo {
+  medias: ClassificadorMedia[];
+  evolucao_medias: { semana: string; nivel: number; media_s: number }[];
+  alertas: ClassificadorAlerta[];
+  excluidas: ClassificadorExcluida[];
+  acuracia: ClassificadorAcuracia;
+  evolucao_acuracia: { mes: string; mais_menos_um: number; n: number }[];
+  pesos_sinais: { sinal: string; peso: number }[];
+  evolucao_pesos: { data: string; sinal: string; peso: number }[];
+  vies_gerentes: { gerente_id: string; nome: string | null; vies: number; n: number }[];
+  opinioes: { gerentes: ClassificadorOpiniao[]; operacionais: ClassificadorOpiniao[] };
+  ritmos: { pessoa_id: string; nome: string | null; ritmo: number; n: number }[];
+  gerentes: { id: string; nome: string | null }[];
+}
+
+export interface ClassificadorRevisaoItem {
+  task_id: string;
+  titulo: string | null;
+  projeto: string | null;
+  status: string;
+  nivel_final: number | null;
+  motivo_revisao: string | null;
+  criado_em: string;
+}
+
+export interface ClassificadorParecida {
+  task_id: string;
+  titulo: string | null;
+  similaridade: number;
+  nivel_real: number;
+  tempo_normalizado_s: number | null;
+}
+
+export interface ClassificadorClassificacao {
+  id: string;
+  task_id: string;
+  tipo: string;
+  criado_em: string;
+  sinais: Record<string, { nota: number; evidencia: string }> | null;
+  nivel_sinais: number | null;
+  parecidas: ClassificadorParecida[] | null;
+  nivel_parecidas: number | null;
+  nivel_geral: number | null;
+  justificativa_geral: string | null;
+  opiniao_gerente: number | null;
+  nivel_combinado: number | null;
+  ajuste_tempo: number;
+  nivel_final: number;
+  status: string;
+  motivo_revisao: string | null;
+}
+
+export interface ClassificadorTaskDetalhe {
+  classificacao: ClassificadorClassificacao;
+  aprendizado: Record<string, unknown> | null;
+}
+
+export async function getClassificadorResumo(periodo: "30" | "90" | "tudo", gerenteId?: string): Promise<ClassificadorResumo> {
+  const q = new URLSearchParams({ periodo });
+  if (gerenteId) q.set("gerente_id", gerenteId);
+  const res = await apiFetch(`${API}/classificador/resumo?${q}`);
+  if (!res.ok) throw await erroDetail(res, "Erro ao buscar resumo do classificador");
+  return res.json();
+}
+
+export async function getClassificadorRevisao(): Promise<ClassificadorRevisaoItem[]> {
+  const res = await apiFetch(`${API}/classificador/revisao`);
+  if (!res.ok) throw await erroDetail(res, "Erro ao buscar fila de revisão");
+  return res.json();
+}
+
+export async function getClassificadorTask(id: string): Promise<ClassificadorTaskDetalhe> {
+  const res = await apiFetch(`${API}/classificador/tasks/${id}`);
+  if (!res.ok) throw await erroDetail(res, "Erro ao buscar classificação da task");
+  return res.json();
+}
+
+export async function definirExclusaoAprendizado(taskId: string, excluida: boolean, motivo?: string): Promise<void> {
+  const res = await apiFetch(`${API}/classificador/aprendizado/${taskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ excluida, motivo: motivo ?? null }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao atualizar exclusão da contagem");
+}
+
 export async function patchTaskKanban(
   id: string,
   data: {
     titulo?: string;
     descricao?: string;
-    pontos?: number;
     coluna_kanban?: string;
     operacional_id?: string;
     sprint_id?: string;

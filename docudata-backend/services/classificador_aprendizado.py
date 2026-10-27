@@ -1,0 +1,203 @@
+"""Persistência do aprendizado do classificador (spec A2 §4): um exemplo por
+task concluída, rótulos recalculados sobre todos os exemplos e parâmetros
+vigentes com histórico só quando mudam."""
+import logging
+from datetime import datetime, timezone
+
+from fastapi import HTTPException
+
+from services.classificador_estatistica import recalcular
+from services.classificador_tempo import tempo_limpo
+from services.regua import converter_pontos_legado
+from services.supabase_paginacao import ler_tudo
+
+_LOG = logging.getLogger("docudata.classificador")
+_EPS = 1e-9
+_LOTE_IN = 100
+_COLUNAS_ROTULO = ("ritmo_usado", "tempo_normalizado_s", "nivel_pelo_tempo", "nivel_real", "alerta")
+
+
+def _agora() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def registrar_conclusao(client, task_id: str) -> None:
+    resp = client.table("tasks").select("id, pontos, operacional_id, pull_em, entrou_em_andamento_em, updated_at").eq("id", task_id).execute()
+    if not resp.data:
+        return
+    task = resp.data[0]
+    transicoes = (
+        client.table("task_transicoes").select("campo, de, para, timestamp, bloqueio_tipo").eq("task_id", task_id).execute().data or []
+    )
+    clas = (
+        client.table("task_classificacoes").select("id, nivel_final, criado_por, sinais").eq("task_id", task_id)
+        .order("criado_em", desc=True).limit(1).execute().data
+    )
+    clas = clas[0] if clas else None
+    # O gerente é quem criou a task: reclassificação e revisão são do líder.
+    criacao = (
+        client.table("task_classificacoes").select("criado_por").eq("task_id", task_id).eq("tipo", "criacao")
+        .order("criado_em").limit(1).execute().data
+    )
+    gerente_id = criacao[0].get("criado_por") if criacao else (clas.get("criado_por") if clas else None)
+
+    tempo = tempo_limpo(transicoes, task)
+    if tempo:
+        concluida_em = tempo["concluida_em"]
+    else:
+        conclusoes = [
+            t["timestamp"] for t in transicoes
+            if t.get("campo") == "coluna_kanban" and t.get("para") == "concluida"
+        ]
+        concluida_em = max(conclusoes) if conclusoes else (task.get("updated_at") or _agora())
+
+    if clas:
+        nivel_sugerido = clas["nivel_final"]
+        sinais = {
+            s: (v.get("nota") if isinstance(v, dict) else v)
+            for s, v in (clas.get("sinais") or {}).items()
+        }
+    else:
+        nivel_sugerido = converter_pontos_legado(task.get("pontos") or 1)
+        sinais = None
+
+    existente = client.table("task_aprendizado").select("*").eq("task_id", task_id).execute().data
+    exemplo = {
+        "task_id": task_id,
+        "classificacao_id": clas["id"] if clas else None,
+        "nivel_sugerido": nivel_sugerido,
+        "operacional_id": task.get("operacional_id"),
+        "gerente_id": gerente_id,
+        "sinais": sinais,
+        "tempo_bruto_s": tempo["tempo_bruto_s"] if tempo else None,
+        "tempo_limpo_s": tempo["tempo_limpo_s"] if tempo else None,
+        "reaberta": tempo["reaberta"] if tempo else False,
+        "concluida_em": concluida_em,
+        "atualizado_em": _agora(),
+    }
+    if existente:  # reconclusão não apaga opinião nem exclusão já registradas
+        exemplo = {**existente[0], **exemplo}
+    client.table("task_aprendizado").upsert(exemplo, on_conflict="task_id").execute()
+    recalcular_tudo(client)
+
+
+def _rotulo_mudou(linha: dict, r: dict) -> bool:
+    for k in ("ritmo_usado", "tempo_normalizado_s"):
+        antes = linha.get(k)
+        if antes is None or abs(float(antes) - float(r[k])) > 1e-6:
+            return True
+    return any(linha.get(k) != r[k] for k in ("nivel_pelo_tempo", "nivel_real", "alerta"))
+
+
+def recalcular_tudo(client) -> None:
+    linhas = ler_tudo(lambda: client.table("task_aprendizado").select("*").order("task_id"))
+    if not linhas:
+        return
+    clas_ids = [l["classificacao_id"] for l in linhas if l.get("classificacao_id")]
+    opinioes: dict[str, int | None] = {}
+    for i in range(0, len(clas_ids), _LOTE_IN):
+        lote = clas_ids[i:i + _LOTE_IN]
+        for c in client.table("task_classificacoes").select("id, opiniao_gerente").in_("id", lote).execute().data or []:
+            opinioes[c["id"]] = c.get("opiniao_gerente")
+
+    exemplos = []
+    for l in linhas:
+        ex = {k: l.get(k) for k in (
+            "task_id", "concluida_em", "nivel_sugerido", "tempo_limpo_s", "operacional_id",
+            "gerente_id", "opiniao_operacional", "excluida", "sinais",
+        )}
+        ex["excluida"] = bool(ex["excluida"])
+        og = opinioes.get(l.get("classificacao_id"))
+        if og is not None:
+            ex["opiniao_gerente"] = og
+        exemplos.append(ex)
+
+    res = recalcular(exemplos)
+    agora = _agora()
+    por_id = {l["task_id"]: l for l in linhas}
+    for task_id, r in res["rotulos"].items():
+        if not _rotulo_mudou(por_id[task_id], r):
+            continue
+        # Só colunas de rótulo: nunca sobrescreve exclusão/opinião alteradas em paralelo.
+        campos = {k: r[k] for k in _COLUNAS_ROTULO}
+        client.table("task_aprendizado").update({**campos, "atualizado_em": agora}).eq("task_id", task_id).execute()
+
+    atuais = {
+        (p["tipo"], p["chave"]): p
+        for p in _ler_parametros(client)
+    }
+    for (tipo, chave), (valor, n) in res["parametros"].items():
+        valor = float(valor)
+        anterior = atuais.get((tipo, chave))
+        if tipo == "media_nivel" and n == 0 and anterior is not None:
+            valor = float(anterior["valor"])  # sem amostras: mantém o último valor
+        mudou = anterior is None or abs(float(anterior["valor"]) - valor) > _EPS
+        if not mudou and anterior["n_amostras"] == n:
+            continue
+        client.table("classificador_parametros").upsert(
+            {"tipo": tipo, "chave": chave, "valor": valor, "n_amostras": n, "atualizado_em": agora},
+            on_conflict="tipo,chave",
+        ).execute()
+        if mudou:
+            client.table("classificador_parametros_hist").insert(
+                {"tipo": tipo, "chave": chave, "valor": valor, "n_amostras": n}
+            ).execute()
+
+
+def _ler_parametros(client) -> list[dict]:
+    return ler_tudo(lambda: client.table("classificador_parametros").select("tipo, chave, valor, n_amostras").order("tipo").order("chave"))
+
+
+def parametros_vigentes_com_amostras(client) -> dict[tuple[str, str], tuple[float, int]]:
+    linhas = _ler_parametros(client)
+    return {(p["tipo"], p["chave"]): (float(p["valor"]), int(p.get("n_amostras") or 0)) for p in linhas}
+
+
+def parametros_vigentes(client) -> dict[tuple[str, str], float]:
+    return {k: valor for k, (valor, _n) in parametros_vigentes_com_amostras(client).items()}
+
+
+def registrar_opiniao_operacional(client, task_id: str, nivel: int) -> None:
+    def _existe() -> bool:
+        return bool(client.table("task_aprendizado").select("task_id").eq("task_id", task_id).execute().data)
+
+    if not _existe():  # o gancho de conclusão pode ter falhado: cria o exemplo agora
+        registrar_conclusao(client, task_id)
+        if not _existe():
+            raise HTTPException(status_code=409, detail="Esta task ainda não tem exemplo de aprendizado para receber a opinião.")
+    client.table("task_aprendizado").update(
+        {"opiniao_operacional": nivel, "atualizado_em": _agora()}
+    ).eq("task_id", task_id).execute()
+    recalcular_tudo(client)
+
+
+def definir_exclusao(client, task_id: str, excluida: bool, motivo: str | None, pessoa_id: str) -> dict:
+    agora = _agora()
+    campos = (
+        {"excluida": True, "excluida_por": pessoa_id, "excluida_em": agora, "motivo_exclusao": motivo}
+        if excluida
+        else {"excluida": False, "excluida_por": None, "excluida_em": None, "motivo_exclusao": None}
+    )
+    client.table("task_aprendizado").update({**campos, "atualizado_em": agora}).eq("task_id", task_id).execute()
+    recalcular_tudo(client)
+    atual = client.table("task_aprendizado").select("*").eq("task_id", task_id).execute().data
+    return atual[0] if atual else {}
+
+
+def recalcular_diario() -> None:
+    """Job diário (spec A2 §8): cria o exemplo das tasks concluídas que ficaram
+    sem ele (falha do gancho de conclusão) e recalcula tudo. Best-effort."""
+    try:
+        from services.supabase_client import get_client
+
+        client = get_client()
+        concluidas = {r["id"] for r in ler_tudo(lambda: client.table("tasks").select("id").eq("coluna_kanban", "concluida").order("id"))}
+        com_exemplo = {r["task_id"] for r in ler_tudo(lambda: client.table("task_aprendizado").select("task_id").order("task_id"))}
+        for task_id in sorted(concluidas - com_exemplo):
+            try:
+                registrar_conclusao(client, task_id)
+            except Exception as exc:
+                _LOG.warning("recalculo_diario_conclusao_falhou exc=%s", type(exc).__name__)
+        recalcular_tudo(client)
+    except Exception as exc:
+        _LOG.warning("recalculo_diario_falhou exc=%s", type(exc).__name__)

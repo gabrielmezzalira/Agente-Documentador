@@ -5,7 +5,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import (
+    OpiniaoNivelRequest,
+    ReclassificarResponse,
     RejeitarTaskRequest,
+    RevisaoNivelRequest,
     TaskCreate,
     TaskUpdate,
     TaskResponse,
@@ -15,7 +18,14 @@ from models.schemas import (
     TaskSugestaoResolve,
     _COLUNAS_VALIDAS,
 )
-from services.auth import get_current_pessoa, require_not_operacional, require_project_access
+from services import classificador_ciclo as ciclo
+from services.auth import (
+    get_current_pessoa,
+    nivel as nivel_do_cargo,
+    require_not_operacional,
+    require_project_access,
+    require_role,
+)
 from services.email_service import (
     email_task_atribuida,
     email_task_concluida,
@@ -27,6 +37,9 @@ from services.supabase_client import get_client
 from services.wip_check import check_wip
 from services.previsto_sprint import marcas_ao_entrar_na_sprint
 from services.regua import ajuste_pontos_reabertura
+from services.classificador_aprendizado import registrar_conclusao, registrar_opiniao_operacional
+from services.classificador_regua import texto_da_task
+from services.supabase_paginacao import ler_tudo
 from services.aprovacao_funcionalidade import revogar_se_aprovada
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
@@ -57,6 +70,7 @@ def _registrar_task_transicao(
     autor: Optional[str],
     motivo: Optional[str],
     agora: datetime,
+    bloqueio_tipo: Optional[str] = None,
 ) -> Optional[str]:
     anterior = (
         client.table("task_transicoes")
@@ -81,7 +95,7 @@ def _registrar_task_transicao(
         ts_anterior = datetime.fromisoformat(task_atual["created_at"]).replace(tzinfo=timezone.utc)
 
     duracao = int((agora - ts_anterior).total_seconds())
-    resp = client.table("task_transicoes").insert({
+    linha = {
         "task_id": task_id,
         "campo": campo,
         "de": str(task_atual.get(campo)) if task_atual.get(campo) is not None else None,
@@ -91,7 +105,10 @@ def _registrar_task_transicao(
         "motivo": motivo,
         "duracao_fase_anterior_segundos": duracao,
         "operacional_id": task_atual.get("operacional_id"),
-    }).execute()
+    }
+    if bloqueio_tipo is not None:  # só envia a coluna quando há valor (tolera deploy antes da migração)
+        linha["bloqueio_tipo"] = bloqueio_tipo
+    resp = client.table("task_transicoes").insert(linha).execute()
     return resp.data[0]["id"] if resp.data else None
 
 
@@ -121,6 +138,60 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
         send_email(operacional_email, subject, html)
     except Exception as exc:
         _LOG.warning("notificacao_atribuicao_falhou exc=%s", type(exc).__name__)
+
+
+_LOTE_IN = 100
+
+
+def _status_classificacao_por_task(client, task_ids: list[str]) -> dict[str, str]:
+    """Status da classificação mais recente de cada task (em lotes de 100 ids)."""
+    status: dict[str, str] = {}
+    for i in range(0, len(task_ids), _LOTE_IN):
+        lote = task_ids[i:i + _LOTE_IN]
+        linhas = ler_tudo(
+            lambda: client.table("task_classificacoes").select("task_id, status, criado_em")
+            .in_("task_id", lote).order("criado_em", desc=True).order("id")
+        )
+        for l in linhas:
+            status.setdefault(l["task_id"], l["status"])
+    return status
+
+
+def _com_classificacao_status(client, tasks: list[dict]) -> list[dict]:
+    status = _status_classificacao_por_task(client, [t["id"] for t in tasks])
+    return [{**t, "classificacao_status": status.get(t["id"])} for t in tasks]
+
+
+def _norm(texto) -> str:
+    """None, "" e diferenças de espaço/quebra de linha contam como o mesmo texto."""
+    return " ".join(str(texto or "").split())
+
+
+def _texto_mudou(task: dict, data) -> bool:
+    """Título, descrição ou texto do checklist mudaram (marcar `done` não conta)."""
+    if data.titulo is not None and _norm(data.titulo) != _norm(task.get("titulo")):
+        return True
+    if data.descricao is not None and _norm(data.descricao) != _norm(task.get("descricao")):
+        return True
+    if data.checklist is not None:
+        novos = [_norm(i.get("texto")) for i in data.checklist]
+        antigos = [_norm(i.get("texto")) for i in (task.get("checklist") or [])]
+        return novos != antigos
+    return False
+
+
+def _travar_e_atualizar(client, linha: dict) -> dict:
+    """Trava o nível da task e devolve a linha com o `nivel_travado_em` novo."""
+    ciclo.travar_nivel(client, [linha["id"]])
+    fresca = client.table("tasks").select("nivel_travado_em").eq("id", linha["id"]).execute().data
+    return {**linha, "nivel_travado_em": fresca[0].get("nivel_travado_em")} if fresca else linha
+
+
+def _registrar_aprendizado_best_effort(client, task_id: str) -> None:
+    try:
+        registrar_conclusao(client, task_id)
+    except Exception as exc:
+        _LOG.warning("aprendizado_classificador_falhou task=%s exc=%s", task_id, type(exc).__name__)
 
 
 def _avisar_gerente_task_concluida(client, task: dict) -> None:
@@ -220,8 +291,8 @@ def _registrar_reabertura(
     }).execute()
 
 
-@router.post("", response_model=TaskResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
-async def create_task(data: TaskCreate):
+@router.post("", response_model=TaskResponse, status_code=201)
+async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
 
     check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
@@ -268,10 +339,17 @@ async def create_task(data: TaskCreate):
         if not sp_check.data:
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
+    # O nível vem do agente (spec A2): o `pontos` enviado pelo cliente é ignorado.
+    # Um 422 com `faltando` sai aqui, antes de criar a task.
+    resultado = await ciclo.classificar_para_criacao(
+        client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
+        opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
+    )
+
     payload: dict = {
         "project_id": data.project_id,
         "titulo": data.titulo,
-        "pontos": data.pontos,
+        "pontos": resultado["nivel_final"],
         "coluna_kanban": data.coluna_kanban,
         "ordem": data.ordem,
         "checklist": data.checklist or [],
@@ -302,12 +380,24 @@ async def create_task(data: TaskCreate):
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
 
+    criada = resp.data[0]
+    ciclo.gravar_classificacao(
+        client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
+        texto=texto_da_task(data.titulo, data.descricao, data.checklist),
+    )
+    if (sprint_iniciada and payload.get("coluna_kanban") != "concluida") or payload.get("coluna_kanban") == "em_andamento":
+        criada = _travar_e_atualizar(client, criada)
+
     revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
 
     if payload.get("operacional_id"):
-        _avisar_operacional_atribuicao(client, resp.data[0])
+        _avisar_operacional_atribuicao(client, criada)
 
-    return resp.data[0]
+    return {
+        **criada,
+        "classificacao_status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+    }
 
 
 @router.get("", response_model=list[TaskResponse], dependencies=[Depends(require_project_access)])
@@ -335,7 +425,7 @@ async def list_tasks(
     if funcionalidade_id is not None:
         query = query.eq("funcionalidade_id", funcionalidade_id)
 
-    return query.execute().data or []
+    return _com_classificacao_status(client, query.execute().data or [])
 
 
 # ── Sugestões — rotas fixas antes de /{task_id} para evitar captura pelo path param ──
@@ -481,7 +571,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not result.data:
         raise HTTPException(status_code=409, detail="Esta task já foi puxada.")
 
-    return result.data[0]
+    return _travar_e_atualizar(client, result.data[0])
 
 
 @router.post("/{task_id}/devolver", response_model=TaskResponse)
@@ -575,6 +665,7 @@ async def aprovar_task(
     }).eq("id", task_id).execute()
 
     on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "concluida")
+    _registrar_aprendizado_best_effort(client, task_id)
     sprint_id_atual = task.get("sprint_id")
     if sprint_id_atual:
         try:
@@ -624,13 +715,61 @@ async def rejeitar_task(
     return result.data[0]
 
 
+@router.post("/{task_id}/reclassificar", response_model=ReclassificarResponse)
+async def reclassificar_task(task_id: str, pessoa: dict = Depends(require_role("lider"))):
+    client = get_client()
+    resultado = await ciclo.reclassificar(client, task_id, pessoa["id"])
+    return {
+        "task_id": task_id,
+        "nivel_final": resultado["nivel_final"],
+        "status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+        "motivo_revisao": resultado.get("motivo_revisao"),
+    }
+
+
+@router.post("/{task_id}/revisao-nivel", response_model=ReclassificarResponse)
+async def revisar_nivel_task(task_id: str, data: RevisaoNivelRequest, pessoa: dict = Depends(require_role("lider"))):
+    client = get_client()
+    resultado = ciclo.resolver_revisao(client, task_id, data.nivel, data.motivo, pessoa["id"])
+    return {
+        "task_id": task_id,
+        "nivel_final": resultado["nivel_final"],
+        "status": resultado["status"],
+        "justificativa_nivel": resultado.get("justificativa_geral"),
+        "motivo_revisao": resultado.get("motivo_revisao"),
+    }
+
+
+@router.post("/{task_id}/opiniao-nivel", status_code=204)
+async def opiniao_nivel_task(task_id: str, data: OpiniaoNivelRequest, pessoa: dict = Depends(get_current_pessoa)):
+    """Opinião do operacional sobre o nível, depois de concluir (spec A2 §4)."""
+    client = get_client()
+    rows = client.table("tasks").select("id, project_id, operacional_id, coluna_kanban").eq("id", task_id).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = rows[0]
+    if nivel_do_cargo(pessoa["cargo"]) >= nivel_do_cargo("gerente"):
+        await require_project_access(task["project_id"], pessoa)
+    else:
+        # operacionais (por projeto) e pessoa (login) se reconciliam por e-mail
+        dono = task.get("operacional_id") and _resolver_operacional_id_da_pessoa(
+            client, task["project_id"], pessoa["email"]
+        ) == task["operacional_id"]
+        if not dono:
+            raise HTTPException(status_code=403, detail="Só o responsável pela task opina sobre o nível.")
+    if task.get("coluna_kanban") != "concluida":
+        raise HTTPException(status_code=409, detail="A opinião sobre o nível só vale depois de concluir a task.")
+    registrar_opiniao_operacional(client, task_id, data.nivel)
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
     client = get_client()
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
-    return resp.data[0]
+    return _com_classificacao_status(client, [resp.data[0]])[0]
 
 
 @router.get("/{task_id}/transicoes", response_model=list[TaskTransicaoResponse])
@@ -775,7 +914,16 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             houve_reabertura = True
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
-        _registrar_task_transicao(client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora)
+        # Tipo do trecho que abre (o novo, padrão interno) ou fecha (o que a task tinha).
+        tipo_trecho = (
+            (data.bloqueio_tipo or task.get("bloqueio_tipo") or "interno")
+            if data.bloqueado
+            else task.get("bloqueio_tipo")
+        )
+        _registrar_task_transicao(
+            client, task_id, task, "bloqueado", data.bloqueado, data.autor, data.motivo, agora,
+            bloqueio_tipo=tipo_trecho,
+        )
 
     updates: dict = {"updated_at": agora.isoformat()}
     # ALERT-01/ALERT-04: o relógio de travamento automático conta desde que a
@@ -808,8 +956,9 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
             updates["travado_override"] = False
             updates["travado_override_por"] = None
             updates["travado_override_em"] = None
+    # `pontos` do cliente é ignorado: o nível é do classificador (spec A2).
     for field in (
-        "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
+        "titulo", "descricao", "funcionalidade_id", "sprint_id",
         "operacional_id", "coluna_kanban", "bloqueado", "motivo_bloqueio",
         "checklist", "ordem", "requer_aprovacao",
     ):
@@ -843,7 +992,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # Régua (spec A1 §5): task concluída antes da régua pode ter pontos fora
     # dela; ao sair de concluida ela volta a ser trabalho aberto e precisa de
     # um nível válido. O original fica em pontos_legado.
-    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida" and data.pontos is None:
+    if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
         updates.update(ajuste_pontos_reabertura(task))
 
     # TRANS-04/TRANS-05: bloqueado_manual (gate 422 acima já garantiu que, ao
@@ -875,11 +1024,35 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     ):
         updates["bloqueio_tipo"] = data.bloqueio_tipo
         virou_cliente = data.bloqueio_tipo == "cliente"
+        # Troca de tipo com a task já bloqueada: fecha o trecho com o tipo antigo
+        # e abre outro com o novo, no mesmo instante, para o tempo limpo descontar
+        # só o trecho de cliente. Se `bloqueado` muda no mesmo PATCH, a transição
+        # acima já foi gravada.
+        tipo_antigo = task.get("bloqueio_tipo") or "interno"
+        if (data.bloqueado is None or data.bloqueado == task.get("bloqueado", False)) and data.bloqueio_tipo != tipo_antigo:
+            _registrar_task_transicao(
+                client, task_id, task, "bloqueado", False, data.autor, data.motivo, agora,
+                bloqueio_tipo=tipo_antigo,
+            )
+            _registrar_task_transicao(
+                client, task_id, task, "bloqueado", True, data.autor, data.motivo, agora,
+                bloqueio_tipo=data.bloqueio_tipo,
+            )
 
     if virou_cliente:
         updates["travado_automatico"] = False
 
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if _texto_mudou(task, data) and not task.get("nivel_travado_em"):
+        atual = ciclo.classificacao_atual(client, task_id)
+        if atual and atual["status"] in ("aplicada", "resolvida"):
+            client.table("task_classificacoes").update(
+                {"status": "em_revisao", "motivo_revisao": ciclo.MOTIVO_TEXTO_EDITADO}
+            ).eq("id", atual["id"]).execute()
+
+    if coluna_nova in ("em_andamento", "pendente_aprovacao", "concluida") and coluna_nova != coluna_atual:
+        result.data[0] = _travar_e_atualizar(client, result.data[0])
 
     func_efetiva = data.funcionalidade_id if data.funcionalidade_id is not None else task.get("funcionalidade_id")
     if coluna_atual == "concluida" and coluna_nova is not None and coluna_nova != "concluida":
@@ -918,6 +1091,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     if coluna_nova is not None and coluna_nova != coluna_atual:
         on_task_transition(client, task, "coluna_kanban", coluna_atual, coluna_nova)
         if coluna_nova == "concluida":
+            _registrar_aprendizado_best_effort(client, task_id)
             sprint_id_atual = task.get("sprint_id")
             if sprint_id_atual:
                 try:

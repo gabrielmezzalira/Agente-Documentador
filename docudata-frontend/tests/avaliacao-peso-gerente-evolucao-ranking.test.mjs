@@ -13,7 +13,8 @@ test("questionário semanal não pergunta mais sobre evolução", () => {
 });
 
 test("api.ts não expõe mais evolucao nem spi-evolucao", () => {
-  assert.doesNotMatch(API, /(?<!d)evolucao/i);
+  // evolucao_medias/_acuracia/_pesos são campos do classificador, não a dimensão Evolução removida.
+  assert.doesNotMatch(API, /(?<!d)evolucao(?!_(medias|acuracia|pesos)\b)/i);
   assert.doesNotMatch(API, /spi-evolucao/);
   assert.match(API, /export async function getSpiDoProjeto/);
   assert.match(API, /projetos: PerformanceProjeto\[\]/);

@@ -159,3 +159,9 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     )
     for t in pendentes:
         client.table("tasks").update({"entrou_em_andamento_em": agora_iso}).eq("id", t["id"]).execute()
+
+    # Com a sprint em curso o nível das tasks dela fica fixo (spec A2 §5).
+    from services.classificador_ciclo import travar_nivel
+
+    todas = client.table("tasks").select("id").eq("sprint_id", sprint_id).execute().data or []
+    travar_nivel(client, [t["id"] for t in todas])
