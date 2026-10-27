@@ -7,6 +7,8 @@ import {
   confirmarAvaliacaoSemanal,
   type PendenciaAvaliacao,
 } from "../lib/api";
+import { ds } from "../lib/ds";
+import { Modal, Button, ErrorNotice } from "./ds";
 import { perguntas } from "../lib/perguntasAvaliacao";
 
 interface Props {
@@ -99,27 +101,25 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
     }
   }
 
-  const overlaySt: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-  const boxSt: React.CSSProperties = { background: "#ffffff", borderRadius: 16, padding: 28, width: 480, maxHeight: "80vh", overflowY: "auto" };
-  const chipRow: React.CSSProperties = { display: "flex", gap: 6, marginTop: 6, marginBottom: 16 };
+  const chipRow: React.CSSProperties = { display: "flex", gap: 6, marginTop: 8, marginBottom: 18 };
   const chipBtn = (active: boolean): React.CSSProperties => ({
-    width: 36, height: 36, borderRadius: 8, border: active ? "2px solid rgba(255,255,255,0.14)" : "1px solid rgba(62,224,111,0.2)",
-    background: active ? "#3ee06f" : "#0d1711", color: active ? "#ffffff" : "#f2f5f3", fontWeight: 700, cursor: "pointer",
+    width: 38, height: 38, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+    border: active ? `1px solid ${ds.green}` : `1px solid ${ds.innerBorder}`,
+    background: active ? ds.green : ds.inner,
+    color: active ? "#04120a" : ds.text,
   });
 
   return (
-    <div style={overlaySt} onClick={onClose}>
-      <div style={boxSt} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Avaliação Semanal — Sprint {sprintNumero}</h2>
-
-        {err && <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12 }}>{err}</p>}
+    <Modal title={`Avaliação Semanal — Sprint ${sprintNumero}`} onClose={onClose} width={520}>
+      <div style={{ color: ds.text }}>
+        {err && <div style={{ marginBottom: 14 }}><ErrorNotice>{err}</ErrorNotice></div>}
 
         {!avaliando && pendencias && pendencias.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <p style={{ fontSize: 13, color: "#8a948e" }}>{pendencias.length} pendente(s):</p>
+            <p style={{ fontSize: 13, color: ds.muted, margin: 0 }}>{pendencias.length} pendente(s):</p>
             {pendencias.map((p) => (
               <button key={p.operacional_id} onClick={() => iniciarAvaliacao(p)}
-                style={{ textAlign: "left", padding: "10px 14px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 8, background: "#0d1711", cursor: "pointer" }}>
+                style={{ textAlign: "left", padding: "11px 14px", border: `1px solid ${ds.innerBorder}`, borderRadius: 10, background: ds.inner, color: ds.text, fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>
                 {p.nome}
               </button>
             ))}
@@ -128,23 +128,22 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
 
         {!avaliando && pendencias && pendencias.length === 0 && (
           <div>
-            <p style={{ fontSize: 13, color: "#3ee06f", marginBottom: 16 }}>✓ Todas as avaliações desta sprint estão completas.</p>
-            <button onClick={confirmar} disabled={confirming}
-              style={{ padding: "10px 16px", borderRadius: 8, background: "#3ee06f", color: "#04120a", border: "none", fontWeight: 600 }}>
+            <p style={{ fontSize: 13, color: ds.green, marginTop: 0, marginBottom: 16 }}>✓ Todas as avaliações desta sprint estão completas.</p>
+            <Button variant="primary" onClick={confirmar} disabled={confirming} style={{ opacity: confirming ? 0.6 : 1 }}>
               {confirming ? "Confirmando..." : "Confirmar Avaliação Semanal"}
-            </button>
+            </Button>
           </div>
         )}
 
         {avaliando && (
           <div>
-            <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>{avaliando.nome}</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: ds.white, marginTop: 0, marginBottom: 14 }}>{avaliando.nome}</p>
 
             {avaliando.ultima_avaliacao_outro_projeto && !reaproveitadaDe && (
-              <div style={{ background: "rgba(177,151,252,0.10)", border: "1px solid rgba(177,151,252,0.30)", borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 12 }}>
+              <div style={{ background: ds.violetSoft, border: `1px solid ${ds.violetLine}`, borderRadius: 10, padding: 12, marginBottom: 18, fontSize: 12.5, color: ds.text2 }}>
                 Reaproveitar avaliação de {avaliando.ultima_avaliacao_outro_projeto.project_name} em{" "}
                 {new Date(avaliando.ultima_avaliacao_outro_projeto.criado_em).toLocaleDateString("pt-BR")}?{" "}
-                <button onClick={() => reaproveitar(avaliando)} style={{ color: "#b197fc", fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>
+                <button onClick={() => reaproveitar(avaliando)} style={{ color: ds.violet, fontWeight: 600, fontSize: 12.5, fontFamily: "inherit", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                   Usar essas respostas
                 </button>
               </div>
@@ -152,7 +151,7 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
 
             {perguntas(modoTrabalho).map((pergunta, i) => (
               <div key={i}>
-                <label style={{ fontSize: 13, fontWeight: 500 }}>{pergunta}</label>
+                <label style={{ fontSize: 13.5, fontWeight: 500, color: ds.text2 }}>{pergunta}</label>
                 <div style={chipRow}>
                   {[0, 1, 2, 3, 4, 5].map((n) => (
                     <button key={n} type="button" style={chipBtn(respostas[i] === n)}
@@ -165,17 +164,16 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
             ))}
 
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button onClick={salvar} disabled={saving}
-                style={{ padding: "10px 16px", borderRadius: 8, background: "#3ee06f", color: "#04120a", border: "none", fontWeight: 600 }}>
+              <Button variant="primary" onClick={salvar} disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
                 {saving ? "Salvando..." : "Salvar avaliação"}
-              </button>
-              <button onClick={() => setAvaliando(null)} style={{ padding: "10px 16px", borderRadius: 8, background: "none", border: "1px solid rgba(62,224,111,0.2)", cursor: "pointer" }}>
+              </Button>
+              <Button variant="secondary" onClick={() => setAvaliando(null)}>
                 Voltar
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
