@@ -14,13 +14,16 @@ interface ModalProps {
 /** Diálogo modal no tema escuro. Esc e clique fora fecham; o foco vai para o botão de fechar ao abrir. */
 export default function Modal({ title, onClose, children, footer, width = 720 }: ModalProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Guarda o onClose mais recente sem refazer o efeito: um pai que passa função inline não rouba o foco a cada render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   return (
     <div
