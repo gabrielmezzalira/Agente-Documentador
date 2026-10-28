@@ -486,3 +486,61 @@ def test_detalhe_sem_sprint_anterior_usa_so_a_subarea(monkeypatch, autenticar):
 def test_detalhe_404_e_403(monkeypatch, autenticar):
     assert _tc_detalhe(monkeypatch, autenticar).get("/acompanhamento/projetos/nao-existe").status_code == 404
     assert _tc_detalhe(monkeypatch, autenticar, "gerente").get("/acompanhamento/projetos/p1").status_code == 403
+
+
+def test_detalhe_usa_data_fim_da_sprint_atual_para_o_trimestre(monkeypatch, autenticar):
+    from main import app
+    fake = _fake_detalhe()
+    for s in fake.tables["sprints"]:
+        if s["id"] == "s2":
+            s["data_fim"] = "2027-02-10"  # T1 de 2027 -> trimestre anterior 2026-T4 (agora seria T4 -> T3)
+    monkeypatch.setattr(rota, "get_client", lambda: fake)
+    original = rota.montar_detalhe
+    monkeypatch.setattr(rota, "montar_detalhe", lambda *a, **k: original(*a, agora=AGORA, **k))
+    tm = autenticar(TestClient(app), "lider").get("/acompanhamento/projetos/p1").json()["time"]
+    # T4: s1 (6 e 2) e sb (100) -> mediana 6; com o fallback "agora" (T3) seria 7
+    assert tm["mediana_subarea"] == 6.0
+    assert tm["pessoas"][0]["piso"] == 3.0
+
+
+def test_detalhe_mediana_da_subarea_inclui_sprints_do_proprio_projeto():
+    from services.acompanhamento import montar_detalhe
+    fake = _fake_detalhe(com_sprint_anterior=False)
+    fake.tables["sprints"] = [s for s in fake.tables["sprints"] if s["id"] not in ("sa", "sb", "sc")]
+    fake.tables["tasks"] = [t for t in fake.tables["tasks"] if t["sprint_id"] in ("s2",)]
+    fake.tables["sprints"].append({"id": "sp", "project_id": "p1", "numero": 1, "iniciada": True,
+                                   "avaliacao_completa_em": "2026-08-01T00:00:00+00:00"})
+    fake.tables["tasks"] += [_tk("q1", "sp", "o1", 8), _tk("q2", "sp", "o2", 2)]
+    d = montar_detalhe(fake, "p1", agora=AGORA)
+    assert d["time"]["mediana_subarea"] == 5.0
+
+
+def test_detalhe_sem_sprint_atual_nao_le_a_subarea():
+    from services.acompanhamento import montar_detalhe
+    fake = _fake_detalhe()
+    fake.tables["sprints"] = [s for s in fake.tables["sprints"] if s["project_id"] != "p1"]
+    lidas = []
+    original = fake.table
+    fake.table = lambda nome: (lidas.append(nome), original(nome))[1]
+    d = montar_detalhe(fake, "p1", agora=AGORA)
+    assert d["time"] == {"sprint_numero": None, "mediana_squad": None, "mediana_subarea": None, "pessoas": []}
+    assert lidas.count("sprints") == 1 and "operacionais" not in lidas
+
+
+def test_detalhe_pede_data_fim_no_select_das_sprints():
+    """O FakeClient ignora as colunas do select; aqui garantimos que `data_fim` é pedida de verdade."""
+    from services.acompanhamento import montar_detalhe
+    fake = _fake_detalhe()
+    pedidos = []
+    original = fake.table
+
+    def table(nome):
+        t = original(nome)
+        if nome == "sprints":
+            sel = t.select
+            t.select = lambda *a, **k: (pedidos.append(a[0] if a else ""), sel(*a, **k))[1]
+        return t
+    fake.table = table
+    montar_detalhe(fake, "p1", agora=AGORA)
+    principal = [c for c in pedidos if "numero" in c]
+    assert principal and all("data_fim" in c for c in principal)

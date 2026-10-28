@@ -40,3 +40,9 @@ def test_realizados_por_pessoa_e_squad():
     tasks = [t("a", 3), t("a", 2), t("b", 4, col="em_andamento"), t("c", 5, extra=True), t(None, 7), t("d", 1)]
     assert realizados_por_pessoa(tasks) == {"a": 5, "d": 1}
     assert squad(tasks) == {"a", "b", "c", "d"}
+
+
+def test_realizados_do_squad_conta_zero_para_quem_nao_concluiu():
+    from services.piso import realizados_do_squad
+    tasks = [t("a", 3), t("b", 4, col="em_andamento"), t("c", 5, extra=True)]
+    assert realizados_do_squad(tasks) == {"a": 3, "b": 0.0, "c": 0.0}

@@ -314,7 +314,7 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
     pids = [p["id"] for p in projetos]
 
     sprints = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("sprints")
-                       .select("id, project_id, numero, iniciada, data_inicio, avaliacao_completa_em")
+                       .select("id, project_id, numero, iniciada, data_inicio, data_fim, avaliacao_completa_em")
                        .in_("project_id", l).order("id")))
     funcs = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("funcionalidades")
                      .select("id, project_id, id_funcional, titulo, status, aprovada_em")
