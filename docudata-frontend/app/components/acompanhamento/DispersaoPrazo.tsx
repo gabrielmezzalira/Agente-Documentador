@@ -11,6 +11,7 @@ const PH = H - M.t - M.b;
 
 const COR: Record<AcompStatus, string> = { critico: ds.red, atencao: ds.amber, sem_dados: ds.chartGrey, saudavel: ds.green };
 
+const STATUS_PALAVRA: Record<AcompStatus, string> = { critico: "crítico", atencao: "atenção", sem_dados: "faltam dados", saudavel: "saudável" };
 const pct = (v: number) => Math.round(v);
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 const x = (v: number) => M.l + (clamp(v) / 100) * PW;
@@ -36,7 +37,7 @@ export default function DispersaoPrazo({ dispersao, onAbrir }: { dispersao: Acom
         <text transform={`translate(12 ${M.t + PH / 2}) rotate(-90)`} fontSize={11} fill={ds.text2} textAnchor="middle">% das funcionalidades aprovadas</text>
         {pontos.map((p) => {
           const nome = p.nome ?? "Projeto";
-          const rotulo = `${nome} · ${pct(p.pct_prazo)}% do prazo · ${pct(p.pct_escopo)}% do escopo · ${p.travadas} ${p.travadas === 1 ? "travada" : "travadas"}`;
+          const rotulo = `${nome} · ${STATUS_PALAVRA[p.status]} · ${pct(p.pct_prazo)}% do prazo · ${pct(p.pct_escopo)}% do escopo · ${p.travadas} ${p.travadas === 1 ? "travada" : "travadas"}`;
           return (
             <g
               key={p.projeto_id}

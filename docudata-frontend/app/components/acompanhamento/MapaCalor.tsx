@@ -18,11 +18,12 @@ export function corDoSpi(spi: number | null): string {
   return ds.red;
 }
 
-function rotuloDaCelula(nome: string, s: AcompMapaSprint | undefined): string {
-  if (!s || s.numero == null) return `${nome} · sem dado`;
+function rotuloDaCelula(nome: string, c: number, s: AcompMapaSprint | undefined): string {
+  const col = c === 0 ? "atual" : `−${Math.abs(c)}`;
+  if (!s || s.numero == null) return `${nome} · ${col} · sem dado`;
   const spi = s.spi != null ? `SPI ${fmt(s.spi)}` : "SPI sem dado";
   const meta = s.meta_total > 0 ? `meta ${s.meta_entregues}/${s.meta_total}` : "sem meta";
-  return `Sprint ${s.numero} · ${spi} · ${meta}`;
+  return `${nome} · Sprint ${s.numero} (${col}) · ${spi} · ${meta}`;
 }
 
 const grade: CSSProperties = {
@@ -57,7 +58,7 @@ export default function MapaCalor({ mapa, onAbrir }: { mapa: AcompMapaProjeto[];
                 </button>
                 {COLUNAS.map((c) => {
                   const s = porRel.get(c);
-                  const rotulo = rotuloDaCelula(nome, s);
+                  const rotulo = rotuloDaCelula(nome, c, s);
                   return (
                     <span
                       key={c}

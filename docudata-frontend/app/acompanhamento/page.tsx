@@ -15,6 +15,8 @@ const SUBAREAS: { value: Subarea; label: string }[] = [
 
 const TOM: Record<AcompStatus, Tone> = { critico: "red", atencao: "amber", sem_dados: "neutral", saudavel: "green" };
 
+const STATUS_PALAVRA: Record<AcompStatus, string> = { critico: "crítico", atencao: "atenção", sem_dados: "faltam dados", saudavel: "saudável" };
+
 const mono: CSSProperties = { fontFamily: ds.fontMono };
 
 function num(x: number, casas = 2): string {
@@ -28,7 +30,7 @@ function plural(n: number, um: string, varios: string): string {
 /** Variação em relação à sprint anterior: verde quando melhora, vermelho quando piora. `null` = sem base de comparação. */
 function Variacao({ v, casas = 0 }: { v: number | null; casas?: number }) {
   if (v == null) return <span style={{ fontSize: 12.5, color: ds.muted }}>sem comparação</span>;
-  if (v === 0) return <span style={{ fontSize: 12.5, color: ds.muted }}>sem variação</span>;
+  if (Math.abs(v) < 0.5 * 10 ** -casas) return <span style={{ fontSize: 12.5, color: ds.muted }}>sem variação</span>;
   return (
     <span style={{ fontSize: 12.5, fontWeight: 600, color: v > 0 ? ds.green : ds.red }}>
       {v > 0 ? "▲" : "▼"} {num(Math.abs(v), casas)}
@@ -60,7 +62,7 @@ function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
 }
 
 const linhaBotao: CSSProperties = {
-  display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", textAlign: "left",
+  position: "relative", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", textAlign: "left",
   background: "none", border: "none", borderTop: `1px solid ${ds.border}`, padding: "10px 0", cursor: "pointer",
   fontFamily: "inherit", fontSize: 14, color: ds.text,
 };
@@ -122,9 +124,10 @@ export default function AcompanhamentoPage() {
       {!dados && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
 
       {dados && k && (
-        k.projetos === 0 ? <EmptyState>Nenhum projeto nesta subárea.</EmptyState> : (
+        k.projetos === 0 ? <EmptyState>{gerente ? "Nenhum projeto com este filtro." : "Nenhum projeto nesta subárea."}</EmptyState> : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+            <div className="acomp-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+              <style>{"@media (max-width: 900px){.acomp-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}"}</style>
               <Kpi label="Projetos" valor={String(k.projetos)}>{k.criticos} {k.criticos === 1 ? "crítico" : "críticos"} · {k.atencao} atenção</Kpi>
               <Kpi label="Features entregues" valor={k.features_entregues != null ? String(k.features_entregues) : "sem dado"}>
                 <Variacao v={k.features_entregues_var} />
@@ -147,6 +150,7 @@ export default function AcompanhamentoPage() {
                     {dados.fila.map((f) => (
                       <button key={f.projeto_id} type="button" onClick={() => setProjetoAberto(f.projeto_id)} style={linhaBotao}>
                         <StatusDot tone={TOM[f.status]} />
+                        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>{STATUS_PALAVRA[f.status]}: </span>
                         <span style={{ fontWeight: 600, color: ds.white }}>{f.nome ?? "Projeto"}</span>
                         <span style={{ fontSize: 12.5, color: ds.muted }}>{f.gerente}</span>
                         <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
@@ -171,7 +175,7 @@ export default function AcompanhamentoPage() {
               <Bloco titulo="Por gerente">
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {dados.por_gerente.map((g) => (
-                    <button key={g.email ?? g.nome} type="button" onClick={() => setGerente(g.email ?? "sem")} style={{ ...linhaBotao, justifyContent: "space-between" }}>
+                    <button key={g.email ?? g.nome} type="button" onClick={() => { setGerente(g.email ?? "sem"); setProjetoAberto(null); }} style={{ ...linhaBotao, justifyContent: "space-between" }}>
                       <span style={{ fontWeight: 600, color: ds.white }}>{g.nome}</span>
                       <span style={{ fontSize: 12.5, color: ds.text2 }}>
                         {g.projetos} proj · <span style={{ color: g.criticos > 0 ? ds.red : undefined }}>{g.criticos} {g.criticos === 1 ? "crítico" : "críticos"}</span>
