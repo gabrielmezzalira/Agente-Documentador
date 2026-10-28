@@ -63,7 +63,7 @@ def escolher_sprints(sprints: list[dict]) -> tuple[dict | None, list[dict], dict
 
 
 def _ref(s: dict) -> dict:
-    return {"id": s["id"], "numero": s["numero"]}
+    return {"id": s["id"], "numero": s["numero"], "fechada": bool(s.get("avaliacao_completa_em"))}
 
 
 def _aprovada(f: dict) -> bool:
@@ -227,15 +227,15 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None) -
     for r in sf:
         planejadas.setdefault(r["sprint_id"], set()).add(r["funcionalidade_id"])
 
-    concluidas = [t["id"] for t in tasks if t.get("coluna_kanban") == "concluida"]
     corte = agora - timedelta(days=JANELA_P85_DIAS)
-    aprend = _em_lote(concluidas, lambda l: ler_tudo(lambda: client.table("task_aprendizado")
+    aprend = ler_tudo(lambda: client.table("task_aprendizado")
                       .select("task_id, tempo_limpo_s, concluida_em, excluida")
-                      .in_("task_id", l).order("task_id")))
+                      .gte("concluida_em", corte.isoformat()).eq("excluida", False)
+                      .order("task_id").order("concluida_em"))
     projeto_da_task = {t["id"]: t["project_id"] for t in tasks}
     horas: dict[str, list[float]] = {}
     for a in aprend:
-        if a.get("excluida") or a.get("tempo_limpo_s") is None or not a.get("concluida_em"):
+        if a["task_id"] not in projeto_da_task or a.get("excluida") or a.get("tempo_limpo_s") is None or not a.get("concluida_em"):
             continue
         dt = datetime.fromisoformat(str(a["concluida_em"]).replace("Z", "+00:00"))
         if dt.tzinfo is None:

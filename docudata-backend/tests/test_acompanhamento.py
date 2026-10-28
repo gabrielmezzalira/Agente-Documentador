@@ -65,7 +65,7 @@ def test_meta_x_planejado_e_listas_de_divergencia():
     funcs = [func("f1"), func("f2"), func("f3", "concluida", "2026-10-01T00:00:00+00:00")]
     tasks = [task("t1", funcionalidade_id="f1", coluna_kanban="concluida"), task("t2", funcionalidade_id="f1")]
     r = calc([sprint("s", 2)], funcs, tasks, planejadas={"s": {"f2", "f3"}}, metas={"s": {"f1", "f2"}})
-    assert r["sprint_atual"] == {"id": "s", "numero": 2}
+    assert r["sprint_atual"] == {"id": "s", "numero": 2, "fechada": False}
     assert r["meta"]["total"] == 2 and r["meta"]["entregues"] == 0 and r["meta"]["batida"] is False
     assert [f["id_funcional"] for f in r["meta"]["funcionalidades"]] == ["F1", "F2"]
     f1, f2 = r["meta"]["funcionalidades"]
@@ -223,8 +223,8 @@ def test_rota_forma_e_numeros(monkeypatch, autenticar):
     assert ana["gerente"]["email"] == "ana@citi.org.br"
     assert ana["resumo"] == {"projetos": 1, "em_risco": 1, "metas_fechadas": 1, "metas_batidas": 0, "pct_funcs_aprovadas": 50.0}
     p = ana["projetos"][0]
-    assert p["sprint_atual"] == {"id": "s2", "numero": 2}
-    assert p["proximas_sprints"] == [{"id": "s3", "numero": 3}]
+    assert p["sprint_atual"] == {"id": "s2", "numero": 2, "fechada": False}
+    assert p["proximas_sprints"] == [{"id": "s3", "numero": 3, "fechada": False}]
     assert p["meta"]["total"] == 1 and p["meta"]["batida"] is False
     assert p["meta"]["funcionalidades"][0]["pct_tasks"] == 50.0
     assert p["meta"]["funcionalidades"][0]["planejada_na_sprint"] is True
@@ -250,3 +250,24 @@ def test_so_lider(monkeypatch, autenticar, cargo):
 
 def test_subarea_invalida_422(monkeypatch, autenticar):
     assert _tc(monkeypatch, autenticar).get("/acompanhamento?subarea=produto").status_code == 422
+
+
+def test_sprint_atual_ja_fechada_marca_fechada():
+    from services.acompanhamento import _ref, escolher_sprints
+    sp = [sprint("a", 1, avaliacao_completa_em="2026-10-01T00:00:00+00:00"), sprint("b", 2, iniciada=False)]
+    atual, proximas, _ = escolher_sprints(sp)
+    assert _ref(atual)["fechada"] is True and _ref(proximas[0])["fechada"] is False
+
+
+def test_aprendizado_inclui_task_reaberta_e_ignora_excluida_e_de_outra_subarea():
+    from services.acompanhamento import montar_acompanhamento
+    fake = _fake()
+    recente = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    fake.tables["task_aprendizado"] += [
+        {"task_id": "t2", "tempo_limpo_s": 3600, "concluida_em": recente, "excluida": False},  # reaberta (coluna != concluida)
+        {"task_id": "t2", "tempo_limpo_s": 999999, "concluida_em": recente, "excluida": True},
+        {"task_id": "fora", "tempo_limpo_s": 999999, "concluida_em": recente, "excluida": False},
+    ]
+    j = montar_acompanhamento(fake, "dados")
+    p = next(p for g in j["grupos"] for p in g["projetos"] if p["nome"] == "Alfa")
+    assert p["saude"]["p85_horas"] == p85([1.0, 2.0])

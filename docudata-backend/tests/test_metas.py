@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from postgrest.exceptions import APIError
 from fastapi.testclient import TestClient
 
 import routers.metas as rota
@@ -189,7 +190,7 @@ def test_falha_na_inclusao_vira_409_e_retry_cura(monkeypatch, autenticar):
 
     def quebra(self):
         if self._name == "sprint_meta_funcionalidades" and self._op == "upsert":
-            raise RuntimeError("duplicate key value violates unique constraint")
+            raise APIError({"message": "duplicate key value violates unique constraint", "code": "23505"})
         return original(self)
 
     monkeypatch.setattr(fake_supabase._Query, "execute", quebra)
@@ -219,3 +220,73 @@ def test_funcionalidade_traz_meta_sprints_so_de_sprint_aberta():
     assert [f["meta_sprints"] for f in r] == [[3], [], []]
     fake.tables["sprints"][0]["avaliacao_completa_em"] = "2026-10-20T00:00:00+00:00"
     assert com_tem_tasks(fake, [{"id": "a"}])[0]["meta_sprints"] == []
+
+
+def test_erro_generico_na_escrita_nao_vira_409(monkeypatch, autenticar):
+    from tests import fake_supabase
+    from main import app
+    fake = _fake()
+    monkeypatch.setattr(rota, "get_client", lambda: fake)
+    tc = autenticar(TestClient(app, raise_server_exceptions=False), "lider")
+    original = fake_supabase._Query.execute
+
+    def quebra(self):
+        if self._name == "sprint_meta_funcionalidades" and self._op == "upsert":
+            raise RuntimeError("boom")
+        return original(self)
+
+    monkeypatch.setattr(fake_supabase._Query, "execute", quebra)
+    assert tc.put("/sprints/s1/meta", json={"funcionalidade_ids": ["a"]}).status_code == 500
+
+
+def test_funcionalidade_sem_tabela_de_metas_nao_derruba_com_tem_tasks(monkeypatch):
+    from tests import fake_supabase
+    from services.aprovacao_funcionalidade import com_tem_tasks
+    fake = FakeClient({"tasks": []})
+    original = fake_supabase._Query.execute
+
+    def quebra(self):
+        if self._name == "sprint_meta_funcionalidades":
+            raise APIError({"message": "relation does not exist", "code": "42P01"})
+        return original(self)
+
+    monkeypatch.setattr(fake_supabase._Query, "execute", quebra)
+    r = com_tem_tasks(fake, [{"id": "a"}])
+    assert r[0]["tem_tasks"] is False and r[0]["meta_sprints"] == []
+
+
+def test_eventos_de_funcionalidade_removida(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["sprint_meta_eventos"] = [
+        {"id": "e1", "sprint_id": "s1", "funcionalidade_id": None, "acao": "incluiu", "pessoa_id": "pessoa-teste",
+         "criado_em": "2026-11-01T10:00:00+00:00"},
+    ]
+    tc, _ = _tc(monkeypatch, autenticar, fake=fake)
+    r = tc.get("/sprints/s1/meta/eventos")
+    assert r.status_code == 200
+    assert r.json()[0]["funcionalidade_id"] is None
+    assert r.json()[0]["titulo"] == "(funcionalidade removida)"
+
+
+def test_meta_em_e_original_ignoram_evento_sem_funcionalidade():
+    evs = [ev(None, "incluiu", 1), ev("a", "incluiu", 1)]
+    assert meta_em(evs, datetime(2026, 11, 30, tzinfo=timezone.utc)) == {"a"}
+    assert meta_original(evs, None) == {"a"}
+
+
+def test_get_funcionalidades_200_mesmo_sem_tabela_de_metas(monkeypatch, autenticar):
+    from tests import fake_supabase
+    import routers.funcionalidades as func_router
+    from main import app
+    fake = FakeClient({"funcionalidades": [{"id": "a", "project_id": "p1", "id_funcional": "F-1", "titulo": "A", "criterios_aceite": [], "prioridade": "alta", "status": "nao_iniciada", "created_at": "2026-10-01T00:00:00+00:00"}], "tasks": []})
+    monkeypatch.setattr(func_router, "get_client", lambda: fake)
+    original = fake_supabase._Query.execute
+
+    def quebra(self):
+        if self._name == "sprint_meta_funcionalidades":
+            raise APIError({"message": "relation does not exist", "code": "42P01"})
+        return original(self)
+
+    monkeypatch.setattr(fake_supabase._Query, "execute", quebra)
+    r = autenticar(TestClient(app), "lider").get("/funcionalidades?project_id=p1")
+    assert r.status_code == 200 and r.json()[0]["meta_sprints"] == []

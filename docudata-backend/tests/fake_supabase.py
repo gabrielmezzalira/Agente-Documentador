@@ -31,6 +31,11 @@ class _Query:
         self._filtros.append(lambda r: r.get(col) != val)
         return self
 
+    def gte(self, col, val):
+        """Comparação lexicográfica de strings ISO (os testes usam o mesmo formato nos dois lados)."""
+        self._filtros.append(lambda r: r.get(col) is not None and str(r.get(col)) >= str(val))
+        return self
+
     def is_(self, col, val):
         """Só o caso `.is_(col, "null")` (IS NULL), usado pelo compare-and-swap da reserva de análise."""
         if val != "null":

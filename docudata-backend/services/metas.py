@@ -1,11 +1,15 @@
 """Meta de funcionalidades por sprint (Rodada B1, entrega 2)."""
 from datetime import datetime, timedelta, timezone
 
+import logging
+
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from services.supabase_paginacao import ler_tudo
 
 LOTE = 100
+logger = logging.getLogger(__name__)
 
 
 def _dt(v) -> datetime:
@@ -21,7 +25,7 @@ def diferenca_meta(atual: set[str], nova: set[str]) -> tuple[set[str], set[str]]
 
 def meta_em(eventos: list[dict], ate: datetime) -> set[str]:
     meta: set[str] = set()
-    for e in sorted(eventos, key=lambda e: _dt(e["criado_em"])):
+    for e in sorted((e for e in eventos if e.get("funcionalidade_id")), key=lambda e: _dt(e["criado_em"])):
         if _dt(e["criado_em"]) > ate:
             break
         if e["acao"] == "incluiu":
@@ -32,6 +36,7 @@ def meta_em(eventos: list[dict], ate: datetime) -> set[str]:
 
 
 def meta_original(eventos: list[dict], inicio: datetime | None) -> set[str]:
+    eventos = [e for e in eventos if e.get("funcionalidade_id")]
     if not eventos:
         return set()
     if inicio is not None:
@@ -126,9 +131,8 @@ def substituir_meta(client, sprint_id: str, funcionalidade_ids: list[str], pesso
                 on_conflict="sprint_id,funcionalidade_id").execute()
         for lote in _lotes(sorted(retirar)):
             client.table("sprint_meta_funcionalidades").delete().eq("sprint_id", sprint_id).in_("funcionalidade_id", lote).execute()
-    except HTTPException:
-        raise
-    except Exception:
+    except APIError:
+        logger.exception("Falha ao gravar a meta da sprint %s", sprint_id)
         raise HTTPException(status_code=409, detail="A meta foi alterada ao mesmo tempo; recarregue e tente de novo.")
     return ler_meta(client, sprint_id)
 
@@ -137,12 +141,12 @@ def eventos_detalhados(client, sprint_id: str) -> list[dict]:
     sprint_ou_404(client, sprint_id)
     eventos = eventos_da_meta(client, [sprint_id])
     titulos: dict[str, str] = {}
-    for lote in _lotes([e["funcionalidade_id"] for e in eventos]):
+    for lote in _lotes([e["funcionalidade_id"] for e in eventos if e.get("funcionalidade_id")]):
         for f in client.table("funcionalidades").select("id, titulo").in_("id", lote).execute().data or []:
             titulos[f["id"]] = f["titulo"]
     nomes: dict[str, str] = {}
     for lote in _lotes([e["pessoa_id"] for e in eventos if e.get("pessoa_id")]):
         for p in client.table("pessoa").select("id, nome").in_("id", lote).execute().data or []:
             nomes[p["id"]] = p["nome"]
-    return [{"funcionalidade_id": e["funcionalidade_id"], "titulo": titulos.get(e["funcionalidade_id"]), "acao": e["acao"],
+    return [{"funcionalidade_id": e["funcionalidade_id"], "titulo": titulos.get(e["funcionalidade_id"]) if e.get("funcionalidade_id") else "(funcionalidade removida)", "acao": e["acao"],
              "pessoa_nome": nomes.get(e.get("pessoa_id")), "criado_em": str(e["criado_em"])} for e in eventos]

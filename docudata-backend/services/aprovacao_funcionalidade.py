@@ -3,11 +3,14 @@
 "Concluída e aprovada" = status 'concluida' e aprovada_em preenchido. O status
 não ganha valor novo para não quebrar quem já lê status. Toda mudança de
 aprovação vira linha em transicoes_status com campo 'aprovacao'."""
+import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
 from services.supabase_paginacao import ler_tudo
+
+logger = logging.getLogger(__name__)
 
 
 def _buscar(client, funcionalidade_id: str) -> dict:
@@ -91,7 +94,12 @@ def _metas_abertas(client, ids: list[str], lote: int = 100) -> dict[str, list[in
 def com_tem_tasks(client, funcs: list[dict]) -> list[dict]:
     ids = [f["id"] for f in funcs]
     com_tasks = _ids_com_tasks(client, ids)
-    metas = _metas_abertas(client, ids)
+    try:
+        metas = _metas_abertas(client, ids)
+    except Exception:
+        # Enriquecimento opcional: sem a tabela de metas (migração pendente) ou com erro de leitura, o CRUD segue.
+        logger.exception("Falha ao ler as metas das funcionalidades")
+        metas = {}
     return [{**f, "tem_tasks": f["id"] in com_tasks, "meta_sprints": metas.get(f["id"], [])} for f in funcs]
 
 

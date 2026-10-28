@@ -1005,7 +1005,7 @@ class MetaResponse(BaseModel):
 
 
 class MetaEvento(BaseModel):
-    funcionalidade_id: str
+    funcionalidade_id: Optional[str] = None
     titulo: Optional[str] = None
     acao: str
     pessoa_nome: Optional[str] = None
@@ -1015,6 +1015,7 @@ class MetaEvento(BaseModel):
 class AcompSprintRef(BaseModel):
     id: str
     numero: int
+    fechada: bool = False
 
 
 class AcompFuncionalidade(BaseModel):
