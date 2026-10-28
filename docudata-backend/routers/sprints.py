@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -14,7 +15,10 @@ from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.previsto_sprint import previsto_da_sprint
 from services.sprints import iniciar_sprint_e_ancorar_tasks
+from services.status_funcionalidade import sincronizar_status
 from services.avaliacoes import contar_avaliacao_por_sprint
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sprints"])
 
@@ -172,7 +176,18 @@ async def delete_sprint(sprint_id: str):
     # tasks.sprint_id é FK real — apaga explícito (não depende da migration de
     # ON DELETE CASCADE já ter sido aplicada em produção). task_transicoes e
     # task_sugestoes cascadeiam a partir de tasks no schema.
+    funcionalidades_afetadas = {
+        t["funcionalidade_id"]
+        for t in (client.table("tasks").select("funcionalidade_id").eq("sprint_id", sprint_id).execute().data or [])
+        if t.get("funcionalidade_id")
+    }
     client.table("tasks").delete().eq("sprint_id", sprint_id).execute()
+    for funcionalidade_id in funcionalidades_afetadas:
+        try:
+            sincronizar_status(client, funcionalidade_id)
+        except Exception:
+            # best-effort: a exclusão da sprint não pode falhar por isso
+            logger.exception("falha ao sincronizar status da funcionalidade %s ao excluir a sprint", funcionalidade_id)
 
     # ingestions e generated_docs ligam por (project_id, sprint_number) — sem FK.
     client.table("ingestions").delete().eq("project_id", project_id).eq("sprint_number", numero).execute()

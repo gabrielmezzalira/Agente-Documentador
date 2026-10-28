@@ -41,6 +41,7 @@ from services.classificador_aprendizado import registrar_conclusao, registrar_op
 from services.classificador_regua import texto_da_task
 from services.supabase_paginacao import ler_tudo
 from services.aprovacao_funcionalidade import revogar_se_aprovada
+from services.status_funcionalidade import sincronizar_status
 from services.task_events import on_task_transition
 from services.spi_health import auto_update_sprint_health
 from services.pontuacao import rotear_evento_pos_fechamento, pontos_travamento_ativo
@@ -59,6 +60,16 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
     "bloqueio_tipo", "requer_aprovacao",
 }
+
+
+def _sincronizar_funcionalidades(client, funcionalidade_ids, autor: Optional[str] = "sistema") -> None:
+    """Recalcula o status das funcionalidades afetadas por uma escrita de task.
+    Nunca altera a resposta da rota: qualquer falha só vira log."""
+    for fid in dict.fromkeys(f for f in funcionalidade_ids if f):
+        try:
+            sincronizar_status(client, fid, autor)
+        except Exception:
+            _LOG.warning("Falha ao sincronizar status da funcionalidade %s", fid)
 
 
 def _registrar_task_transicao(
@@ -389,6 +400,7 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
         criada = _travar_e_atualizar(client, criada)
 
     revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
+    _sincronizar_funcionalidades(client, [data.funcionalidade_id], pessoa.get("email"))
 
     if payload.get("operacional_id"):
         _avisar_operacional_atribuicao(client, criada)
@@ -571,6 +583,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not result.data:
         raise HTTPException(status_code=409, detail="Esta task já foi puxada.")
 
+    _sincronizar_funcionalidades(client, [task.get("funcionalidade_id")], pessoa.get("email"))
     return _travar_e_atualizar(client, result.data[0])
 
 
@@ -636,6 +649,7 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
         "updated_at": agora,
     }
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+    _sincronizar_funcionalidades(client, [task.get("funcionalidade_id")], pessoa.get("email"))
     return result.data[0]
 
 
@@ -665,6 +679,7 @@ async def aprovar_task(
     }).eq("id", task_id).execute()
 
     on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "concluida")
+    _sincronizar_funcionalidades(client, [task.get("funcionalidade_id")], pessoa.get("email"))
     _registrar_aprendizado_best_effort(client, task_id)
     sprint_id_atual = task.get("sprint_id")
     if sprint_id_atual:
@@ -710,6 +725,7 @@ async def rejeitar_task(
     }).eq("id", task_id).execute()
 
     on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "planejado")
+    _sincronizar_funcionalidades(client, [task.get("funcionalidade_id")], pessoa.get("email"))
     _avisar_operacional_rejeicao(client, task, data.motivo)
 
     return result.data[0]
@@ -1059,6 +1075,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         revogar_se_aprovada(client, func_efetiva, "revogada: task reaberta")
     elif data.funcionalidade_id is not None and data.funcionalidade_id != task.get("funcionalidade_id"):
         revogar_se_aprovada(client, data.funcionalidade_id, "revogada: task nova")
+    _sincronizar_funcionalidades(client, [func_efetiva, task.get("funcionalidade_id")], pessoa.get("email"))
 
     if virou_cliente:
         # Mesma válvula do override de travamento: atraso por espera do
@@ -1187,10 +1204,10 @@ async def reordenar_tasks(itens: list[TaskReordenarItem]):
     return {"updated": len(itens)}
 
 
-@router.delete("/{task_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
-async def delete_task(task_id: str):
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(task_id: str, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
-    check = client.table("tasks").select("id, sprint_id").eq("id", task_id).execute()
+    check = client.table("tasks").select("id, sprint_id, funcionalidade_id").eq("id", task_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1204,3 +1221,4 @@ async def delete_task(task_id: str):
             )
 
     client.table("tasks").delete().eq("id", task_id).execute()
+    _sincronizar_funcionalidades(client, [check.data[0].get("funcionalidade_id")], pessoa.get("email"))

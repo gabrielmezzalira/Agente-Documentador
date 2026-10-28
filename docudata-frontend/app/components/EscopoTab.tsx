@@ -35,12 +35,14 @@ const PRIORIDADE_COLOR: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   nao_iniciada: "Não iniciada",
   em_andamento: "Em andamento",
+  em_ajuste: "Em ajuste",
   concluida: "Concluída",
 };
 
 const STATUS_COLOR: Record<string, string> = {
   nao_iniciada: "#8a948e",
   em_andamento: "#b197fc",
+  em_ajuste: "#f2c14e",
   concluida: "#3ee06f",
 };
 
@@ -103,6 +105,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     if (!criterios.length) { setErroEdit("Adicione ao menos um critério de aceite."); return; }
     setSavingEdit(true);
     setErroEdit("");
+    const original = funcList.find(x => x.id === editingId);
+    const statusMudou = !!original && editForm.status !== (original.status ?? "nao_iniciada");
     try {
       const atualizada = await updateFuncionalidade(editingId!, {
         id_funcional: editForm.id_funcional.trim() || undefined,
@@ -111,7 +115,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
         criterios_aceite: criterios,
         prioridade: editForm.prioridade,
         responsavel: editForm.responsavel.trim() || undefined,
-        status: editForm.status,
+        status: statusMudou ? editForm.status : undefined,
         sprint_alvo: editForm.sprint_alvo.trim() || undefined,
       });
       setFuncList(prev => prev.map(f => f.id === atualizada.id ? atualizada : f));
@@ -614,10 +618,11 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                         </Field>
                       ))}
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
-                        <Field label="Status" htmlFor={`edit-${f.id}-status`}>
-                          <Select id={`edit-${f.id}-status`} value={editForm.status} onChange={(e) => setEditForm((ef) => ({ ...ef, status: e.target.value }))}>
+                        <Field label="Status" htmlFor={`edit-${f.id}-status`} hint={f.tem_tasks ? "O status vem das tasks." : undefined}>
+                          <Select id={`edit-${f.id}-status`} value={editForm.status} disabled={f.tem_tasks} onChange={(e) => setEditForm((ef) => ({ ...ef, status: e.target.value }))}>
                             <option value="nao_iniciada">Não iniciada</option>
                             <option value="em_andamento">Em andamento</option>
+                            <option value="em_ajuste">Em ajuste</option>
                             <option value="concluida">Concluída</option>
                           </Select>
                         </Field>

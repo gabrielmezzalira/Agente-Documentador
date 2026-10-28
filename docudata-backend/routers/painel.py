@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from services.supabase_client import get_client
 from core.observability import registrar_falha_interna
+from services.supabase_paginacao import ler_tudo
 
 router = APIRouter(prefix="/projects", tags=["painel"])
 
@@ -64,7 +65,33 @@ def calcular_bloco_a(proj: dict, funcs: list[dict]) -> dict:
     }
 
 
-def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente: dict | None = None) -> dict:
+def ultimo_movimento_das_tasks(client, func_ids: list[str], lote: int = 50) -> dict[str, datetime]:
+    """Última transição de task (qualquer campo) por funcionalidade, lida em lote, sem N+1."""
+    task_func: dict[str, str] = {}
+    for i in range(0, len(func_ids), lote):
+        parte = func_ids[i:i + lote]
+        rows = ler_tudo(lambda: client.table("tasks").select("id, funcionalidade_id").in_("funcionalidade_id", parte).order("id"))
+        task_func.update({r["id"]: r["funcionalidade_id"] for r in rows})
+    ids = sorted(task_func)
+    ultimo: dict[str, datetime] = {}
+    for i in range(0, len(ids), lote):
+        parte = ids[i:i + lote]
+        rows = ler_tudo(lambda: client.table("task_transicoes").select("task_id, timestamp").in_("task_id", parte).order("id"))
+        for r in rows:
+            ts = _parse_dt(r.get("timestamp"))
+            fid = task_func.get(r.get("task_id"))
+            if ts is not None and fid and (fid not in ultimo or ts > ultimo[fid]):
+                ultimo[fid] = ts
+    return ultimo
+
+
+def calcular_bloco_b(
+    funcs: list[dict],
+    transicoes: list[dict],
+    revisao_recente: dict | None = None,
+    ultimo_movimento_task: dict[str, datetime] | None = None,
+) -> dict:
+    ultimo_movimento_task = ultimo_movimento_task or {}
     hoje = datetime.now(timezone.utc)
 
     ultima_transicao_status: dict[str, datetime] = {}
@@ -89,7 +116,7 @@ def calcular_bloco_b(funcs: list[dict], transicoes: list[dict], revisao_recente:
         titulo = f.get("titulo", "")
 
         if status == "em_andamento":
-            ref_ts = ultima_transicao_status.get(fid)
+            ref_ts = ultimo_movimento_task.get(fid) or ultima_transicao_status.get(fid)
             if ref_ts is None:
                 created_dt = _parse_dt(f.get("created_at"))
                 ref_ts = created_dt if created_dt else hoje
@@ -296,6 +323,11 @@ async def get_painel(project_id: str):
             )
             trans_list = trans_result.data or []
 
+        ultimo_movimento: dict[str, datetime] = {}
+        if func_list:
+            step = "task_transicoes"
+            ultimo_movimento = ultimo_movimento_das_tasks(client, [f["id"] for f in func_list])
+
         step = "revisoes_diarias"
         revisao_resp = (
             client.table("revisoes_diarias")
@@ -309,7 +341,7 @@ async def get_painel(project_id: str):
 
         step = "calc"
         bloco_a = calcular_bloco_a(proj, func_list)
-        bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente)
+        bloco_b = calcular_bloco_b(func_list, trans_list, revisao_recente, ultimo_movimento)
         bloco_c = calcular_bloco_c(func_list, trans_list)
         bloco_d = calcular_bloco_d(func_list, trans_list)
 
