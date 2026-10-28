@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useAuth } from "../components/AuthGuard";
 import DefinirMetaModal from "../components/DefinirMetaModal";
 import { Button, Card, Chip, EmptyState, ErrorNotice, PageHeader, ProgressBar, SegmentedControl } from "../components/ds";
@@ -66,7 +66,7 @@ function Historico({ sprintId }: { sprintId: string }) {
     <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: ds.text2 }}>
       {eventos.map((e, i) => (
         <li key={`${e.funcionalidade_id}-${e.criado_em}-${i}`}>
-          {e.acao} · {e.titulo ?? e.funcionalidade_id} · {e.pessoa_nome ?? "—"} · {new Date(e.criado_em).toLocaleDateString("pt-BR")}
+          {e.acao} · {e.titulo ?? "(funcionalidade removida)"} · {e.pessoa_nome ?? "—"} · {new Date(e.criado_em).toLocaleDateString("pt-BR")}
         </li>
       ))}
     </ul>
@@ -185,12 +185,16 @@ export default function AcompanhamentoPage() {
   const [modal, setModal] = useState<AcompProjeto | null>(null);
   const [versao, setVersao] = useState(0);
 
+  const pedido = useRef(0); // só a resposta do pedido mais recente vale (ao alternar Dados/Dev)
+
   const carregar = useCallback(async () => {
+    const meu = ++pedido.current;
     setErro("");
     try {
-      setDados(await getAcompanhamento(subarea));
+      const r = await getAcompanhamento(subarea);
+      if (meu === pedido.current) setDados(r);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento");
+      if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento");
     }
   }, [subarea]);
 

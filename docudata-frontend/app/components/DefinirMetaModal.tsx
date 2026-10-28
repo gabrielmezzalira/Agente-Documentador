@@ -9,8 +9,8 @@ import { definirMetaSprint, getMetaSprint, listFuncionalidades, type AcompProjet
 export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projeto: AcompProjeto; onClose: () => void; onSalvo: () => void }) {
   const sprints = useMemo(
     () => [
-      ...(projeto.sprint_atual ? [{ id: projeto.sprint_atual.id, numero: projeto.sprint_atual.numero, atual: true }] : []),
-      ...projeto.proximas_sprints.map((s) => ({ id: s.id, numero: s.numero, atual: false })),
+      ...(projeto.sprint_atual && !projeto.sprint_atual.fechada ? [{ id: projeto.sprint_atual.id, numero: projeto.sprint_atual.numero, atual: true }] : []),
+      ...projeto.proximas_sprints.filter((s) => !s.fechada).map((s) => ({ id: s.id, numero: s.numero, atual: false })),
     ],
     [projeto],
   );
@@ -21,9 +21,11 @@ export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projet
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [erroFuncs, setErroFuncs] = useState("");
-  const [metaCarregada, setMetaCarregada] = useState(false);
+  const [metaDe, setMetaDe] = useState("");
   const [iniciais, setIniciais] = useState<Set<string>>(new Set());
 
+  // A meta só vale para a sprint para a qual foi carregada: ao trocar de sprint não há janela com a lista anterior.
+  const metaCarregada = metaDe !== "" && metaDe === sprintId;
   const sprintEhAtual = sprints.find((s) => s.id === sprintId)?.atual ?? false;
   // % de tasks e "planejada" só existem no JSON do acompanhamento para a sprint atual.
   const dadosAtual = useMemo(() => {
@@ -45,12 +47,11 @@ export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projet
     if (!sprintId) return;
     let vivo = true;
     setCarregando(true);
-    setMetaCarregada(false);
     setMarcadas(new Set());
     setIniciais(new Set());
     setErro("");
     getMetaSprint(sprintId)
-      .then((m) => { if (vivo) { setMarcadas(new Set(m.funcionalidade_ids)); setIniciais(new Set(m.funcionalidade_ids)); setMetaCarregada(true); } })
+      .then((m) => { if (vivo) { setMarcadas(new Set(m.funcionalidade_ids)); setIniciais(new Set(m.funcionalidade_ids)); setMetaDe(sprintId); } })
       .catch((e) => { if (vivo) setErro(e instanceof Error ? e.message : "Erro ao buscar a meta da sprint"); })
       .finally(() => { if (vivo) setCarregando(false); });
     return () => { vivo = false; };
@@ -87,12 +88,12 @@ export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projet
       onClose={onClose}
       footer={<>
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button variant="primary" disabled={salvando || carregando || !metaCarregada || !sprintId} onClick={salvar}>{salvando ? "Salvando..." : "Salvar meta"}</Button>
+        <Button variant="primary" disabled={salvando || carregando || !metaCarregada || funcs === null || !sprintId} onClick={salvar}>{salvando ? "Salvando..." : "Salvar meta"}</Button>
       </>}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {sprints.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 14, color: ds.muted }}>O projeto não tem sprint atual nem próximas para receber uma meta.</p>
+          <p style={{ margin: 0, fontSize: 14, color: ds.muted }}>Nenhuma sprint aberta para definir meta.</p>
         ) : (
           <>
             <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: ds.muted }}>

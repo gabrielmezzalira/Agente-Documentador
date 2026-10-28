@@ -2431,7 +2431,7 @@ export async function devolverTask(taskId: string): Promise<TaskKanbanResponse> 
 // Acompanhamento dos projetos e metas por sprint (Rodada B1)
 // ---------------------------------------------------------------------------
 
-export interface AcompSprintRef { id: string; numero: number }
+export interface AcompSprintRef { id: string; numero: number; fechada: boolean }
 export interface AcompFuncionalidade {
   id: string;
   id_funcional: string | null;
@@ -2474,7 +2474,7 @@ export interface AcompanhamentoResponse {
 }
 export interface MetaSprint { sprint_id: string; funcionalidade_ids: string[] }
 export interface MetaEvento {
-  funcionalidade_id: string;
+  funcionalidade_id: string | null;
   titulo: string | null;
   acao: string;
   pessoa_nome: string | null;

@@ -552,7 +552,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                 <div key={f.id} style={{ borderTop: idx > 0 ? `1px solid ${ds.border}` : "none" }}>
                   <div className="ds-func-row" style={{ display: "grid", gridTemplateColumns: "44px 120px minmax(0,1fr) auto", gap: 16, alignItems: "center", padding: "15px 22px" }}>
                     <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted }}>{f.id_funcional}</span>
-                    <span><Chip tone={statusTone(f.status)}>{STATUS_LABEL[f.status] ?? f.status}</Chip>{(f.meta_sprints ?? []).map((n) => (
+                    <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}><Chip tone={statusTone(f.status)}>{STATUS_LABEL[f.status] ?? f.status}</Chip>{(f.meta_sprints ?? []).map((n) => (
                       <Chip key={`meta-${n}`} tone="violet">meta da sprint {n}</Chip>
                     ))}</span>
                     <span style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
