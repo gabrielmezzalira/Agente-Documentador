@@ -2,7 +2,8 @@
 
 Regra (extras ignoradas): sem tasks → não mexe; todas em planejado →
 nao_iniciada; todas concluídas → concluida; senão → em_andamento.
-`em_ajuste` é manual e só cede para nao_iniciada/concluida."""
+Com tasks o derivado sempre vence (inclusive sobre em_ajuste); sem tasks o
+status é manual."""
 import logging
 from datetime import datetime, timezone
 
@@ -20,6 +21,14 @@ def status_derivado(tasks: list[dict]) -> str | None:
     if all(c == "concluida" for c in colunas):
         return "concluida"
     return "em_andamento"
+
+
+def status_alvo(atual: str | None, tasks: list[dict]) -> str | None:
+    """Status para o qual a funcionalidade deve ir, ou None se nada muda."""
+    novo = status_derivado(tasks)
+    if novo is None or novo == atual:
+        return None
+    return novo
 
 
 def _ts(valor: str) -> datetime:
@@ -75,11 +84,9 @@ def sincronizar_status(client, funcionalidade_id: str | None, autor: str | None 
         if not resp.data:
             return None
         func = resp.data[0]
-        novo = status_derivado(tasks_da_funcionalidade(client, funcionalidade_id))
         atual = func.get("status")
-        if novo is None or novo == atual:
-            return None
-        if atual == "em_ajuste" and novo == "em_andamento":
+        novo = status_alvo(atual, tasks_da_funcionalidade(client, funcionalidade_id))
+        if novo is None:
             return None
         agora = datetime.now(timezone.utc)
         # Update condicionado ao status lido: se outra escrita venceu, não grava transição órfã/duplicada.

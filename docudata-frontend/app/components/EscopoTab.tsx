@@ -619,22 +619,11 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                       ))}
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
                         <Field label="Status" htmlFor={`edit-${f.id}-status`} hint={f.tem_tasks ? "O status vem das tasks." : undefined}>
-                          <Select id={`edit-${f.id}-status`} value={editForm.status} onChange={(e) => setEditForm((ef) => ({ ...ef, status: e.target.value }))}>
-                            {f.tem_tasks ? (
-                              <>
-                                <option value={f.status === "em_ajuste" ? "em_andamento" : (f.status ?? "nao_iniciada")}>
-                                  {STATUS_LABEL[f.status === "em_ajuste" ? "em_andamento" : (f.status ?? "nao_iniciada")]}
-                                </option>
-                                <option value="em_ajuste">Em ajuste</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value="nao_iniciada">Não iniciada</option>
-                                <option value="em_andamento">Em andamento</option>
-                                <option value="em_ajuste">Em ajuste</option>
-                                <option value="concluida">Concluída</option>
-                              </>
-                            )}
+                          <Select id={`edit-${f.id}-status`} value={editForm.status} disabled={f.tem_tasks} onChange={(e) => setEditForm((ef) => ({ ...ef, status: e.target.value }))}>
+                            <option value="nao_iniciada">Não iniciada</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="em_ajuste">Em ajuste</option>
+                            <option value="concluida">Concluída</option>
                           </Select>
                         </Field>
                         <Field label="Sprint alvo" htmlFor={`edit-${f.id}-sprint`}>

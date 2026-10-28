@@ -49,11 +49,11 @@ def test_status_igual_nao_escreve():
     assert c.tables["transicoes_status"] == []
 
 
-def test_em_ajuste_nao_cede_para_em_andamento():
+def test_em_ajuste_cede_para_o_derivado():
     c = _client("em_ajuste", ["em_andamento"])
-    assert sincronizar_status(c, "f1") is None
-    assert c.tables["funcionalidades"][0]["status"] == "em_ajuste"
-    assert c.tables["transicoes_status"] == []
+    assert sincronizar_status(c, "f1") == "em_andamento"
+    assert c.tables["funcionalidades"][0]["status"] == "em_andamento"
+    assert [(t["de"], t["para"]) for t in c.tables["transicoes_status"]] == [("em_ajuste", "em_andamento")]
 
 
 def test_concluida_aprovada_revoga_ao_voltar():
@@ -112,7 +112,7 @@ def _rota(monkeypatch, autenticar, colunas):
     return fake, autenticar(TestClient(app), "gerente")
 
 
-@pytest.mark.parametrize("novo", ["concluida", "em_andamento"])
+@pytest.mark.parametrize("novo", ["concluida", "em_andamento", "em_ajuste"])
 def test_patch_status_com_tasks_409(monkeypatch, autenticar, novo):
     fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
     resp = tc.patch("/funcionalidades/f1", json={"status": novo})
@@ -122,28 +122,18 @@ def test_patch_status_com_tasks_409(monkeypatch, autenticar, novo):
     assert fake.tables["transicoes_status"] == []
 
 
-def test_patch_em_ajuste_com_tasks_200(monkeypatch, autenticar):
-    fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
-    resp = tc.patch("/funcionalidades/f1", json={"status": "em_ajuste"})
-    assert resp.status_code == 200, resp.text
-    assert fake.tables["funcionalidades"][0]["status"] == "em_ajuste"
-    assert [(t["de"], t["para"]) for t in fake.tables["transicoes_status"]] == [("nao_iniciada", "em_ajuste")]
-
-
-def test_patch_sair_de_em_ajuste_para_o_derivado_200(monkeypatch, autenticar):
+def test_patch_sair_de_em_ajuste_com_tasks_409(monkeypatch, autenticar):
     fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
     fake.tables["funcionalidades"][0]["status"] = "em_ajuste"
     resp = tc.patch("/funcionalidades/f1", json={"status": "em_andamento"})
-    assert resp.status_code == 200, resp.text
-    assert fake.tables["funcionalidades"][0]["status"] == "em_andamento"
-
-
-def test_patch_sair_de_em_ajuste_para_nao_derivado_409(monkeypatch, autenticar):
-    fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
-    fake.tables["funcionalidades"][0]["status"] = "em_ajuste"
-    resp = tc.patch("/funcionalidades/f1", json={"status": "concluida"})
     assert resp.status_code == 409
-    assert resp.json()["detail"] == _MSG_409
+    assert fake.tables["funcionalidades"][0]["status"] == "em_ajuste"
+
+
+def test_patch_em_ajuste_sem_tasks_200(monkeypatch, autenticar):
+    fake, tc = _rota(monkeypatch, autenticar, [])
+    resp = tc.patch("/funcionalidades/f1", json={"status": "em_ajuste"})
+    assert resp.status_code == 200, resp.text
     assert fake.tables["funcionalidades"][0]["status"] == "em_ajuste"
 
 
@@ -195,6 +185,20 @@ def test_backfill():
     status = {f["id"]: f["status"] for f in c.tables["funcionalidades"]}
     assert status == {"a": "nao_iniciada", "b": "em_andamento", "c": "concluida"}
     assert main(dry_run=False, client=c) == {"ajustadas": 0, "total": 3, "aprovacoes_revogadas": 0}
+
+
+def test_backfill_em_ajuste_com_tasks_segue_o_derivado():
+    from scripts.status_funcionalidade_backfill import main
+    def montar():
+        return FakeClient({
+            "funcionalidades": [_func("a", status="em_ajuste")],
+            "tasks": [{"id": "t1", "funcionalidade_id": "a", "coluna_kanban": "em_andamento", "extra": False}],
+            "transicoes_status": [],
+        })
+    assert main(dry_run=True, client=montar())["ajustadas"] == 1
+    c = montar()
+    assert main(dry_run=False, client=c)["ajustadas"] == 1
+    assert c.tables["funcionalidades"][0]["status"] == "em_andamento"
 
 
 def test_backfill_conta_aprovacoes_revogadas(capsys):

@@ -295,11 +295,8 @@ async def patch_funcionalidade(
     func = resp.data[0]
 
     if data.status is not None and data.status != func.get("status"):
-        derivado = status_derivado(tasks_da_funcionalidade(client, funcionalidade_id))
-        if derivado is not None:  # tem tasks: só "em_ajuste" é manual (e a saída dele volta ao derivado)
-            permitido = data.status == "em_ajuste" or (func.get("status") == "em_ajuste" and data.status == derivado)
-            if not permitido:
-                raise HTTPException(status_code=409, detail="O status vem das tasks desta funcionalidade.")
+        if status_derivado(tasks_da_funcionalidade(client, funcionalidade_id)) is not None:
+            raise HTTPException(status_code=409, detail="O status vem das tasks desta funcionalidade.")
 
     agora = datetime.now(timezone.utc)
 

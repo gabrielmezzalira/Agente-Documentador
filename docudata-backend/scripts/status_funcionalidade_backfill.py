@@ -13,7 +13,7 @@ from dotenv import find_dotenv, load_dotenv  # noqa: E402
 
 load_dotenv(os.environ.get("ENV_FILE") or find_dotenv(usecwd=True) or None)
 
-from services.status_funcionalidade import sincronizar_status, status_derivado  # noqa: E402
+from services.status_funcionalidade import sincronizar_status, status_alvo  # noqa: E402
 from services.supabase_client import get_client  # noqa: E402
 from services.supabase_paginacao import ler_tudo  # noqa: E402
 
@@ -26,8 +26,7 @@ def main(dry_run: bool = False, client=None) -> dict:
     for f in funcs:
         if dry_run:
             tasks = client.table("tasks").select("coluna_kanban, extra").eq("funcionalidade_id", f["id"]).execute().data or []
-            novo = status_derivado(tasks)
-            if novo and novo != f["status"] and not (f["status"] == "em_ajuste" and novo == "em_andamento"):
+            if status_alvo(f["status"], tasks):
                 ajustadas += 1
                 if f["status"] == "concluida" and f.get("aprovada_em"):
                     revogadas += 1
