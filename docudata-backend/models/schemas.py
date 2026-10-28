@@ -992,3 +992,20 @@ class ExclusaoAprendizadoPayload(BaseModel):
         if self.excluida and not self.motivo:
             raise ValueError("Informe o motivo da exclusão")
         return self
+
+
+class MetaUpdate(BaseModel):
+    funcionalidade_ids: list[str]
+
+
+class MetaResponse(BaseModel):
+    sprint_id: str
+    funcionalidade_ids: list[str]
+
+
+class MetaEvento(BaseModel):
+    funcionalidade_id: str
+    titulo: Optional[str] = None
+    acao: str
+    pessoa_nome: Optional[str] = None
+    criado_em: str
