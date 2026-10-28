@@ -390,3 +390,99 @@ def test_status_usa_spi_sem_arredondar():
     p = carregar_projetos(fake, "dados", AGORA)[0][0]  # SPI bruto 0,698, que arredonda para 0,70
     assert p["_mapa"][-1]["spi"] == 0.7
     assert p["_status"] == "critico" and "spi_critico" in [s["codigo"] for s in p["_sinais"]]
+
+
+# ── detalhe do projeto ──
+
+def _tk(i, sprint, op, pontos, col="concluida", **kw):
+    return {"id": i, "project_id": "p1", "sprint_id": sprint, "funcionalidade_id": None, "operacional_id": op,
+            "coluna_kanban": col, "extra": False, "pontos": pontos, "travado_automatico": False,
+            "prevista_no_inicio": True, "surgiu_na_sprint": False, **kw}
+
+
+def _fake_detalhe(com_sprint_anterior=True):
+    sprints = [
+        {"id": "s2", "project_id": "p1", "numero": 2, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None},
+        {"id": "s3", "project_id": "p1", "numero": 3, "iniciada": False, "avaliacao_completa_em": None},
+        # sprint de outro projeto da subárea no trimestre anterior (T3): realizados 10 e 4 -> mediana 7
+        {"id": "sa", "project_id": "p2", "numero": 1, "iniciada": True, "avaliacao_completa_em": "2026-08-15T00:00:00+00:00"},
+        # fora do trimestre anterior e de outra subárea: não contam
+        {"id": "sb", "project_id": "p2", "numero": 2, "iniciada": True, "avaliacao_completa_em": "2026-10-01T00:00:00+00:00"},
+        {"id": "sc", "project_id": "p4", "numero": 1, "iniciada": True, "avaliacao_completa_em": "2026-08-20T00:00:00+00:00"},
+    ]
+    tasks = [
+        _tk("t1", "s2", "o1", 6), _tk("t2", "s2", "o2", 2), _tk("t3", "s2", "o3", 4, col="em_andamento"),
+        _tk("ta1", "sa", "x1", 10, project_id="p2"), _tk("ta2", "sa", "x2", 4, project_id="p2"),
+        _tk("tb1", "sb", "x1", 100, project_id="p2"), _tk("tc1", "sc", "x9", 100, project_id="p4"),
+    ]
+    if com_sprint_anterior:
+        sprints.append({"id": "s1", "project_id": "p1", "numero": 1, "iniciada": True, "data_inicio": "2026-09-20",
+                        "avaliacao_completa_em": "2026-10-10T00:00:00+00:00"})
+        tasks += [_tk("tp1", "s1", "o1", 6), _tk("tp2", "s1", "o2", 2)]
+    return FakeClient({
+        "pessoa": [{"id": "g1", "nome": "Ana", "email": "ana@citi.org.br"}],
+        "projects": [
+            {"id": "p1", "name": "Alfa", "client": "C1", "subarea": "dados", "gerente_email": "ana@citi.org.br",
+             "data_inicio": "2020-01-01", "data_fim_contratada": "2020-12-31", "tolerancia_desvio_pontos": 20},
+            {"id": "p2", "name": "Beta", "client": "C2", "subarea": "dados", "gerente_email": None},
+            {"id": "p4", "name": "Dev", "client": "C4", "subarea": "dev", "gerente_email": None},
+        ],
+        "sprints": sprints, "tasks": tasks,
+        "funcionalidades": [{"id": "f3", "project_id": "p1", "id_funcional": "F3", "titulo": "C", "status": "em_andamento", "aprovada_em": None},
+                            {"id": "f4", "project_id": "p1", "id_funcional": "F4", "titulo": "D", "status": "nao_iniciada", "aprovada_em": None}],
+        "operacionais": [{"id": "o1", "nome": "Ana Op"}, {"id": "o2", "nome": "Bia"}, {"id": "o3", "nome": "Caio"}],
+        "sprint_funcionalidades": [{"id": "x1", "sprint_id": "s2", "funcionalidade_id": "f3"},
+                                   {"id": "x2", "sprint_id": "s2", "funcionalidade_id": "f4"}],
+        "sprint_meta_funcionalidades": [{"sprint_id": "s2", "funcionalidade_id": "f3"}],
+        "task_aprendizado": [],
+    })
+
+
+def _tc_detalhe(monkeypatch, autenticar, cargo="lider", **kw):
+    from main import app
+    fake = _fake_detalhe(**kw)
+    monkeypatch.setattr(rota, "get_client", lambda: fake)
+    original = rota.montar_detalhe
+    monkeypatch.setattr(rota, "montar_detalhe", lambda *a, **k: original(*a, agora=AGORA, **k))
+    return autenticar(TestClient(app), cargo)
+
+
+def test_detalhe_forma_e_piso_por_pessoa(monkeypatch, autenticar):
+    r = _tc_detalhe(monkeypatch, autenticar).get("/acompanhamento/projetos/p1")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["projeto"] == {"id": "p1", "nome": "Alfa", "cliente": "C1", "gerente": "Ana"}
+    assert j["sprint_atual"] == {"id": "s2", "numero": 2, "fechada": False}
+    assert j["proximas_sprints"] == [{"id": "s3", "numero": 3, "fechada": False}]
+    assert set(j["numeros"]) == {"spi_atual", "pct_prazo", "pct_escopo", "prazo_sem_dados", "travadas", "p85_horas"}
+    assert j["numeros"]["spi_atual"] == 0.67 and j["numeros"]["prazo_sem_dados"] is False
+    assert [s["codigo"] for s in j["sinais"]][0] == "spi_critico" and set(j["sinais"][0]) == {"codigo", "texto"}
+    assert j["status"] == "critico" and j["diagnostico"].startswith("Crítico.")
+    assert j["meta"]["total"] == 1 and j["meta"]["funcionalidades"][0]["planejada_na_sprint"] is True
+    assert j["planejadas_fora_da_meta"] == [{"id": "f4", "id_funcional": "F4", "titulo": "D"}]
+    assert [s["numero"] for s in j["sprints"]] == [1, 2]
+    assert j["sprints"][1] == {"numero": 2, "previsto": 12, "realizado": 8, "spi": 0.67, "meta_batida": False}
+    tm = j["time"]
+    assert tm["sprint_numero"] == 2 and tm["mediana_squad"] == 4.0 and tm["mediana_subarea"] == 7.0
+    assert [(p["nome"], p["realizado"], p["piso"], p["abaixo"]) for p in tm["pessoas"]] == [
+        ("Ana Op", 6.0, 3.5, False), ("Bia", 2.0, 3.5, True), ("Caio", 0.0, 3.5, True)]
+
+
+def test_detalhe_mesmo_status_do_dashboard(monkeypatch, autenticar):
+    c = _tc_detalhe(monkeypatch, autenticar)
+    d = c.get("/acompanhamento/projetos/p1").json()
+    from services.acompanhamento import montar_acompanhamento
+    ref = montar_acompanhamento(_fake_detalhe(), "dados", agora=AGORA)
+    item = next(p for p in ref["projetos"] if p["id"] == "p1")
+    assert (d["status"], d["diagnostico"]) == (item["status"], item["diagnostico"])
+
+
+def test_detalhe_sem_sprint_anterior_usa_so_a_subarea(monkeypatch, autenticar):
+    tm = _tc_detalhe(monkeypatch, autenticar, com_sprint_anterior=False).get("/acompanhamento/projetos/p1").json()["time"]
+    assert tm["mediana_squad"] is None and tm["mediana_subarea"] == 7.0
+    assert all(p["piso"] == 3.5 for p in tm["pessoas"])
+
+
+def test_detalhe_404_e_403(monkeypatch, autenticar):
+    assert _tc_detalhe(monkeypatch, autenticar).get("/acompanhamento/projetos/nao-existe").status_code == 404
+    assert _tc_detalhe(monkeypatch, autenticar, "gerente").get("/acompanhamento/projetos/p1").status_code == 403

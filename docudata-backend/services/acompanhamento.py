@@ -8,6 +8,7 @@ from statistics import quantiles
 
 from routers.painel import calcular_bloco_a
 from services.status_projeto import ORDEM_STATUS, diagnostico, motivos, sinais_do_projeto, status_de
+from services import piso as piso_svc
 from services.metas import _lotes, funcionalidade_entregue, metas_das_sprints, resultado_meta
 from services.supabase_paginacao import ler_tudo
 
@@ -296,7 +297,7 @@ def _em_lote(ids: list[str], consulta) -> list[dict]:
 
 
 def carregar_projetos(client, subarea: str, agora: datetime | None = None,
-                      gerente_email: str | None = None) -> tuple[list[dict], list[dict], dict[str, dict]]:
+                      gerente_email: str | None = None, projeto_id: str | None = None) -> tuple[list[dict], list[dict], dict[str, dict]]:
     """Lê tudo em lote. Devolve (projetos calculados já filtrados, gerentes da subárea, pessoas por email)."""
     agora = agora or datetime.now(timezone.utc)
     projetos = ler_tudo(lambda: client.table("projects")
@@ -308,6 +309,8 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
         projetos = [p for p in projetos
                     if ((p.get("gerente_email") or "").strip().lower() == "" if alvo == "sem"
                         else (p.get("gerente_email") or "").strip().lower() == alvo)]
+    if projeto_id:
+        projetos = [p for p in projetos if p["id"] == projeto_id]
     pids = [p["id"] for p in projetos]
 
     sprints = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("sprints")
@@ -317,7 +320,7 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
                      .select("id, project_id, id_funcional, titulo, status, aprovada_em")
                      .in_("project_id", l).order("id")))
     tasks = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("tasks")
-                     .select("id, project_id, sprint_id, funcionalidade_id, coluna_kanban, extra, pontos, "
+                     .select("id, project_id, sprint_id, funcionalidade_id, operacional_id, coluna_kanban, extra, pontos, "
                              "travado_automatico, prevista_no_inicio, surgiu_na_sprint")
                      .in_("project_id", l).order("id")))
 
@@ -384,6 +387,8 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
             "_gerente_email": p.get("gerente_email"), "_status": status, "_sinais": sinais,
             "_mapa": mapa, "_feat": feat, "_feat_ant": feat_ant, "_spi": spi_atual, "_spi_ant": mapa[-2]["spi"],
             "_motivos": motivos(sinais), "_diagnostico": diagnostico(status, sinais),
+            "_sprints": sps, "_tasks": ts, "_gerente_nome": ((por_email.get((p.get("gerente_email") or "").strip().lower()) or {})
+                                                            .get("nome") or (p.get("gerente_email") or "").strip() or None),
         })
         calculados.append(c)
 
@@ -428,4 +433,86 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None, g
         "por_gerente": por_gerente,
         "projetos": [{"id": i["id"], "nome": i["nome"], "status": i["_status"],
                       "motivos": i["_motivos"], "diagnostico": i["_diagnostico"]} for i in ordenados],
+    }
+
+
+# ── detalhe do projeto ──
+
+def _medianas_da_subarea(client, subarea: str, trimestre: str) -> float | None:
+    """Mediana dos realizados de pessoa×sprint das sprints da subárea no trimestre dado (leitura em lote)."""
+    pids = [p["id"] for p in ler_tudo(lambda: client.table("projects").select("id").eq("subarea", subarea).order("id"))]
+    sprints = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("sprints")
+                       .select("id, project_id, data_fim, avaliacao_completa_em").in_("project_id", l).order("id")))
+    ids = [s["id"] for s in sprints if piso_svc.trimestre_de(s) == trimestre]
+    tasks = _em_lote(ids, lambda l: ler_tudo(lambda: client.table("tasks")
+                     .select("id, sprint_id, operacional_id, coluna_kanban, extra, pontos")
+                     .in_("sprint_id", l).order("id")))
+    por_sprint: dict[str, list[dict]] = {}
+    for t in tasks:
+        por_sprint.setdefault(t["sprint_id"], []).append(t)
+    return piso_svc.mediana(v for ts in por_sprint.values() for v in piso_svc.realizados_do_squad(ts).values())
+
+
+def montar_detalhe(client, projeto_id: str, agora: datetime | None = None) -> dict | None:
+    agora = agora or datetime.now(timezone.utc)
+    linha = ler_tudo(lambda: client.table("projects").select("id, subarea").eq("id", projeto_id).order("id"))
+    if not linha:
+        return None
+    subarea = linha[0].get("subarea") or "dados"
+    itens, _, _ = carregar_projetos(client, subarea, agora, projeto_id=projeto_id)
+    if not itens:
+        return None
+    c = itens[0]
+    pe = c["prazo_escopo"]
+    sem_dados = bool(pe.get("sem_dados"))
+    tasks, sprints = c["_tasks"], c["_sprints"]
+    por_sprint: dict[str, list[dict]] = {}
+    for t in tasks:
+        if t.get("sprint_id"):
+            por_sprint.setdefault(t["sprint_id"], []).append(t)
+
+    por_numero = {r["numero"]: r for r in sprints_relativas(sprints)}
+    mapa_por_numero = {m["numero"]: m for m in c["_mapa"] if m["numero"] is not None}
+    lista = []
+    for numero in sorted(por_numero):
+        ts = por_sprint.get(por_numero[numero]["id"], [])
+        m = mapa_por_numero.get(numero, {})
+        lista.append({
+            "numero": numero, "previsto": previsto_de(ts),
+            "realizado": sum(t["pontos"] for t in ts if t.get("coluna_kanban") == "concluida" and not t.get("extra")),
+            "spi": m.get("spi"), "meta_batida": m.get("meta_batida"),
+        })
+
+    atual = c["sprint_atual"]
+    time = {"sprint_numero": None, "mediana_squad": None, "mediana_subarea": None, "pessoas": []}
+    if atual is not None:
+        rel = {r["rel"]: r for r in sprints_relativas(sprints)}
+        ts_atual = por_sprint.get(atual["id"], [])
+        ts_ant = por_sprint.get(rel[-1]["id"], []) if -1 in rel else []
+        med_squad = piso_svc.mediana(piso_svc.realizados_do_squad(ts_ant).values()) if ts_ant else None
+        sprint_atual_raw = next(s for s in sprints if s["id"] == atual["id"])
+        tri = piso_svc.trimestre_de(sprint_atual_raw) or piso_svc.trimestre_do_instante(agora)
+        med_sub = _medianas_da_subarea(client, subarea, piso_svc.trimestre_anterior(tri))
+        limite = piso_svc.piso(med_squad, med_sub)
+        feito = piso_svc.realizados_por_pessoa(ts_atual)
+        ids = sorted(piso_svc.squad(ts_atual))
+        nomes = {o["id"]: o.get("nome") for o in _em_lote(ids, lambda l: ler_tudo(
+            lambda: client.table("operacionais").select("id, nome").in_("id", l).order("id")))}
+        pessoas = [{"operacional_id": i, "nome": nomes.get(i), "realizado": feito.get(i, 0.0), "piso": limite,
+                    "abaixo": None if limite is None else feito.get(i, 0.0) < limite} for i in ids]
+        pessoas.sort(key=lambda p: (p["nome"] or "").casefold())
+        time = {"sprint_numero": atual["numero"], "mediana_squad": med_squad, "mediana_subarea": med_sub, "pessoas": pessoas}
+
+    return {
+        "projeto": {"id": c["id"], "nome": c["nome"], "cliente": c["cliente"], "gerente": c["_gerente_nome"]},
+        "status": c["_status"], "diagnostico": c["_diagnostico"], "sinais": c["_sinais"],
+        "numeros": {
+            "spi_atual": c["_spi"],
+            "pct_prazo": None if sem_dados else pe.get("pct_prazo_consumido"),
+            "pct_escopo": None if sem_dados else pe.get("pct_escopo_concluido"),
+            "prazo_sem_dados": sem_dados, "travadas": c["saude"]["tasks_travadas"], "p85_horas": c["saude"]["p85_horas"],
+        },
+        "sprint_atual": atual, "proximas_sprints": c["proximas_sprints"],
+        "meta": c["meta"], "planejadas_fora_da_meta": c["planejadas_fora_da_meta"],
+        "sprints": lista, "time": time,
     }

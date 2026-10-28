@@ -1098,3 +1098,90 @@ class AcompanhamentoResponse(BaseModel):
     dispersao: AcompDispersao
     por_gerente: list[AcompPorGerente]
     projetos: list[AcompProjetoStatus]
+
+
+class AcompSinal(BaseModel):
+    codigo: str
+    texto: str
+
+
+class AcompDetalheProjeto(BaseModel):
+    id: str
+    nome: Optional[str] = None
+    cliente: Optional[str] = None
+    gerente: Optional[str] = None
+
+
+class AcompNumeros(BaseModel):
+    spi_atual: Optional[float] = None
+    pct_prazo: Optional[float] = None
+    pct_escopo: Optional[float] = None
+    prazo_sem_dados: bool
+    travadas: int
+    p85_horas: Optional[float] = None
+
+
+class AcompSprintRef(BaseModel):
+    id: str
+    numero: int
+    fechada: bool
+
+
+class AcompMetaFunc(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+    status: Optional[str] = None
+    aprovada: bool
+    pct_tasks: Optional[float] = None
+    planejada_na_sprint: bool
+
+
+class AcompMeta(BaseModel):
+    total: int
+    entregues: int
+    batida: Optional[bool] = None
+    funcionalidades: list[AcompMetaFunc]
+
+
+class AcompForaDaMeta(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+
+
+class AcompSprintLinha(BaseModel):
+    numero: int
+    previsto: float
+    realizado: float
+    spi: Optional[float] = None
+    meta_batida: Optional[bool] = None
+
+
+class AcompPessoa(BaseModel):
+    operacional_id: str
+    nome: Optional[str] = None
+    realizado: float
+    piso: Optional[float] = None
+    abaixo: Optional[bool] = None
+
+
+class AcompTime(BaseModel):
+    sprint_numero: Optional[int] = None
+    mediana_squad: Optional[float] = None
+    mediana_subarea: Optional[float] = None
+    pessoas: list[AcompPessoa]
+
+
+class AcompDetalheResponse(BaseModel):
+    projeto: AcompDetalheProjeto
+    status: str
+    diagnostico: str
+    sinais: list[AcompSinal]
+    numeros: AcompNumeros
+    sprint_atual: Optional[AcompSprintRef] = None
+    proximas_sprints: list[AcompSprintRef]
+    meta: AcompMeta
+    planejadas_fora_da_meta: list[AcompForaDaMeta]
+    sprints: list[AcompSprintLinha]
+    time: AcompTime
