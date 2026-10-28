@@ -1009,3 +1009,105 @@ class MetaEvento(BaseModel):
     acao: str
     pessoa_nome: Optional[str] = None
     criado_em: str
+
+
+class AcompSprintRef(BaseModel):
+    id: str
+    numero: int
+
+
+class AcompFuncionalidade(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+    status: Optional[str] = None
+    aprovada: bool
+    pct_tasks: Optional[float] = None
+    planejada_na_sprint: bool
+
+
+class AcompMeta(BaseModel):
+    total: int
+    entregues: int
+    batida: Optional[bool] = None
+    funcionalidades: list[AcompFuncionalidade]
+
+
+class AcompForaDaMeta(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+
+
+class AcompPlanejado(BaseModel):
+    funcs_planejadas: int
+    funcs_planejadas_entregues: int
+    spi: Optional[float] = None
+
+
+class AcompPrazoEscopo(BaseModel):
+    sem_dados: bool
+    pct_prazo_consumido: Optional[float] = None
+    pct_escopo_concluido: Optional[float] = None
+    desvio_detectado: Optional[bool] = None
+
+
+class AcompSaude(BaseModel):
+    tasks_travadas: int
+    wip: int
+    p85_horas: Optional[float] = None
+
+
+class AcompUltimaFechada(BaseModel):
+    numero: int
+    meta_total: int
+    meta_entregues: int
+    meta_batida: Optional[bool] = None
+    spi: Optional[float] = None
+
+
+class AcompProjeto(BaseModel):
+    id: str
+    nome: Optional[str] = None
+    cliente: Optional[str] = None
+    sprint_atual: Optional[AcompSprintRef] = None
+    proximas_sprints: list[AcompSprintRef]
+    meta: AcompMeta
+    planejadas_fora_da_meta: list[AcompForaDaMeta]
+    planejado: AcompPlanejado
+    prazo_escopo: AcompPrazoEscopo
+    saude: AcompSaude
+    riscos: list[str]
+    ultima_fechada: Optional[AcompUltimaFechada] = None
+
+
+class AcompGerente(BaseModel):
+    nome: str
+    email: Optional[str] = None
+
+
+class AcompResumo(BaseModel):
+    projetos: int
+    em_risco: int
+    metas_fechadas: int
+    metas_batidas: int
+    pct_funcs_aprovadas: float
+
+
+class AcompGrupo(BaseModel):
+    gerente: AcompGerente
+    resumo: AcompResumo
+    projetos: list[AcompProjeto]
+
+
+class AcompTotais(BaseModel):
+    projetos: int
+    em_risco: int
+    metas_fechadas: int
+    metas_batidas: int
+
+
+class AcompanhamentoResponse(BaseModel):
+    subarea: str
+    totais: AcompTotais
+    grupos: list[AcompGrupo]
