@@ -18,6 +18,7 @@ from models.schemas import (
 )
 from services.aprovacao_funcionalidade import aprovar, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
 from services.auth import require_not_operacional
+from services.status_funcionalidade import registrar_transicao_status
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -295,35 +296,8 @@ async def patch_funcionalidade(
 
     agora = datetime.now(timezone.utc)
 
-    # Record transitions for status fields that changed
-    for campo in ("status",):
-        novo_valor = getattr(data, campo, None)
-        if novo_valor is None or novo_valor == func.get(campo):
-            continue
-        anterior = (
-            client.table("transicoes_status")
-            .select("timestamp")
-            .eq("funcionalidade_id", funcionalidade_id)
-            .eq("campo", campo)
-            .order("timestamp", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if anterior.data:
-            ts_anterior = datetime.fromisoformat(anterior.data[0]["timestamp"]).replace(tzinfo=timezone.utc)
-        else:
-            ts_anterior = datetime.fromisoformat(func["created_at"]).replace(tzinfo=timezone.utc)
-        duracao = int((agora - ts_anterior).total_seconds())
-        client.table("transicoes_status").insert({
-            "funcionalidade_id": funcionalidade_id,
-            "campo": campo,
-            "de": func[campo],
-            "para": novo_valor,
-            "autor": data.autor,
-            "timestamp": agora.isoformat(),
-            "motivo": data.motivo,
-            "duracao_fase_anterior_segundos": duracao,
-        }).execute()
+    if data.status is not None and data.status != func.get("status"):
+        registrar_transicao_status(client, func, data.status, data.autor, data.motivo, agora)
 
     # Build update payload
     updates: dict = {}
