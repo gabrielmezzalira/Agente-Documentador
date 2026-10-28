@@ -1012,104 +1012,89 @@ class MetaEvento(BaseModel):
     criado_em: str
 
 
-class AcompSprintRef(BaseModel):
-    id: str
-    numero: int
-    fechada: bool = False
-
-
-class AcompFuncionalidade(BaseModel):
-    id: str
-    id_funcional: Optional[str] = None
-    titulo: Optional[str] = None
-    status: Optional[str] = None
-    aprovada: bool
-    pct_tasks: Optional[float] = None
-    planejada_na_sprint: bool
-
-
-class AcompMeta(BaseModel):
-    total: int
-    entregues: int
-    batida: Optional[bool] = None
-    funcionalidades: list[AcompFuncionalidade]
-
-
-class AcompForaDaMeta(BaseModel):
-    id: str
-    id_funcional: Optional[str] = None
-    titulo: Optional[str] = None
-
-
-class AcompPlanejado(BaseModel):
-    funcs_planejadas: int
-    funcs_planejadas_entregues: int
-    spi: Optional[float] = None
-
-
-class AcompPrazoEscopo(BaseModel):
-    sem_dados: bool
-    pct_prazo_consumido: Optional[float] = None
-    pct_escopo_concluido: Optional[float] = None
-    desvio_detectado: Optional[bool] = None
-
-
-class AcompSaude(BaseModel):
-    tasks_travadas: int
-    wip: int
-    p85_horas: Optional[float] = None
-
-
-class AcompUltimaFechada(BaseModel):
-    numero: int
-    meta_total: int
-    meta_entregues: int
-    meta_batida: Optional[bool] = None
-    spi: Optional[float] = None
-
-
-class AcompProjeto(BaseModel):
-    id: str
-    nome: Optional[str] = None
-    cliente: Optional[str] = None
-    sprint_atual: Optional[AcompSprintRef] = None
-    proximas_sprints: list[AcompSprintRef]
-    meta: AcompMeta
-    planejadas_fora_da_meta: list[AcompForaDaMeta]
-    planejado: AcompPlanejado
-    prazo_escopo: AcompPrazoEscopo
-    saude: AcompSaude
-    riscos: list[str]
-    ultima_fechada: Optional[AcompUltimaFechada] = None
-
-
 class AcompGerente(BaseModel):
     nome: str
     email: Optional[str] = None
 
 
-class AcompResumo(BaseModel):
+class AcompKpis(BaseModel):
     projetos: int
-    em_risco: int
-    metas_fechadas: int
+    criticos: int
+    atencao: int
+    sem_dados: int
+    saudaveis: int
+    features_entregues: int
+    features_entregues_var: Optional[int] = None
+    spi_medio: Optional[float] = None
+    spi_medio_var: Optional[float] = None
     metas_batidas: int
-    pct_funcs_aprovadas: float
+    metas_fechadas: int
+    projetos_sem_meta: int
+    tasks_travadas: int
 
 
-class AcompGrupo(BaseModel):
-    gerente: AcompGerente
-    resumo: AcompResumo
-    projetos: list[AcompProjeto]
+class AcompFilaItem(BaseModel):
+    projeto_id: str
+    nome: Optional[str] = None
+    gerente: str
+    status: str
+    motivos: list[str]
 
 
-class AcompTotais(BaseModel):
+class AcompMapaSprint(BaseModel):
+    rel: int
+    numero: Optional[int] = None
+    spi: Optional[float] = None
+    meta_total: int = 0
+    meta_entregues: int = 0
+    meta_batida: Optional[bool] = None
+
+
+class AcompMapaProjeto(BaseModel):
+    projeto_id: str
+    nome: Optional[str] = None
+    sprints: list[AcompMapaSprint]
+
+
+class AcompPonto(BaseModel):
+    projeto_id: str
+    nome: Optional[str] = None
+    pct_prazo: float
+    pct_escopo: float
+    travadas: int
+    status: str
+
+
+class AcompDispersao(BaseModel):
+    pontos: list[AcompPonto]
+    sem_datas: int
+
+
+class AcompPorGerente(BaseModel):
+    nome: str
+    email: Optional[str] = None
     projetos: int
-    em_risco: int
-    metas_fechadas: int
+    criticos: int
+    atencao: int
     metas_batidas: int
+    metas_fechadas: int
+
+
+class AcompProjetoStatus(BaseModel):
+    id: str
+    nome: Optional[str] = None
+    status: str
+    motivos: list[str]
+    diagnostico: str
 
 
 class AcompanhamentoResponse(BaseModel):
     subarea: str
-    totais: AcompTotais
-    grupos: list[AcompGrupo]
+    filtro_gerente: Optional[str] = None
+    gerentes: list[AcompGerente]
+    kpis: AcompKpis
+    fila: list[AcompFilaItem]
+    mapa: list[AcompMapaProjeto]
+    dispersao: AcompDispersao
+    por_gerente: list[AcompPorGerente]
+    projetos: list[AcompProjetoStatus]

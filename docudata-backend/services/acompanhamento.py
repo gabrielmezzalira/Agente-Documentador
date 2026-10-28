@@ -7,10 +7,12 @@ from datetime import datetime, timedelta, timezone
 from statistics import quantiles
 
 from routers.painel import calcular_bloco_a
+from services.status_projeto import ORDEM_STATUS, diagnostico, motivos, sinais_do_projeto, status_de
 from services.metas import _lotes, funcionalidade_entregue, metas_das_sprints, resultado_meta
 from services.supabase_paginacao import ler_tudo
 
 SEM_GERENTE = "Sem gerente"
+SPRINTS_NO_MAPA = 6
 JANELA_P85_DIAS = 30
 
 
@@ -186,6 +188,101 @@ def agrupar_por_gerente(projetos: list[dict], pessoas_por_email: dict[str, dict]
     return saida
 
 
+# ── funções puras do dashboard ──
+
+def sprints_relativas(sprints: list[dict]) -> list[dict]:
+    """Até 6 sprints iniciadas, da atual (rel 0) para trás, por `numero` decrescente."""
+    iniciadas = sorted((s for s in sprints if s.get("iniciada") is not False), key=lambda s: s["numero"], reverse=True)
+    return [{"numero": s["numero"], "id": s["id"], "rel": -i} for i, s in enumerate(iniciadas[:SPRINTS_NO_MAPA])]
+
+
+def _dt(v) -> datetime:
+    d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def janela_da_sprint(sprint: dict, anterior: dict | None, agora: datetime) -> tuple[datetime | None, datetime]:
+    """Início: `data_inicio` 00:00 UTC; sem ela, o fechamento da anterior; sem nenhum, None. Fim: o fechamento ou agora."""
+    if sprint.get("data_inicio"):
+        d = _dt(sprint["data_inicio"])
+        inicio = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+    elif anterior and anterior.get("avaliacao_completa_em"):
+        inicio = _dt(anterior["avaliacao_completa_em"])
+    else:
+        inicio = None
+    fim = _dt(sprint["avaliacao_completa_em"]) if sprint.get("avaliacao_completa_em") else agora
+    return inicio, fim
+
+
+def features_entregues_na_janela(funcs: list[dict], inicio: datetime | None, fim: datetime) -> int | None:
+    """Fechada no início, aberta no fim."""
+    if inicio is None:
+        return None
+    return sum(1 for f in funcs if f.get("status") == "concluida" and f.get("aprovada_em") and inicio <= _dt(f["aprovada_em"]) < fim)
+
+
+def variacao(atual: float | None, anterior: float | None) -> float | None:
+    if atual is None or anterior is None:
+        return None
+    return round(atual - anterior, 2)
+
+
+def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: dict[str, list[dict]],
+                    metas: dict[str, set[str]], agora: datetime) -> tuple[list[dict], int | None, int | None]:
+    """(6 posições -5..0, features entregues na sprint atual, idem na -1)."""
+    por_numero = sorted((s for s in sprints if s.get("iniciada") is not False), key=lambda s: s["numero"])
+    funcs_por_id = {f["id"]: f for f in funcs}
+    por_rel = {r["rel"]: r for r in sprints_relativas(sprints)}
+    posicoes: list[dict] = []
+    features: dict[int, int | None] = {}
+    for rel in range(-(SPRINTS_NO_MAPA - 1), 1):
+        ref = por_rel.get(rel)
+        if ref is None:
+            posicoes.append({"rel": rel, "numero": None, "spi": None, "meta_total": 0, "meta_entregues": 0, "meta_batida": None})
+            continue
+        sp = next(s for s in por_numero if s["id"] == ref["id"])
+        fechada_em = sp.get("avaliacao_completa_em")
+        meta = {f for f in metas.get(sp["id"], set()) if f in funcs_por_id}
+        entregues = {i for i, f in funcs_por_id.items() if funcionalidade_entregue(f, fechada_em)}
+        res = resultado_meta(meta, entregues)
+        spi = spi_de(tasks_por_sprint.get(sp["id"], []))
+        posicoes.append({"rel": rel, "numero": sp["numero"], "spi": round(spi, 2) if spi is not None else None,
+                         "meta_total": res["total"], "meta_entregues": res["entregues"], "meta_batida": res["batida"]})
+        if rel >= -1:
+            idx = por_numero.index(sp)
+            inicio, fim = janela_da_sprint(sp, por_numero[idx - 1] if idx > 0 else None, agora)
+            features[rel] = features_entregues_na_janela(funcs, inicio, fim)
+    return posicoes, features.get(0), features.get(-1)
+
+
+def _media(valores: list[float]) -> float | None:
+    return sum(valores) / len(valores) if valores else None
+
+
+def montar_kpis(itens: list[dict]) -> dict:
+    """`itens`: projetos calculados com `_status`, `_feat`, `_feat_ant`, `_spi`, `_spi_ant`."""
+    contagem = {s: sum(1 for i in itens if i["_status"] == s) for s in ORDEM_STATUS}
+    feat = [i["_feat"] for i in itens if i["_feat"] is not None]
+    feat_ant = [i["_feat_ant"] for i in itens if i["_feat_ant"] is not None]
+    par = any(i["_feat"] is not None and i["_feat_ant"] is not None for i in itens)
+    spis = [i["_spi"] for i in itens if i["_spi"] is not None]
+    spis_ant = [i["_spi_ant"] for i in itens if i["_spi_ant"] is not None]
+    medio, medio_ant = _media(spis), _media(spis_ant)
+    com_meta = [i for i in itens if i["ultima_fechada"] and i["ultima_fechada"]["meta_total"] > 0]
+    return {
+        "projetos": len(itens), "criticos": contagem["critico"], "atencao": contagem["atencao"],
+        "sem_dados": contagem["sem_dados"], "saudaveis": contagem["saudavel"],
+        "features_entregues": sum(feat),
+        "features_entregues_var": sum(feat) - sum(feat_ant) if par else None,
+        "spi_medio": round(medio, 2) if medio is not None else None,
+        "spi_medio_var": variacao(medio, medio_ant),
+        "metas_batidas": sum(1 for i in com_meta if i["ultima_fechada"]["meta_batida"]),
+        "metas_fechadas": len(com_meta),
+        "projetos_sem_meta": sum(1 for i in itens if i["sprint_atual"] and i["meta"]["total"] == 0),
+        "tasks_travadas": sum(i["saude"]["tasks_travadas"] for i in itens),
+    }
+
+
 # ── carregador em lote ──
 
 def _em_lote(ids: list[str], consulta) -> list[dict]:
@@ -195,11 +292,19 @@ def _em_lote(ids: list[str], consulta) -> list[dict]:
     return saida
 
 
-def montar_acompanhamento(client, subarea: str, agora: datetime | None = None) -> dict:
+def carregar_projetos(client, subarea: str, agora: datetime | None = None,
+                      gerente_email: str | None = None) -> tuple[list[dict], list[dict], dict[str, dict]]:
+    """Lê tudo em lote. Devolve (projetos calculados já filtrados, gerentes da subárea, pessoas por email)."""
     agora = agora or datetime.now(timezone.utc)
     projetos = ler_tudo(lambda: client.table("projects")
                         .select("id, name, client, data_inicio, data_fim_contratada, tolerancia_desvio_pontos, gerente_email")
                         .eq("subarea", subarea).order("id"))
+    todos = projetos
+    if gerente_email:
+        alvo = gerente_email.strip().lower()
+        projetos = [p for p in projetos
+                    if ((p.get("gerente_email") or "").strip().lower() == "" if alvo == "sem"
+                        else (p.get("gerente_email") or "").strip().lower() == alvo)]
     pids = [p["id"] for p in projetos]
 
     sprints = _em_lote(pids, lambda l: ler_tudo(lambda: client.table("sprints")
@@ -218,7 +323,8 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None) -
         sprints_por_proj.setdefault(s["project_id"], []).append(s)
     atuais = [a["id"] for a in (escolher_sprints(v)[0] for v in sprints_por_proj.values()) if a]
     fechadas = [u["id"] for u in (escolher_sprints(v)[2] for v in sprints_por_proj.values()) if u]
-    sprint_ids = list(dict.fromkeys(atuais + fechadas))
+    no_mapa = [r["id"] for v in sprints_por_proj.values() for r in sprints_relativas(v)]
+    sprint_ids = list(dict.fromkeys(atuais + fechadas + no_mapa))
 
     metas = metas_das_sprints(client, sprint_ids)
     sf = _em_lote(atuais, lambda l: ler_tudo(lambda: client.table("sprint_funcionalidades")
@@ -255,16 +361,68 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None) -
 
     calculados = []
     for p in projetos:
-        c = calcular_projeto(p, sprints_por_proj.get(p["id"], []), funcs_por_proj.get(p["id"], []),
-                             tasks_por_proj.get(p["id"], []), planejadas, metas, horas.get(p["id"], []))
-        c["_gerente_email"] = p.get("gerente_email")
+        sps, ts = sprints_por_proj.get(p["id"], []), tasks_por_proj.get(p["id"], [])
+        c = calcular_projeto(p, sps, funcs_por_proj.get(p["id"], []), ts, planejadas, metas, horas.get(p["id"], []))
+        por_sprint: dict[str, list[dict]] = {}
+        for t in ts:
+            if t.get("sprint_id"):
+                por_sprint.setdefault(t["sprint_id"], []).append(t)
+        mapa, feat, feat_ant = mapa_do_projeto(sps, funcs_por_proj.get(p["id"], []), por_sprint, metas, agora)
+        spi_atual = mapa[-1]["spi"]
+        sinais = sinais_do_projeto({
+            "spi_atual": spi_atual, "spis_recentes": [m["spi"] for m in reversed(mapa)],
+            "prazo_escopo": c["prazo_escopo"], "tolerancia": p.get("tolerancia_desvio_pontos"),
+            "ultima_fechada": c["ultima_fechada"], "travadas": c["saude"]["tasks_travadas"],
+            "tem_meta_atual": c["meta"]["total"] > 0, "tem_planejamento_atual": c["planejado"]["funcs_planejadas"] > 0,
+            "tem_gerente": bool((p.get("gerente_email") or "").strip()), "tem_sprint": c["sprint_atual"] is not None,
+        })
+        status = status_de(sinais)
+        c.update({
+            "_gerente_email": p.get("gerente_email"), "_status": status, "_sinais": sinais,
+            "_mapa": mapa, "_feat": feat, "_feat_ant": feat_ant, "_spi": spi_atual, "_spi_ant": mapa[-2]["spi"],
+            "_motivos": motivos(sinais), "_diagnostico": diagnostico(status, sinais),
+        })
         calculados.append(c)
 
-    grupos = agrupar_por_gerente(calculados, por_email)
-    totais = {
-        "projetos": len(calculados),
-        "em_risco": sum(1 for p in calculados if p["riscos"]),
-        "metas_fechadas": sum(g["resumo"]["metas_fechadas"] for g in grupos),
-        "metas_batidas": sum(g["resumo"]["metas_batidas"] for g in grupos),
+    emails = sorted({(p.get("gerente_email") or "").strip().lower() for p in todos} - {""},
+                    key=lambda e: ((por_email.get(e) or {}).get("nome") or e).casefold())
+    gerentes = [{"nome": (por_email.get(e) or {}).get("nome") or e, "email": e} for e in emails]
+    return calculados, gerentes, por_email
+
+
+def montar_acompanhamento(client, subarea: str, agora: datetime | None = None, gerente_email: str | None = None) -> dict:
+    itens, gerentes, por_email = carregar_projetos(client, subarea, agora, gerente_email)
+
+    def nome_do_gerente(i: dict) -> str:
+        email = (i.get("_gerente_email") or "").strip().lower()
+        return ((por_email.get(email) or {}).get("nome") or email) if email else SEM_GERENTE
+
+    fila = sorted((i for i in itens if i["_status"] != "saudavel"),
+                  key=lambda i: (ORDEM_STATUS[i["_status"]], -len(i["_sinais"]), (i["nome"] or "").casefold()))
+    status_por_id = {i["id"]: i["_status"] for i in itens}
+    por_gerente = [{
+        "nome": g["gerente"]["nome"], "email": g["gerente"]["email"],
+        "projetos": g["resumo"]["projetos"],
+        "criticos": sum(1 for p in g["projetos"] if status_por_id[p["id"]] == "critico"),
+        "atencao": sum(1 for p in g["projetos"] if status_por_id[p["id"]] == "atencao"),
+        "metas_batidas": g["resumo"]["metas_batidas"], "metas_fechadas": g["resumo"]["metas_fechadas"],
+    } for g in agrupar_por_gerente(itens, por_email)]
+    com_datas = [i for i in itens if not i["prazo_escopo"].get("sem_dados")]
+    ordenados = sorted(itens, key=lambda i: (i["nome"] or "").casefold())
+    return {
+        "subarea": subarea, "filtro_gerente": gerente_email, "gerentes": gerentes,
+        "kpis": montar_kpis(itens),
+        "fila": [{"projeto_id": i["id"], "nome": i["nome"], "gerente": nome_do_gerente(i),
+                  "status": i["_status"], "motivos": i["_motivos"]} for i in fila],
+        "mapa": [{"projeto_id": i["id"], "nome": i["nome"], "sprints": i["_mapa"]} for i in ordenados],
+        "dispersao": {
+            "pontos": [{"projeto_id": i["id"], "nome": i["nome"],
+                        "pct_prazo": i["prazo_escopo"]["pct_prazo_consumido"],
+                        "pct_escopo": i["prazo_escopo"]["pct_escopo_concluido"],
+                        "travadas": i["saude"]["tasks_travadas"], "status": i["_status"]} for i in com_datas],
+            "sem_datas": len(itens) - len(com_datas),
+        },
+        "por_gerente": por_gerente,
+        "projetos": [{"id": i["id"], "nome": i["nome"], "status": i["_status"],
+                      "motivos": i["_motivos"], "diagnostico": i["_diagnostico"]} for i in ordenados],
     }
-    return {"subarea": subarea, "totais": totais, "grupos": grupos}
