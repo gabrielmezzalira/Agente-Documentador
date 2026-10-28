@@ -3,11 +3,14 @@
 "Concluída e aprovada" = status 'concluida' e aprovada_em preenchido. O status
 não ganha valor novo para não quebrar quem já lê status. Toda mudança de
 aprovação vira linha em transicoes_status com campo 'aprovacao'."""
+import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
 from services.supabase_paginacao import ler_tudo
+
+logger = logging.getLogger(__name__)
 
 
 def _buscar(client, funcionalidade_id: str) -> dict:
@@ -66,9 +69,38 @@ def nomes_dos_aprovadores(client, funcs: list[dict]) -> list[dict]:
     return [{**f, "aprovada_por_nome": nomes.get(f.get("aprovada_por"))} for f in funcs]
 
 
+def _metas_abertas(client, ids: list[str], lote: int = 100) -> dict[str, list[int]]:
+    """Números das sprints ainda não fechadas cuja meta contém cada funcionalidade, em lote."""
+    por_func: dict[str, set[str]] = {}
+    for i in range(0, len(ids), lote):
+        parte = ids[i:i + lote]
+        rows = ler_tudo(
+            lambda: client.table("sprint_meta_funcionalidades").select("sprint_id, funcionalidade_id")
+            .in_("funcionalidade_id", parte).order("sprint_id").order("funcionalidade_id")
+        )
+        for r in rows:
+            por_func.setdefault(r["funcionalidade_id"], set()).add(r["sprint_id"])
+    sprint_ids = sorted({s for ss in por_func.values() for s in ss})
+    abertas: dict[str, int] = {}
+    for i in range(0, len(sprint_ids), lote):
+        parte = sprint_ids[i:i + lote]
+        rows = ler_tudo(
+            lambda: client.table("sprints").select("id, numero, avaliacao_completa_em").in_("id", parte).order("id")
+        )
+        abertas.update({r["id"]: r["numero"] for r in rows if not r.get("avaliacao_completa_em")})
+    return {f: sorted(abertas[s] for s in ss if s in abertas) for f, ss in por_func.items()}
+
+
 def com_tem_tasks(client, funcs: list[dict]) -> list[dict]:
-    com_tasks = _ids_com_tasks(client, [f["id"] for f in funcs])
-    return [{**f, "tem_tasks": f["id"] in com_tasks} for f in funcs]
+    ids = [f["id"] for f in funcs]
+    com_tasks = _ids_com_tasks(client, ids)
+    try:
+        metas = _metas_abertas(client, ids)
+    except Exception:
+        # Enriquecimento opcional: sem a tabela de metas (migração pendente) ou com erro de leitura, o CRUD segue.
+        logger.exception("Falha ao ler as metas das funcionalidades")
+        metas = {}
+    return [{**f, "tem_tasks": f["id"] in com_tasks, "meta_sprints": metas.get(f["id"], [])} for f in funcs]
 
 
 def aprovar(client, funcionalidade_id: str, pessoa_id: str) -> dict:

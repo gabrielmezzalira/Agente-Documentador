@@ -1320,3 +1320,26 @@ LANGUAGE sql STABLE AS $$
     ORDER BY e.embedding <=> consulta
     LIMIT n
 $$;
+
+-- ═══════════════════════════════════════════════════════════════
+-- Rodada B1 (2026-10-28): painel de acompanhamento — metas de funcionalidades por sprint.
+-- Spec: docs/superpowers/specs/2026-10-28-acompanhamento-projetos-design.md
+-- Aplicar manualmente no SQL Editor do Supabase ANTES do deploy do backend.
+CREATE TABLE IF NOT EXISTS sprint_meta_funcionalidades (
+    sprint_id          uuid NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    funcionalidade_id  uuid NOT NULL REFERENCES funcionalidades(id) ON DELETE CASCADE,
+    incluida_por       uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+    incluida_em        timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (sprint_id, funcionalidade_id)
+);
+CREATE INDEX IF NOT EXISTS idx_sprint_meta_funcionalidades_func ON sprint_meta_funcionalidades(funcionalidade_id);
+
+CREATE TABLE IF NOT EXISTS sprint_meta_eventos (
+    id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    sprint_id          uuid NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    funcionalidade_id  uuid REFERENCES funcionalidades(id) ON DELETE SET NULL,
+    acao               text NOT NULL CHECK (acao IN ('incluiu','retirou')),
+    pessoa_id          uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+    criado_em          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos(sprint_id, criado_em);
