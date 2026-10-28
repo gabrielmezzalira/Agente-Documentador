@@ -73,7 +73,7 @@ function Historico({ sprintId }: { sprintId: string }) {
   );
 }
 
-function ProjetoLinha({ p, onMeta }: { p: AcompProjeto; onMeta: (p: AcompProjeto) => void }) {
+function ProjetoLinha({ p, onMeta, versao }: { p: AcompProjeto; onMeta: (p: AcompProjeto) => void; versao: number }) {
   const [aberto, setAberto] = useState(false);
   const [historico, setHistorico] = useState(false);
   const meta = p.meta;
@@ -93,7 +93,12 @@ function ProjetoLinha({ p, onMeta }: { p: AcompProjeto; onMeta: (p: AcompProjeto
             {aberto ? "▾" : "▸"} {p.nome ?? "Projeto"}
           </button>
           <span style={{ fontSize: 12.5, color: ds.muted }}>{p.cliente ?? "—"}</span>
-          {p.riscos.length > 0 && <span title={p.riscos.join("\n")} style={{ alignSelf: "flex-start" }}><Chip tone="red">em risco</Chip></span>}
+          {p.riscos.length > 0 && (
+            <>
+              <span title={p.riscos.join("\n")} style={{ alignSelf: "flex-start" }}><Chip tone="red">em risco</Chip></span>
+              <span style={{ fontSize: 12, color: ds.red }}>{p.riscos.join(" · ")}</span>
+            </>
+          )}
         </div>
         <Celula titulo="Meta">
           {semMeta ? <span style={{ color: ds.muted }}>sem meta</span> : (
@@ -156,6 +161,7 @@ function ProjetoLinha({ p, onMeta }: { p: AcompProjeto; onMeta: (p: AcompProjeto
             {p.sprint_atual && (
               <button
                 type="button"
+                aria-expanded={historico}
                 onClick={() => setHistorico((h) => !h)}
                 style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: ds.green, textDecoration: "underline" }}
               >
@@ -163,7 +169,7 @@ function ProjetoLinha({ p, onMeta }: { p: AcompProjeto; onMeta: (p: AcompProjeto
               </button>
             )}
           </div>
-          {historico && p.sprint_atual && <Historico sprintId={p.sprint_atual.id} />}
+          {historico && p.sprint_atual && <Historico key={versao} sprintId={p.sprint_atual.id} />}
         </div>
       )}
     </div>
@@ -177,6 +183,7 @@ export default function AcompanhamentoPage() {
   const [dados, setDados] = useState<AcompanhamentoResponse | null>(null);
   const [erro, setErro] = useState("");
   const [modal, setModal] = useState<AcompProjeto | null>(null);
+  const [versao, setVersao] = useState(0);
 
   const carregar = useCallback(async () => {
     setErro("");
@@ -227,13 +234,13 @@ export default function AcompanhamentoPage() {
                   {pluralProjetos(g.resumo.projetos)} · {g.resumo.em_risco} em risco · metas batidas {g.resumo.metas_batidas} de {g.resumo.metas_fechadas} · {Math.round(g.resumo.pct_funcs_aprovadas)}% das funcionalidades aprovadas
                 </span>
               </div>
-              {g.projetos.map((p) => <ProjetoLinha key={p.id} p={p} onMeta={setModal} />)}
+              {g.projetos.map((p) => <ProjetoLinha key={p.id} p={p} onMeta={setModal} versao={versao} />)}
             </Card>
           ))}
         </>
       )}
 
-      {modal && <DefinirMetaModal projeto={modal} onClose={() => setModal(null)} onSalvo={() => { void carregar(); }} />}
+      {modal && <DefinirMetaModal projeto={modal} onClose={() => setModal(null)} onSalvo={() => { setVersao((v) => v + 1); void carregar(); }} />}
     </>
   );
 }
