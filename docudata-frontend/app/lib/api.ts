@@ -2473,10 +2473,11 @@ export interface AcompMapaSprint {
   meta_total: number;
   meta_entregues: number;
   meta_batida: boolean | null;
+  parcial?: boolean; // sprint atual ainda aberta: o SPI é parcial
 }
 export interface AcompMapaProjeto { projeto_id: string; nome: string | null; sprints: AcompMapaSprint[] }
 export interface AcompPonto { projeto_id: string; nome: string | null; pct_prazo: number; pct_escopo: number; travadas: number; status: AcompStatus }
-export interface AcompDispersao { pontos: AcompPonto[]; sem_datas: number }
+export interface AcompDispersao { pontos: AcompPonto[]; sem_datas: number; sem_funcionalidades?: number }
 export interface AcompPorGerente {
   nome: string;
   email: string | null;
@@ -2506,6 +2507,8 @@ export interface AcompDetalheResponse {
   sinais: AcompSinal[];
   numeros: {
     spi_atual: number | null;
+    spi_ultima_fechada?: number | null;
+    sem_funcionalidades?: boolean;
     pct_prazo: number | null;
     pct_escopo: number | null;
     prazo_sem_dados: boolean;

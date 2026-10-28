@@ -47,3 +47,16 @@ test("painel de detalhe do projeto", () => {
                    "Histórico de mudanças da meta", "Sem meta nesta sprint.", "meta batida"]) assert.ok(p.includes(s), s);
   assert.ok(ler("app/acompanhamento/page.tsx").includes("ProjetoDetalhePainel"));
 });
+
+test("SPI parcial da sprint aberta, projeto sem funcionalidades e estados sem dado", () => {
+  const p = ler("app/acompanhamento/page.tsx");
+  for (const s of ["sprints fechadas", "Atualizando...", ': "sem dado"}>']) assert.ok(p.includes(s), s);
+  assert.ok(/metas_fechadas > 0 \?/.test(p), "metas sem fechadas mostram sem dado");
+  assert.ok(!/const carregar[\s\S]{0,200}setDados\(null\)/.test(p), "recarregar não esvazia o dashboard");
+  const m = ler("app/components/acompanhamento/MapaCalor.tsx");
+  for (const s of ["(parcial)", "atual = parcial"]) assert.ok(m.includes(s), s);
+  assert.ok(ler("app/components/acompanhamento/DispersaoPrazo.tsx").includes("sem funcionalidades"));
+  const d = ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx");
+  for (const s of ["SPI da sprint atual (parcial)", "SPI da última sprint fechada", "sem funcionalidades", "setEventos(null)"]) assert.ok(d.includes(s), s);
+  assert.ok(d.includes("f.pct_tasks != null && <ProgressBar"), "barra omitida sem pct_tasks");
+});

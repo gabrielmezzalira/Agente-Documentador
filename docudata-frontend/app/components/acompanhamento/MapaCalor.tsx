@@ -21,7 +21,7 @@ export function corDoSpi(spi: number | null): string {
 function rotuloDaCelula(nome: string, c: number, s: AcompMapaSprint | undefined): string {
   const col = c === 0 ? "atual" : `−${Math.abs(c)}`;
   if (!s || s.numero == null) return `${nome} · ${col} · sem dado`;
-  const spi = s.spi != null ? `SPI ${fmt(s.spi)}` : "SPI sem dado";
+  const spi = s.spi != null ? `SPI ${fmt(s.spi)}${s.parcial ? " (parcial)" : ""}` : "SPI sem dado";
   const meta = s.meta_total > 0 ? `meta ${s.meta_entregues}/${s.meta_total}` : "sem meta";
   return `${nome} · Sprint ${s.numero} (${col}) · ${spi} · ${meta}`;
 }
@@ -75,6 +75,7 @@ export default function MapaCalor({ mapa, onAbrir }: { mapa: AcompMapaProjeto[];
         </div>
       </div>
       <ul aria-label="Legenda do mapa de calor" style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: ds.muted }}>
+        <li>atual = parcial</li>
         {[["≥ 0,9", ds.green], ["0,7–0,9", ds.amber], ["< 0,7", ds.red], ["sem dado", SEM_DADO]].map(([t, c]) => (
           <li key={t} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: c, display: "inline-block" }} />

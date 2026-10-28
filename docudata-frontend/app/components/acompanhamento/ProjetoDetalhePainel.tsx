@@ -49,9 +49,10 @@ function Historico({ sprintId, versao }: { sprintId: string; versao: number }) {
     if (!aberto) return;
     let vivo = true;
     setErro("");
+    setEventos(null);
     getEventosMeta(sprintId)
       .then((e) => { if (vivo) setEventos(e); })
-      .catch((e) => { if (vivo) setErro(e instanceof Error ? e.message : "Erro ao buscar o histórico da meta"); });
+      .catch((e) => { if (vivo) { setEventos(null); setErro(e instanceof Error ? e.message : "Erro ao buscar o histórico da meta"); } });
     return () => { vivo = false; };
   }, [aberto, sprintId, versao]);
 
@@ -150,8 +151,9 @@ export default function ProjetoDetalhePainel({ projetoId, onClose, onMetaSalva }
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-              <Numero label="SPI da sprint atual" valor={d.numeros.spi_atual != null ? num(d.numeros.spi_atual) : "sem dado"} cor={d.numeros.spi_atual != null ? corDoSpi(d.numeros.spi_atual) : undefined} />
-              <Numero label="Prazo × escopo" valor={d.numeros.prazo_sem_dados || d.numeros.pct_prazo == null || d.numeros.pct_escopo == null ? "sem datas" : `${Math.round(d.numeros.pct_prazo)}% · ${Math.round(d.numeros.pct_escopo)}%`} />
+              <Numero label={d.sprint_atual && !d.sprint_atual.fechada ? "SPI da sprint atual (parcial)" : "SPI da sprint atual"} valor={d.numeros.spi_atual != null ? num(d.numeros.spi_atual) : "sem dado"} cor={d.numeros.spi_atual != null ? corDoSpi(d.numeros.spi_atual) : undefined} />
+              <Numero label="SPI da última sprint fechada" valor={d.numeros.spi_ultima_fechada != null ? num(d.numeros.spi_ultima_fechada) : "sem dado"} cor={d.numeros.spi_ultima_fechada != null ? corDoSpi(d.numeros.spi_ultima_fechada) : undefined} />
+              <Numero label="Prazo × escopo" valor={d.numeros.sem_funcionalidades ? "sem funcionalidades" : d.numeros.prazo_sem_dados || d.numeros.pct_prazo == null || d.numeros.pct_escopo == null ? "sem datas" : `${Math.round(d.numeros.pct_prazo)}% · ${Math.round(d.numeros.pct_escopo)}%`} />
               <Numero label="Tasks travadas" valor={String(d.numeros.travadas)} />
               <Numero label="p85 tempo limpo" valor={d.numeros.p85_horas != null ? `${Math.round(d.numeros.p85_horas)}h` : "sem dado"} />
             </div>
@@ -173,7 +175,7 @@ export default function ProjetoDetalhePainel({ projetoId, onClose, onMetaSalva }
                       <span style={{ flex: "1 1 160px" }}>{f.titulo ?? "(sem título)"}</span>
                       {f.aprovada && <Chip tone="green">aprovada</Chip>}
                       {!f.planejada_na_sprint && <Chip tone="amber">fora do planejamento</Chip>}
-                      <span style={{ flex: "0 0 110px" }}><ProgressBar pct={f.pct_tasks ?? 0} label={`Tasks de ${f.titulo ?? "funcionalidade"}`} /></span>
+                      <span style={{ flex: "0 0 110px" }}>{f.pct_tasks != null && <ProgressBar pct={f.pct_tasks} label={`Tasks de ${f.titulo ?? "funcionalidade"}`} />}</span>
                       <span style={{ ...mono, fontSize: 12, color: ds.muted, minWidth: 64, textAlign: "right" }}>{f.pct_tasks != null ? `${Math.round(f.pct_tasks)}%` : "sem dado"}</span>
                     </li>
                   ))}

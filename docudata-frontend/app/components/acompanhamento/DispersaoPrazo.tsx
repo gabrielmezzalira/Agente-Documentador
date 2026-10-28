@@ -20,6 +20,7 @@ const y = (v: number) => M.t + PH - (clamp(v) / 100) * PH;
 /** Dispersão: prazo consumido (x) × funcionalidades aprovadas (y); bolha = tasks travadas. Abaixo da diagonal = atrasado. */
 export default function DispersaoPrazo({ dispersao, onAbrir }: { dispersao: AcompDispersao; onAbrir: (projetoId: string) => void }) {
   const { pontos, sem_datas } = dispersao;
+  const sem_funcionalidades = dispersao.sem_funcionalidades ?? 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <svg viewBox={`0 0 ${W} ${H}`} role="group" aria-label="Dispersão do prazo consumido contra as funcionalidades aprovadas" style={{ width: "100%", height: "auto", maxWidth: 560 }}>
@@ -63,6 +64,11 @@ export default function DispersaoPrazo({ dispersao, onAbrir }: { dispersao: Acom
         ))}
         <li>bolha maior = mais tasks travadas</li>
       </ul>
+      {sem_funcionalidades > 0 && (
+        <span style={{ fontSize: 12.5, color: ds.muted }}>
+          {sem_funcionalidades} {sem_funcionalidades === 1 ? "projeto" : "projetos"} sem funcionalidades
+        </span>
+      )}
       {sem_datas > 0 && (
         <span style={{ fontSize: 12.5, color: ds.muted }}>
           {sem_datas} {sem_datas === 1 ? "projeto" : "projetos"} sem datas do contrato

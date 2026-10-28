@@ -76,6 +76,7 @@ export default function AcompanhamentoPage() {
   const [dados, setDados] = useState<AcompanhamentoResponse | null>(null);
   const [gerentes, setGerentes] = useState<AcompGerente[]>([]); // sobrevive ao recarregar, para o select não esvaziar
   const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
   const [projetoAberto, setProjetoAberto] = useState<string | null>(null);
 
   const pedido = useRef(0); // só a resposta do pedido mais recente vale (ao mudar subárea ou gerente)
@@ -83,12 +84,14 @@ export default function AcompanhamentoPage() {
   const carregar = useCallback(async () => {
     const meu = ++pedido.current;
     setErro("");
-    setDados(null);
+    setCarregando(true);
     try {
       const r = await getAcompanhamento(subarea, gerente || undefined);
       if (meu === pedido.current) { setDados(r); setGerentes(r.gerentes); }
     } catch (e) {
       if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento");
+    } finally {
+      if (meu === pedido.current) setCarregando(false);
     }
   }, [subarea, gerente]);
 
@@ -99,7 +102,7 @@ export default function AcompanhamentoPage() {
 
   if (!permitido) return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
 
-  const mudarSubarea = (s: Subarea) => { setSubarea(s); setGerente(""); setGerentes([]); setProjetoAberto(null); };
+  const mudarSubarea = (s: Subarea) => { setSubarea(s); setGerente(""); setGerentes([]); setDados(null); setProjetoAberto(null); };
   const k = dados?.kpis;
 
   return (
@@ -111,7 +114,7 @@ export default function AcompanhamentoPage() {
         actions={
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <SegmentedControl label="Subárea" options={SUBAREAS} value={subarea} onChange={mudarSubarea} />
-            <Select aria-label="Gerente" value={gerente} onChange={(e) => { setGerente(e.target.value); setProjetoAberto(null); }} style={{ width: "auto", minWidth: 190 }}>
+            <Select aria-label="Gerente" value={gerente} onChange={(e) => { setGerente(e.target.value); setDados(null); setProjetoAberto(null); }} style={{ width: "auto", minWidth: 190 }}>
               <option value="">Todos os gerentes</option>
               {gerentes.filter((g) => g.email).map((g) => <option key={g.email} value={g.email!}>{g.nome}</option>)}
               <option value="sem">Sem gerente</option>
@@ -122,6 +125,7 @@ export default function AcompanhamentoPage() {
 
       {erro && <ErrorNotice>{erro}</ErrorNotice>}
       {!dados && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
+      {dados && carregando && <p role="status" style={{ margin: 0, fontSize: 12.5, color: ds.muted }}>Atualizando...</p>}
 
       {dados && k && (
         k.projetos === 0 ? <EmptyState>{gerente ? "Nenhum projeto com este filtro." : "Nenhum projeto nesta subárea."}</EmptyState> : (
@@ -133,9 +137,10 @@ export default function AcompanhamentoPage() {
                 <Variacao v={k.features_entregues_var} />
               </Kpi>
               <Kpi label="SPI médio" valor={k.spi_medio != null ? num(k.spi_medio) : "sem dado"}>
+                sprints fechadas{" "}
                 <Variacao v={k.spi_medio_var} casas={2} />
               </Kpi>
-              <Kpi label="Metas batidas" valor={`${k.metas_batidas} de ${k.metas_fechadas}`}>
+              <Kpi label="Metas batidas" valor={k.metas_fechadas > 0 ? `${k.metas_batidas} de ${k.metas_fechadas}` : "sem dado"}>
                 {plural(k.projetos_sem_meta, "projeto sem meta", "projetos sem meta")}
               </Kpi>
               <Kpi label="Tasks travadas" valor={String(k.tasks_travadas)}>no momento</Kpi>
