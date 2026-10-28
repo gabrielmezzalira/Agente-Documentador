@@ -2425,3 +2425,91 @@ export async function devolverTask(taskId: string): Promise<TaskKanbanResponse> 
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? "Erro ao devolver task");
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Acompanhamento dos projetos e metas por sprint (Rodada B1)
+// ---------------------------------------------------------------------------
+
+export interface AcompSprintRef { id: string; numero: number }
+export interface AcompFuncionalidade {
+  id: string;
+  id_funcional: string | null;
+  titulo: string | null;
+  status: string | null;
+  aprovada: boolean;
+  pct_tasks: number | null;
+  planejada_na_sprint: boolean;
+}
+export interface AcompMeta {
+  total: number;
+  entregues: number;
+  batida: boolean | null;
+  funcionalidades: AcompFuncionalidade[];
+}
+export interface AcompForaDaMeta { id: string; id_funcional: string | null; titulo: string | null }
+export interface AcompProjeto {
+  id: string;
+  nome: string | null;
+  cliente: string | null;
+  sprint_atual: AcompSprintRef | null;
+  proximas_sprints: AcompSprintRef[];
+  meta: AcompMeta;
+  planejadas_fora_da_meta: AcompForaDaMeta[];
+  planejado: { funcs_planejadas: number; funcs_planejadas_entregues: number; spi: number | null };
+  prazo_escopo: { sem_dados: boolean; pct_prazo_consumido: number | null; pct_escopo_concluido: number | null; desvio_detectado: boolean | null };
+  saude: { tasks_travadas: number; wip: number; p85_horas: number | null };
+  riscos: string[];
+  ultima_fechada: { numero: number; meta_total: number; meta_entregues: number; meta_batida: boolean | null; spi: number | null } | null;
+}
+export interface AcompGrupo {
+  gerente: { nome: string; email: string | null };
+  resumo: { projetos: number; em_risco: number; metas_fechadas: number; metas_batidas: number; pct_funcs_aprovadas: number };
+  projetos: AcompProjeto[];
+}
+export interface AcompanhamentoResponse {
+  subarea: string;
+  totais: { projetos: number; em_risco: number; metas_fechadas: number; metas_batidas: number };
+  grupos: AcompGrupo[];
+}
+export interface MetaSprint { sprint_id: string; funcionalidade_ids: string[] }
+export interface MetaEvento {
+  funcionalidade_id: string;
+  titulo: string | null;
+  acao: string;
+  pessoa_nome: string | null;
+  criado_em: string;
+}
+
+async function erroDoBackend(res: Response, padrao: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  const detail = (err as { detail?: unknown }).detail;
+  return new Error(typeof detail === "string" ? detail : padrao);
+}
+
+export async function getAcompanhamento(subarea: Subarea): Promise<AcompanhamentoResponse> {
+  const res = await apiFetch(`${API}/acompanhamento?subarea=${subarea}`);
+  if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar o acompanhamento");
+  return res.json();
+}
+
+export async function getMetaSprint(sprintId: string): Promise<MetaSprint> {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/meta`);
+  if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar a meta da sprint");
+  return res.json();
+}
+
+export async function definirMetaSprint(sprintId: string, funcionalidadeIds: string[]): Promise<MetaSprint> {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ funcionalidade_ids: funcionalidadeIds }),
+  });
+  if (!res.ok) throw await erroDoBackend(res, "Erro ao salvar a meta da sprint");
+  return res.json();
+}
+
+export async function getEventosMeta(sprintId: string): Promise<MetaEvento[]> {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/meta/eventos`);
+  if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar o histórico da meta");
+  return res.json();
+}

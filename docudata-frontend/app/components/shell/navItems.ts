@@ -29,6 +29,7 @@ export function navItemsFor(cargo: Cargo | undefined, subarea: SubareaSlug, incl
     items.push({ href: `/${subarea}`, label: "Projetos", active: (p) => SUBAREAS.some((s) => p === `/${s.slug}` || p.startsWith(`/${s.slug}/`)) });
   }
   if (isOwnerOrLider(cargo)) items.push({ href: "/performance", label: "Performance", active: (p) => p.startsWith("/performance") });
+  if (isOwnerOrLider(cargo)) items.push({ href: "/acompanhamento", label: "Acompanhamento", active: (p) => p.startsWith("/acompanhamento") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/classificador", label: "Classificador", active: (p) => p.startsWith("/classificador") });
   if (canConfigure(cargo)) items.push({ href: "/avaliacoes", label: "Avaliações", active: (p) => p.startsWith("/avaliacoes") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/pessoas", label: "Pessoas", active: (p) => p.startsWith("/pessoas") });
