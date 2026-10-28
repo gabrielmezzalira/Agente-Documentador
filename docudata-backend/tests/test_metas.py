@@ -156,3 +156,50 @@ def test_eventos_em_ordem_cronologica_com_titulo_e_pessoa(monkeypatch, autentica
     assert [e["acao"] for e in r.json()] == ["incluiu", "retirou"]
     assert r.json()[0] == {"funcionalidade_id": "b", "titulo": "Func B", "acao": "incluiu",
                            "pessoa_nome": "Líder Teste", "criado_em": "2026-11-01T10:00:00+00:00"}
+
+
+def test_put_mantem_entregue_ja_na_meta(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["sprint_meta_funcionalidades"] = [{"sprint_id": "s1", "funcionalidade_id": "d", "incluida_por": "x"},
+                                                  {"sprint_id": "s1", "funcionalidade_id": "a", "incluida_por": "x"}]
+    tc, _ = _tc(monkeypatch, autenticar, fake=fake)
+    r = tc.put("/sprints/s1/meta", json={"funcionalidade_ids": ["d", "b"]})
+    assert r.status_code == 200
+    assert _ids(fake) == {"d", "b"}
+
+
+def test_put_ids_duplicados(monkeypatch, autenticar):
+    tc, fake = _tc(monkeypatch, autenticar)
+    r = tc.put("/sprints/s1/meta", json={"funcionalidade_ids": ["a", "a"]})
+    assert r.status_code == 200 and r.json()["funcionalidade_ids"] == ["a"]
+    assert len(fake.tables["sprint_meta_eventos"]) == 1
+
+
+def test_get_meta_sprint_inexistente_404(monkeypatch, autenticar):
+    tc, _ = _tc(monkeypatch, autenticar)
+    assert tc.get("/sprints/zzz/meta").status_code == 404
+    assert tc.get("/sprints/zzz/meta/eventos").status_code == 404
+
+
+def test_falha_na_inclusao_vira_409_e_retry_cura(monkeypatch, autenticar):
+    from tests import fake_supabase
+    fake = _fake()
+    tc, _ = _tc(monkeypatch, autenticar, fake=fake)
+    original = fake_supabase._Query.execute
+
+    def quebra(self):
+        if self._name == "sprint_meta_funcionalidades" and self._op == "upsert":
+            raise RuntimeError("duplicate key value violates unique constraint")
+        return original(self)
+
+    monkeypatch.setattr(fake_supabase._Query, "execute", quebra)
+    r = tc.put("/sprints/s1/meta", json={"funcionalidade_ids": ["a", "b"]})
+    assert r.status_code == 409
+    assert r.json()["detail"] == "A meta foi alterada ao mesmo tempo; recarregue e tente de novo."
+    assert _ids(fake) == set() and len(fake.tables["sprint_meta_eventos"]) == 2  # eventos escritos antes
+
+    monkeypatch.setattr(fake_supabase._Query, "execute", original)
+    assert tc.put("/sprints/s1/meta", json={"funcionalidade_ids": ["a", "b"]}).status_code == 200
+    from services.metas import meta_em
+    evs = [dict(e, criado_em=e.get("criado_em") or "2026-11-01T00:00:00+00:00") for e in fake.tables["sprint_meta_eventos"]]
+    assert _ids(fake) == {"a", "b"} == meta_em(evs, datetime(2030, 1, 1, tzinfo=timezone.utc))

@@ -86,36 +86,63 @@ def eventos_da_meta(client, sprint_ids: list[str]) -> list[dict]:
     return saida
 
 
-def substituir_meta(client, sprint_id: str, funcionalidade_ids: list[str], pessoa_id) -> set[str]:
+def sprint_ou_404(client, sprint_id: str) -> dict:
     sprint = (client.table("sprints").select("id, project_id, avaliacao_completa_em")
               .eq("id", sprint_id).execute().data or [])
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint não encontrada")
-    sprint = sprint[0]
+    return sprint[0]
+
+
+def substituir_meta(client, sprint_id: str, funcionalidade_ids: list[str], pessoa_id) -> set[str]:
+    sprint = sprint_ou_404(client, sprint_id)
     if sprint.get("avaliacao_completa_em"):
         raise HTTPException(status_code=409, detail="A sprint já foi fechada; a meta não pode mais mudar.")
 
     novos = list(dict.fromkeys(funcionalidade_ids))
+    incluir, retirar = diferenca_meta(ler_meta(client, sprint_id), set(novos))
+    a_incluir = [f for f in novos if f in incluir]
+
     encontradas: dict[str, dict] = {}
-    for lote in _lotes(novos):
+    for lote in _lotes(a_incluir):
         for f in (client.table("funcionalidades")
                   .select("id, project_id, id_funcional, status, aprovada_em").in_("id", lote).execute().data or []):
             encontradas[f["id"]] = f
-    for fid in novos:
+    for fid in a_incluir:
         f = encontradas.get(fid)
         if f is None or f.get("project_id") != sprint["project_id"] or funcionalidade_entregue(f, None):
             rotulo = (f or {}).get("id_funcional") or fid
             raise HTTPException(status_code=422, detail=f"Funcionalidade inválida para a meta: {rotulo}")
 
-    incluir, retirar = diferenca_meta(ler_meta(client, sprint_id), set(novos))
-    for fid in novos:
-        if fid in incluir:
-            client.table("sprint_meta_funcionalidades").insert(
-                {"sprint_id": sprint_id, "funcionalidade_id": fid, "incluida_por": pessoa_id}).execute()
-    for fid in retirar:
-        client.table("sprint_meta_funcionalidades").delete().eq("sprint_id", sprint_id).eq("funcionalidade_id", fid).execute()
-    eventos = ([{"sprint_id": sprint_id, "funcionalidade_id": f, "acao": "incluiu", "pessoa_id": pessoa_id} for f in sorted(incluir)]
+    eventos = ([{"sprint_id": sprint_id, "funcionalidade_id": f, "acao": "incluiu", "pessoa_id": pessoa_id} for f in a_incluir]
                + [{"sprint_id": sprint_id, "funcionalidade_id": f, "acao": "retirou", "pessoa_id": pessoa_id} for f in sorted(retirar)])
-    if eventos:
-        client.table("sprint_meta_eventos").insert(eventos).execute()
+    try:
+        # Eventos primeiro: se a escrita da meta falhar, a nova tentativa cura (meta_em é baseado em conjunto).
+        if eventos:
+            client.table("sprint_meta_eventos").insert(eventos).execute()
+        if a_incluir:
+            client.table("sprint_meta_funcionalidades").upsert(
+                [{"sprint_id": sprint_id, "funcionalidade_id": f, "incluida_por": pessoa_id} for f in a_incluir],
+                on_conflict="sprint_id,funcionalidade_id").execute()
+        for lote in _lotes(sorted(retirar)):
+            client.table("sprint_meta_funcionalidades").delete().eq("sprint_id", sprint_id).in_("funcionalidade_id", lote).execute()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=409, detail="A meta foi alterada ao mesmo tempo; recarregue e tente de novo.")
     return ler_meta(client, sprint_id)
+
+
+def eventos_detalhados(client, sprint_id: str) -> list[dict]:
+    sprint_ou_404(client, sprint_id)
+    eventos = eventos_da_meta(client, [sprint_id])
+    titulos: dict[str, str] = {}
+    for lote in _lotes([e["funcionalidade_id"] for e in eventos]):
+        for f in client.table("funcionalidades").select("id, titulo").in_("id", lote).execute().data or []:
+            titulos[f["id"]] = f["titulo"]
+    nomes: dict[str, str] = {}
+    for lote in _lotes([e["pessoa_id"] for e in eventos if e.get("pessoa_id")]):
+        for p in client.table("pessoa").select("id, nome").in_("id", lote).execute().data or []:
+            nomes[p["id"]] = p["nome"]
+    return [{"funcionalidade_id": e["funcionalidade_id"], "titulo": titulos.get(e["funcionalidade_id"]), "acao": e["acao"],
+             "pessoa_nome": nomes.get(e.get("pessoa_id")), "criado_em": str(e["criado_em"])} for e in eventos]
