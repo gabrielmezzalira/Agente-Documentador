@@ -1048,6 +1048,7 @@ class AcompMapaSprint(BaseModel):
     meta_total: int = 0
     meta_entregues: int = 0
     meta_batida: Optional[bool] = None
+    parcial: bool = False
 
 
 class AcompMapaProjeto(BaseModel):
@@ -1068,6 +1069,7 @@ class AcompPonto(BaseModel):
 class AcompDispersao(BaseModel):
     pontos: list[AcompPonto]
     sem_datas: int
+    sem_funcionalidades: int = 0
 
 
 class AcompPorGerente(BaseModel):
@@ -1114,6 +1116,8 @@ class AcompDetalheProjeto(BaseModel):
 
 class AcompNumeros(BaseModel):
     spi_atual: Optional[float] = None
+    spi_ultima_fechada: Optional[float] = None
+    sem_funcionalidades: bool = False
     pct_prazo: Optional[float] = None
     pct_escopo: Optional[float] = None
     prazo_sem_dados: bool

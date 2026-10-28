@@ -1,4 +1,6 @@
 """Acompanhamento dos projetos por gerente (Rodada B1). Só líder/owner."""
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import AcompDetalheResponse, AcompanhamentoResponse
@@ -17,6 +19,10 @@ def get_acompanhamento(subarea: str = Query("dados", pattern="^(dados|dev)$"), g
 
 @router.get("/projetos/{projeto_id}", response_model=AcompDetalheResponse)
 def get_detalhe_projeto(projeto_id: str, _=Depends(require_role("lider"))):
+    try:
+        UUID(projeto_id)
+    except ValueError:
+        raise HTTPException(404, "Projeto não encontrado")
     detalhe = montar_detalhe(get_client(), projeto_id)
     if detalhe is None:
         raise HTTPException(404, "Projeto não encontrado")

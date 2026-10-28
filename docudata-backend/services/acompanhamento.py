@@ -230,7 +230,7 @@ def variacao(atual: float | None, anterior: float | None) -> float | None:
 
 def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: dict[str, list[dict]],
                     metas: dict[str, set[str]], agora: datetime) -> tuple[list[dict], list[float | None], int | None, int | None]:
-    """(6 posições -5..0, SPI sem arredondar de cada posição, features entregues na sprint atual, idem na -1)."""
+    """(6 posições -5..0 (a atual aberta leva `parcial`), SPI sem arredondar de cada posição, features entregues na sprint atual, idem na -1)."""
     por_numero = sorted((s for s in sprints if s.get("iniciada") is not False), key=lambda s: s["numero"])
     funcs_por_id = {f["id"]: f for f in funcs}
     por_rel = {r["rel"]: r for r in sprints_relativas(sprints)}
@@ -240,7 +240,8 @@ def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: di
     for rel in range(-(SPRINTS_NO_MAPA - 1), 1):
         ref = por_rel.get(rel)
         if ref is None:
-            posicoes.append({"rel": rel, "numero": None, "spi": None, "meta_total": 0, "meta_entregues": 0, "meta_batida": None})
+            posicoes.append({"rel": rel, "numero": None, "spi": None, "meta_total": 0, "meta_entregues": 0, "meta_batida": None,
+                             "parcial": False})
             spis_brutos.append(None)
             continue
         sp = next(s for s in por_numero if s["id"] == ref["id"])
@@ -251,7 +252,8 @@ def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: di
         spi = spi_de(tasks_por_sprint.get(sp["id"], []))
         spis_brutos.append(spi)
         posicoes.append({"rel": rel, "numero": sp["numero"], "spi": round(spi, 2) if spi is not None else None,
-                         "meta_total": res["total"], "meta_entregues": res["entregues"], "meta_batida": res["batida"]})
+                         "meta_total": res["total"], "meta_entregues": res["entregues"], "meta_batida": res["batida"],
+                         "parcial": rel == 0 and not fechada_em})
         if rel >= -1:
             idx = por_numero.index(sp)
             inicio, fim = janela_da_sprint(sp, por_numero[idx - 1] if idx > 0 else None, agora)
@@ -374,9 +376,17 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
             if t.get("sprint_id"):
                 por_sprint.setdefault(t["sprint_id"], []).append(t)
         mapa, spis_brutos, feat, feat_ant = mapa_do_projeto(sps, funcs_por_proj.get(p["id"], []), por_sprint, metas, agora)
-        spi_atual = mapa[-1]["spi"]
+        # SPI parcial da sprint aberta não vira sinal nem KPI: só sprints fechadas contam
+        fechadas = [i for i, m in enumerate(mapa) if m["numero"] is not None and not m["parcial"]
+                    and next(s for s in sps if s["numero"] == m["numero"]).get("avaliacao_completa_em")]
+        spi_atual = mapa[fechadas[-1]]["spi"] if fechadas else None
+        spi_ant = mapa[fechadas[-2]]["spi"] if len(fechadas) > 1 else None
+        spis_fechadas = [spis_brutos[i] for i in reversed(fechadas)]
+        sem_funcionalidades = not funcs_por_proj.get(p["id"]) and not c["prazo_escopo"].get("sem_dados")
+        c["prazo_escopo"] = {**c["prazo_escopo"], "sem_funcionalidades": sem_funcionalidades}
         sinais = sinais_do_projeto({
-            "spi_atual": spis_brutos[-1], "spis_recentes": list(reversed(spis_brutos)),
+            "spi_atual": spis_fechadas[0] if spis_fechadas else None, "spis_recentes": spis_fechadas,
+            "sem_funcionalidades": sem_funcionalidades,
             "prazo_escopo": c["prazo_escopo"], "tolerancia": p.get("tolerancia_desvio_pontos"),
             "ultima_fechada": c["ultima_fechada"], "travadas": c["saude"]["tasks_travadas"],
             "tem_meta_atual": c["meta"]["total"] > 0, "tem_planejamento_atual": c["planejado"]["funcs_planejadas"] > 0,
@@ -385,7 +395,7 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
         status = status_de(sinais)
         c.update({
             "_gerente_email": p.get("gerente_email"), "_status": status, "_sinais": sinais,
-            "_mapa": mapa, "_feat": feat, "_feat_ant": feat_ant, "_spi": spi_atual, "_spi_ant": mapa[-2]["spi"],
+            "_mapa": mapa, "_feat": feat, "_feat_ant": feat_ant, "_spi": spi_atual, "_spi_ant": spi_ant,
             "_motivos": motivos(sinais), "_diagnostico": diagnostico(status, sinais),
             "_sprints": sps, "_tasks": ts, "_gerente_nome": ((por_email.get((p.get("gerente_email") or "").strip().lower()) or {})
                                                             .get("nome") or (p.get("gerente_email") or "").strip() or None),
@@ -416,6 +426,8 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None, g
         "metas_batidas": g["resumo"]["metas_batidas"], "metas_fechadas": g["resumo"]["metas_fechadas"],
     } for g in agrupar_por_gerente(itens, por_email)]
     com_datas = [i for i in itens if not i["prazo_escopo"].get("sem_dados")]
+    sem_func = [i for i in com_datas if i["prazo_escopo"].get("sem_funcionalidades")]
+    plotaveis = [i for i in com_datas if not i["prazo_escopo"].get("sem_funcionalidades")]
     ordenados = sorted(itens, key=lambda i: (i["nome"] or "").casefold())
     return {
         "subarea": subarea, "filtro_gerente": gerente_email, "gerentes": gerentes,
@@ -427,8 +439,8 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None, g
             "pontos": [{"projeto_id": i["id"], "nome": i["nome"],
                         "pct_prazo": i["prazo_escopo"]["pct_prazo_consumido"],
                         "pct_escopo": i["prazo_escopo"]["pct_escopo_concluido"],
-                        "travadas": i["saude"]["tasks_travadas"], "status": i["_status"]} for i in com_datas],
-            "sem_datas": len(itens) - len(com_datas),
+                        "travadas": i["saude"]["tasks_travadas"], "status": i["_status"]} for i in plotaveis],
+            "sem_datas": len(itens) - len(com_datas), "sem_funcionalidades": len(sem_func),
         },
         "por_gerente": por_gerente,
         "projetos": [{"id": i["id"], "nome": i["nome"], "status": i["_status"],
@@ -465,6 +477,7 @@ def montar_detalhe(client, projeto_id: str, agora: datetime | None = None) -> di
     c = itens[0]
     pe = c["prazo_escopo"]
     sem_dados = bool(pe.get("sem_dados"))
+    sem_func = bool(pe.get("sem_funcionalidades"))
     tasks, sprints = c["_tasks"], c["_sprints"]
     por_sprint: dict[str, list[dict]] = {}
     for t in tasks:
@@ -507,10 +520,10 @@ def montar_detalhe(client, projeto_id: str, agora: datetime | None = None) -> di
         "projeto": {"id": c["id"], "nome": c["nome"], "cliente": c["cliente"], "gerente": c["_gerente_nome"]},
         "status": c["_status"], "diagnostico": c["_diagnostico"], "sinais": c["_sinais"],
         "numeros": {
-            "spi_atual": c["_spi"],
-            "pct_prazo": None if sem_dados else pe.get("pct_prazo_consumido"),
-            "pct_escopo": None if sem_dados else pe.get("pct_escopo_concluido"),
-            "prazo_sem_dados": sem_dados, "travadas": c["saude"]["tasks_travadas"], "p85_horas": c["saude"]["p85_horas"],
+            "spi_atual": c["_mapa"][-1]["spi"], "spi_ultima_fechada": c["_spi"],
+            "pct_prazo": None if sem_dados or sem_func else pe.get("pct_prazo_consumido"),
+            "pct_escopo": None if sem_dados or sem_func else pe.get("pct_escopo_concluido"),
+            "prazo_sem_dados": sem_dados, "sem_funcionalidades": sem_func, "travadas": c["saude"]["tasks_travadas"], "p85_horas": c["saude"]["p85_horas"],
         },
         "sprint_atual": atual, "proximas_sprints": c["proximas_sprints"],
         "meta": c["meta"], "planejadas_fora_da_meta": c["planejadas_fora_da_meta"],

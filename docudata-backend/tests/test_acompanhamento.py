@@ -276,17 +276,20 @@ def test_rota_kpis_fila_mapa_dispersao_e_gerentes(monkeypatch, autenticar):
     # f2 (p1, 12/10) cai na janela da s2 (inicia no fechamento da s1); f6 (p5, 20/10) na da s5
     assert k["features_entregues"] == 2
     assert k["features_entregues_var"] == 0  # só Alfa tem as duas: 1 na s2 e 1 na s1 (f1); Delta não tem -1
-    assert k["spi_medio"] == 0.75 and k["spi_medio_var"] == -0.5  # só Alfa tem as duas: 0.5 contra 1.0
+    # SPI só de sprint fechada: Alfa s1 = 1.0 (a s2 aberta é parcial); sem par de fechadas, sem variação
+    assert k["spi_medio"] == 1.0 and k["spi_medio_var"] is None
     assert (k["metas_fechadas"], k["metas_batidas"], k["projetos_sem_meta"]) == (1, 0, 1)
     assert k["tasks_travadas"] == 1
     assert [f["nome"] for f in j["fila"]] == ["Alfa", "Beta", "Gama"]
     assert [f["status"] for f in j["fila"]] == ["critico", "atencao", "sem_dados"]
     assert j["fila"][0]["gerente"] == "Ana" and j["fila"][2]["gerente"] == "Sem gerente"
-    assert j["fila"][0]["motivos"][0] == "SPI 0,5"
+    assert j["fila"][0]["motivos"][0] == "100% do prazo · 50% entregue"  # o SPI 0,5 da s2 aberta é parcial: não conta
     alfa = next(m for m in j["mapa"] if m["nome"] == "Alfa")
     assert [s["rel"] for s in alfa["sprints"]] == [-5, -4, -3, -2, -1, 0]
     assert [s["numero"] for s in alfa["sprints"]] == [None, None, None, None, 1, 2]
-    assert alfa["sprints"][4] == {"rel": -1, "numero": 1, "spi": 1.0, "meta_total": 2, "meta_entregues": 1, "meta_batida": False}
+    assert alfa["sprints"][4] == {"rel": -1, "numero": 1, "spi": 1.0, "meta_total": 2, "meta_entregues": 1, "meta_batida": False,
+                                  "parcial": False}
+    assert alfa["sprints"][5]["parcial"] is True and alfa["sprints"][4]["parcial"] is False
     assert alfa["sprints"][5]["spi"] == 0.5 and alfa["sprints"][0]["spi"] is None and alfa["sprints"][0]["meta_batida"] is None
     assert len(j["mapa"]) == 4
     assert j["dispersao"]["sem_datas"] == 2
@@ -383,7 +386,7 @@ def test_status_usa_spi_sem_arredondar():
                              "surgiu_na_sprint": False}
     fake = FakeClient({
         "pessoa": [], "projects": [{"id": "p", "name": "Borda", "client": "C", "subarea": "dados", "gerente_email": "a@x.com"}],
-        "sprints": [{"id": "s", "project_id": "p", "numero": 1, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None}],
+        "sprints": [{"id": "s", "project_id": "p", "numero": 1, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": "2026-10-10T00:00:00+00:00"}],
         "funcionalidades": [], "tasks": [t("a", 349, "concluida"), t("b", 151, "backlog")],
         "sprint_funcionalidades": [], "sprint_meta_funcionalidades": [], "task_aprendizado": [],
     })
@@ -394,16 +397,18 @@ def test_status_usa_spi_sem_arredondar():
 
 # ── detalhe do projeto ──
 
+P1 = "00000000-0000-0000-0000-0000000000a1"
+
 def _tk(i, sprint, op, pontos, col="concluida", **kw):
-    return {"id": i, "project_id": "p1", "sprint_id": sprint, "funcionalidade_id": None, "operacional_id": op,
+    return {"id": i, "project_id": P1, "sprint_id": sprint, "funcionalidade_id": None, "operacional_id": op,
             "coluna_kanban": col, "extra": False, "pontos": pontos, "travado_automatico": False,
             "prevista_no_inicio": True, "surgiu_na_sprint": False, **kw}
 
 
 def _fake_detalhe(com_sprint_anterior=True):
     sprints = [
-        {"id": "s2", "project_id": "p1", "numero": 2, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None},
-        {"id": "s3", "project_id": "p1", "numero": 3, "iniciada": False, "avaliacao_completa_em": None},
+        {"id": "s2", "project_id": P1, "numero": 2, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None},
+        {"id": "s3", "project_id": P1, "numero": 3, "iniciada": False, "avaliacao_completa_em": None},
         # sprint de outro projeto da subárea no trimestre anterior (T3): realizados 10 e 4 -> mediana 7
         {"id": "sa", "project_id": "p2", "numero": 1, "iniciada": True, "avaliacao_completa_em": "2026-08-15T00:00:00+00:00"},
         # fora do trimestre anterior e de outra subárea: não contam
@@ -416,20 +421,20 @@ def _fake_detalhe(com_sprint_anterior=True):
         _tk("tb1", "sb", "x1", 100, project_id="p2"), _tk("tc1", "sc", "x9", 100, project_id="p4"),
     ]
     if com_sprint_anterior:
-        sprints.append({"id": "s1", "project_id": "p1", "numero": 1, "iniciada": True, "data_inicio": "2026-09-20",
+        sprints.append({"id": "s1", "project_id": P1, "numero": 1, "iniciada": True, "data_inicio": "2026-09-20",
                         "avaliacao_completa_em": "2026-10-10T00:00:00+00:00"})
         tasks += [_tk("tp1", "s1", "o1", 6), _tk("tp2", "s1", "o2", 2)]
     return FakeClient({
         "pessoa": [{"id": "g1", "nome": "Ana", "email": "ana@citi.org.br"}],
         "projects": [
-            {"id": "p1", "name": "Alfa", "client": "C1", "subarea": "dados", "gerente_email": "ana@citi.org.br",
+            {"id": P1, "name": "Alfa", "client": "C1", "subarea": "dados", "gerente_email": "ana@citi.org.br",
              "data_inicio": "2020-01-01", "data_fim_contratada": "2020-12-31", "tolerancia_desvio_pontos": 20},
             {"id": "p2", "name": "Beta", "client": "C2", "subarea": "dados", "gerente_email": None},
             {"id": "p4", "name": "Dev", "client": "C4", "subarea": "dev", "gerente_email": None},
         ],
         "sprints": sprints, "tasks": tasks,
-        "funcionalidades": [{"id": "f3", "project_id": "p1", "id_funcional": "F3", "titulo": "C", "status": "em_andamento", "aprovada_em": None},
-                            {"id": "f4", "project_id": "p1", "id_funcional": "F4", "titulo": "D", "status": "nao_iniciada", "aprovada_em": None}],
+        "funcionalidades": [{"id": "f3", "project_id": P1, "id_funcional": "F3", "titulo": "C", "status": "em_andamento", "aprovada_em": None},
+                            {"id": "f4", "project_id": P1, "id_funcional": "F4", "titulo": "D", "status": "nao_iniciada", "aprovada_em": None}],
         "operacionais": [{"id": "o1", "nome": "Ana Op"}, {"id": "o2", "nome": "Bia"}, {"id": "o3", "nome": "Caio"}],
         "sprint_funcionalidades": [{"id": "x1", "sprint_id": "s2", "funcionalidade_id": "f3"},
                                    {"id": "x2", "sprint_id": "s2", "funcionalidade_id": "f4"}],
@@ -448,15 +453,15 @@ def _tc_detalhe(monkeypatch, autenticar, cargo="lider", **kw):
 
 
 def test_detalhe_forma_e_piso_por_pessoa(monkeypatch, autenticar):
-    r = _tc_detalhe(monkeypatch, autenticar).get("/acompanhamento/projetos/p1")
+    r = _tc_detalhe(monkeypatch, autenticar).get(f"/acompanhamento/projetos/{P1}")
     assert r.status_code == 200
     j = r.json()
-    assert j["projeto"] == {"id": "p1", "nome": "Alfa", "cliente": "C1", "gerente": "Ana"}
+    assert j["projeto"] == {"id": P1, "nome": "Alfa", "cliente": "C1", "gerente": "Ana"}
     assert j["sprint_atual"] == {"id": "s2", "numero": 2, "fechada": False}
     assert j["proximas_sprints"] == [{"id": "s3", "numero": 3, "fechada": False}]
-    assert set(j["numeros"]) == {"spi_atual", "pct_prazo", "pct_escopo", "prazo_sem_dados", "travadas", "p85_horas"}
-    assert j["numeros"]["spi_atual"] == 0.67 and j["numeros"]["prazo_sem_dados"] is False
-    assert [s["codigo"] for s in j["sinais"]][0] == "spi_critico" and set(j["sinais"][0]) == {"codigo", "texto"}
+    assert set(j["numeros"]) == {"spi_atual", "spi_ultima_fechada", "sem_funcionalidades", "pct_prazo", "pct_escopo", "prazo_sem_dados", "travadas", "p85_horas"}
+    assert j["numeros"]["spi_atual"] == 0.67 and j["numeros"]["spi_ultima_fechada"] == 1.0 and j["numeros"]["prazo_sem_dados"] is False
+    assert [s["codigo"] for s in j["sinais"]][0] == "prazo" and "spi_critico" not in [s["codigo"] for s in j["sinais"]] and set(j["sinais"][0]) == {"codigo", "texto"}
     assert j["status"] == "critico" and j["diagnostico"].startswith("Crítico.")
     assert j["meta"]["total"] == 1 and j["meta"]["funcionalidades"][0]["planejada_na_sprint"] is True
     assert j["planejadas_fora_da_meta"] == [{"id": "f4", "id_funcional": "F4", "titulo": "D"}]
@@ -470,22 +475,24 @@ def test_detalhe_forma_e_piso_por_pessoa(monkeypatch, autenticar):
 
 def test_detalhe_mesmo_status_do_dashboard(monkeypatch, autenticar):
     c = _tc_detalhe(monkeypatch, autenticar)
-    d = c.get("/acompanhamento/projetos/p1").json()
+    d = c.get(f"/acompanhamento/projetos/{P1}").json()
     from services.acompanhamento import montar_acompanhamento
     ref = montar_acompanhamento(_fake_detalhe(), "dados", agora=AGORA)
-    item = next(p for p in ref["projetos"] if p["id"] == "p1")
+    item = next(p for p in ref["projetos"] if p["id"] == P1)
     assert (d["status"], d["diagnostico"]) == (item["status"], item["diagnostico"])
 
 
 def test_detalhe_sem_sprint_anterior_usa_so_a_subarea(monkeypatch, autenticar):
-    tm = _tc_detalhe(monkeypatch, autenticar, com_sprint_anterior=False).get("/acompanhamento/projetos/p1").json()["time"]
+    tm = _tc_detalhe(monkeypatch, autenticar, com_sprint_anterior=False).get(f"/acompanhamento/projetos/{P1}").json()["time"]
     assert tm["mediana_squad"] is None and tm["mediana_subarea"] == 7.0
     assert all(p["piso"] == 3.5 for p in tm["pessoas"])
 
 
 def test_detalhe_404_e_403(monkeypatch, autenticar):
-    assert _tc_detalhe(monkeypatch, autenticar).get("/acompanhamento/projetos/nao-existe").status_code == 404
-    assert _tc_detalhe(monkeypatch, autenticar, "gerente").get("/acompanhamento/projetos/p1").status_code == 403
+    c = _tc_detalhe(monkeypatch, autenticar)
+    assert c.get("/acompanhamento/projetos/nao-existe").status_code == 404  # não é UUID: nem chega ao banco
+    assert c.get("/acompanhamento/projetos/00000000-0000-0000-0000-0000000000ff").status_code == 404
+    assert _tc_detalhe(monkeypatch, autenticar, "gerente").get(f"/acompanhamento/projetos/{P1}").status_code == 403
 
 
 def test_detalhe_usa_data_fim_da_sprint_atual_para_o_trimestre(monkeypatch, autenticar):
@@ -497,7 +504,7 @@ def test_detalhe_usa_data_fim_da_sprint_atual_para_o_trimestre(monkeypatch, aute
     monkeypatch.setattr(rota, "get_client", lambda: fake)
     original = rota.montar_detalhe
     monkeypatch.setattr(rota, "montar_detalhe", lambda *a, **k: original(*a, agora=AGORA, **k))
-    tm = autenticar(TestClient(app), "lider").get("/acompanhamento/projetos/p1").json()["time"]
+    tm = autenticar(TestClient(app), "lider").get(f"/acompanhamento/projetos/{P1}").json()["time"]
     # T4: s1 (6 e 2) e sb (100) -> mediana 6; com o fallback "agora" (T3) seria 7
     assert tm["mediana_subarea"] == 6.0
     assert tm["pessoas"][0]["piso"] == 3.0
@@ -508,21 +515,21 @@ def test_detalhe_mediana_da_subarea_inclui_sprints_do_proprio_projeto():
     fake = _fake_detalhe(com_sprint_anterior=False)
     fake.tables["sprints"] = [s for s in fake.tables["sprints"] if s["id"] not in ("sa", "sb", "sc")]
     fake.tables["tasks"] = [t for t in fake.tables["tasks"] if t["sprint_id"] in ("s2",)]
-    fake.tables["sprints"].append({"id": "sp", "project_id": "p1", "numero": 1, "iniciada": True,
+    fake.tables["sprints"].append({"id": "sp", "project_id": P1, "numero": 1, "iniciada": True,
                                    "avaliacao_completa_em": "2026-08-01T00:00:00+00:00"})
     fake.tables["tasks"] += [_tk("q1", "sp", "o1", 8), _tk("q2", "sp", "o2", 2)]
-    d = montar_detalhe(fake, "p1", agora=AGORA)
+    d = montar_detalhe(fake, P1, agora=AGORA)
     assert d["time"]["mediana_subarea"] == 5.0
 
 
 def test_detalhe_sem_sprint_atual_nao_le_a_subarea():
     from services.acompanhamento import montar_detalhe
     fake = _fake_detalhe()
-    fake.tables["sprints"] = [s for s in fake.tables["sprints"] if s["project_id"] != "p1"]
+    fake.tables["sprints"] = [s for s in fake.tables["sprints"] if s["project_id"] != P1]
     lidas = []
     original = fake.table
     fake.table = lambda nome: (lidas.append(nome), original(nome))[1]
-    d = montar_detalhe(fake, "p1", agora=AGORA)
+    d = montar_detalhe(fake, P1, agora=AGORA)
     assert d["time"] == {"sprint_numero": None, "mediana_squad": None, "mediana_subarea": None, "pessoas": []}
     assert lidas.count("sprints") == 1 and "operacionais" not in lidas
 
@@ -541,6 +548,81 @@ def test_detalhe_pede_data_fim_no_select_das_sprints():
             t.select = lambda *a, **k: (pedidos.append(a[0] if a else ""), sel(*a, **k))[1]
         return t
     fake.table = table
-    montar_detalhe(fake, "p1", agora=AGORA)
+    montar_detalhe(fake, P1, agora=AGORA)
     principal = [c for c in pedidos if "numero" in c]
     assert principal and all("data_fim" in c for c in principal)
+
+
+# ── SPI parcial da sprint aberta e projeto sem funcionalidades ──
+
+def _fake_spi(spis_fechadas, spi_aberta, com_funcs=True, datas=True):
+    """Um projeto com sprints fechadas (SPI dado por previsto 100 e realizado = 100 * spi) e uma aberta."""
+    def tk(i, sprint, pts, col):
+        return {"id": i, "project_id": "p", "sprint_id": sprint, "funcionalidade_id": None, "coluna_kanban": col, "extra": False,
+                "pontos": pts, "travado_automatico": False, "prevista_no_inicio": True, "surgiu_na_sprint": False}
+    sprints, tasks = [], []
+    for n, spi in enumerate(spis_fechadas, 1):
+        sprints.append({"id": f"s{n}", "project_id": "p", "numero": n, "iniciada": True, "data_inicio": None,
+                        "avaliacao_completa_em": f"2026-10-0{n}T00:00:00+00:00"})
+        tasks += [tk(f"a{n}", f"s{n}", int(spi * 100), "concluida"), tk(f"b{n}", f"s{n}", 100 - int(spi * 100), "backlog")]
+    n = len(spis_fechadas) + 1
+    sprints.append({"id": f"s{n}", "project_id": "p", "numero": n, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None})
+    tasks += [tk("ax", f"s{n}", int(spi_aberta * 100), "concluida"), tk("bx", f"s{n}", 100 - int(spi_aberta * 100), "backlog")]
+    proj_ = {"id": "p", "name": "P", "client": "C", "subarea": "dados", "gerente_email": "a@x.com"}
+    if datas:
+        proj_.update(data_inicio="2026-01-01", data_fim_contratada="2099-12-31", tolerancia_desvio_pontos=20)
+    funcs = [{"id": "f", "project_id": "p", "id_funcional": "F1", "titulo": "A", "status": "em_andamento", "aprovada_em": None}] if com_funcs else []
+    return FakeClient({"pessoa": [], "projects": [proj_], "sprints": sprints, "funcionalidades": funcs, "tasks": tasks,
+                       "sprint_funcionalidades": [], "sprint_meta_funcionalidades": [], "task_aprendizado": []})
+
+
+def _cods(fake):
+    from services.acompanhamento import carregar_projetos
+    p = carregar_projetos(fake, "dados", AGORA)[0][0]
+    return p, [s["codigo"] for s in p["_sinais"]]
+
+
+def test_sprint_aberta_com_spi_parcial_baixo_nao_dispara_spi_critico():
+    p, cods = _cods(_fake_spi([0.9], 0.1))
+    assert "spi_critico" not in cods and p["_spi"] == 0.9
+    assert p["_mapa"][-1]["parcial"] is True and p["_mapa"][-1]["spi"] == 0.1
+
+
+def test_ultima_sprint_fechada_abaixo_de_07_dispara_spi_critico():
+    p, cods = _cods(_fake_spi([0.9, 0.6], 0.95))
+    assert "spi_critico" in cods and p["_status"] == "critico" and p["_spi"] == 0.6 and p["_spi_ant"] == 0.9
+
+
+def test_spi_caindo_ignora_a_sprint_aberta():
+    _, cods = _cods(_fake_spi([0.8, 0.8], 0.1))  # só 2 fechadas abaixo de 0,9: a aberta não completa as 3
+    assert "spi_caindo" not in cods
+    _, cods = _cods(_fake_spi([0.8, 0.8, 0.8], 0.95))
+    assert "spi_caindo" in cods
+
+
+def test_projeto_sem_sprint_fechada_nao_tem_sinal_de_spi():
+    p, cods = _cods(_fake_spi([], 0.0))
+    assert "spi_critico" not in cods and p["_spi"] is None and p["_spi_ant"] is None
+
+
+def test_kpi_spi_medio_usa_so_fechadas_e_variacao_pareada():
+    from services.acompanhamento import carregar_projetos, montar_acompanhamento
+    k = montar_acompanhamento(_fake_spi([0.6, 0.8], 0.1), "dados", agora=AGORA)["kpis"]
+    assert k["spi_medio"] == 0.8 and k["spi_medio_var"] == 0.2
+
+
+def test_projeto_com_datas_e_sem_funcionalidades_nao_tem_prazo_nem_entra_na_dispersao():
+    from services.acompanhamento import montar_acompanhamento
+    fake = _fake_spi([0.9], 0.9, com_funcs=False)
+    p, cods = _cods(fake)
+    assert "prazo" not in cods and "sem_funcionalidades" in cods and p["_status"] != "critico"
+    d = montar_acompanhamento(fake, "dados", agora=AGORA)["dispersao"]
+    assert d["pontos"] == [] and d["sem_funcionalidades"] == 1 and d["sem_datas"] == 0
+    com = montar_acompanhamento(_fake_spi([0.9], 0.9), "dados", agora=AGORA)["dispersao"]
+    assert len(com["pontos"]) == 1 and com["sem_funcionalidades"] == 0
+
+
+def test_detalhe_sem_funcionalidades_nao_mostra_zero_de_escopo():
+    from services.acompanhamento import montar_detalhe
+    d = montar_detalhe(_fake_spi([0.9], 0.9, com_funcs=False), "p", agora=AGORA)
+    assert d["numeros"]["sem_funcionalidades"] is True and d["numeros"]["pct_escopo"] is None and d["numeros"]["pct_prazo"] is None

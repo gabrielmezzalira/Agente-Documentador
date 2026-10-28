@@ -2,8 +2,8 @@
 
 ORDEM_STATUS = {"critico": 0, "atencao": 1, "sem_dados": 2, "saudavel": 3}
 PRIORIDADE = ["spi_critico", "prazo", "meta_ruim", "travadas", "spi_caindo", "sem_meta",
-              "sem_sprint", "sem_planejamento", "sem_datas", "sem_gerente"]
-FALTA = {"sem_sprint", "sem_planejamento", "sem_datas", "sem_gerente"}
+              "sem_sprint", "sem_planejamento", "sem_datas", "sem_funcionalidades", "sem_gerente"]
+FALTA = {"sem_sprint", "sem_planejamento", "sem_datas", "sem_funcionalidades", "sem_gerente"}
 ROTULO = {"critico": "Crítico.", "atencao": "Atenção.", "sem_dados": "Faltam dados.", "saudavel": "Saudável."}
 
 
@@ -21,7 +21,7 @@ def sinais_do_projeto(d: dict) -> list[dict]:
     if spi is not None and spi < 0.7:
         add("spi_critico", f"SPI {_num(spi)}")
     pe = d.get("prazo_escopo") or {}
-    if not pe.get("sem_dados", True):
+    if not pe.get("sem_dados", True) and not d.get("sem_funcionalidades"):
         if pe["pct_prazo_consumido"] - pe["pct_escopo_concluido"] > (d.get("tolerancia") or 0):
             add("prazo", f"{_num(pe['pct_prazo_consumido'], 0)}% do prazo · {_num(pe['pct_escopo_concluido'], 0)}% entregue")
     uf = d.get("ultima_fechada") or {}
@@ -44,6 +44,8 @@ def sinais_do_projeto(d: dict) -> list[dict]:
             add("sem_planejamento", "sem planejamento")
     if pe.get("sem_dados", True):
         add("sem_datas", "sem datas do contrato")
+    if d.get("sem_funcionalidades"):
+        add("sem_funcionalidades", "sem funcionalidades")
     if not d.get("tem_gerente"):
         add("sem_gerente", "sem gerente")
     return sorted(s, key=lambda x: PRIORIDADE.index(x["codigo"]))
