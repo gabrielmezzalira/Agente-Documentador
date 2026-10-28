@@ -384,8 +384,9 @@ def test_status_usa_spi_sem_arredondar():
     fake = FakeClient({
         "pessoa": [], "projects": [{"id": "p", "name": "Borda", "client": "C", "subarea": "dados", "gerente_email": "a@x.com"}],
         "sprints": [{"id": "s", "project_id": "p", "numero": 1, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None}],
-        "funcionalidades": [], "tasks": [t("a", 139, "concluida"), t("b", 61, "backlog")],
+        "funcionalidades": [], "tasks": [t("a", 349, "concluida"), t("b", 151, "backlog")],
         "sprint_funcionalidades": [], "sprint_meta_funcionalidades": [], "task_aprendizado": [],
     })
-    p = carregar_projetos(fake, "dados", AGORA)[0][0]  # SPI bruto 0,695
+    p = carregar_projetos(fake, "dados", AGORA)[0][0]  # SPI bruto 0,698, que arredonda para 0,70
+    assert p["_mapa"][-1]["spi"] == 0.7
     assert p["_status"] == "critico" and "spi_critico" in [s["codigo"] for s in p["_sinais"]]
