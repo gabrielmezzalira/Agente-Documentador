@@ -34,7 +34,7 @@ const TOOLTIPS: Record<string, string> = {
   throughput: "Quantas tasks foram finalizadas por sprint. Mede o ritmo de entrega da equipe. Requer tasks cadastradas e associadas a sprints.",
   cycletime: "Tempo que uma task ficou em 'Em andamento' antes de ir para 'Concluída'. Detecta gargalos — tasks que demoram muito indicam bloqueios ou escopo grande demais. Requer tasks concluídas com histórico de transições.",
   cfd: "Foto do estado das tasks em cada sprint: quantas estão em Planejado, Em andamento e Concluída. Mostra se o trabalho está fluindo ou acumulando em uma coluna.",
-  spievol: "Só entra o que já foi travado pelo fechamento da Avaliação Semanal — é o mesmo dado que alimenta o acompanhamento de performance. SPI = pontos entregues sobre pontos que a pessoa pegou, já descontando o que foi penalizado por task parada tempo demais.",
+  spievol: "Só entra o que já foi travado pelo fechamento da Avaliação Semanal — é o mesmo dado que alimenta o acompanhamento de performance. Entrega = (pontos concluídos − pontos perdidos por atraso) ÷ pontos alocados × 100, limitada entre 0 e 100. Pontos perdidos por atraso são os de task que travou por ficar parada tempo demais (salvo se o gerente dispensou o alerta).",
   perfop: "SPI estimado por operacional — soma de todos os pontos já atribuídos ao operacional (qualquer coluna) dividida pelos pontos realizados. É um proxy interino, recomputado ao vivo, não um baseline travado por operacional.",
 };
 
@@ -103,7 +103,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
     { title: "Cycle-time", body: "Tempo que cada task ficou em 'Em andamento' antes de ser concluída. Tasks com mais de 3 dias merecem atenção — geralmente indicam bloqueio, escopo grande demais ou dependência externa. Requer tasks que passaram por 'Em andamento' antes de 'Concluída'." },
     { title: "CFD — Cumulative Flow Diagram", body: "Foto do estado das tasks por sprint: quantas estão em Planejado, Em andamento e Concluída. Se a coluna 'Em andamento' cresce sprint a sprint sem que 'Concluída' cresça junto, há gargalo de fluxo." },
     { title: "SPI por operacional (estimado)", body: "Proxy calculado ao vivo sobre todas as tasks vinculadas a cada pessoa (atribuídas ou puxadas), em qualquer coluna. Serve para ver quem está sobrecarregado agora; não é o número que alimenta o acompanhamento de performance." },
-    { title: "Entrega por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Mostra a entrega de cada pessoa (já descontando o que foi penalizado por task travada), quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
+    { title: "Entrega por pessoa", body: "Este é o dado consolidado: só entra o que já foi travado pelo fechamento da Avaliação Semanal, e é o mesmo que alimenta o acompanhamento de performance. Entrega = (pontos concluídos − pontos perdidos por atraso) ÷ pontos alocados × 100, limitada entre 0 e 100, somando todas as sprints avaliadas. Mostra também quantas sprints já foram avaliadas, e quantos pontos ela perdeu por atraso. Use na conversa de feedback." },
   ];
 
   // Cycle-time — distribuição por faixas de horas
@@ -122,7 +122,9 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
   const chartGrey = ds.chartGrey;
   const fmtHoras = (h: number) => (h < 24 ? `${fmtNum(h)}h` : `${Math.round(h / 24)}d`);
   const spiComBaseline = spi.filter((s) => s.pontos_previstos !== null);
-  const ultimoSpi = [...spiComBaseline].reverse().find((s) => s.spi !== null)?.spi ?? null;
+  // O card mostra só a última sprint com SPI; a comparação entre sprints fica no Throughput.
+  const ultimaSprintSpi = [...spiComBaseline].reverse().find((s) => s.spi !== null) ?? null;
+  const ultimoSpi = ultimaSprintSpi?.spi ?? null;
   const lentas = [...cycleTime].sort((a, b) => b.cycle_time_horas - a.cycle_time_horas).slice(0, 5);
   const corLenta = (h: number) => (h >= 120 ? ds.red : h >= 72 ? ds.amber : ds.text2);
 
@@ -138,15 +140,19 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
             </ChartEmpty>
           ) : (
             <>
-              {ultimoSpi !== null && <BigNumber value={fmtNum(ultimoSpi)} unit="SPI da última sprint" color={spiColor(ultimoSpi)} />}
-              <BarGroups
-                label="Pontos previstos e realizados por sprint"
-                categories={spiComBaseline.map((s) => `S${s.sprint_numero}`)}
-                series={[
-                  { key: "prev", label: "Previstos", color: chartGrey, values: spiComBaseline.map((s) => s.pontos_previstos ?? 0) },
-                  { key: "real", label: "Realizados", color: ds.green, values: spiComBaseline.map((s) => s.pontos_realizados ?? 0) },
-                ]}
-              />
+              {ultimaSprintSpi && ultimoSpi !== null && (
+                <>
+                  <BigNumber value={fmtNum(ultimoSpi)} unit={`SPI da última sprint (S${ultimaSprintSpi.sprint_numero})`} color={spiColor(ultimoSpi)} />
+                  <BarGroups
+                    label={`Pontos previstos e realizados na sprint ${ultimaSprintSpi.sprint_numero}`}
+                    categories={[`S${ultimaSprintSpi.sprint_numero}`]}
+                    series={[
+                      { key: "prev", label: "Previstos", color: chartGrey, values: [ultimaSprintSpi.pontos_previstos ?? 0] },
+                      { key: "real", label: "Realizados", color: ds.green, values: [ultimaSprintSpi.pontos_realizados ?? 0] },
+                    ]}
+                  />
+                </>
+              )}
             </>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -262,7 +268,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
 
       <PanelCard label="Entrega por pessoa" action={<Chip tone="amber">Leitura restrita a líderes e gerentes</Chip>}>
         <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: ds.muted }}>
-          Dado consolidado nos fechamentos de sprint. Use na conversa de feedback. <InfoTooltip id="spievol" />
+          Entrega = (pontos concluídos − pontos perdidos por atraso) ÷ pontos alocados × 100, limitada entre 0 e 100. Dado consolidado nos fechamentos de sprint. Use na conversa de feedback. <InfoTooltip id="spievol" />
         </p>
         {spiPorPessoa.length === 0 ? (
           <ChartEmpty>Nenhum operacional cadastrado neste projeto.</ChartEmpty>
