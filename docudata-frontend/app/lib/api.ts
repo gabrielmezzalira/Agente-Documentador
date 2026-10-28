@@ -2448,29 +2448,84 @@ export interface AcompMeta {
   funcionalidades: AcompFuncionalidade[];
 }
 export interface AcompForaDaMeta { id: string; id_funcional: string | null; titulo: string | null }
-export interface AcompProjeto {
-  id: string;
-  nome: string | null;
-  cliente: string | null;
+export type AcompStatus = "critico" | "atencao" | "sem_dados" | "saudavel";
+export interface AcompGerente { nome: string; email: string | null }
+export interface AcompKpis {
+  projetos: number;
+  criticos: number;
+  atencao: number;
+  sem_dados: number;
+  saudaveis: number;
+  features_entregues: number | null;
+  features_entregues_var: number | null;
+  spi_medio: number | null;
+  spi_medio_var: number | null;
+  metas_batidas: number;
+  metas_fechadas: number;
+  projetos_sem_meta: number;
+  tasks_travadas: number;
+}
+export interface AcompFilaItem { projeto_id: string; nome: string | null; gerente: string; status: AcompStatus; motivos: string[] }
+export interface AcompMapaSprint {
+  rel: number;
+  numero: number | null;
+  spi: number | null;
+  meta_total: number;
+  meta_entregues: number;
+  meta_batida: boolean | null;
+  parcial?: boolean; // sprint atual ainda aberta: o SPI é parcial
+}
+export interface AcompMapaProjeto { projeto_id: string; nome: string | null; sprints: AcompMapaSprint[] }
+export interface AcompPonto { projeto_id: string; nome: string | null; pct_prazo: number; pct_escopo: number; travadas: number; status: AcompStatus }
+export interface AcompDispersao { pontos: AcompPonto[]; sem_datas: number; sem_funcionalidades?: number }
+export interface AcompPorGerente {
+  nome: string;
+  email: string | null;
+  projetos: number;
+  criticos: number;
+  atencao: number;
+  metas_batidas: number;
+  metas_fechadas: number;
+}
+export interface AcompProjetoStatus { id: string; nome: string | null; status: AcompStatus; motivos: string[]; diagnostico: string }
+export interface AcompanhamentoResponse {
+  subarea: string;
+  filtro_gerente: string | null;
+  gerentes: AcompGerente[];
+  kpis: AcompKpis;
+  fila: AcompFilaItem[];
+  mapa: AcompMapaProjeto[];
+  dispersao: AcompDispersao;
+  por_gerente: AcompPorGerente[];
+  projetos: AcompProjetoStatus[];
+}
+export interface AcompSinal { codigo: string; texto: string }
+export interface AcompDetalheResponse {
+  projeto: { id: string; nome: string | null; cliente: string | null; gerente: string | null };
+  status: AcompStatus;
+  diagnostico: string;
+  sinais: AcompSinal[];
+  numeros: {
+    spi_atual: number | null;
+    spi_ultima_fechada?: number | null;
+    sem_funcionalidades?: boolean;
+    pct_prazo: number | null;
+    pct_escopo: number | null;
+    prazo_sem_dados: boolean;
+    travadas: number;
+    p85_horas: number | null;
+  };
   sprint_atual: AcompSprintRef | null;
   proximas_sprints: AcompSprintRef[];
   meta: AcompMeta;
   planejadas_fora_da_meta: AcompForaDaMeta[];
-  planejado: { funcs_planejadas: number; funcs_planejadas_entregues: number; spi: number | null };
-  prazo_escopo: { sem_dados: boolean; pct_prazo_consumido: number | null; pct_escopo_concluido: number | null; desvio_detectado: boolean | null };
-  saude: { tasks_travadas: number; wip: number; p85_horas: number | null };
-  riscos: string[];
-  ultima_fechada: { numero: number; meta_total: number; meta_entregues: number; meta_batida: boolean | null; spi: number | null } | null;
-}
-export interface AcompGrupo {
-  gerente: { nome: string; email: string | null };
-  resumo: { projetos: number; em_risco: number; metas_fechadas: number; metas_batidas: number; pct_funcs_aprovadas: number };
-  projetos: AcompProjeto[];
-}
-export interface AcompanhamentoResponse {
-  subarea: string;
-  totais: { projetos: number; em_risco: number; metas_fechadas: number; metas_batidas: number };
-  grupos: AcompGrupo[];
+  sprints: { numero: number; previsto: number; realizado: number; spi: number | null; meta_batida: boolean | null }[];
+  time: {
+    sprint_numero: number | null;
+    mediana_squad: number | null;
+    mediana_subarea: number | null;
+    pessoas: { operacional_id: string; nome: string | null; realizado: number; piso: number | null; abaixo: boolean | null }[];
+  };
 }
 export interface MetaSprint { sprint_id: string; funcionalidade_ids: string[] }
 export interface MetaEvento {
@@ -2487,9 +2542,18 @@ async function erroDoBackend(res: Response, padrao: string): Promise<Error> {
   return new Error(typeof detail === "string" ? detail : padrao);
 }
 
-export async function getAcompanhamento(subarea: Subarea): Promise<AcompanhamentoResponse> {
-  const res = await apiFetch(`${API}/acompanhamento?subarea=${subarea}`);
+/** `gerenteEmail`: e-mail do gerente, ou "sem" para projetos sem gerente. */
+export async function getAcompanhamento(subarea: Subarea, gerenteEmail?: string): Promise<AcompanhamentoResponse> {
+  const q = new URLSearchParams({ subarea });
+  if (gerenteEmail) q.set("gerente_email", gerenteEmail);
+  const res = await apiFetch(`${API}/acompanhamento?${q.toString()}`);
   if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar o acompanhamento");
+  return res.json();
+}
+
+export async function getDetalheProjeto(id: string): Promise<AcompDetalheResponse> {
+  const res = await apiFetch(`${API}/acompanhamento/projetos/${id}`);
+  if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar o detalhe do projeto");
   return res.json();
 }
 

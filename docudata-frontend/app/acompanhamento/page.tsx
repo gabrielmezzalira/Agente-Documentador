@@ -1,250 +1,201 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useAuth } from "../components/AuthGuard";
-import DefinirMetaModal from "../components/DefinirMetaModal";
-import { Button, Card, Chip, EmptyState, ErrorNotice, PageHeader, ProgressBar, SegmentedControl } from "../components/ds";
-import { ds, labelStyle } from "../lib/ds";
-import {
-  getAcompanhamento,
-  getEventosMeta,
-  type AcompanhamentoResponse,
-  type AcompProjeto,
-  type MetaEvento,
-  type Subarea,
-} from "../lib/api";
+import DispersaoPrazo from "../components/acompanhamento/DispersaoPrazo";
+import MapaCalor from "../components/acompanhamento/MapaCalor";
+import ProjetoDetalhePainel from "../components/acompanhamento/ProjetoDetalhePainel";
+import { Card, Chip, EmptyState, ErrorNotice, PageHeader, SegmentedControl, Select, StatusDot } from "../components/ds";
+import { ds, labelStyle, type Tone } from "../lib/ds";
+import { getAcompanhamento, type AcompanhamentoResponse, type AcompGerente, type AcompStatus, type Subarea } from "../lib/api";
 
 const SUBAREAS: { value: Subarea; label: string }[] = [
   { value: "dados", label: "Dados" },
   { value: "dev", label: "Dev" },
 ];
 
+const TOM: Record<AcompStatus, Tone> = { critico: "red", atencao: "amber", sem_dados: "neutral", saudavel: "green" };
+
+const STATUS_PALAVRA: Record<AcompStatus, string> = { critico: "crítico", atencao: "atenção", sem_dados: "faltam dados", saudavel: "saudável" };
+
 const mono: CSSProperties = { fontFamily: ds.fontMono };
 
 function num(x: number, casas = 2): string {
-  return x.toLocaleString("pt-BR", { maximumFractionDigits: casas });
+  return x.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 
-function pluralProjetos(n: number): string {
-  return `${n} ${n === 1 ? "projeto" : "projetos"}`;
+function plural(n: number, um: string, varios: string): string {
+  return `${n} ${n === 1 ? um : varios}`;
 }
 
-function Contador({ label, valor }: { label: string; valor: string }) {
+/** Variação em relação à sprint anterior: verde quando melhora, vermelho quando piora. `null` = sem base de comparação. */
+function Variacao({ v, casas = 0 }: { v: number | null; casas?: number }) {
+  if (v == null) return <span style={{ fontSize: 12.5, color: ds.muted }}>sem comparação</span>;
+  if (Math.abs(v) < 0.5 * 10 ** -casas) return <span style={{ fontSize: 12.5, color: ds.muted }}>sem variação</span>;
   return (
-    <Card>
+    <span style={{ fontSize: 12.5, fontWeight: 600, color: v > 0 ? ds.green : ds.red }}>
+      {v > 0 ? "▲" : "▼"} {num(Math.abs(v), casas)}
+    </span>
+  );
+}
+
+function Kpi({ label, valor, children }: { label: string; valor: string; children: ReactNode }) {
+  return (
+    <Card style={{ padding: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={labelStyle}>{label}</span>
-        <span style={{ ...mono, fontSize: 28, fontWeight: 700, color: ds.white }}>{valor}</span>
+        <span style={{ ...mono, fontSize: valor === "sem dado" ? 16 : 26, fontWeight: 700, color: valor === "sem dado" ? ds.muted : ds.white, lineHeight: 1.3 }}>{valor}</span>
+        <span style={{ fontSize: 12.5, color: ds.muted }}>{children}</span>
       </div>
     </Card>
   );
 }
 
-function Celula({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 150, flex: "1 1 150px" }}>
-      <span style={labelStyle}>{titulo}</span>
-      <div style={{ fontSize: 13.5, color: ds.text2, display: "flex", flexDirection: "column", gap: 4 }}>{children}</div>
-    </div>
-  );
-}
-
-function Historico({ sprintId }: { sprintId: string }) {
-  const [eventos, setEventos] = useState<MetaEvento[] | null>(null);
-  const [erro, setErro] = useState("");
-  useEffect(() => {
-    let vivo = true;
-    getEventosMeta(sprintId)
-      .then((e) => { if (vivo) setEventos(e); })
-      .catch((e) => { if (vivo) setErro(e instanceof Error ? e.message : "Erro ao buscar o histórico da meta"); });
-    return () => { vivo = false; };
-  }, [sprintId]);
-  if (erro) return <ErrorNotice>{erro}</ErrorNotice>;
-  if (!eventos) return <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>;
-  if (eventos.length === 0) return <p style={{ margin: 0, fontSize: 13, color: ds.muted }}>Nenhuma mudança registrada.</p>;
-  return (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: ds.text2 }}>
-      {eventos.map((e, i) => (
-        <li key={`${e.funcionalidade_id}-${e.criado_em}-${i}`}>
-          {e.acao} · {e.titulo ?? "(funcionalidade removida)"} · {e.pessoa_nome ?? "—"} · {new Date(e.criado_em).toLocaleDateString("pt-BR")}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ProjetoLinha({ p, onMeta, versao }: { p: AcompProjeto; onMeta: (p: AcompProjeto) => void; versao: number }) {
-  const [aberto, setAberto] = useState(false);
-  const [historico, setHistorico] = useState(false);
-  const meta = p.meta;
-  const semMeta = meta.total === 0;
-  const pe = p.prazo_escopo;
-
-  return (
-    <div style={{ borderTop: `1px solid ${ds.border}`, padding: "14px 0", display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 180, flex: "1 1 180px" }}>
-          <button
-            type="button"
-            aria-expanded={aberto}
-            onClick={() => setAberto((a) => !a)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit", fontSize: 15, fontWeight: 600, color: ds.white }}
-          >
-            {aberto ? "▾" : "▸"} {p.nome ?? "Projeto"}
-          </button>
-          <span style={{ fontSize: 12.5, color: ds.muted }}>{p.cliente ?? "—"}</span>
-          {p.riscos.length > 0 && (
-            <>
-              <span title={p.riscos.join("\n")} style={{ alignSelf: "flex-start" }}><Chip tone="red">em risco</Chip></span>
-              <span style={{ fontSize: 12, color: ds.red }}>{p.riscos.join(" · ")}</span>
-            </>
-          )}
-        </div>
-        <Celula titulo="Meta">
-          {semMeta ? <span style={{ color: ds.muted }}>sem meta</span> : (
-            <>
-              <span>{meta.entregues} de {meta.total}</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                {meta.funcionalidades.map((f) => (
-                  <ProgressBar key={f.id} pct={f.aprovada ? 100 : (f.pct_tasks ?? 0)} tone="green" height={4} label={f.id_funcional ?? f.titulo ?? "Funcionalidade"} />
-                ))}
-              </div>
-            </>
-          )}
-        </Celula>
-        <Celula titulo="Planejado">
-          <span>{p.planejado.funcs_planejadas_entregues} de {p.planejado.funcs_planejadas} planejadas{p.planejado.spi != null ? ` · SPI ${num(p.planejado.spi)}` : ""}</span>
-        </Celula>
-        <Celula titulo="Prazo × escopo">
-          {pe.sem_dados ? <span style={{ color: ds.muted }}>sem datas do contrato</span> : (
-            <span>{Math.round(pe.pct_prazo_consumido ?? 0)}% do prazo · {Math.round(pe.pct_escopo_concluido ?? 0)}% entregue</span>
-          )}
-        </Celula>
-        <Celula titulo="Saúde">
-          <span>
-            {p.saude.tasks_travadas} {p.saude.tasks_travadas === 1 ? "travada" : "travadas"} · WIP {p.saude.wip}
-            {p.saude.p85_horas != null ? ` · p85 ${num(p.saude.p85_horas, 0)}h` : ""}
-          </span>
-        </Celula>
+    <Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: ds.white }}>{titulo}</h2>
+        {children}
       </div>
-
-      {aberto && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingLeft: 12 }}>
-          {!semMeta && (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-              {meta.funcionalidades.map((f) => (
-                <li key={f.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13.5, color: ds.text2 }}>
-                  <span style={{ ...mono, color: ds.muted }}>{f.id_funcional ?? "—"}</span>
-                  <span style={{ flex: "1 1 160px" }}>{f.titulo ?? "—"}</span>
-                  <span style={{ color: ds.muted }}>{f.status ?? "—"}</span>
-                  <span style={mono}>{f.pct_tasks != null ? `${Math.round(f.pct_tasks)}% tasks` : "— tasks"}</span>
-                  {f.aprovada && <Chip tone="green">aprovada</Chip>}
-                  {!f.planejada_na_sprint && <Chip tone="amber">fora do planejamento</Chip>}
-                </li>
-              ))}
-            </ul>
-          )}
-          {p.planejadas_fora_da_meta.length > 0 && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 13, color: ds.muted }}>
-              <span>Planejadas fora da meta:</span>
-              {p.planejadas_fora_da_meta.map((f) => <Chip key={f.id}>{f.id_funcional ?? f.titulo ?? f.id}</Chip>)}
-            </div>
-          )}
-          {p.ultima_fechada && (
-            <span style={{ fontSize: 13, color: ds.muted }}>
-              Última sprint fechada (S{p.ultima_fechada.numero}): meta {p.ultima_fechada.meta_entregues} de {p.ultima_fechada.meta_total}
-              {p.ultima_fechada.spi != null ? ` · SPI ${num(p.ultima_fechada.spi)}` : ""}
-            </span>
-          )}
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-            <Button variant="secondary" onClick={() => onMeta(p)}>Definir meta</Button>
-            {p.sprint_atual && (
-              <button
-                type="button"
-                aria-expanded={historico}
-                onClick={() => setHistorico((h) => !h)}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: ds.green, textDecoration: "underline" }}
-              >
-                Histórico de mudanças da meta
-              </button>
-            )}
-          </div>
-          {historico && p.sprint_atual && <Historico key={versao} sprintId={p.sprint_atual.id} />}
-        </div>
-      )}
-    </div>
+    </Card>
   );
 }
+
+const linhaBotao: CSSProperties = {
+  position: "relative", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", textAlign: "left",
+  background: "none", border: "none", borderTop: `1px solid ${ds.border}`, padding: "10px 0", cursor: "pointer",
+  fontFamily: "inherit", fontSize: 14, color: ds.text,
+};
 
 export default function AcompanhamentoPage() {
   const auth = useAuth();
   const permitido = !auth || auth.cargo === "lider" || auth.cargo === "owner";
   const [subarea, setSubarea] = useState<Subarea>("dados");
+  const [gerente, setGerente] = useState(""); // "" = todos; "sem" = sem gerente; senão, e-mail
   const [dados, setDados] = useState<AcompanhamentoResponse | null>(null);
+  const [gerentes, setGerentes] = useState<AcompGerente[]>([]); // sobrevive ao recarregar, para o select não esvaziar
   const [erro, setErro] = useState("");
-  const [modal, setModal] = useState<AcompProjeto | null>(null);
-  const [versao, setVersao] = useState(0);
+  const [carregando, setCarregando] = useState(false);
+  const [projetoAberto, setProjetoAberto] = useState<string | null>(null);
 
-  const pedido = useRef(0); // só a resposta do pedido mais recente vale (ao alternar Dados/Dev)
+  const pedido = useRef(0); // só a resposta do pedido mais recente vale (ao mudar subárea ou gerente)
 
   const carregar = useCallback(async () => {
     const meu = ++pedido.current;
     setErro("");
+    setCarregando(true);
     try {
-      const r = await getAcompanhamento(subarea);
-      if (meu === pedido.current) setDados(r);
+      const r = await getAcompanhamento(subarea, gerente || undefined);
+      if (meu === pedido.current) { setDados(r); setGerentes(r.gerentes); }
     } catch (e) {
       if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento");
+    } finally {
+      if (meu === pedido.current) setCarregando(false);
     }
-  }, [subarea]);
+  }, [subarea, gerente]);
 
   useEffect(() => {
     if (!permitido) return;
-    setDados(null);
     void carregar();
   }, [permitido, carregar]);
 
   if (!permitido) return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
 
-  const t = dados?.totais;
+  const mudarSubarea = (s: Subarea) => { setSubarea(s); setGerente(""); setGerentes([]); setDados(null); setProjetoAberto(null); };
+  const k = dados?.kpis;
 
   return (
     <>
       <PageHeader
         eyebrow="Leitura restrita a líderes"
         title="Acompanhamento dos projetos"
-        subtitle="Projetos agrupados por gerente: meta da sprint, planejado, prazo e saúde."
-        actions={<SegmentedControl label="Subárea" options={SUBAREAS} value={subarea} onChange={setSubarea} />}
+        subtitle="Saúde da carteira por sprint, e quem precisa de você."
+        actions={
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <SegmentedControl label="Subárea" options={SUBAREAS} value={subarea} onChange={mudarSubarea} />
+            <Select aria-label="Gerente" value={gerente} onChange={(e) => { setGerente(e.target.value); setDados(null); setProjetoAberto(null); }} style={{ width: "auto", minWidth: 190 }}>
+              <option value="">Todos os gerentes</option>
+              {gerentes.filter((g) => g.email).map((g) => <option key={g.email} value={g.email!}>{g.nome}</option>)}
+              <option value="sem">Sem gerente</option>
+            </Select>
+          </div>
+        }
       />
 
       {erro && <ErrorNotice>{erro}</ErrorNotice>}
       {!dados && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
+      {dados && carregando && <p role="status" style={{ margin: 0, fontSize: 12.5, color: ds.muted }}>Atualizando...</p>}
 
-      {dados && t && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-            <Contador label="Projetos" valor={String(t.projetos)} />
-            <Contador label="Em risco" valor={String(t.em_risco)} />
-            <Contador label="Metas batidas" valor={`${t.metas_batidas} de ${t.metas_fechadas}`} />
-          </div>
+      {dados && k && (
+        k.projetos === 0 ? <EmptyState>{gerente ? "Nenhum projeto com este filtro." : "Nenhum projeto nesta subárea."}</EmptyState> : (
+          <>
+            <div className="acomp-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+              <style>{"@media (max-width: 900px){.acomp-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}"}</style>
+              <Kpi label="Projetos" valor={String(k.projetos)}>{k.criticos} {k.criticos === 1 ? "crítico" : "críticos"} · {k.atencao} atenção</Kpi>
+              <Kpi label="Features entregues" valor={k.features_entregues != null ? String(k.features_entregues) : "sem dado"}>
+                <Variacao v={k.features_entregues_var} />
+              </Kpi>
+              <Kpi label="SPI médio" valor={k.spi_medio != null ? num(k.spi_medio) : "sem dado"}>
+                sprints fechadas{" "}
+                <Variacao v={k.spi_medio_var} casas={2} />
+              </Kpi>
+              <Kpi label="Metas batidas" valor={k.metas_fechadas > 0 ? `${k.metas_batidas} de ${k.metas_fechadas}` : "sem dado"}>
+                {plural(k.projetos_sem_meta, "projeto sem meta", "projetos sem meta")}
+              </Kpi>
+              <Kpi label="Tasks travadas" valor={String(k.tasks_travadas)}>no momento</Kpi>
+            </div>
 
-          {dados.grupos.length === 0 && <EmptyState>Nenhum projeto nesta subárea.</EmptyState>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 16, alignItems: "start" }}>
+              <Bloco titulo="Precisa de você">
+                {dados.fila.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 14, color: ds.muted }}>Nenhum projeto precisa de atenção agora.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {dados.fila.map((f) => (
+                      <button key={f.projeto_id} type="button" onClick={() => setProjetoAberto(f.projeto_id)} style={linhaBotao}>
+                        <StatusDot tone={TOM[f.status]} />
+                        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>{STATUS_PALAVRA[f.status]}: </span>
+                        <span style={{ fontWeight: 600, color: ds.white }}>{f.nome ?? "Projeto"}</span>
+                        <span style={{ fontSize: 12.5, color: ds.muted }}>{f.gerente}</span>
+                        <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+                          {f.motivos.map((m) => <Chip key={m} tone={TOM[f.status]}>{m}</Chip>)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Bloco>
 
-          {dados.grupos.map((g) => (
-            <Card key={g.gerente.email ?? g.gerente.nome}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 12 }}>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: ds.white }}>{g.gerente.nome}</h2>
-                <span style={{ fontSize: 13, color: ds.muted }}>
-                  {pluralProjetos(g.resumo.projetos)} · {g.resumo.em_risco} em risco · metas batidas {g.resumo.metas_batidas} de {g.resumo.metas_fechadas} · {Math.round(g.resumo.pct_funcs_aprovadas)}% das funcionalidades aprovadas
-                </span>
-              </div>
-              {g.projetos.map((p) => <ProjetoLinha key={p.id} p={p} onMeta={setModal} versao={versao} />)}
-            </Card>
-          ))}
-        </>
+              <Bloco titulo="Evolução por sprint">
+                <MapaCalor mapa={dados.mapa} onAbrir={setProjetoAberto} />
+              </Bloco>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 16, alignItems: "start" }}>
+              <Bloco titulo="Risco de prazo">
+                <DispersaoPrazo dispersao={dados.dispersao} onAbrir={setProjetoAberto} />
+              </Bloco>
+
+              <Bloco titulo="Por gerente">
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {dados.por_gerente.map((g) => (
+                    <button key={g.email ?? g.nome} type="button" onClick={() => { setGerente(g.email ?? "sem"); setProjetoAberto(null); }} style={{ ...linhaBotao, justifyContent: "space-between" }}>
+                      <span style={{ fontWeight: 600, color: ds.white }}>{g.nome}</span>
+                      <span style={{ fontSize: 12.5, color: ds.text2 }}>
+                        {g.projetos} proj · <span style={{ color: g.criticos > 0 ? ds.red : undefined }}>{g.criticos} {g.criticos === 1 ? "crítico" : "críticos"}</span>
+                        {" · "}<span style={{ color: g.atencao > 0 ? ds.amber : undefined }}>{g.atencao} atenção</span> · metas {g.metas_batidas}/{g.metas_fechadas}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </Bloco>
+            </div>
+          </>
+        )
       )}
 
-      {modal && <DefinirMetaModal projeto={modal} onClose={() => setModal(null)} onSalvo={() => { setVersao((v) => v + 1); void carregar(); }} />}
+      {projetoAberto && <ProjetoDetalhePainel projetoId={projetoAberto} onClose={() => setProjetoAberto(null)} onMetaSalva={() => { void carregar(); }} />}
     </>
   );
 }
