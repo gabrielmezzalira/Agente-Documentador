@@ -18,7 +18,7 @@ from models.schemas import (
 )
 from services.aprovacao_funcionalidade import aprovar, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
 from services.auth import require_not_operacional
-from services.status_funcionalidade import registrar_transicao_status
+from services.status_funcionalidade import funcionalidade_tem_tasks, registrar_transicao_status
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -293,6 +293,9 @@ async def patch_funcionalidade(
     if not resp.data:
         raise HTTPException(status_code=404, detail="Funcionalidade not found")
     func = resp.data[0]
+
+    if data.status is not None and data.status != func.get("status") and funcionalidade_tem_tasks(client, funcionalidade_id):
+        raise HTTPException(status_code=409, detail="O status vem das tasks desta funcionalidade.")
 
     agora = datetime.now(timezone.utc)
 

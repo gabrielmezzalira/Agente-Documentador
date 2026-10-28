@@ -381,6 +381,7 @@ class FuncionalidadeResponse(BaseModel):
     aprovada_em: Optional[datetime] = None
     aprovada_por: Optional[str] = None
     aprovada_por_nome: Optional[str] = None
+    tem_tasks: bool = False
 
 
 class TransicaoStatusResponse(BaseModel):

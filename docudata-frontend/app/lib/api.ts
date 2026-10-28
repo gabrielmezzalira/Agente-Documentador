@@ -1212,7 +1212,8 @@ export interface FuncionalidadeResponse {
   descricao?: string;
   criterios_aceite: string[];
   prioridade: string;
-  status: "nao_iniciada" | "em_andamento" | "concluida";
+  status: "nao_iniciada" | "em_andamento" | "em_ajuste" | "concluida";
+  tem_tasks?: boolean;
   responsavel?: string | null;
   sprint_alvo?: string | null;
   aprovada_em?: string | null;
