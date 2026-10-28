@@ -228,17 +228,19 @@ def variacao(atual: float | None, anterior: float | None) -> float | None:
 
 
 def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: dict[str, list[dict]],
-                    metas: dict[str, set[str]], agora: datetime) -> tuple[list[dict], int | None, int | None]:
-    """(6 posições -5..0, features entregues na sprint atual, idem na -1)."""
+                    metas: dict[str, set[str]], agora: datetime) -> tuple[list[dict], list[float | None], int | None, int | None]:
+    """(6 posições -5..0, SPI sem arredondar de cada posição, features entregues na sprint atual, idem na -1)."""
     por_numero = sorted((s for s in sprints if s.get("iniciada") is not False), key=lambda s: s["numero"])
     funcs_por_id = {f["id"]: f for f in funcs}
     por_rel = {r["rel"]: r for r in sprints_relativas(sprints)}
     posicoes: list[dict] = []
+    spis_brutos: list[float | None] = []
     features: dict[int, int | None] = {}
     for rel in range(-(SPRINTS_NO_MAPA - 1), 1):
         ref = por_rel.get(rel)
         if ref is None:
             posicoes.append({"rel": rel, "numero": None, "spi": None, "meta_total": 0, "meta_entregues": 0, "meta_batida": None})
+            spis_brutos.append(None)
             continue
         sp = next(s for s in por_numero if s["id"] == ref["id"])
         fechada_em = sp.get("avaliacao_completa_em")
@@ -246,13 +248,14 @@ def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: di
         entregues = {i for i, f in funcs_por_id.items() if funcionalidade_entregue(f, fechada_em)}
         res = resultado_meta(meta, entregues)
         spi = spi_de(tasks_por_sprint.get(sp["id"], []))
+        spis_brutos.append(spi)
         posicoes.append({"rel": rel, "numero": sp["numero"], "spi": round(spi, 2) if spi is not None else None,
                          "meta_total": res["total"], "meta_entregues": res["entregues"], "meta_batida": res["batida"]})
         if rel >= -1:
             idx = por_numero.index(sp)
             inicio, fim = janela_da_sprint(sp, por_numero[idx - 1] if idx > 0 else None, agora)
             features[rel] = features_entregues_na_janela(funcs, inicio, fim)
-    return posicoes, features.get(0), features.get(-1)
+    return posicoes, spis_brutos, features.get(0), features.get(-1)
 
 
 def _media(valores: list[float]) -> float | None:
@@ -263,19 +266,19 @@ def montar_kpis(itens: list[dict]) -> dict:
     """`itens`: projetos calculados com `_status`, `_feat`, `_feat_ant`, `_spi`, `_spi_ant`."""
     contagem = {s: sum(1 for i in itens if i["_status"] == s) for s in ORDEM_STATUS}
     feat = [i["_feat"] for i in itens if i["_feat"] is not None]
-    feat_ant = [i["_feat_ant"] for i in itens if i["_feat_ant"] is not None]
-    par = any(i["_feat"] is not None and i["_feat_ant"] is not None for i in itens)
     spis = [i["_spi"] for i in itens if i["_spi"] is not None]
-    spis_ant = [i["_spi_ant"] for i in itens if i["_spi_ant"] is not None]
-    medio, medio_ant = _media(spis), _media(spis_ant)
+    # variações só entre os mesmos projetos: os que têm o valor na sprint atual e na -1
+    par_feat = [(i["_feat"], i["_feat_ant"]) for i in itens if i["_feat"] is not None and i["_feat_ant"] is not None]
+    par_spi = [(i["_spi"], i["_spi_ant"]) for i in itens if i["_spi"] is not None and i["_spi_ant"] is not None]
+    medio = _media(spis)
     com_meta = [i for i in itens if i["ultima_fechada"] and i["ultima_fechada"]["meta_total"] > 0]
     return {
         "projetos": len(itens), "criticos": contagem["critico"], "atencao": contagem["atencao"],
         "sem_dados": contagem["sem_dados"], "saudaveis": contagem["saudavel"],
-        "features_entregues": sum(feat),
-        "features_entregues_var": sum(feat) - sum(feat_ant) if par else None,
+        "features_entregues": sum(feat) if feat else None,
+        "features_entregues_var": sum(a for a, _ in par_feat) - sum(b for _, b in par_feat) if par_feat else None,
         "spi_medio": round(medio, 2) if medio is not None else None,
-        "spi_medio_var": variacao(medio, medio_ant),
+        "spi_medio_var": variacao(_media([a for a, _ in par_spi]), _media([b for _, b in par_spi])),
         "metas_batidas": sum(1 for i in com_meta if i["ultima_fechada"]["meta_batida"]),
         "metas_fechadas": len(com_meta),
         "projetos_sem_meta": sum(1 for i in itens if i["sprint_atual"] and i["meta"]["total"] == 0),
@@ -367,10 +370,10 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
         for t in ts:
             if t.get("sprint_id"):
                 por_sprint.setdefault(t["sprint_id"], []).append(t)
-        mapa, feat, feat_ant = mapa_do_projeto(sps, funcs_por_proj.get(p["id"], []), por_sprint, metas, agora)
+        mapa, spis_brutos, feat, feat_ant = mapa_do_projeto(sps, funcs_por_proj.get(p["id"], []), por_sprint, metas, agora)
         spi_atual = mapa[-1]["spi"]
         sinais = sinais_do_projeto({
-            "spi_atual": spi_atual, "spis_recentes": [m["spi"] for m in reversed(mapa)],
+            "spi_atual": spis_brutos[-1], "spis_recentes": list(reversed(spis_brutos)),
             "prazo_escopo": c["prazo_escopo"], "tolerancia": p.get("tolerancia_desvio_pontos"),
             "ultima_fechada": c["ultima_fechada"], "travadas": c["saude"]["tasks_travadas"],
             "tem_meta_atual": c["meta"]["total"] > 0, "tem_planejamento_atual": c["planejado"]["funcs_planejadas"] > 0,

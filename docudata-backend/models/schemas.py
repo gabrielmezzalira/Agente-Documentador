@@ -1023,7 +1023,7 @@ class AcompKpis(BaseModel):
     atencao: int
     sem_dados: int
     saudaveis: int
-    features_entregues: int
+    features_entregues: Optional[int] = None
     features_entregues_var: Optional[int] = None
     spi_medio: Optional[float] = None
     spi_medio_var: Optional[float] = None

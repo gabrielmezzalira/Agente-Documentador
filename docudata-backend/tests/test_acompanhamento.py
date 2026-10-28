@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 import routers.acompanhamento as rota
 from services.acompanhamento import (
+    montar_kpis,
     agrupar_por_gerente, calcular_projeto, features_entregues_na_janela, janela_da_sprint, p85, pct_tasks,
     previsto_de, resumo_do_grupo, sprints_relativas, variacao,
 )
@@ -197,7 +198,7 @@ def test_variacao():
 # ── rota ──
 
 def _fake():
-    agora = datetime.now(timezone.utc)
+    agora = AGORA
     recente = (agora - timedelta(days=2)).isoformat()
     antigo = (agora - timedelta(days=60)).isoformat()
     return FakeClient({
@@ -259,6 +260,8 @@ def _tc(monkeypatch, autenticar, cargo="lider"):
     from main import app
     fake = _fake()
     monkeypatch.setattr(rota, "get_client", lambda: fake)
+    original = rota.montar_acompanhamento
+    monkeypatch.setattr(rota, "montar_acompanhamento", lambda *a, **k: original(*a, agora=AGORA, **k))
     return autenticar(TestClient(app), cargo)
 
 
@@ -272,8 +275,8 @@ def test_rota_kpis_fila_mapa_dispersao_e_gerentes(monkeypatch, autenticar):
     assert (k["projetos"], k["criticos"], k["atencao"], k["sem_dados"], k["saudaveis"]) == (4, 1, 1, 1, 1)
     # f2 (p1, 12/10) cai na janela da s2 (inicia no fechamento da s1); f6 (p5, 20/10) na da s5
     assert k["features_entregues"] == 2
-    assert k["features_entregues_var"] == 2 - 1  # s1 de p1 (20/09..10/10) entregou f1; p5 não tem -1
-    assert k["spi_medio"] == 0.75 and k["spi_medio_var"] == -0.25  # (0.5 + 1.0) / 2 contra o SPI 1.0 da s1
+    assert k["features_entregues_var"] == 0  # só Alfa tem as duas: 1 na s2 e 1 na s1 (f1); Delta não tem -1
+    assert k["spi_medio"] == 0.75 and k["spi_medio_var"] == -0.5  # só Alfa tem as duas: 0.5 contra 1.0
     assert (k["metas_fechadas"], k["metas_batidas"], k["projetos_sem_meta"]) == (1, 0, 1)
     assert k["tasks_travadas"] == 1
     assert [f["nome"] for f in j["fila"]] == ["Alfa", "Beta", "Gama"]
@@ -339,11 +342,50 @@ def test_sprint_atual_ja_fechada_marca_fechada():
 def test_aprendizado_inclui_task_reaberta_e_ignora_excluida_e_de_outra_subarea():
     from services.acompanhamento import carregar_projetos
     fake = _fake()
-    recente = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    recente = (AGORA - timedelta(days=1)).isoformat()
     fake.tables["task_aprendizado"] += [
         {"task_id": "t2", "tempo_limpo_s": 3600, "concluida_em": recente, "excluida": False},  # reaberta (coluna != concluida)
         {"task_id": "t2", "tempo_limpo_s": 999999, "concluida_em": recente, "excluida": True},
         {"task_id": "fora", "tempo_limpo_s": 999999, "concluida_em": recente, "excluida": False},
     ]
-    p = next(p for p in carregar_projetos(fake, "dados")[0] if p["nome"] == "Alfa")
+    p = next(p for p in carregar_projetos(fake, "dados", AGORA)[0] if p["nome"] == "Alfa")
     assert p["saude"]["p85_horas"] == p85([1.0, 2.0])
+
+
+def _item(feat, feat_ant, spi, spi_ant):
+    return {"_status": "saudavel", "_feat": feat, "_feat_ant": feat_ant, "_spi": spi, "_spi_ant": spi_ant,
+            "ultima_fechada": None, "sprint_atual": None, "meta": {"total": 0}, "saude": {"tasks_travadas": 0}}
+
+
+def test_variacoes_comparam_so_projetos_com_atual_e_anterior():
+    base = [_item(2, 1, 0.8, 0.6), _item(1, 1, 1.0, 1.0)]
+    k = montar_kpis(base)
+    assert (k["features_entregues"], k["features_entregues_var"]) == (3, 1)
+    assert (k["spi_medio"], k["spi_medio_var"]) == (0.9, 0.1)
+    # um projeto sem a sprint -1 entra nos valores atuais, mas não na variação
+    k = montar_kpis(base + [_item(10, None, 0.1, None)])
+    assert k["features_entregues"] == 13 and k["features_entregues_var"] == 1
+    assert k["spi_medio"] == 0.63 and k["spi_medio_var"] == 0.1
+
+
+def test_variacoes_sem_par_sao_none_e_features_sem_janela_e_none():
+    k = montar_kpis([_item(2, None, 0.8, None), _item(None, 1, None, 0.5)])
+    assert k["features_entregues_var"] is None and k["spi_medio_var"] is None
+    assert k["features_entregues"] == 2
+    k = montar_kpis([_item(None, None, None, None)])
+    assert k["features_entregues"] is None and k["spi_medio"] is None
+
+
+def test_status_usa_spi_sem_arredondar():
+    from services.acompanhamento import carregar_projetos
+    t = lambda i, pts, col: {"id": i, "project_id": "p", "sprint_id": "s", "funcionalidade_id": None, "coluna_kanban": col,
+                             "extra": False, "pontos": pts, "travado_automatico": False, "prevista_no_inicio": True,
+                             "surgiu_na_sprint": False}
+    fake = FakeClient({
+        "pessoa": [], "projects": [{"id": "p", "name": "Borda", "client": "C", "subarea": "dados", "gerente_email": "a@x.com"}],
+        "sprints": [{"id": "s", "project_id": "p", "numero": 1, "iniciada": True, "data_inicio": None, "avaliacao_completa_em": None}],
+        "funcionalidades": [], "tasks": [t("a", 139, "concluida"), t("b", 61, "backlog")],
+        "sprint_funcionalidades": [], "sprint_meta_funcionalidades": [], "task_aprendizado": [],
+    })
+    p = carregar_projetos(fake, "dados", AGORA)[0][0]  # SPI bruto 0,695
+    assert p["_status"] == "critico" and "spi_critico" in [s["codigo"] for s in p["_sinais"]]
