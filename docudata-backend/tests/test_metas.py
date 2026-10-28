@@ -203,3 +203,19 @@ def test_falha_na_inclusao_vira_409_e_retry_cura(monkeypatch, autenticar):
     from services.metas import meta_em
     evs = [dict(e, criado_em=e.get("criado_em") or "2026-11-01T00:00:00+00:00") for e in fake.tables["sprint_meta_eventos"]]
     assert _ids(fake) == {"a", "b"} == meta_em(evs, datetime(2030, 1, 1, tzinfo=timezone.utc))
+
+
+def test_funcionalidade_traz_meta_sprints_so_de_sprint_aberta():
+    from services.aprovacao_funcionalidade import com_tem_tasks
+    fake = FakeClient({
+        "sprints": [{"id": "s3", "numero": 3, "avaliacao_completa_em": None},
+                    {"id": "s2", "numero": 2, "avaliacao_completa_em": "2026-10-01T00:00:00+00:00"}],
+        "sprint_meta_funcionalidades": [{"sprint_id": "s3", "funcionalidade_id": "a"},
+                                        {"sprint_id": "s2", "funcionalidade_id": "a"},
+                                        {"sprint_id": "s2", "funcionalidade_id": "b"}],
+        "tasks": [],
+    })
+    r = com_tem_tasks(fake, [{"id": "a"}, {"id": "b"}, {"id": "c"}])
+    assert [f["meta_sprints"] for f in r] == [[3], [], []]
+    fake.tables["sprints"][0]["avaliacao_completa_em"] = "2026-10-20T00:00:00+00:00"
+    assert com_tem_tasks(fake, [{"id": "a"}])[0]["meta_sprints"] == []

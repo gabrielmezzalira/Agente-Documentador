@@ -1214,6 +1214,7 @@ export interface FuncionalidadeResponse {
   prioridade: string;
   status: "nao_iniciada" | "em_andamento" | "em_ajuste" | "concluida";
   tem_tasks?: boolean;
+  meta_sprints?: number[];
   responsavel?: string | null;
   sprint_alvo?: string | null;
   aprovada_em?: string | null;

@@ -19,3 +19,8 @@ test("api e menu do acompanhamento", () => {
   for (const s of ["getAcompanhamento", "definirMetaSprint", "getMetaSprint", "getEventosMeta"]) assert.ok(api.includes(s), s);
   assert.match(ler("app/components/shell/navItems.ts"), /isOwnerOrLider\(cargo\)[\s\S]{0,200}\/acompanhamento/);
 });
+
+test("aba Escopo mostra o selo da meta da sprint", () => {
+  assert.ok(ler("app/components/EscopoTab.tsx").includes("meta da sprint"));
+  assert.ok(ler("app/lib/api.ts").includes("meta_sprints?: number[]"));
+});

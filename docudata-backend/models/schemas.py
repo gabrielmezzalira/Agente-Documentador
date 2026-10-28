@@ -382,6 +382,7 @@ class FuncionalidadeResponse(BaseModel):
     aprovada_por: Optional[str] = None
     aprovada_por_nome: Optional[str] = None
     tem_tasks: bool = False
+    meta_sprints: list[int] = []
 
 
 class TransicaoStatusResponse(BaseModel):
