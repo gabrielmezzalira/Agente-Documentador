@@ -20,18 +20,25 @@ from services.supabase_paginacao import ler_tudo  # noqa: E402
 
 def main(dry_run: bool = False, client=None) -> dict:
     client = client or get_client()
-    funcs = ler_tudo(lambda: client.table("funcionalidades").select("id, status").order("id"))
+    funcs = ler_tudo(lambda: client.table("funcionalidades").select("id, status, aprovada_em").order("id"))
     ajustadas = 0
+    revogadas = 0
     for f in funcs:
         if dry_run:
             tasks = client.table("tasks").select("coluna_kanban, extra").eq("funcionalidade_id", f["id"]).execute().data or []
             novo = status_derivado(tasks)
             if novo and novo != f["status"] and not (f["status"] == "em_ajuste" and novo == "em_andamento"):
                 ajustadas += 1
-        elif sincronizar_status(client, f["id"], "backfill"):
+                if f["status"] == "concluida" and f.get("aprovada_em"):
+                    revogadas += 1
+        elif sincronizar_status(client, f["id"], "backfill", com_duracao=False):
             ajustadas += 1
-    print(f"{'simulação: ' if dry_run else ''}{ajustadas} de {len(funcs)} funcionalidades ajustadas")
-    return {"ajustadas": ajustadas, "total": len(funcs)}
+            if f["status"] == "concluida" and f.get("aprovada_em"):
+                revogadas += 1
+    prefixo = "simulação: " if dry_run else ""
+    print(f"{prefixo}{ajustadas} de {len(funcs)} funcionalidades ajustadas")
+    print(f"{prefixo}{revogadas} aprovações revogadas")
+    return {"ajustadas": ajustadas, "total": len(funcs), "aprovacoes_revogadas": revogadas}
 
 
 if __name__ == "__main__":

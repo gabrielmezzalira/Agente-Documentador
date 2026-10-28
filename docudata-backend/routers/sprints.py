@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -16,6 +17,8 @@ from services.previsto_sprint import previsto_da_sprint
 from services.sprints import iniciar_sprint_e_ancorar_tasks
 from services.status_funcionalidade import sincronizar_status
 from services.avaliacoes import contar_avaliacao_por_sprint
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sprints"])
 
@@ -183,7 +186,8 @@ async def delete_sprint(sprint_id: str):
         try:
             sincronizar_status(client, funcionalidade_id)
         except Exception:
-            pass  # best-effort: a exclusão da sprint não pode falhar por isso
+            # best-effort: a exclusão da sprint não pode falhar por isso
+            logger.exception("falha ao sincronizar status da funcionalidade %s ao excluir a sprint", funcionalidade_id)
 
     # ingestions e generated_docs ligam por (project_id, sprint_number) — sem FK.
     client.table("ingestions").delete().eq("project_id", project_id).eq("sprint_number", numero).execute()

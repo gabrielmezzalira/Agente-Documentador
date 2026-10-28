@@ -112,7 +112,7 @@ def _rota(monkeypatch, autenticar, colunas):
     return fake, autenticar(TestClient(app), "gerente")
 
 
-@pytest.mark.parametrize("novo", ["concluida", "em_ajuste"])
+@pytest.mark.parametrize("novo", ["concluida", "em_andamento"])
 def test_patch_status_com_tasks_409(monkeypatch, autenticar, novo):
     fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
     resp = tc.patch("/funcionalidades/f1", json={"status": novo})
@@ -120,6 +120,31 @@ def test_patch_status_com_tasks_409(monkeypatch, autenticar, novo):
     assert resp.json()["detail"] == _MSG_409
     assert fake.tables["funcionalidades"][0]["status"] == "nao_iniciada"
     assert fake.tables["transicoes_status"] == []
+
+
+def test_patch_em_ajuste_com_tasks_200(monkeypatch, autenticar):
+    fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
+    resp = tc.patch("/funcionalidades/f1", json={"status": "em_ajuste"})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["funcionalidades"][0]["status"] == "em_ajuste"
+    assert [(t["de"], t["para"]) for t in fake.tables["transicoes_status"]] == [("nao_iniciada", "em_ajuste")]
+
+
+def test_patch_sair_de_em_ajuste_para_o_derivado_200(monkeypatch, autenticar):
+    fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
+    fake.tables["funcionalidades"][0]["status"] = "em_ajuste"
+    resp = tc.patch("/funcionalidades/f1", json={"status": "em_andamento"})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["funcionalidades"][0]["status"] == "em_andamento"
+
+
+def test_patch_sair_de_em_ajuste_para_nao_derivado_409(monkeypatch, autenticar):
+    fake, tc = _rota(monkeypatch, autenticar, ["em_andamento"])
+    fake.tables["funcionalidades"][0]["status"] = "em_ajuste"
+    resp = tc.patch("/funcionalidades/f1", json={"status": "concluida"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == _MSG_409
+    assert fake.tables["funcionalidades"][0]["status"] == "em_ajuste"
 
 
 def test_patch_status_sem_tasks_200(monkeypatch, autenticar):
@@ -162,9 +187,59 @@ def test_backfill():
         ],
         "transicoes_status": [],
     })
-    assert main(dry_run=True, client=c) == {"ajustadas": 2, "total": 3}
+    assert main(dry_run=True, client=c) == {"ajustadas": 2, "total": 3, "aprovacoes_revogadas": 0}
     assert c.tables["transicoes_status"] == []
-    assert main(dry_run=False, client=c) == {"ajustadas": 2, "total": 3}
+    assert main(dry_run=False, client=c) == {"ajustadas": 2, "total": 3, "aprovacoes_revogadas": 0}
+    assert all(t["autor"] == "backfill" and t["duracao_fase_anterior_segundos"] is None
+               for t in c.tables["transicoes_status"] if t["campo"] == "status")
     status = {f["id"]: f["status"] for f in c.tables["funcionalidades"]}
     assert status == {"a": "nao_iniciada", "b": "em_andamento", "c": "concluida"}
-    assert main(dry_run=False, client=c) == {"ajustadas": 0, "total": 3}
+    assert main(dry_run=False, client=c) == {"ajustadas": 0, "total": 3, "aprovacoes_revogadas": 0}
+
+
+def test_backfill_conta_aprovacoes_revogadas(capsys):
+    from scripts.status_funcionalidade_backfill import main
+    def montar():
+        f = _func("a", status="concluida")
+        f["aprovada_em"] = "2026-10-10T10:00:00+00:00"
+        return FakeClient({
+            "funcionalidades": [f, _func("b", status="concluida")],
+            "tasks": [{"id": "t1", "funcionalidade_id": "a", "coluna_kanban": "em_andamento", "extra": False},
+                      {"id": "t2", "funcionalidade_id": "b", "coluna_kanban": "em_andamento", "extra": False}],
+            "transicoes_status": [],
+        })
+    assert main(dry_run=True, client=montar())["aprovacoes_revogadas"] == 1
+    c = montar()
+    assert main(dry_run=False, client=c) == {"ajustadas": 2, "total": 2, "aprovacoes_revogadas": 1}
+    assert c.tables["funcionalidades"][0]["aprovada_em"] is None
+    assert "aprovações revogadas" in capsys.readouterr().out
+
+
+def test_sincronizar_nao_grava_transicao_se_o_update_nao_pegou(monkeypatch):
+    import services.status_funcionalidade as sf
+    c = _client("nao_iniciada", ["em_andamento"])
+    original = sf.tasks_da_funcionalidade
+
+    def corrida(client, fid):
+        client.tables["funcionalidades"][0]["status"] = "em_andamento"  # outra escrita venceu
+        return original(client, fid)
+
+    monkeypatch.setattr(sf, "tasks_da_funcionalidade", corrida)
+    assert sincronizar_status(c, "f1") is None
+    assert c.tables["transicoes_status"] == []
+
+
+def test_com_tem_tasks_em_lote():
+    from services.aprovacao_funcionalidade import com_tem_tasks
+    c = FakeClient({"tasks": [
+        {"id": "t1", "funcionalidade_id": "a", "extra": False},
+        {"id": "t2", "funcionalidade_id": "b", "extra": True},
+    ]})
+    out = com_tem_tasks(c, [{"id": "a"}, {"id": "b"}, {"id": "c"}])
+    assert [f["tem_tasks"] for f in out] == [True, False, False]
+
+
+def test_nomes_dos_aprovadores_nao_traz_tem_tasks():
+    from services.aprovacao_funcionalidade import nomes_dos_aprovadores
+    c = FakeClient({"pessoa": [], "tasks": []})
+    assert "tem_tasks" not in nomes_dos_aprovadores(c, [{"id": "a"}])[0]

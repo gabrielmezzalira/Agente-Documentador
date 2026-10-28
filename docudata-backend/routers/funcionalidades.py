@@ -16,9 +16,9 @@ from models.schemas import (
     ImportConfirmarRequest,
     FuncionalidadeProposta,
 )
-from services.aprovacao_funcionalidade import aprovar, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
+from services.aprovacao_funcionalidade import aprovar, com_tem_tasks, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
 from services.auth import require_not_operacional
-from services.status_funcionalidade import funcionalidade_tem_tasks, registrar_transicao_status
+from services.status_funcionalidade import registrar_transicao_status, status_derivado, tasks_da_funcionalidade
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -246,7 +246,7 @@ async def list_funcionalidades(project_id: str = Query(...)):
         .order("created_at", desc=False)
         .execute()
     )
-    return nomes_dos_aprovadores(client, response.data or [])
+    return com_tem_tasks(client, nomes_dos_aprovadores(client, response.data or []))
 
 
 @router.get("/{funcionalidade_id}/transicoes", response_model=list[TransicaoStatusResponse])
@@ -278,7 +278,7 @@ async def get_funcionalidade(funcionalidade_id: str):
     response = client.table("funcionalidades").select("*").eq("id", funcionalidade_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Funcionalidade not found")
-    return nomes_dos_aprovadores(client, [response.data[0]])[0]
+    return com_tem_tasks(client, nomes_dos_aprovadores(client, [response.data[0]]))[0]
 
 
 @router.patch("/{funcionalidade_id}", response_model=FuncionalidadeResponse)
@@ -294,8 +294,12 @@ async def patch_funcionalidade(
         raise HTTPException(status_code=404, detail="Funcionalidade not found")
     func = resp.data[0]
 
-    if data.status is not None and data.status != func.get("status") and funcionalidade_tem_tasks(client, funcionalidade_id):
-        raise HTTPException(status_code=409, detail="O status vem das tasks desta funcionalidade.")
+    if data.status is not None and data.status != func.get("status"):
+        derivado = status_derivado(tasks_da_funcionalidade(client, funcionalidade_id))
+        if derivado is not None:  # tem tasks: só "em_ajuste" é manual (e a saída dele volta ao derivado)
+            permitido = data.status == "em_ajuste" or (func.get("status") == "em_ajuste" and data.status == derivado)
+            if not permitido:
+                raise HTTPException(status_code=409, detail="O status vem das tasks desta funcionalidade.")
 
     agora = datetime.now(timezone.utc)
 
@@ -320,8 +324,8 @@ async def patch_funcionalidade(
     result = client.table("funcionalidades").update(updates).eq("id", funcionalidade_id).execute()
     if data.status is not None and data.status != "concluida":
         revogar_se_aprovada(client, funcionalidade_id, "revogada: status alterado")
-        return nomes_dos_aprovadores(client, client.table("funcionalidades").select("*").eq("id", funcionalidade_id).execute().data)[0]
-    return nomes_dos_aprovadores(client, result.data)[0]
+        return com_tem_tasks(client, nomes_dos_aprovadores(client, client.table("funcionalidades").select("*").eq("id", funcionalidade_id).execute().data))[0]
+    return com_tem_tasks(client, nomes_dos_aprovadores(client, result.data))[0]
 
 
 @router.delete("/{funcionalidade_id}", status_code=204)

@@ -51,9 +51,9 @@ def _ids_com_tasks(client, ids: list[str], lote: int = 50) -> set[str]:
     for i in range(0, len(ids), lote):
         parte = ids[i:i + lote]
         rows = ler_tudo(
-            lambda: client.table("tasks").select("id, funcionalidade_id, extra").in_("funcionalidade_id", parte).order("id")
+            lambda: client.table("tasks").select("id, funcionalidade_id").in_("funcionalidade_id", parte).eq("extra", False).order("id")
         )
-        achadas |= {r["funcionalidade_id"] for r in rows if not r.get("extra")}
+        achadas |= {r["funcionalidade_id"] for r in rows}
     return achadas
 
 
@@ -63,8 +63,12 @@ def nomes_dos_aprovadores(client, funcs: list[dict]) -> list[dict]:
     if ids:
         rows = client.table("pessoa").select("id, nome").in_("id", ids).execute().data or []
         nomes = {r["id"]: r["nome"] for r in rows}
+    return [{**f, "aprovada_por_nome": nomes.get(f.get("aprovada_por"))} for f in funcs]
+
+
+def com_tem_tasks(client, funcs: list[dict]) -> list[dict]:
     com_tasks = _ids_com_tasks(client, [f["id"] for f in funcs])
-    return [{**f, "aprovada_por_nome": nomes.get(f.get("aprovada_por")), "tem_tasks": f["id"] in com_tasks} for f in funcs]
+    return [{**f, "tem_tasks": f["id"] in com_tasks} for f in funcs]
 
 
 def aprovar(client, funcionalidade_id: str, pessoa_id: str) -> dict:
@@ -89,7 +93,7 @@ def aprovar(client, funcionalidade_id: str, pessoa_id: str) -> dict:
         "aprovada_em": agora.isoformat(),
         "aprovada_por": pessoa_id,
     }).eq("id", funcionalidade_id).execute()
-    return nomes_dos_aprovadores(client, resp.data)[0]
+    return com_tem_tasks(client, nomes_dos_aprovadores(client, resp.data))[0]
 
 
 def desfazer_aprovacao(client, funcionalidade_id: str, autor: str | None) -> dict:
@@ -102,7 +106,7 @@ def desfazer_aprovacao(client, funcionalidade_id: str, autor: str | None) -> dic
         "aprovada_em": None,
         "aprovada_por": None,
     }).eq("id", funcionalidade_id).execute()
-    return nomes_dos_aprovadores(client, resp.data)[0]
+    return com_tem_tasks(client, nomes_dos_aprovadores(client, resp.data))[0]
 
 
 def revogar_se_aprovada(client, funcionalidade_id: str | None, motivo: str) -> bool:

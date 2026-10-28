@@ -27,18 +27,20 @@ def _ts(valor: str) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def registrar_transicao_status(client, func: dict, novo: str, autor: str | None, motivo: str | None, agora: datetime) -> None:
-    anterior = (
-        client.table("transicoes_status")
-        .select("timestamp")
-        .eq("funcionalidade_id", func["id"])
-        .eq("campo", "status")
-        .order("timestamp", desc=True)
-        .limit(1)
-        .execute()
-    )
-    base = anterior.data[0]["timestamp"] if anterior.data else func["created_at"]
-    duracao = int((agora - _ts(base)).total_seconds())
+def registrar_transicao_status(client, func: dict, novo: str, autor: str | None, motivo: str | None, agora: datetime, *, com_duracao: bool = True) -> None:
+    duracao = None
+    if com_duracao:
+        anterior = (
+            client.table("transicoes_status")
+            .select("timestamp")
+            .eq("funcionalidade_id", func["id"])
+            .eq("campo", "status")
+            .order("timestamp", desc=True)
+            .limit(1)
+            .execute()
+        )
+        base = anterior.data[0]["timestamp"] if anterior.data else func["created_at"]
+        duracao = int((agora - _ts(base)).total_seconds())
     client.table("transicoes_status").insert({
         "funcionalidade_id": func["id"],
         "campo": "status",
@@ -51,7 +53,7 @@ def registrar_transicao_status(client, func: dict, novo: str, autor: str | None,
     }).execute()
 
 
-def _tasks_da_funcionalidade(client, funcionalidade_id: str) -> list[dict]:
+def tasks_da_funcionalidade(client, funcionalidade_id: str) -> list[dict]:
     return (
         client.table("tasks")
         .select("coluna_kanban, extra")
@@ -62,10 +64,10 @@ def _tasks_da_funcionalidade(client, funcionalidade_id: str) -> list[dict]:
 
 
 def funcionalidade_tem_tasks(client, funcionalidade_id: str) -> bool:
-    return status_derivado(_tasks_da_funcionalidade(client, funcionalidade_id)) is not None
+    return status_derivado(tasks_da_funcionalidade(client, funcionalidade_id)) is not None
 
 
-def sincronizar_status(client, funcionalidade_id: str | None, autor: str | None = "sistema") -> str | None:
+def sincronizar_status(client, funcionalidade_id: str | None, autor: str | None = "sistema", *, com_duracao: bool = True) -> str | None:
     if not funcionalidade_id:
         return None
     try:
@@ -73,15 +75,18 @@ def sincronizar_status(client, funcionalidade_id: str | None, autor: str | None 
         if not resp.data:
             return None
         func = resp.data[0]
-        novo = status_derivado(_tasks_da_funcionalidade(client, funcionalidade_id))
+        novo = status_derivado(tasks_da_funcionalidade(client, funcionalidade_id))
         atual = func.get("status")
         if novo is None or novo == atual:
             return None
         if atual == "em_ajuste" and novo == "em_andamento":
             return None
         agora = datetime.now(timezone.utc)
-        registrar_transicao_status(client, func, novo, autor, "derivado das tasks", agora)
-        client.table("funcionalidades").update({"status": novo}).eq("id", funcionalidade_id).execute()
+        # Update condicionado ao status lido: se outra escrita venceu, não grava transição órfã/duplicada.
+        atualizada = client.table("funcionalidades").update({"status": novo}).eq("id", funcionalidade_id).eq("status", atual).execute()
+        if not atualizada.data:
+            return None
+        registrar_transicao_status(client, func, novo, autor, "derivado das tasks", agora, com_duracao=com_duracao)
         if atual == "concluida":
             revogar_se_aprovada(client, funcionalidade_id, "revogada: status derivado das tasks")
         return novo

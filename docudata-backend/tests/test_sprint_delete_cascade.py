@@ -100,3 +100,22 @@ def test_delete_sprint_not_found(monkeypatch):
     resp = tc.delete("/sprints/does-not-exist")
     assert resp.status_code == 404
     assert calls == []
+
+
+def test_delete_sprint_loga_falha_da_sincronizacao_sem_derrubar(monkeypatch, caplog):
+    from tests.fake_supabase import FakeClient
+    fake = FakeClient({
+        "sprints": [{"id": "s1", "project_id": "p1", "numero": 1}],
+        "tasks": [{"id": "t1", "sprint_id": "s1", "funcionalidade_id": "f1"}],
+    })
+    tc = _patch_and_client(monkeypatch, fake)
+    import routers.sprints as sprints_router
+
+    def quebra(*_a, **_k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(sprints_router, "sincronizar_status", quebra)
+    with caplog.at_level("ERROR"):
+        resp = tc.delete("/sprints/s1")
+    assert resp.status_code == 204
+    assert any("f1" in r.getMessage() and r.exc_info for r in caplog.records)
