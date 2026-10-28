@@ -14,8 +14,8 @@ def _num(v: float, casas: int = 2) -> str:
 def sinais_do_projeto(d: dict) -> list[dict]:
     s: list[dict] = []
 
-    def add(codigo, texto):
-        s.append({"codigo": codigo, "texto": texto})
+    def add(codigo, texto, valor=None):
+        s.append({"codigo": codigo, "texto": texto, "valor": valor})
 
     spi = d.get("spi_atual")
     if spi is not None and spi < 0.7:
@@ -26,11 +26,13 @@ def sinais_do_projeto(d: dict) -> list[dict]:
             add("prazo", f"{_num(pe['pct_prazo_consumido'], 0)}% do prazo · {_num(pe['pct_escopo_concluido'], 0)}% entregue")
     uf = d.get("ultima_fechada") or {}
     if uf.get("meta_total"):
-        if uf["meta_entregues"] / uf["meta_total"] < 0.5:
-            add("meta_ruim", f"meta da última sprint {uf['meta_entregues']}/{uf['meta_total']}")
-    if d.get("travadas", 0) > 0:
-        add("travadas", f"{d['travadas']} travada" + ("s" if d["travadas"] > 1 else ""))
+        if (uf.get("meta_entregues") or 0) / uf["meta_total"] < 0.5:
+            add("meta_ruim", f"meta da última sprint {uf.get('meta_entregues') or 0}/{uf['meta_total']}")
+    travadas = d.get("travadas") or 0
+    if travadas > 0:
+        add("travadas", f"{travadas} travada" + ("s" if travadas > 1 else ""), travadas)
     rec = [x for x in d.get("spis_recentes") or [] if x is not None][:3]
+    # de-duplicação: SPI crítico já cobre a queda, então spi_caindo é suprimido
     if len(rec) == 3 and all(x < 0.9 for x in rec) and not any(x["codigo"] == "spi_critico" for x in s):
         add("spi_caindo", "SPI abaixo de 0,9 há 3 sprints")
     if not d.get("tem_sprint"):
@@ -49,7 +51,7 @@ def sinais_do_projeto(d: dict) -> list[dict]:
 
 def status_de(sinais: list[dict]) -> str:
     cods = {x["codigo"] for x in sinais}
-    travadas = next((int(x["texto"].split()[0]) for x in sinais if x["codigo"] == "travadas"), 0)
+    travadas = next((x["valor"] or 0 for x in sinais if x["codigo"] == "travadas"), 0)
     if cods & {"spi_critico", "prazo", "meta_ruim"} or travadas >= 5:
         return "critico"
     if cods & {"spi_caindo", "travadas", "sem_meta"}:

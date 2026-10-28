@@ -61,3 +61,23 @@ def test_diagnostico():
     assert "SPI 0,33" in txt
     assert txt.endswith("Falta preencher: sem gerente.")
     assert diagnostico("saudavel", []) == "Saudável."
+
+
+def test_spi_caindo_suprimido_quando_spi_critico():
+    c = codigos(caso(spi_atual=0.5, spis_recentes=[0.5, 0.6, 0.65]))
+    assert "spi_critico" in c and "spi_caindo" not in c
+
+def test_limites():
+    assert status_de(sinais_do_projeto(caso(travadas=4))) == "atencao"
+    assert "spi_critico" not in codigos(caso(spi_atual=0.7))
+    assert "spi_caindo" not in codigos(caso(spi_atual=0.9, spis_recentes=[0.9, 0.9, 0.9]))
+    # gap 40 - 20 = 20 == tolerância
+    assert "prazo" not in codigos(caso(prazo_escopo={"sem_dados": False, "pct_prazo_consumido": 40.0, "pct_escopo_concluido": 20.0}))
+
+def test_entradas_defensivas():
+    assert "travadas" not in codigos(caso(travadas=None))
+    assert "meta_ruim" in codigos(caso(ultima_fechada={"meta_total": 2}))
+
+def test_travadas_valor_numerico():
+    s = sinais_do_projeto(caso(travadas=5))
+    assert next(x for x in s if x["codigo"] == "travadas")["valor"] == 5
