@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { useAuth } from "../components/AuthGuard";
 import DispersaoPrazo from "../components/acompanhamento/DispersaoPrazo";
 import MapaCalor from "../components/acompanhamento/MapaCalor";
-import { Button, Card, Chip, EmptyState, ErrorNotice, PageHeader, SegmentedControl, Select, StatusDot } from "../components/ds";
+import ProjetoDetalhePainel from "../components/acompanhamento/ProjetoDetalhePainel";
+import { Card, Chip, EmptyState, ErrorNotice, PageHeader, SegmentedControl, Select, StatusDot } from "../components/ds";
 import { ds, labelStyle, type Tone } from "../lib/ds";
 import { getAcompanhamento, type AcompanhamentoResponse, type AcompGerente, type AcompStatus, type Subarea } from "../lib/api";
 
@@ -100,7 +101,6 @@ export default function AcompanhamentoPage() {
 
   const mudarSubarea = (s: Subarea) => { setSubarea(s); setGerente(""); setGerentes([]); setProjetoAberto(null); };
   const k = dados?.kpis;
-  const aberto = projetoAberto ? dados?.projetos.find((p) => p.id === projetoAberto) : undefined;
 
   return (
     <>
@@ -190,15 +190,7 @@ export default function AcompanhamentoPage() {
         )
       )}
 
-      {aberto && (
-        <Card role="region" aria-label={`Detalhe de ${aberto.nome ?? "projeto"}`}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: ds.white }}>{aberto.nome ?? "Projeto"}</h2>
-            <p style={{ margin: 0, fontSize: 14, color: ds.text2 }}>{aberto.diagnostico}</p>
-            <div><Button variant="secondary" onClick={() => setProjetoAberto(null)}>Fechar</Button></div>
-          </div>
-        </Card>
-      )}
+      {projetoAberto && <ProjetoDetalhePainel projetoId={projetoAberto} onClose={() => setProjetoAberto(null)} onMetaSalva={() => { void carregar(); }} />}
     </>
   );
 }

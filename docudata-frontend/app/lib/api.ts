@@ -2448,20 +2448,6 @@ export interface AcompMeta {
   funcionalidades: AcompFuncionalidade[];
 }
 export interface AcompForaDaMeta { id: string; id_funcional: string | null; titulo: string | null }
-export interface AcompProjeto {
-  id: string;
-  nome: string | null;
-  cliente: string | null;
-  sprint_atual: AcompSprintRef | null;
-  proximas_sprints: AcompSprintRef[];
-  meta: AcompMeta;
-  planejadas_fora_da_meta: AcompForaDaMeta[];
-  planejado: { funcs_planejadas: number; funcs_planejadas_entregues: number; spi: number | null };
-  prazo_escopo: { sem_dados: boolean; pct_prazo_consumido: number | null; pct_escopo_concluido: number | null; desvio_detectado: boolean | null };
-  saude: { tasks_travadas: number; wip: number; p85_horas: number | null };
-  riscos: string[];
-  ultima_fechada: { numero: number; meta_total: number; meta_entregues: number; meta_batida: boolean | null; spi: number | null } | null;
-}
 export type AcompStatus = "critico" | "atencao" | "sem_dados" | "saudavel";
 export interface AcompGerente { nome: string; email: string | null }
 export interface AcompKpis {

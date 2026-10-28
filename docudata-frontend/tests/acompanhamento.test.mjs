@@ -33,10 +33,17 @@ test("aba Escopo mostra o selo da meta da sprint", () => {
 test("modal de meta ignora sprint fechada e amarra a meta carregada à sprint", () => {
   assert.ok(ler("app/lib/api.ts").includes("fechada: boolean"));
   const m = ler("app/components/DefinirMetaModal.tsx");
-  for (const s of ["!projeto.sprint_atual.fechada", "!s.fechada", "Nenhuma sprint aberta para definir meta.", "metaDe === sprintId", "funcs === null"]) assert.ok(m.includes(s), s);
+  for (const s of ["!detalhe.sprint_atual.fechada", "!s.fechada", "Nenhuma sprint aberta para definir meta.", "metaDe === sprintId", "funcs === null"]) assert.ok(m.includes(s), s);
 });
 
 test("tela ignora resposta antiga ao alternar a subárea e chips do Escopo quebram linha", () => {
   assert.ok(ler("app/acompanhamento/page.tsx").includes("pedido.current"));
   assert.ok(ler("app/components/EscopoTab.tsx").includes('display: "flex", flexWrap: "wrap", gap: 4 }}><Chip tone={statusTone'));
+});
+
+test("painel de detalhe do projeto", () => {
+  const p = ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx");
+  for (const s of ["Definir meta", "Sprint a sprint", "abaixo do piso", "sem histórico para o piso", "Planejadas fora da meta:",
+                   "Histórico de mudanças da meta", "Sem meta nesta sprint.", "meta batida"]) assert.ok(p.includes(s), s);
+  assert.ok(ler("app/acompanhamento/page.tsx").includes("ProjetoDetalhePainel"));
 });
