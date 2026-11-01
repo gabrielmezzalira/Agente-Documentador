@@ -183,6 +183,11 @@ def test_janela_da_sprint():
     assert janela_da_sprint(aberta, ant, AGORA, prox) == (datetime(2026, 9, 30, tzinfo=timezone.utc),
                                                           datetime(2026, 10, 15, tzinfo=timezone.utc))
     assert janela_da_sprint(aberta, ant, AGORA, sprint("p", 3)) == (datetime(2026, 9, 30, tzinfo=timezone.utc), AGORA)
+    # fechada depois de a próxima começar: corta no início da próxima, sem sobrepor as janelas
+    assert janela_da_sprint(s, None, AGORA, sprint("p", 3, data_inicio="2026-10-14")) == (
+        datetime(2026, 10, 1, tzinfo=timezone.utc), datetime(2026, 10, 14, tzinfo=timezone.utc))
+    # fechada antes de a próxima começar: vale o fechamento
+    assert janela_da_sprint(s, None, AGORA, sprint("p", 3, data_inicio="2026-10-16"))[1] == datetime(2026, 10, 15, 10, tzinfo=timezone.utc)
 
 
 def test_mapa_sprint_anterior_nao_avaliada_nao_engole_a_atual():

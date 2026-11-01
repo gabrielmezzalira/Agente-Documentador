@@ -89,7 +89,8 @@ export default function AcompanhamentoPage() {
       const r = await getAcompanhamento(subarea, gerente || undefined);
       if (meu === pedido.current) { setDados(r); setGerentes(r.gerentes); }
     } catch (e) {
-      if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento");
+      // Some com o dado anterior: depois de salvar uma meta ele já não vale, e mostrá-lo junto do erro confunde.
+      if (meu === pedido.current) { setDados(null); setErro(e instanceof Error ? e.message : "Erro ao buscar o acompanhamento"); }
     } finally {
       if (meu === pedido.current) setCarregando(false);
     }
