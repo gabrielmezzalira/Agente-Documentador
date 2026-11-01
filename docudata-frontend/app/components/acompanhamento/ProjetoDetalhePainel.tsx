@@ -122,7 +122,7 @@ export default function ProjetoDetalhePainel({ projetoId, onClose, onMetaSalva }
       const r = await getDetalheProjeto(projetoId);
       if (meu === pedido.current) { setD(r); setErro(""); }
     } catch (e) {
-      if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Erro ao buscar o detalhe do projeto");
+      if (meu === pedido.current) { setD(null); setErro(e instanceof Error ? e.message : "Erro ao buscar o detalhe do projeto"); }
     }
   }, [projetoId]);
 

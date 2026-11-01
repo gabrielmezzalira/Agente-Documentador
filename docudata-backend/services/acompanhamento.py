@@ -212,17 +212,16 @@ def _inicio_da_sprint(sprint: dict) -> datetime | None:
 def janela_da_sprint(sprint: dict, anterior: dict | None, agora: datetime,
                      proxima: dict | None = None) -> tuple[datetime | None, datetime]:
     """Início: `data_inicio` 00:00 UTC; sem ela, o fechamento da anterior; sem nenhum, None.
-    Fim: o fechamento; sem ele, o início da próxima sprint; sem nenhum, agora. Sem o
-    corte na próxima, uma sprint passada ainda não avaliada engolia o que foi aprovado
-    na sprint atual e a variação de features saía sempre negativa."""
+    Fim: o que vier primeiro entre o fechamento e o início da próxima sprint; sem
+    nenhum dos dois, agora. O corte na próxima evita contar a mesma aprovação em duas
+    sprints: o fechamento costuma sair dias depois de a próxima ter começado, e sem
+    fechamento a sprint passada engolia tudo o que foi aprovado na atual."""
     inicio = _inicio_da_sprint(sprint)
     if inicio is None and anterior and anterior.get("avaliacao_completa_em"):
         inicio = _dt(anterior["avaliacao_completa_em"])
-    if sprint.get("avaliacao_completa_em"):
-        fim = _dt(sprint["avaliacao_completa_em"])
-    else:
-        fim = (_inicio_da_sprint(proxima) if proxima else None) or agora
-    return inicio, fim
+    cortes = [c for c in (_dt(sprint["avaliacao_completa_em"]) if sprint.get("avaliacao_completa_em") else None,
+                          _inicio_da_sprint(proxima) if proxima else None) if c is not None]
+    return inicio, min(cortes) if cortes else agora
 
 
 def features_entregues_na_janela(funcs: list[dict], inicio: datetime | None, fim: datetime) -> int | None:
