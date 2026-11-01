@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Chip, ErrorNotice, Modal, Select } from "./ds";
 import { ds } from "../lib/ds";
-import { definirMetaSprint, getMetaSprint, listFuncionalidades, type AcompProjeto, type FuncionalidadeResponse } from "../lib/api";
+import { definirMetaSprint, getMetaSprint, listFuncionalidades, type AcompDetalheResponse, type FuncionalidadeResponse } from "../lib/api";
 
 /** Define a meta de funcionalidades da sprint atual ou de uma próxima. Só lista funcionalidades ainda não entregues. */
-export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projeto: AcompProjeto; onClose: () => void; onSalvo: () => void }) {
+export default function DefinirMetaModal({ detalhe, onClose, onSalvo }: { detalhe: AcompDetalheResponse; onClose: () => void; onSalvo: () => void }) {
   const sprints = useMemo(
     () => [
-      ...(projeto.sprint_atual && !projeto.sprint_atual.fechada ? [{ id: projeto.sprint_atual.id, numero: projeto.sprint_atual.numero, atual: true }] : []),
-      ...projeto.proximas_sprints.filter((s) => !s.fechada).map((s) => ({ id: s.id, numero: s.numero, atual: false })),
+      ...(detalhe.sprint_atual && !detalhe.sprint_atual.fechada ? [{ id: detalhe.sprint_atual.id, numero: detalhe.sprint_atual.numero, atual: true }] : []),
+      ...detalhe.proximas_sprints.filter((s) => !s.fechada).map((s) => ({ id: s.id, numero: s.numero, atual: false })),
     ],
-    [projeto],
+    [detalhe],
   );
   const [sprintId, setSprintId] = useState(sprints[0]?.id ?? "");
   const [funcs, setFuncs] = useState<FuncionalidadeResponse[] | null>(null);
@@ -30,18 +30,18 @@ export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projet
   // % de tasks e "planejada" só existem no JSON do acompanhamento para a sprint atual.
   const dadosAtual = useMemo(() => {
     const m = new Map<string, { pct: number | null; planejada: boolean }>();
-    for (const f of projeto.meta.funcionalidades) m.set(f.id, { pct: f.pct_tasks, planejada: f.planejada_na_sprint });
-    for (const f of projeto.planejadas_fora_da_meta) m.set(f.id, { pct: null, planejada: true });
+    for (const f of detalhe.meta.funcionalidades) m.set(f.id, { pct: f.pct_tasks, planejada: f.planejada_na_sprint });
+    for (const f of detalhe.planejadas_fora_da_meta) m.set(f.id, { pct: null, planejada: true });
     return m;
-  }, [projeto]);
+  }, [detalhe]);
 
   useEffect(() => {
     let vivo = true;
-    listFuncionalidades(projeto.id)
+    listFuncionalidades(detalhe.projeto.id)
       .then((l) => { if (vivo) setFuncs(l); })
       .catch((e) => { if (vivo) setErroFuncs(e instanceof Error ? e.message : "Erro ao buscar funcionalidades"); });
     return () => { vivo = false; };
-  }, [projeto.id]);
+  }, [detalhe.projeto.id]);
 
   useEffect(() => {
     if (!sprintId) return;
@@ -83,7 +83,7 @@ export default function DefinirMetaModal({ projeto, onClose, onSalvo }: { projet
 
   return (
     <Modal
-      title={`Definir meta · ${projeto.nome ?? "Projeto"}`}
+      title={`Definir meta · ${detalhe.projeto.nome ?? "Projeto"}`}
       width={640}
       onClose={onClose}
       footer={<>
