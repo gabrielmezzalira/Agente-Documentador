@@ -178,6 +178,25 @@ def test_janela_da_sprint():
     assert janela_da_sprint(aberta, ant, AGORA) == (datetime(2026, 9, 30, tzinfo=timezone.utc), AGORA)
     assert janela_da_sprint(aberta, None, AGORA) == (None, AGORA)
     assert janela_da_sprint(aberta, sprint("a", 1), AGORA) == (None, AGORA)
+    # passada sem fechamento: termina onde a próxima começa, não agora
+    prox = sprint("p", 3, data_inicio="2026-10-15")
+    assert janela_da_sprint(aberta, ant, AGORA, prox) == (datetime(2026, 9, 30, tzinfo=timezone.utc),
+                                                          datetime(2026, 10, 15, tzinfo=timezone.utc))
+    assert janela_da_sprint(aberta, ant, AGORA, sprint("p", 3)) == (datetime(2026, 9, 30, tzinfo=timezone.utc), AGORA)
+
+
+def test_mapa_sprint_anterior_nao_avaliada_nao_engole_a_atual():
+    """s4 não foi avaliada e s5 já começou: o que foi aprovado na s5 não conta na s4,
+    nem nas features entregues nem na meta."""
+    from services.acompanhamento import mapa_do_projeto
+    s4 = sprint("s4", 4, data_inicio="2026-10-01")
+    s5 = sprint("s5", 5, data_inicio="2026-10-15")
+    funcs = [func("a", "concluida", "2026-10-05T00:00:00+00:00"), func("b", "concluida", "2026-10-20T00:00:00+00:00"),
+             func("c", "concluida", "2026-10-21T00:00:00+00:00")]
+    posicoes, _, feat, feat_ant = mapa_do_projeto([s4, s5], funcs, {}, {"s4": {"a", "b"}}, AGORA)
+    assert (feat, feat_ant) == (2, 1)
+    pos_s4 = next(p for p in posicoes if p["numero"] == 4)
+    assert (pos_s4["meta_total"], pos_s4["meta_entregues"], pos_s4["parcial"]) == (2, 1, False)
 
 
 def test_features_entregues_na_janela_limites():
@@ -470,7 +489,7 @@ def test_detalhe_forma_e_piso_por_pessoa(monkeypatch, autenticar):
     tm = j["time"]
     assert tm["sprint_numero"] == 2 and tm["mediana_squad"] == 4.0 and tm["mediana_subarea"] == 7.0
     assert [(p["nome"], p["realizado"], p["piso"], p["abaixo"]) for p in tm["pessoas"]] == [
-        ("Ana Op", 6.0, 3.5, False), ("Bia", 2.0, 3.5, True), ("Caio", 0.0, 3.5, True)]
+        ("Ana Op", 6.0, 3.5, None), ("Bia", 2.0, 3.5, None), ("Caio", 0.0, 3.5, None)]  # sprint aberta: sem "abaixo"
 
 
 def test_detalhe_mesmo_status_do_dashboard(monkeypatch, autenticar):

@@ -202,16 +202,26 @@ def _dt(v) -> datetime:
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
-def janela_da_sprint(sprint: dict, anterior: dict | None, agora: datetime) -> tuple[datetime | None, datetime]:
-    """Início: `data_inicio` 00:00 UTC; sem ela, o fechamento da anterior; sem nenhum, None. Fim: o fechamento ou agora."""
-    if sprint.get("data_inicio"):
-        d = _dt(sprint["data_inicio"])
-        inicio = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-    elif anterior and anterior.get("avaliacao_completa_em"):
+def _inicio_da_sprint(sprint: dict) -> datetime | None:
+    if not sprint.get("data_inicio"):
+        return None
+    d = _dt(sprint["data_inicio"])
+    return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+
+
+def janela_da_sprint(sprint: dict, anterior: dict | None, agora: datetime,
+                     proxima: dict | None = None) -> tuple[datetime | None, datetime]:
+    """Início: `data_inicio` 00:00 UTC; sem ela, o fechamento da anterior; sem nenhum, None.
+    Fim: o fechamento; sem ele, o início da próxima sprint; sem nenhum, agora. Sem o
+    corte na próxima, uma sprint passada ainda não avaliada engolia o que foi aprovado
+    na sprint atual e a variação de features saía sempre negativa."""
+    inicio = _inicio_da_sprint(sprint)
+    if inicio is None and anterior and anterior.get("avaliacao_completa_em"):
         inicio = _dt(anterior["avaliacao_completa_em"])
+    if sprint.get("avaliacao_completa_em"):
+        fim = _dt(sprint["avaliacao_completa_em"])
     else:
-        inicio = None
-    fim = _dt(sprint["avaliacao_completa_em"]) if sprint.get("avaliacao_completa_em") else agora
+        fim = (_inicio_da_sprint(proxima) if proxima else None) or agora
     return inicio, fim
 
 
@@ -245,7 +255,13 @@ def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: di
             spis_brutos.append(None)
             continue
         sp = next(s for s in por_numero if s["id"] == ref["id"])
+        idx = por_numero.index(sp)
+        anterior = por_numero[idx - 1] if idx > 0 else None
+        proxima = por_numero[idx + 1] if idx + 1 < len(por_numero) else None
         fechada_em = sp.get("avaliacao_completa_em")
+        if not fechada_em and proxima and _inicio_da_sprint(proxima):
+            # Sprint passada sem avaliação: o que foi aprovado depois que ela acabou não é dela.
+            fechada_em = _inicio_da_sprint(proxima).isoformat()
         meta = {f for f in metas.get(sp["id"], set()) if f in funcs_por_id}
         entregues = {i for i, f in funcs_por_id.items() if funcionalidade_entregue(f, fechada_em)}
         res = resultado_meta(meta, entregues)
@@ -253,10 +269,9 @@ def mapa_do_projeto(sprints: list[dict], funcs: list[dict], tasks_por_sprint: di
         spis_brutos.append(spi)
         posicoes.append({"rel": rel, "numero": sp["numero"], "spi": round(spi, 2) if spi is not None else None,
                          "meta_total": res["total"], "meta_entregues": res["entregues"], "meta_batida": res["batida"],
-                         "parcial": rel == 0 and not fechada_em})
+                         "parcial": rel == 0 and not sp.get("avaliacao_completa_em")})
         if rel >= -1:
-            idx = por_numero.index(sp)
-            inicio, fim = janela_da_sprint(sp, por_numero[idx - 1] if idx > 0 else None, agora)
+            inicio, fim = janela_da_sprint(sp, anterior, agora, proxima)
             features[rel] = features_entregues_na_janela(funcs, inicio, fim)
     return posicoes, spis_brutos, features.get(0), features.get(-1)
 
@@ -511,8 +526,11 @@ def montar_detalhe(client, projeto_id: str, agora: datetime | None = None) -> di
         ids = sorted(piso_svc.squad(ts_atual))
         nomes = {o["id"]: o.get("nome") for o in _em_lote(ids, lambda l: ler_tudo(
             lambda: client.table("operacionais").select("id, nome").in_("id", l).order("id")))}
+        # Com a sprint aberta o realizado ainda é parcial: comparar com um piso de sprints
+        # inteiras pintaria todo mundo de "abaixo" no começo da semana.
+        aberta = not sprint_atual_raw.get("avaliacao_completa_em")
         pessoas = [{"operacional_id": i, "nome": nomes.get(i), "realizado": feito.get(i, 0.0), "piso": limite,
-                    "abaixo": None if limite is None else feito.get(i, 0.0) < limite} for i in ids]
+                    "abaixo": None if limite is None or aberta else feito.get(i, 0.0) < limite} for i in ids]
         pessoas.sort(key=lambda p: (p["nome"] or "").casefold())
         time = {"sprint_numero": atual["numero"], "mediana_squad": med_squad, "mediana_subarea": med_sub, "pessoas": pessoas}
 

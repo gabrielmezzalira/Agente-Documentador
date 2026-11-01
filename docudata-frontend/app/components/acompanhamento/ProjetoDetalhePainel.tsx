@@ -205,9 +205,11 @@ export default function ProjetoDetalhePainel({ projetoId, onClose, onMetaSalva }
                     <li key={p.operacional_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderBottom: `1px solid ${ds.border}`, fontSize: 14, color: ds.text2 }}>
                       <span style={{ fontWeight: 600, color: ds.white }}>{p.nome ?? "Sem nome"}</span>
                       <span style={{ ...mono, marginLeft: "auto", color: ds.muted }}>{num(p.realizado, 1)} pts</span>
-                      {p.piso == null || p.abaixo == null
+                      {p.piso == null
                         ? <span style={{ fontSize: 12.5, color: ds.muted }}>sem histórico para o piso</span>
-                        : p.abaixo ? <Chip tone="red">abaixo do piso ({num(p.piso, 1)})</Chip> : <Chip tone="green">acima</Chip>}
+                        : p.abaixo == null
+                        ? <span style={{ fontSize: 12.5, color: ds.muted }}>piso {num(p.piso, 1)} · sprint em andamento</span>
+                        : p.abaixo ?<Chip tone="red">abaixo do piso ({num(p.piso, 1)})</Chip> : <Chip tone="green">acima</Chip>}
                     </li>
                   ))}
                 </ul>
