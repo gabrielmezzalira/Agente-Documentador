@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "../components/AuthGuard";
-import { Card, Chip, ErrorNotice, PageHeader } from "../components/ds";
+import { Button, Card, Chip, ErrorNotice, PageHeader } from "../components/ds";
 import { ds, labelStyle } from "../lib/ds";
 import {
   listMetodologia,
   getMetodologia,
+  exportMetodologia,
+  getMetodologiaPdf,
   type MetodologiaItem,
   type MetodologiaResponse,
 } from "../lib/api";
@@ -60,6 +62,25 @@ export default function DocumentosPage() {
   const [docs, setDocs] = useState<Record<string, MetodologiaResponse>>({});
   const [erro, setErro] = useState("");
   const [secaoAtiva, setSecaoAtiva] = useState<string | null>(null);
+  // Qual download está em andamento: "todos" ou o slug do documento.
+  const [baixando, setBaixando] = useState<string | null>(null);
+
+  async function baixar(chave: string, nome: string, buscar: () => Promise<Blob>) {
+    setBaixando(chave);
+    setErro("");
+    try {
+      const url = URL.createObjectURL(await buscar());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nome;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setBaixando(null);
+    }
+  }
 
   useEffect(() => {
     if (!auth) return;
@@ -86,9 +107,20 @@ export default function DocumentosPage() {
   return (
     <>
       <style>{DOC_CSS}</style>
-      <PageHeader title="Documentos" subtitle="A metodologia do DocuData, documentada dentro do próprio sistema." />
+      <PageHeader
+        title="Documentos"
+        subtitle="A metodologia do DocuData, documentada dentro do próprio sistema."
+        actions={
+          <Button
+            onClick={() => baixar("todos", "documentos-docudata.zip", exportMetodologia)}
+            disabled={baixando !== null || itens.length === 0}
+          >
+            {baixando === "todos" ? "Preparando..." : "Baixar todos em PDF (.zip)"}
+          </Button>
+        }
+      />
 
-      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(Math.max(itens.length, 1), 4)}, minmax(0, 1fr))`, gap: 14 }}>
         {itens.map((item) => {
           const ativo = item.slug === slug;
           const restrito = docs[item.slug]?.restrito ?? false;
@@ -141,6 +173,17 @@ export default function DocumentosPage() {
               })}
             </nav>
             <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 720, minWidth: 0 }}>
+              {slug && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button
+                    size="sm"
+                    onClick={() => baixar(slug, `${doc.titulo}.pdf`, () => getMetodologiaPdf(slug))}
+                    disabled={baixando !== null}
+                  >
+                    {baixando === slug ? "Gerando PDF..." : "Baixar PDF"}
+                  </Button>
+                </div>
+              )}
               {doc.restrito && (
                 <div role="note" style={{ fontSize: 13, color: ds.amber, background: ds.amberSoft, border: `1px solid ${ds.amberLine}`, borderRadius: 12, padding: "12px 16px" }}>
                   Documento interno, restrito a Gerente para cima. Pesos, fórmulas e notas cruas não são divulgados a operacionais.

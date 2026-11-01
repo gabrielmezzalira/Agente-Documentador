@@ -111,3 +111,93 @@ def test_slug_desconhecido_404(monkeypatch):
     resp = tc.get("/metodologia/inexistente", cookies={"docudata_session": token})
 
     assert resp.status_code == 404
+
+
+def _arquivos_do_zip(resp) -> set[str]:
+    import io
+    import zipfile
+    return set(zipfile.ZipFile(io.BytesIO(resp.content)).namelist())
+
+
+def test_export_operacional_so_leva_os_publicos(monkeypatch):
+    """O pacote usa o mesmo filtro da listagem: restrito não vaza pelo download."""
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    token = criar_jwt("pessoa-op-1", "op@citi.com", "operacional")
+
+    resp = tc.get("/metodologia/export", cookies={"docudata_session": token})
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert _arquivos_do_zip(resp) == {"guia-do-sistema.pdf", "acompanhamento-publico.pdf"}
+
+
+def test_export_gerente_leva_todos_incluindo_a_biblia(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    token = criar_jwt("pessoa-ger-1", "ger@citi.com", "gerente")
+
+    resp = tc.get("/metodologia/export", cookies={"docudata_session": token})
+
+    assert resp.status_code == 200
+    assert "attachment" in resp.headers["content-disposition"]
+    assert _arquivos_do_zip(resp) == {
+        "biblia-do-docudata.pdf", "guia-do-sistema.pdf",
+        "acompanhamento-publico.pdf", "metodologia-performance.pdf",
+    }
+
+
+def test_export_sem_cookie_retorna_401():
+    from main import app
+    tc = TestClient(app)
+
+    assert tc.get("/metodologia/export").status_code == 401
+
+
+def test_biblia_restrita_ao_operacional(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    op = criar_jwt("op", "op@citi.com", "operacional")
+    ger = criar_jwt("g", "g@citi.com", "gerente")
+
+    assert tc.get("/metodologia/biblia", cookies={"docudata_session": op}).status_code == 403
+    resp = tc.get("/metodologia/biblia", cookies={"docudata_session": ger})
+    assert resp.status_code == 200
+    assert resp.json()["titulo"] == "Bíblia do DocuData"
+
+
+def test_pdf_individual(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    token = criar_jwt("pessoa-op-1", "op@citi.com", "operacional")
+
+    resp = tc.get("/metodologia/guia/pdf", cookies={"docudata_session": token})
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert 'filename="guia-do-sistema.pdf"' in resp.headers["content-disposition"]
+    assert resp.content.startswith(b"%PDF")
+
+
+def test_pdf_restrito_bloqueado_ao_operacional(monkeypatch):
+    """O PDF passa pelo mesmo gate do documento: baixar não é atalho para ler."""
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    op = criar_jwt("op", "op@citi.com", "operacional")
+
+    for slug in ("biblia", "performance"):
+        assert tc.get(f"/metodologia/{slug}/pdf", cookies={"docudata_session": op}).status_code == 403
+    assert tc.get("/metodologia/inexistente/pdf", cookies={"docudata_session": op}).status_code == 404
+
+
+def test_todos_os_documentos_viram_pdf():
+    """Garante que nenhum documento tem markdown que quebre o conversor."""
+    from routers.metodologia import _DOCUMENTOS, _pdf
+
+    for doc in _DOCUMENTOS.values():
+        assert _pdf(doc).startswith(b"%PDF"), doc["arquivo"]
