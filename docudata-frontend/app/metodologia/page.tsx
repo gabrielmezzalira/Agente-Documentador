@@ -10,6 +10,7 @@ import {
   listMetodologia,
   getMetodologia,
   exportMetodologia,
+  getMetodologiaPdf,
   type MetodologiaItem,
   type MetodologiaResponse,
 } from "../lib/api";
@@ -61,22 +62,23 @@ export default function DocumentosPage() {
   const [docs, setDocs] = useState<Record<string, MetodologiaResponse>>({});
   const [erro, setErro] = useState("");
   const [secaoAtiva, setSecaoAtiva] = useState<string | null>(null);
-  const [baixando, setBaixando] = useState(false);
+  // Qual download está em andamento: "todos" ou o slug do documento.
+  const [baixando, setBaixando] = useState<string | null>(null);
 
-  async function baixarTodos() {
-    setBaixando(true);
+  async function baixar(chave: string, nome: string, buscar: () => Promise<Blob>) {
+    setBaixando(chave);
     setErro("");
     try {
-      const url = URL.createObjectURL(await exportMetodologia());
+      const url = URL.createObjectURL(await buscar());
       const a = document.createElement("a");
       a.href = url;
-      a.download = "documentos-docudata.zip";
+      a.download = nome;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
-      setBaixando(false);
+      setBaixando(null);
     }
   }
 
@@ -109,8 +111,11 @@ export default function DocumentosPage() {
         title="Documentos"
         subtitle="A metodologia do DocuData, documentada dentro do próprio sistema."
         actions={
-          <Button onClick={baixarTodos} disabled={baixando || itens.length === 0}>
-            {baixando ? "Preparando..." : "Baixar todos (.zip)"}
+          <Button
+            onClick={() => baixar("todos", "documentos-docudata.zip", exportMetodologia)}
+            disabled={baixando !== null || itens.length === 0}
+          >
+            {baixando === "todos" ? "Preparando..." : "Baixar todos em PDF (.zip)"}
           </Button>
         }
       />
@@ -168,6 +173,17 @@ export default function DocumentosPage() {
               })}
             </nav>
             <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 720, minWidth: 0 }}>
+              {slug && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button
+                    size="sm"
+                    onClick={() => baixar(slug, `${doc.titulo}.pdf`, () => getMetodologiaPdf(slug))}
+                    disabled={baixando !== null}
+                  >
+                    {baixando === slug ? "Gerando PDF..." : "Baixar PDF"}
+                  </Button>
+                </div>
+              )}
               {doc.restrito && (
                 <div role="note" style={{ fontSize: 13, color: ds.amber, background: ds.amberSoft, border: `1px solid ${ds.amberLine}`, borderRadius: 12, padding: "12px 16px" }}>
                   Documento interno, restrito a Gerente para cima. Pesos, fórmulas e notas cruas não são divulgados a operacionais.

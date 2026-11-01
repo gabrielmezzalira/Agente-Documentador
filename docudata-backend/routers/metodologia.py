@@ -10,6 +10,7 @@ restrita a Gerente para cima.
 """
 import io
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,7 @@ from fastapi.responses import Response
 
 from models.schemas import MetodologiaResponse, MetodologiaItem
 from services.auth import get_current_pessoa
+from services.doc_pdf import markdown_para_pdf
 
 router = APIRouter(prefix="/metodologia", tags=["metodologia"])
 
@@ -65,19 +67,47 @@ async def listar_documentos(pessoa: dict = Depends(get_current_pessoa)):
     ]
 
 
+def _ler(doc: dict) -> str:
+    try:
+        return (_DOCS_DIR / doc["arquivo"]).read_text(encoding="utf-8")
+    except OSError:
+        raise HTTPException(status_code=500, detail=f"Arquivo ausente: {doc['arquivo']}")
+
+
+def _acessivel(slug: str, pessoa: dict) -> dict:
+    doc = _DOCUMENTOS.get(slug)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+    if doc["restrito"] and pessoa["cargo"] == "operacional":
+        raise HTTPException(status_code=403, detail="Acesso restrito a Gerente e Líder")
+    return doc
+
+
+@lru_cache(maxsize=16)
+def _pdf_em_cache(arquivo: str, titulo: str, modificado_em: float) -> bytes:
+    # A data de modificação entra na chave: editar o .md invalida o PDF guardado.
+    return markdown_para_pdf(titulo, (_DOCS_DIR / arquivo).read_text(encoding="utf-8"))
+
+
+def _pdf(doc: dict) -> bytes:
+    _ler(doc)  # 500 legível se o arquivo sumiu, em vez de erro do cache
+    return _pdf_em_cache(doc["arquivo"], doc["titulo"], (_DOCS_DIR / doc["arquivo"]).stat().st_mtime)
+
+
+def _nome_pdf(doc: dict) -> str:
+    return doc["arquivo"].removesuffix(".md") + ".pdf"
+
+
+# Rotas de PDF são `def` (não `async`): gerar o PDF é CPU e não pode travar o loop.
 @router.get("/export")
-async def exportar_documentos(pessoa: dict = Depends(get_current_pessoa)):
-    """Um .zip com o markdown de todos os documentos que a pessoa pode abrir. Usa o
+def exportar_documentos(pessoa: dict = Depends(get_current_pessoa)):
+    """Um .zip com o PDF de todos os documentos que a pessoa pode abrir. Usa o
     mesmo filtro da listagem, então o restrito nunca sai no pacote do operacional.
     Declarada antes de `/{slug}` para não ser capturada como slug."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for doc in _visiveis(pessoa).values():
-            try:
-                conteudo = (_DOCS_DIR / doc["arquivo"]).read_text(encoding="utf-8")
-            except OSError:
-                raise HTTPException(status_code=500, detail=f"Arquivo ausente: {doc['arquivo']}")
-            zf.writestr(doc["arquivo"], conteudo)
+            zf.writestr(_nome_pdf(doc), _pdf(doc))
     return Response(
         content=buffer.getvalue(),
         media_type="application/zip",
@@ -85,19 +115,17 @@ async def exportar_documentos(pessoa: dict = Depends(get_current_pessoa)):
     )
 
 
+@router.get("/{slug}/pdf")
+def baixar_pdf(slug: str, pessoa: dict = Depends(get_current_pessoa)):
+    doc = _acessivel(slug, pessoa)
+    return Response(
+        content=_pdf(doc),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{_nome_pdf(doc)}"'},
+    )
+
+
 @router.get("/{slug}", response_model=MetodologiaResponse)
 async def get_metodologia(slug: str, pessoa: dict = Depends(get_current_pessoa)):
-    doc = _DOCUMENTOS.get(slug)
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Documento não encontrado")
-
-    if doc["restrito"] and pessoa["cargo"] == "operacional":
-        raise HTTPException(status_code=403, detail="Acesso restrito a Gerente e Líder")
-
-    caminho = _DOCS_DIR / doc["arquivo"]
-    try:
-        conteudo = caminho.read_text(encoding="utf-8")
-    except OSError:
-        raise HTTPException(status_code=500, detail=f"Arquivo ausente: {doc['arquivo']}")
-
-    return {"titulo": doc["titulo"], "conteudo": conteudo, "restrito": doc["restrito"]}
+    doc = _acessivel(slug, pessoa)
+    return {"titulo": doc["titulo"], "conteudo": _ler(doc), "restrito": doc["restrito"]}

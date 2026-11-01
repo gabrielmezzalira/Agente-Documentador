@@ -2271,10 +2271,16 @@ export async function getMetodologia(slug: string): Promise<MetodologiaResponse>
   return res.json();
 }
 
-/** Pacote .zip com o markdown de todos os documentos que a pessoa pode abrir. */
+/** Pacote .zip com o PDF de todos os documentos que a pessoa pode abrir. */
 export async function exportMetodologia(): Promise<Blob> {
   const res = await apiFetch(`${API}/metodologia/export`);
   if (!res.ok) throw new Error("Erro ao exportar os documentos");
+  return res.blob();
+}
+
+export async function getMetodologiaPdf(slug: string): Promise<Blob> {
+  const res = await apiFetch(`${API}/metodologia/${slug}/pdf`);
+  if (!res.ok) throw new Error("Erro ao gerar o PDF");
   return res.blob();
 }
 
