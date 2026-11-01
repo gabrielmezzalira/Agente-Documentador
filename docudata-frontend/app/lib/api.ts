@@ -2271,6 +2271,13 @@ export async function getMetodologia(slug: string): Promise<MetodologiaResponse>
   return res.json();
 }
 
+/** Pacote .zip com o markdown de todos os documentos que a pessoa pode abrir. */
+export async function exportMetodologia(): Promise<Blob> {
+  const res = await apiFetch(`${API}/metodologia/export`);
+  if (!res.ok) throw new Error("Erro ao exportar os documentos");
+  return res.blob();
+}
+
 // Painel de pessoas com acesso ao sistema
 
 export interface PessoaResponse {

@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "../components/AuthGuard";
-import { Card, Chip, ErrorNotice, PageHeader } from "../components/ds";
+import { Button, Card, Chip, ErrorNotice, PageHeader } from "../components/ds";
 import { ds, labelStyle } from "../lib/ds";
 import {
   listMetodologia,
   getMetodologia,
+  exportMetodologia,
   type MetodologiaItem,
   type MetodologiaResponse,
 } from "../lib/api";
@@ -60,6 +61,24 @@ export default function DocumentosPage() {
   const [docs, setDocs] = useState<Record<string, MetodologiaResponse>>({});
   const [erro, setErro] = useState("");
   const [secaoAtiva, setSecaoAtiva] = useState<string | null>(null);
+  const [baixando, setBaixando] = useState(false);
+
+  async function baixarTodos() {
+    setBaixando(true);
+    setErro("");
+    try {
+      const url = URL.createObjectURL(await exportMetodologia());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "documentos-docudata.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setBaixando(false);
+    }
+  }
 
   useEffect(() => {
     if (!auth) return;
@@ -86,9 +105,17 @@ export default function DocumentosPage() {
   return (
     <>
       <style>{DOC_CSS}</style>
-      <PageHeader title="Documentos" subtitle="A metodologia do DocuData, documentada dentro do próprio sistema." />
+      <PageHeader
+        title="Documentos"
+        subtitle="A metodologia do DocuData, documentada dentro do próprio sistema."
+        actions={
+          <Button onClick={baixarTodos} disabled={baixando || itens.length === 0}>
+            {baixando ? "Preparando..." : "Baixar todos (.zip)"}
+          </Button>
+        }
+      />
 
-      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+      <div className="ds-painel-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(Math.max(itens.length, 1), 4)}, minmax(0, 1fr))`, gap: 14 }}>
         {itens.map((item) => {
           const ativo = item.slug === slug;
           const restrito = docs[item.slug]?.restrito ?? false;

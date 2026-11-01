@@ -111,3 +111,59 @@ def test_slug_desconhecido_404(monkeypatch):
     resp = tc.get("/metodologia/inexistente", cookies={"docudata_session": token})
 
     assert resp.status_code == 404
+
+
+def _arquivos_do_zip(resp) -> set[str]:
+    import io
+    import zipfile
+    return set(zipfile.ZipFile(io.BytesIO(resp.content)).namelist())
+
+
+def test_export_operacional_so_leva_os_publicos(monkeypatch):
+    """O pacote usa o mesmo filtro da listagem: restrito não vaza pelo download."""
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    token = criar_jwt("pessoa-op-1", "op@citi.com", "operacional")
+
+    resp = tc.get("/metodologia/export", cookies={"docudata_session": token})
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert _arquivos_do_zip(resp) == {"guia-do-sistema.md", "acompanhamento-publico.md"}
+
+
+def test_export_gerente_leva_todos_incluindo_a_biblia(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    token = criar_jwt("pessoa-ger-1", "ger@citi.com", "gerente")
+
+    resp = tc.get("/metodologia/export", cookies={"docudata_session": token})
+
+    assert resp.status_code == 200
+    assert "attachment" in resp.headers["content-disposition"]
+    assert _arquivos_do_zip(resp) == {
+        "biblia-do-docudata.md", "guia-do-sistema.md",
+        "acompanhamento-publico.md", "metodologia-performance.md",
+    }
+
+
+def test_export_sem_cookie_retorna_401():
+    from main import app
+    tc = TestClient(app)
+
+    assert tc.get("/metodologia/export").status_code == 401
+
+
+def test_biblia_restrita_ao_operacional(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", _SECRET)
+    from main import app
+    tc = TestClient(app)
+    op = criar_jwt("op", "op@citi.com", "operacional")
+    ger = criar_jwt("g", "g@citi.com", "gerente")
+
+    assert tc.get("/metodologia/biblia", cookies={"docudata_session": op}).status_code == 403
+    resp = tc.get("/metodologia/biblia", cookies={"docudata_session": ger})
+    assert resp.status_code == 200
+    assert resp.json()["titulo"] == "Bíblia do DocuData"
