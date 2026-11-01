@@ -317,3 +317,42 @@ def test_cycle_time_sem_transicao_de_entrada_usa_duracao_da_transicao_final(monk
     resp = tc.get("/metricas/test-project-id/cycle-time")
     assert resp.status_code == 200
     assert resp.json()[0]["cycle_time_horas"] == 2.0
+
+
+def test_cycle_time_stats_usa_intervalo_inteiro_mesmo_passando_por_pendente_aprovacao(monkeypatch):
+    """p50/p85 seguem a mesma régua do histograma (/cycle-time): em_andamento ->
+    concluida inteiro (50h), não só a espera pela aprovação (40h) que é o que
+    `duracao_fase_anterior_segundos` da transição -> concluida mede."""
+    tasks = [{"id": "t1", "sprint_id": None, "operacional_id": None, "coluna_kanban": "concluida"}]
+    transicoes_by_task = {
+        "t1": [
+            {"para": "em_andamento", "duracao_fase_anterior_segundos": 3600, "timestamp": "2026-01-01T00:00:00+00:00"},
+            {"para": "pendente_aprovacao", "duracao_fase_anterior_segundos": 10 * 3600, "timestamp": "2026-01-01T10:00:00+00:00"},
+            {"para": "concluida", "duracao_fase_anterior_segundos": 40 * 3600, "timestamp": "2026-01-03T02:00:00+00:00"},
+        ],
+    }
+    mock_sb = _make_mock_client(tasks_data=tasks, transicoes_by_task=transicoes_by_task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.get("/metricas/test-project-id/cycle-time/stats")
+    assert resp.status_code == 200
+    assert resp.json()["p50_horas"] == 50.0
+
+
+def test_cycle_time_task_puxada_sem_transicao_de_entrada_usa_pull_em(monkeypatch):
+    """Task puxada da fila não ganha transição -> em_andamento; o início do
+    cycle-time é pull_em (30h até concluida), não a perna final (só a espera
+    pela aprovação, 20h). Vale pro histograma e pro p50."""
+    tasks = [{"id": "t1", "sprint_id": None, "operacional_id": None, "coluna_kanban": "concluida",
+              "titulo": "Task 1", "pull_em": "2026-01-01T00:00:00+00:00"}]
+    transicoes_by_task = {
+        "t1": [
+            {"para": "pendente_aprovacao", "duracao_fase_anterior_segundos": 10 * 3600, "timestamp": "2026-01-01T10:00:00+00:00"},
+            {"para": "concluida", "duracao_fase_anterior_segundos": 20 * 3600, "timestamp": "2026-01-02T06:00:00+00:00"},
+        ],
+    }
+    mock_sb = _make_mock_client(tasks_data=tasks, transicoes_by_task=transicoes_by_task)
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    assert tc.get("/metricas/test-project-id/cycle-time").json()[0]["cycle_time_horas"] == 30.0
+    assert tc.get("/metricas/test-project-id/cycle-time/stats").json()["p50_horas"] == 30.0
