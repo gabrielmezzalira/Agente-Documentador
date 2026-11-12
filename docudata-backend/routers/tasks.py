@@ -853,6 +853,34 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # WIP check — rejeita antes de qualquer escrita se o limite for ultrapassado
     coluna_nova = data.coluna_kanban
     coluna_atual = task.get("coluna_kanban")
+
+    # Pull: arrastar uma task da fila (sem dono) para fora de Planejado é puxar.
+    # Sem isto a coluna mudava e ninguém virava responsável — o card ficava sem
+    # nome, a Entrega não creditava ninguém e o gerente não conseguia corrigir,
+    # porque em Pull o responsável não se define à mão e /puxar só aceita
+    # Planejado.
+    puxada_por: Optional[str] = None
+    if (
+        coluna_nova is not None
+        and coluna_nova != coluna_atual
+        and coluna_atual == "planejado"
+        and not task.get("operacional_id")
+        and data.operacional_id is None
+    ):
+        proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
+        if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
+            if coluna_nova != "em_andamento":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Em modo Pull, a task precisa ser puxada para Em andamento antes.",
+                )
+            puxada_por = _resolver_operacional_id_da_pessoa(client, project_id, pessoa["email"])
+            if not puxada_por:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Em modo Pull, quem vai fazer a task é quem a puxa. Peça para a pessoa puxar a task.",
+                )
+
     if coluna_nova is not None and coluna_nova != coluna_atual:
         # Pendente de aprovação só sai via /aprovar ou /rejeitar (endpoints
         # dedicados, gerente/líder-only) — fecha a saída na origem, mesmo
@@ -889,7 +917,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
                     status_code=409,
                     detail=f"DoD: {len(pendentes)} item(ns) do checklist ainda não concluído(s).",
                 )
-        op_efetivo = data.operacional_id if data.operacional_id is not None else task.get("operacional_id")
+        op_efetivo = data.operacional_id if data.operacional_id is not None else (puxada_por or task.get("operacional_id"))
         ok, motivo = check_wip(client, project_id, op_efetivo, coluna_nova)
         if not ok:
             raise HTTPException(status_code=409, detail=motivo)
@@ -928,6 +956,10 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         if campo == "coluna_kanban" and task.get("coluna_kanban") == "concluida" and novo_valor == "em_andamento":
             _registrar_reabertura(client, task_id, transicao_id, task.get("operacional_id"), data.motivo, agora)
             houve_reabertura = True
+
+    if puxada_por:
+        # Fica no histórico quem puxou; sem e-mail de atribuição, a pessoa puxou para si.
+        _registrar_task_transicao(client, task_id, task, "operacional_id", puxada_por, data.autor, "puxada pelo Kanban", agora)
 
     if data.bloqueado is not None and data.bloqueado != task.get("bloqueado", False):
         # Tipo do trecho que abre (o novo, padrão interno) ou fecha (o que a task tinha).
@@ -984,6 +1016,8 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # bloqueado pode ser False, precisa checar explicitamente
     if data.bloqueado is not None:
         updates["bloqueado"] = data.bloqueado
+    if puxada_por:
+        updates.update({"operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None})
     if data.extra is not None:
         updates["extra"] = data.extra
     if data.sprint_id is not None and str(data.sprint_id) != str(task.get("sprint_id") or ""):

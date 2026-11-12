@@ -1057,6 +1057,11 @@ function TaskCard({
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
         )}
 
+        {/* Fora da fila, task sem dono é anomalia (ninguém recebe o crédito): tem que aparecer. */}
+        {!task.operacional_id && task.coluna_kanban !== "planejado" && (
+          <span style={{ ...chip, background: "rgba(242,193,78,0.10)", color: "#f2c14e", borderColor: "rgba(242,193,78,0.30)" }}>Sem responsável</span>
+        )}
+
         {task.extra && (
           <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}>+ extra</span>
         )}
