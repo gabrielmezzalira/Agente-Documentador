@@ -47,3 +47,30 @@ def test_historico_usa_o_modo_da_sprint_e_cai_no_do_projeto():
     itens = _montar_historico(fake, [dict(base, id="a1", sprint_id="s1"), dict(base, id="a2", sprint_id="s2")])
     modo = {i["sprint_id"]: i["modo_trabalho"] for i in itens}
     assert modo == {"s1": "ATRIBUICAO", "s2": "PULL"}
+
+
+def test_ensure_sprint_row_grava_snapshot_na_sprint_nova():
+    from services.sprints import ensure_sprint_row
+    fake = FakeClient({
+        "sprints": [],
+        "projects": [{"id": "p1", "modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_RELATIVO"}],
+    })
+    ensure_sprint_row(fake, "p1", 1)
+    s = fake.tables["sprints"][0]
+    assert (s["modo_trabalho"], s["modo_avaliacao"]) == ("PULL", "PONTOS_RELATIVO")
+
+
+def test_create_sprint_iniciada_grava_snapshot(monkeypatch, autenticar):
+    from fastapi.testclient import TestClient
+    import routers.sprints as router
+    from main import app
+    fake = FakeClient({
+        "sprints": [],
+        "projects": [{"id": "p1", "modo_trabalho": "PULL", "modo_avaliacao": "PONTOS_RELATIVO"}],
+    }, defaults={"sprints": {"id": "s9", "created_at": "2026-11-01T00:00:00+00:00",
+                             "updated_at": "2026-11-01T00:00:00+00:00"}})
+    monkeypatch.setattr(router, "get_client", lambda: fake)
+    tc = autenticar(TestClient(app), cargo="gerente")
+    resp = tc.post("/projects/p1/sprints", json={"iniciada": True})
+    assert resp.status_code == 201, resp.text
+    assert fake.tables["sprints"][0]["modo_trabalho"] == "PULL"

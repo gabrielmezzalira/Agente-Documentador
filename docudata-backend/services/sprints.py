@@ -1,8 +1,11 @@
 """Helpers compartilhados pra entidade Sprint."""
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from services.previsto_sprint import marcar_foto_do_inicio
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_sprint_row(client, project_id: str, numero: int) -> None:
@@ -31,7 +34,8 @@ def ensure_sprint_row(client, project_id: str, numero: int) -> None:
         if criada.data:
             congelar_modo_da_sprint(client, criada.data[0]["id"])
     except Exception:
-        pass  # best-effort: o fechamento cai no modo do projeto
+        # Sem snapshot o fechamento cai no modo atual do projeto.
+        logger.warning("Falha ao congelar o modo da sprint do projeto %s #%s", project_id, numero, exc_info=True)
 
 
 def congelar_modo_da_sprint(client, sprint_id: str) -> Optional[str]:

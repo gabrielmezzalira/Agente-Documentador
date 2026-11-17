@@ -69,7 +69,8 @@ async def create_sprint(project_id: str, data: SprintCreate):
         try:
             congelar_modo_da_sprint(client, response.data[0]["id"])
         except Exception:
-            pass  # best-effort: o fechamento cai no modo do projeto
+            # Sem snapshot o fechamento cai no modo atual do projeto.
+            logger.warning("Falha ao congelar o modo da sprint %s", response.data[0]["id"], exc_info=True)
     return response.data[0]
 
 
