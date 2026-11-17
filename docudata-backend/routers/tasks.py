@@ -842,8 +842,14 @@ def _checar_operacional_pode_mexer(client, pessoa: dict, task: dict, data: TaskU
         return
     if dono is None and task.get("coluna_kanban") == "planejado":
         proj = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
-        if proj.data and proj.data[0].get("modo_trabalho") == "PULL":
-            return  # a regra de puxar (422 se não for para Em andamento) vem logo abaixo
+        if (
+            proj.data
+            and proj.data[0].get("modo_trabalho") == "PULL"
+            and data.coluna_kanban not in (None, "planejado")
+        ):
+            # Só arrastar para fora de Planejado (puxar) é permitido em task sem
+            # dono; patch_task devolve 422 se o destino não for Em andamento.
+            return
     raise HTTPException(status_code=403, detail="Só quem está com a task pode alterá-la.")
 
 

@@ -1,7 +1,10 @@
 """Correções da auditoria 2026-11-17: tasks (Pull x Atribuição, RBAC, puxar/devolver)."""
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.test_pull_devolver import make_client  # noqa: F401  (fixture)
 from tests.test_tasks_pull_lock_atribuicao import _TASK_BASE, _mock_client
 
 
@@ -78,6 +81,13 @@ def test_operacional_puxa_da_fila_em_pull_arrastando(cliente_para):
     assert resp.json()["operacional_id"] == "op-9"
 
 
+def test_operacional_edita_titulo_de_task_da_fila_em_pull_403(cliente_para):
+    task = dict(_TASK_BASE, operacional_id=None, coluna_kanban="planejado", sprint_id="sp-1")
+    resp = cliente_para("PULL", task, cargo="operacional", meu_operacional="op-9").patch(
+        "/tasks/task-1", json={"titulo": "Outro"})
+    assert resp.status_code == 403
+
+
 def test_operacional_nao_move_task_sem_dono_fora_da_fila(cliente_para):
     task = dict(_TASK_BASE, operacional_id=None, coluna_kanban="em_andamento", sprint_id="sp-1")
     resp = cliente_para("PULL", task, cargo="operacional").patch("/tasks/task-1", json={"coluna_kanban": "concluida"})
@@ -97,8 +107,6 @@ def test_gerente_continua_movendo_qualquer_task(cliente_para):
         "/tasks/task-1", json={"coluna_kanban": "concluida"})
     assert resp.status_code == 200
 
-
-from tests.test_pull_devolver import make_client  # noqa: F401,E402  (fixture)
 
 _OP = {"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"}
 
@@ -144,11 +152,10 @@ def test_devolver_em_andamento_em_pull_continua_200(make_client):
     assert resp.status_code == 200
 
 
-from unittest.mock import MagicMock  # noqa: E402
-
 
 def _capturar_dispensa(tc):
     capturas = []
+    filtros = []
     original = tc._mock_sb.table.side_effect
 
     def tabela(nome):
@@ -157,19 +164,23 @@ def _capturar_dispensa(tc):
             def upd(payload):
                 capturas.append(payload)
                 q = MagicMock()
-                q.eq = MagicMock(return_value=q)
+                def eq(col, val):
+                    filtros.append((col, val))
+                    return q
+                q.eq = MagicMock(side_effect=eq)
                 return q
             tbl.update = MagicMock(side_effect=upd)
         return tbl
 
     tc._mock_sb.table = MagicMock(side_effect=tabela)
-    return capturas
+    return capturas, filtros
 
 
 def test_devolver_task_travada_dispensa_os_travamentos(make_client):
     task = _task(operacional_id="op-a", coluna_kanban="em_andamento", travado_automatico=True, sprint_id="sprint-1")
     tc = make_client(task, _OP, task_travamentos=[{"pontos": 3, "dispensado": False}])
-    capturas = _capturar_dispensa(tc)
+    capturas, filtros = _capturar_dispensa(tc)
     resp = tc.post("/tasks/t1/devolver")
     assert resp.status_code == 200
     assert capturas == [{"dispensado": True}]
+    assert filtros == [("task_id", "t1"), ("dispensado", False)]
