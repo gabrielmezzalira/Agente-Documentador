@@ -779,6 +779,9 @@ async def test_extracao_persiste_origem_sem_diff(monkeypatch):
     assert row["source_url"].startswith("https://github.com/")
     assert row["extracted_content"]["_meta_autor"] == "Ana"
     assert "SEGREDO_NO_DIFF" not in json.dumps(row)
+    assert "cost_usd" not in row
+    assert "input_tokens" not in row
+    assert "output_tokens" not in row
 
 
 def test_contexto_commit_serializa_origem_e_tecnologias_sem_diff():
