@@ -395,13 +395,18 @@ async def get_modos_historico(project_id: str, _pessoa: dict = Depends(require_n
 def _guardar_wip_anterior(client, project_id: str, wip_atual: dict, email: str) -> None:
     """Registra o WIP por pessoa de antes de entrar em Pull (texto; "" = nulo)."""
     anterior = wip_atual.get("por_pessoa")
-    client.table("configuracao_historico").insert({
-        "project_id": project_id,
-        "campo": "wip_por_pessoa",
-        "valor_anterior": "" if anterior is None else str(anterior),
-        "valor_novo": "1",
-        "usuario_email": email,
-    }).execute()
+    # Best-effort: sem a migração v10 aplicada o CHECK recusa o campo, e isso não
+    # pode deixar a migração de modo pela metade (modo já gravado, WIP não forçado).
+    try:
+        client.table("configuracao_historico").insert({
+            "project_id": project_id,
+            "campo": "wip_por_pessoa",
+            "valor_anterior": "" if anterior is None else str(anterior),
+            "valor_novo": "1",
+            "usuario_email": email,
+        }).execute()
+    except Exception:
+        _LOG.warning("falha ao guardar o WIP anterior do projeto %s", project_id, exc_info=True)
 
 
 def _restaurar_wip_anterior(client, project_id: str, wip_atual: dict) -> dict:
@@ -415,7 +420,12 @@ def _restaurar_wip_anterior(client, project_id: str, wip_atual: dict) -> dict:
     if not linhas:
         return wip_atual
     bruto = linhas[0].get("valor_anterior")
-    return {**wip_atual, "por_pessoa": int(bruto) if bruto not in (None, "") else None}
+    if bruto in (None, ""):
+        return {**wip_atual, "por_pessoa": None}
+    try:
+        return {**wip_atual, "por_pessoa": int(bruto)}
+    except (TypeError, ValueError):
+        return wip_atual  # registro corrompido: trata como sem registro
 
 
 @router.patch("/{project_id}/wip-config", response_model=ProjectResponse)

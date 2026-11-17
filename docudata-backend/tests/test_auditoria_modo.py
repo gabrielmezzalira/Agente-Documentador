@@ -1,3 +1,6 @@
+import pytest
+from fastapi.testclient import TestClient
+
 from services.sprints import congelar_modo_da_sprint, iniciar_sprint_e_ancorar_tasks
 from tests.fake_supabase import FakeClient
 
@@ -76,10 +79,6 @@ def test_create_sprint_iniciada_grava_snapshot(monkeypatch, autenticar):
     assert fake.tables["sprints"][0]["modo_trabalho"] == "PULL"
 
 
-import pytest
-from fastapi.testclient import TestClient
-
-
 @pytest.fixture
 def projetos_api(monkeypatch, autenticar):
     def _make(fake):
@@ -129,3 +128,37 @@ def test_historico_de_modos_nao_expoe_o_registro_de_wip(projetos_api):
     campos = {l["campo"] for l in tc.get("/projects/p1/modos-historico").json()}
     assert "wip_por_pessoa" not in campos
     assert "modo_trabalho" in campos
+
+
+def test_falha_ao_guardar_wip_nao_deixa_a_migracao_pela_metade(projetos_api, monkeypatch):
+    import routers.projects as projects_router
+
+    def _explode(*_a, **_k):
+        raise RuntimeError("CHECK da migração v10 ainda não aplicado")
+
+    fake = _projeto("ATRIBUICAO", {"por_pessoa": 3, "por_coluna_em_andamento": None})
+    tc = projetos_api(fake)
+    original = fake.table
+
+    def tabela(nome):
+        t = original(nome)
+        if nome == "configuracao_historico":
+            ins = t.insert
+            t.insert = lambda payload: _explode() if payload.get("campo") == "wip_por_pessoa" else ins(payload)
+        return t
+
+    monkeypatch.setattr(fake, "table", tabela)
+    resp = tc.post("/projects/p1/migrar-modo", json={"para": "PULL"})
+    assert resp.status_code == 200
+    assert fake.tables["projects"][0]["modo_trabalho"] == "PULL"
+    assert fake.tables["projects"][0]["wip_config"]["por_pessoa"] == 1
+
+
+def test_historico_corrompido_ao_sair_de_pull_mantem_o_wip(projetos_api):
+    fake = _projeto("PULL", {"por_pessoa": 1, "por_coluna_em_andamento": None})
+    fake.tables["configuracao_historico"].append(
+        {"project_id": "p1", "campo": "wip_por_pessoa", "valor_anterior": "abc", "valor_novo": "1",
+         "usuario_email": "x", "criado_em": "2026-11-17T09:00:00+00:00"})
+    resp = projetos_api(fake).post("/projects/p1/migrar-modo", json={"para": "ATRIBUICAO"})
+    assert resp.status_code == 200
+    assert fake.tables["projects"][0]["wip_config"]["por_pessoa"] == 1
