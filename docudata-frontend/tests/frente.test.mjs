@@ -29,3 +29,10 @@ test("kanban: chip da frente no card e select Frente para o gerente", () => {
   assert.ok(k.includes("definida pelo gerente"));
   assert.ok(k.includes("patchTaskKanban(task.id, { frente:"));
 });
+
+test("kanban: frente e mudar nível não fecham o modal", () => {
+  const k = ler("app/components/TasksKanbanTab.tsx");
+  assert.ok(k.includes("onTaskUpdated?.(atualizada);"));
+  assert.ok(k.includes("onTaskUpdated={(t) => { upsertTask(t); setEditModal(t); }}"));
+  assert.ok(k.includes("aria-busy={salvandoFrente}"));
+});

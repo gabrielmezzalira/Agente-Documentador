@@ -138,6 +138,8 @@ interface TaskModalProps {
   modoTrabalho: "ATRIBUICAO" | "PULL";
   onClose: () => void;
   onSaved: (t: TaskKanbanResponse, criada?: boolean) => void;
+  /** Atualiza a task na lista sem fechar o modal (preserva edições não salvas). */
+  onTaskUpdated?: (t: TaskKanbanResponse) => void;
   onReclassified?: () => void;
   onDeleted?: (id: string) => void;
 }
@@ -148,7 +150,7 @@ function origemNivel(status?: string | null): string {
 
 function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
-  defaultSprintId, modoTrabalho, onClose, onSaved, onReclassified, onDeleted,
+  defaultSprintId, modoTrabalho, onClose, onSaved, onTaskUpdated, onReclassified, onDeleted,
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
@@ -281,7 +283,7 @@ function TaskModal({
       const atualizada = await patchTaskKanban(task.id, { frente: valor as (typeof FRENTES)[number]["value"] });
       setFrenteAtual(atualizada.frente ?? valor);
       setFrenteOrigem(atualizada.frente_definida_por ?? "gerente");
-      onSaved(atualizada);
+      onTaskUpdated?.(atualizada);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao mudar a frente");
     } finally {
@@ -295,8 +297,8 @@ function TaskModal({
     setErr("");
     try {
       const atualizada = await definirNivelGerente(task.id, Number(novoNivel));
-      onSaved(atualizada);
-      onClose();
+      onTaskUpdated?.(atualizada);
+      setNovoNivel("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erro ao mudar o nível");
     } finally {
@@ -630,6 +632,7 @@ function TaskModal({
                 id="task-frente"
                 value={frenteAtual}
                 disabled={salvandoFrente}
+                aria-busy={salvandoFrente}
                 onChange={(e) => handleMudarFrente(e.target.value)}
               >
                 {!frenteAtual && <option value="" disabled>Identificando…</option>}
@@ -1735,6 +1738,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             modoTrabalho={modoTrabalho}
             onClose={() => setEditModal(null)}
             onSaved={(t) => { upsertTask(t); setEditModal(null); }}
+            onTaskUpdated={(t) => { upsertTask(t); setEditModal(t); }}
             onReclassified={() => { load(); setEditModal(null); }}
             onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
           />
