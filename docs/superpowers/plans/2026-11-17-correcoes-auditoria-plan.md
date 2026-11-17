@@ -22,7 +22,7 @@
 ## Verificações da auditoria (feitas no código)
 
 Todos os itens citados se confirmaram, com estas ressalvas que moldam o plano:
-- **#7**: `em_ajuste` não existe como coluna de task. O plano aceita só `em_andamento` (decisão marcada na Task 3).
+- **#7**: `em_ajuste` não existe como coluna de task. O plano aceita `em_andamento` e `planejado` com dono (decisão marcada na Task 3).
 - **#9**: reabrir não pode apagar TODOS os `pontuacao_eventos` da sprint: `devolucao_penalidade` é inserido no meio da sprint (em `/devolver`) e nunca é recriado pelo fechamento. Apaga-se só os tipos que o fechamento gera (`entrega_concluida`, `bonus_extra`, `travamento_penalidade`, `reabertura`).
 - **#10**: `sprints.iniciada` tem DEFAULT true; sprints criadas por `ensure_sprint_row` e `create_sprint(iniciada=True)` nunca passam por `iniciar_sprint_e_ancorar_tasks`. O snapshot é gravado nos três pontos.
 - **#11**: o frontend (`app/avaliacoes/page.tsx`) só lê `modo_trabalho` do item devolvido pela API; corrigir o backend basta, sem mudança de frontend.
