@@ -34,3 +34,14 @@ test("api: nível escolhido pelo gerente", () => {
   assert.ok(api.includes("export async function definirNivelGerente(id: string, nivel: number): Promise<TaskKanbanResponse>"));
   assert.ok(api.includes("`${API}/tasks/${id}/nivel-gerente`"));
 });
+
+test("criação: gerente define o nível e a opinião some", () => {
+  const k = ler("app/components/TasksKanbanTab.tsx");
+  assert.ok(k.includes("Definir o nível eu mesmo"));
+  assert.ok(k.includes('id="task-nivel-proprio"'));
+  assert.ok(k.includes('id="task-nivel-gerente"'));
+  assert.ok(k.includes("nivel_gerente: Number(nivelGerente)"));
+  assert.ok(k.includes("Escolha o nível da task."));
+  assert.match(k, /\{mode === "create" && !nivelProprio && \(/);
+  assert.ok(k.includes('const ehGerente = !!auth && auth.cargo !== "operacional";'));
+});

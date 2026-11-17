@@ -147,6 +147,9 @@ function TaskModal({
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
   const auth = useAuth();
   const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
+  const ehGerente = !!auth && auth.cargo !== "operacional";
+  const [nivelProprio, setNivelProprio] = useState(false);
+  const [nivelGerente, setNivelGerente] = useState("");
   const [opiniao, setOpiniao] = useState("");
   const [faltando, setFaltando] = useState<string[]>([]);
   const [reclassificando, setReclassificando] = useState(false);
@@ -196,6 +199,7 @@ function TaskModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
+    if (mode === "create" && nivelProprio && !nivelGerente) { setErr("Escolha o nível da task."); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
@@ -217,7 +221,9 @@ function TaskModal({
           extra,
           requer_aprovacao: requerAprovacao,
           checklist,
-          ...(opiniao ? { opiniao_nivel: Number(opiniao) } : {}),
+          ...(nivelProprio && nivelGerente
+            ? { nivel_gerente: Number(nivelGerente) }
+            : opiniao ? { opiniao_nivel: Number(opiniao) } : {}),
         });
       } else {
         // O backend trata qualquer diferença de texto como mudança de escopo
@@ -496,7 +502,35 @@ function TaskModal({
             </p>
           </div>
 
-          {mode === "create" && (
+          {mode === "create" && ehGerente && (
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <input
+                  id="task-nivel-proprio"
+                  type="checkbox"
+                  checked={nivelProprio}
+                  onChange={(e) => { setNivelProprio(e.target.checked); if (!e.target.checked) setNivelGerente(""); }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>Definir o nível eu mesmo</span>
+              </label>
+              {nivelProprio && (
+                <div style={{ marginTop: 8 }}>
+                  <label htmlFor="task-nivel-gerente" style={labelSt}>Nível da task</label>
+                  <DsSelect id="task-nivel-gerente" value={nivelGerente} onChange={(e) => setNivelGerente(e.target.value)}>
+                    <option value="">escolha o nível</option>
+                    {NIVEIS.map((n) => (
+                      <option key={n} value={n}>{rotuloNivel(n)}</option>
+                    ))}
+                  </DsSelect>
+                  <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+                    O classificador não é consultado: o nível fica como você escolheu.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "create" && !nivelProprio && (
             <div>
               <label htmlFor="task-opiniao" style={labelSt}>Sua opinião sobre o nível (opcional)</label>
               <DsSelect id="task-opiniao" value={opiniao} onChange={(e) => setOpiniao(e.target.value)}>
