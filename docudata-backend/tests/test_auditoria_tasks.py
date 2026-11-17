@@ -81,10 +81,10 @@ def test_operacional_puxa_da_fila_em_pull_arrastando(cliente_para):
     assert resp.json()["operacional_id"] == "op-9"
 
 
-def test_operacional_edita_titulo_de_task_da_fila_em_pull_403(cliente_para):
+def test_operacional_edita_checklist_de_task_da_fila_em_pull_403(cliente_para):
     task = dict(_TASK_BASE, operacional_id=None, coluna_kanban="planejado", sprint_id="sp-1")
     resp = cliente_para("PULL", task, cargo="operacional", meu_operacional="op-9").patch(
-        "/tasks/task-1", json={"titulo": "Outro"})
+        "/tasks/task-1", json={"checklist": []})
     assert resp.status_code == 403
 
 
