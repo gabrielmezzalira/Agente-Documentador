@@ -203,6 +203,7 @@ function TaskModal({
     setSaving(true);
     setErr("");
     setFaltando([]);
+    const operacionalMudou = modoTrabalho !== "PULL" && operacionalId !== (task?.operacional_id ?? "");
     try {
       let saved: TaskKanbanResponse;
       if (mode === "create") {
@@ -227,7 +228,7 @@ function TaskModal({
           ...(descricaoMudou ? { descricao: descricao.trim() } : {}),
           ...(checklistMudou ? { checklist } : {}),
           sprint_id: sprintId || undefined,
-          operacional_id: operacionalId || undefined,
+          ...(operacionalMudou ? { operacional_id: operacionalId || null } : {}),
           funcionalidade_id: funcId || undefined,
           bloqueado,
           motivo_bloqueio: bloqueado ? motivoBloqueio.trim() || undefined : undefined,
@@ -1017,9 +1018,10 @@ function formatDuration(sec: number): string {
 // Task card
 
 function TaskCard({
-  task, operacionais, onDragStart, onDragEnd, onClick,
+  task, operacionais, arrastavel, onDragStart, onDragEnd, onClick,
 }: {
   task: TaskKanbanResponse;
+  arrastavel: boolean;
   operacionais: OperacionalResponse[];
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -1032,7 +1034,7 @@ function TaskCard({
   return (
     <button
       type="button"
-      draggable
+      draggable={arrastavel}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
@@ -1126,6 +1128,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const jaPediu = meuOperacional
     ? solicitacoes.some((s) => s.operacional_id === meuOperacional.id)
     : false;
+
+  // Operacional só arrasta a própria task, ou puxa da fila em Pull (task sem dono em Planejado).
+  function podeArrastar(t: TaskKanbanResponse): boolean {
+    if (!ehOperacional) return true;
+    if (!meuOperacional) return false;
+    if (t.operacional_id === meuOperacional.id) return true;
+    return modoTrabalho === "PULL" && !t.operacional_id && t.coluna_kanban === "planejado";
+  }
 
   const carregarSolicitacoes = useCallback(() => {
     listSolicitacoesTask(projectId).then(setSolicitacoes).catch(() => setSolicitacoes([]));
@@ -1225,6 +1235,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     const task = tasks.find((t) => t.id === dragId);
     setDragId(null);
     if (!task || task.coluna_kanban === coluna) return;
+    if (!podeArrastar(task)) return;
     // Saída de Pendente de aprovação só por aprovar/rejeitar, que são
     // gerente/líder-only no backend — operacional nem abre o modal.
     if (task.coluna_kanban === "pendente_aprovacao" && ehOperacional) {
@@ -1536,6 +1547,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                       key={t.id}
                       task={t}
                       operacionais={operacionais}
+                      arrastavel={podeArrastar(t)}
                       onDragStart={() => setDragId(t.id)}
                       onDragEnd={() => setDragId(null)}
                       onClick={() => setEditModal(t)}

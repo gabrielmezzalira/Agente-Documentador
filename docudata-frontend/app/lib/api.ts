@@ -1991,7 +1991,7 @@ export async function patchTaskKanban(
     titulo?: string;
     descricao?: string;
     coluna_kanban?: string;
-    operacional_id?: string;
+    operacional_id?: string | null;
     sprint_id?: string;
     funcionalidade_id?: string;
     bloqueado?: boolean;
