@@ -2238,8 +2238,10 @@ export interface PerformanceResponse {
   projetos: PerformanceProjeto[];
 }
 
-export async function getPerformance(): Promise<PerformanceResponse> {
-  const res = await apiFetch(`${API}/performance`);
+export type EscopoPerformance = "citi" | "pta";
+
+export async function getPerformance(escopo: EscopoPerformance = "citi"): Promise<PerformanceResponse> {
+  const res = await apiFetch(`${API}/performance?escopo=${escopo}`);
   if (!res.ok) throw new Error("Erro ao buscar ranking de performance");
   return res.json();
 }

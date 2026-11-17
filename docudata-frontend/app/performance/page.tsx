@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
 import { Card, Chip, EmptyState, ErrorNotice, PageHeader, SegmentedControl } from "../components/ds";
 import { ds, labelStyle } from "../lib/ds";
-import { getPerformance, type PerformanceResponse, type PerformanceOperacional } from "../lib/api";
+import { getPerformance, type EscopoPerformance, type PerformanceResponse, type PerformanceOperacional } from "../lib/api";
 
 type Janela = "sprint" | "quinzenal" | "mensal";
+
+const ESCOPOS: { value: EscopoPerformance; label: string }[] = [
+  { value: "citi", label: "CITi" },
+  { value: "pta", label: "PTA" },
+];
 
 const JANELAS: { value: Janela; label: string }[] = [
   { value: "sprint", label: "Última sprint" },
@@ -74,13 +79,16 @@ export default function PerformancePage() {
   const [janela, setJanela] = useState<Janela>("sprint");
   const [dados, setDados] = useState<PerformanceResponse | null>(null);
   const [erro, setErro] = useState("");
+  const [escopo, setEscopo] = useState<EscopoPerformance>("citi");
 
   useEffect(() => {
     if (!auth || (auth.cargo !== "lider" && auth.cargo !== "owner")) return;
-    getPerformance()
+    setDados(null);
+    setErro("");
+    getPerformance(escopo)
       .then(setDados)
       .catch((e: Error) => setErro(e.message));
-  }, [auth]);
+  }, [auth, escopo]);
 
   if (auth && auth.cargo !== "lider" && auth.cargo !== "owner") {
     return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
@@ -94,7 +102,12 @@ export default function PerformancePage() {
         eyebrow="Leitura restrita a líderes e gerentes"
         title="Performance"
         subtitle="Contribuição no conjunto das dimensões, por projeto. Dimensão sem dado fica indisponível e não vira zero."
-        actions={<SegmentedControl label="Janela de tempo" options={JANELAS} value={janela} onChange={setJanela} />}
+        actions={
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <SegmentedControl label="Escopo do ranking" options={ESCOPOS} value={escopo} onChange={setEscopo} />
+            <SegmentedControl label="Janela de tempo" options={JANELAS} value={janela} onChange={setJanela} />
+          </div>
+        }
       />
 
       {erro && <ErrorNotice>{erro}</ErrorNotice>}
