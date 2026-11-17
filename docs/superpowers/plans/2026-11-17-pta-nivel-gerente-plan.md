@@ -137,7 +137,7 @@ Anexar ao FIM de `supabase_schema.sql`:
 ```sql
 
 -- =============================================================================
--- Migration v9 (2026-11-17): subárea PTA (processo seletivo do CITi)
+-- Migration v11 (2026-11-17): subárea PTA (processo seletivo do CITi)
 -- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §1
 -- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
 -- =============================================================================
@@ -146,7 +146,7 @@ Anexar ao FIM de `supabase_schema.sql`:
 -- SELECT subarea, count(*) FROM projects GROUP BY subarea ORDER BY 1;
 -- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'projects_subarea_check';
 
--- v9.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- v11.1 — alarga o conjunto permitido (nenhum dado existente muda)
 -- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
 -- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
 --   CHECK (subarea IN ('dados','dev','produto','pta'));
@@ -760,15 +760,15 @@ def _bloco(titulo: str) -> str:
 
 
 def test_migracao_subarea_pta_comentada_com_preflight_e_rollback():
-    b = _bloco("Migration v9 (2026-11-17): subárea PTA")
+    b = _bloco("Migration v11 (2026-11-17): subárea PTA")
     assert "CHECK (subarea IN ('dados','dev','produto','pta'))" in b
     assert "Preflight" in b and "Rollback" in b
-    for linha in b.split("Migration v10")[0].splitlines():
+    for linha in b.split("Migration v12")[0].splitlines():
         assert not linha.strip() or linha.startswith("--"), linha
 
 
 def test_migracao_status_manual_comentada_com_preflight_e_rollback():
-    b = _bloco("Migration v10 (2026-11-17): status manual")
+    b = _bloco("Migration v12 (2026-11-17): status manual")
     assert "'aplicada','em_revisao','provisoria','resolvida','manual'" in b
     assert "Preflight" in b and "Rollback" in b
     for linha in b.splitlines():
@@ -778,7 +778,7 @@ def test_migracao_status_manual_comentada_com_preflight_e_rollback():
 - [ ] **Step 2: Rodar e ver falhar**
 
 Run: `cd docudata-backend && .venv/bin/python -m pytest -q tests/test_nivel_gerente.py tests/test_pta_nivel_migracoes.py`
-Expected: FAIL (`resultado_manual`/`definir_nivel_gerente` não existem; bloco v10 ausente).
+Expected: FAIL (`resultado_manual`/`definir_nivel_gerente` não existem; bloco v12 ausente).
 
 - [ ] **Step 3: Implementar**
 
@@ -842,7 +842,7 @@ def definir_nivel_gerente(client, task_id: str, nivel: int, pessoa_id: str) -> d
 ```sql
 
 -- =============================================================================
--- Migration v10 (2026-11-17): status manual em task_classificacoes (nível escolhido pelo gerente)
+-- Migration v12 (2026-11-17): status manual em task_classificacoes (nível escolhido pelo gerente)
 -- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §3
 -- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
 -- =============================================================================
@@ -852,7 +852,7 @@ def definir_nivel_gerente(client, task_id: str, nivel: int, pessoa_id: str) -> d
 --   WHERE conrelid = 'task_classificacoes'::regclass AND contype = 'c';
 -- SELECT status, count(*) FROM task_classificacoes GROUP BY 1 ORDER BY 1;
 
--- v10.1 — recria o CHECK com o status novo (nenhum dado existente muda).
+-- v12.1 — recria o CHECK com o status novo (nenhum dado existente muda).
 -- A constraint inline foi criada sem nome: o Postgres a chama task_classificacoes_status_check
 -- (confirme no preflight; se o nome for outro, use-o no DROP).
 -- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
