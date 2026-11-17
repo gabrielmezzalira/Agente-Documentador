@@ -1406,3 +1406,24 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
 -- ALTER TABLE task_classificacoes ADD CONSTRAINT task_classificacoes_status_check
 --   CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida'));
+
+-- =============================================================================
+-- Migration v13 (2026-11-17): frente da task (software, mobile, dados, ia)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase. O backend funciona antes dela
+-- (criar e editar task não gravam `frente`); só a classificação em segundo plano
+-- e o override do gerente dependem das colunas.
+-- =============================================================================
+
+-- Preflight (somente leitura): as colunas ainda não devem existir
+-- SELECT column_name FROM information_schema.columns
+--   WHERE table_name = 'tasks' AND column_name IN ('frente','frente_definida_por');
+
+-- v13.1 — colunas novas, nulas (nenhum dado existente muda)
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frente text NULL
+--   CHECK (frente IS NULL OR frente IN ('software','mobile','dados','ia'));
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frente_definida_por text NULL
+--   CHECK (frente_definida_por IS NULL OR frente_definida_por IN ('ia','gerente'));
+
+-- Rollback:
+-- ALTER TABLE tasks DROP COLUMN IF EXISTS frente_definida_por;
+-- ALTER TABLE tasks DROP COLUMN IF EXISTS frente;

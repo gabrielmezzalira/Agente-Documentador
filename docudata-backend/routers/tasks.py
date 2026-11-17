@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from models.schemas import (
     OpiniaoNivelRequest,
@@ -27,6 +27,7 @@ from services.auth import (
     require_project_access,
     require_role,
 )
+from services.frente import atualizar_frente_da_task
 from services.email_service import (
     email_task_atribuida,
     email_task_concluida,
@@ -59,7 +60,7 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
     "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
-    "bloqueio_tipo", "requer_aprovacao",
+    "bloqueio_tipo", "requer_aprovacao", "frente",
 }
 
 
@@ -304,7 +305,11 @@ def _registrar_reabertura(
 
 
 @router.post("", response_model=TaskResponse, status_code=201)
-async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_operacional)):
+async def create_task(
+    data: TaskCreate,
+    background: BackgroundTasks,
+    pessoa: dict = Depends(require_not_operacional),
+):
     client = get_client()
 
     check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
@@ -410,6 +415,8 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
 
     if payload.get("operacional_id"):
         _avisar_operacional_atribuicao(client, criada)
+
+    background.add_task(atualizar_frente_da_task, criada["id"])
 
     return {
         **criada,
@@ -875,7 +882,12 @@ def _checar_operacional_pode_mexer(client, pessoa: dict, task: dict, data: TaskU
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
-async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_current_pessoa)):
+async def patch_task(
+    task_id: str,
+    data: TaskUpdate,
+    pessoa: dict = Depends(get_current_pessoa),
+    background: BackgroundTasks = None,
+):
     if pessoa["cargo"] == "operacional":
         pedidos = set(data.model_dump(exclude_unset=True))
         negados = pedidos & _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL
@@ -1183,7 +1195,20 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     if virou_cliente:
         updates["travado_automatico"] = False
 
+    frente_override = "frente" in data.model_fields_set and data.frente is not None
+    if frente_override:
+        updates["frente"] = data.frente
+        updates["frente_definida_por"] = "gerente"
+
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if (
+        background is not None
+        and not frente_override
+        and task.get("frente_definida_por") != "gerente"
+        and _texto_mudou(task, data)
+    ):
+        background.add_task(atualizar_frente_da_task, task_id)
 
     if _texto_mudou(task, data) and not task.get("nivel_travado_em"):
         atual = ciclo.classificacao_atual(client, task_id)

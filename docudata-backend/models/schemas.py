@@ -525,6 +525,7 @@ class TaskUpdate(BaseModel):
     bloqueio_tipo: Optional[str] = None
     extra: Optional[bool] = None
     requer_aprovacao: Optional[bool] = None
+    frente: Optional[Literal["software", "mobile", "dados", "ia"]] = None
 
     @field_validator("pontos")
     @classmethod
@@ -594,6 +595,8 @@ class TaskResponse(BaseModel):
     ordem_fila: Optional[int] = None
     requer_aprovacao: bool = False
     nivel_travado_em: Optional[datetime] = None
+    frente: Optional[str] = None
+    frente_definida_por: Optional[str] = None
     classificacao_status: Optional[str] = None
     justificativa_nivel: Optional[str] = None
     faltando: Optional[list[str]] = None
