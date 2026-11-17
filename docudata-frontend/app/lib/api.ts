@@ -1746,6 +1746,8 @@ export interface TaskKanbanResponse {
   nivel_travado_em?: string | null;
   classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | "manual" | null;
   justificativa_nivel?: string | null;
+  frente?: "software" | "mobile" | "dados" | "ia" | null;
+  frente_definida_por?: "ia" | "gerente" | null;
   created_at: string;
   updated_at: string;
 }
@@ -1996,6 +1998,17 @@ export async function definirExclusaoAprendizado(taskId: string, excluida: boole
   if (!res.ok) throw await erroDetail(res, "Erro ao atualizar exclusão da contagem");
 }
 
+export const FRENTES = [
+  { value: "software", label: "Software" },
+  { value: "mobile", label: "Mobile" },
+  { value: "dados", label: "Dados" },
+  { value: "ia", label: "IA" },
+] as const;
+
+export function rotuloFrente(f?: string | null): string {
+  return FRENTES.find((x) => x.value === f)?.label ?? "";
+}
+
 export async function patchTaskKanban(
   id: string,
   data: {
@@ -2016,6 +2029,7 @@ export async function patchTaskKanban(
     bloqueio_tipo?: "interno" | "cliente";
     extra?: boolean;
     requer_aprovacao?: boolean;
+    frente?: "software" | "mobile" | "dados" | "ia";
   }
 ): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks/${id}`, {

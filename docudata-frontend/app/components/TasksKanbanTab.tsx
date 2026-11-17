@@ -25,6 +25,8 @@ import {
   rejeitarTask,
   reclassificarTask,
   definirNivelGerente,
+  FRENTES,
+  rotuloFrente,
   opinarNivelTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
@@ -158,6 +160,9 @@ function TaskModal({
   const [opiniao, setOpiniao] = useState("");
   const [faltando, setFaltando] = useState<string[]>([]);
   const [reclassificando, setReclassificando] = useState(false);
+  const [frenteAtual, setFrenteAtual] = useState(task?.frente ?? "");
+  const [frenteOrigem, setFrenteOrigem] = useState(task?.frente_definida_por ?? null);
+  const [salvandoFrente, setSalvandoFrente] = useState(false);
   const [novoNivel, setNovoNivel] = useState("");
   const [mudandoNivel, setMudandoNivel] = useState(false);
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
@@ -265,6 +270,22 @@ function TaskModal({
       setErr(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleMudarFrente(valor: string) {
+    if (!task || !valor || valor === frenteAtual) return;
+    setSalvandoFrente(true);
+    setErr("");
+    try {
+      const atualizada = await patchTaskKanban(task.id, { frente: valor as (typeof FRENTES)[number]["value"] });
+      setFrenteAtual(atualizada.frente ?? valor);
+      setFrenteOrigem(atualizada.frente_definida_por ?? "gerente");
+      onSaved(atualizada);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao mudar a frente");
+    } finally {
+      setSalvandoFrente(false);
     }
   }
 
@@ -599,6 +620,28 @@ function TaskModal({
                 </button>
               </div>
               {edicaoPendente && <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>Salve as edições antes de mudar o nível</p>}
+            </div>
+          )}
+
+          {mode === "edit" && task && ehGerente && (
+            <div>
+              <label htmlFor="task-frente" style={labelSt}>Frente</label>
+              <DsSelect
+                id="task-frente"
+                value={frenteAtual}
+                disabled={salvandoFrente}
+                onChange={(e) => handleMudarFrente(e.target.value)}
+              >
+                {!frenteAtual && <option value="" disabled>Identificando…</option>}
+                {FRENTES.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </DsSelect>
+              {frenteOrigem && (
+                <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+                  {frenteOrigem === "gerente" ? "definida pelo gerente" : "definida pela IA"}
+                </p>
+              )}
             </div>
           )}
 
@@ -1132,6 +1175,8 @@ function TaskCard({
         )}
 
         {task.classificacao_status === "manual" && <Chip tone="green">nível do gerente</Chip>}
+
+        {task.frente && <Chip>{rotuloFrente(task.frente)}</Chip>}
 
         {op && (
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
