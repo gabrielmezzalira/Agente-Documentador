@@ -560,6 +560,12 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not operacional_id:
         raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
 
+    if not task.get("sprint_id"):
+        raise HTTPException(
+            status_code=409,
+            detail="DoR: associe a task a uma sprint antes de movê-la para Em Andamento.",
+        )
+
     ok, motivo = check_wip(client, task["project_id"], operacional_id, "em_andamento")
     if not ok:
         raise HTTPException(status_code=409, detail=motivo)
@@ -608,6 +614,12 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
             status_code=409,
             detail="Task está em Pendente de aprovação — use /aprovar ou /rejeitar.",
         )
+
+    proj = client.table("projects").select("modo_trabalho").eq("id", task["project_id"]).execute()
+    if not proj.data or proj.data[0].get("modo_trabalho") != "PULL":
+        raise HTTPException(status_code=422, detail="Devolver à fila só existe em projetos em modo Pull.")
+    if task.get("coluna_kanban") not in ("em_andamento", "planejado"):
+        raise HTTPException(status_code=422, detail="Só dá para devolver uma task em Em andamento (ou parada em Planejado com dono).")
 
     if pessoa["cargo"] not in ("owner", "lider", "gerente"):
         meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])

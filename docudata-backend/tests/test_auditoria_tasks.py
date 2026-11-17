@@ -96,3 +96,49 @@ def test_gerente_continua_movendo_qualquer_task(cliente_para):
     resp = cliente_para("ATRIBUICAO", task, cargo="gerente", meu_operacional=None).patch(
         "/tasks/task-1", json={"coluna_kanban": "concluida"})
     assert resp.status_code == 200
+
+
+from tests.test_pull_devolver import make_client  # noqa: F401,E402  (fixture)
+
+_OP = {"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"}
+
+
+def _task(**kw):
+    base = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False,
+            "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False,
+            "travado_automatico": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
+    base.update(kw)
+    return base
+
+
+def test_puxar_sem_sprint_da_409(make_client):
+    resp = make_client(_task(), _OP).post("/tasks/t1/puxar")
+    assert resp.status_code == 409
+    assert "DoR" in resp.json()["detail"]
+
+
+def test_puxar_com_sprint_funciona(make_client):
+    resp = make_client(_task(sprint_id="sprint-1"), _OP).post("/tasks/t1/puxar")
+    assert resp.status_code == 200
+
+
+def test_devolver_task_concluida_da_422(make_client):
+    resp = make_client(_task(operacional_id="op-a", coluna_kanban="concluida"), _OP).post("/tasks/t1/devolver")
+    assert resp.status_code == 422
+
+
+def test_devolver_em_projeto_atribuicao_da_422(make_client):
+    resp = make_client(_task(operacional_id="op-a", coluna_kanban="em_andamento"), _OP,
+                       modo_trabalho="ATRIBUICAO").post("/tasks/t1/devolver")
+    assert resp.status_code == 422
+    assert "Pull" in resp.json()["detail"]
+
+
+def test_devolver_planejado_com_dono_libera_para_fila(make_client):
+    resp = make_client(_task(operacional_id="op-a", coluna_kanban="planejado", sprint_id="sprint-1"), _OP).post("/tasks/t1/devolver")
+    assert resp.status_code == 200
+
+
+def test_devolver_em_andamento_em_pull_continua_200(make_client):
+    resp = make_client(_task(operacional_id="op-a", coluna_kanban="em_andamento"), _OP).post("/tasks/t1/devolver")
+    assert resp.status_code == 200
