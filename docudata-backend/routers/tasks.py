@@ -801,6 +801,26 @@ async def list_task_transicoes(task_id: str):
     return resp.data or []
 
 
+def _checar_operacional_pode_mexer(client, pessoa: dict, task: dict, data: TaskUpdate) -> None:
+    """Operacional só altera task própria, ou puxa da fila em Pull (task sem
+    dono em Planejado). Precisa estar vinculado ao projeto. Gerente/líder/owner
+    passam direto. Vale para PATCH e para /mover (que delega ao PATCH)."""
+    if pessoa["cargo"] != "operacional":
+        return
+    project_id = task["project_id"]
+    meu_id = _resolver_operacional_id_da_pessoa(client, project_id, pessoa["email"])
+    if not meu_id:
+        raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
+    dono = task.get("operacional_id")
+    if dono == meu_id:
+        return
+    if dono is None and task.get("coluna_kanban") == "planejado":
+        proj = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
+        if proj.data and proj.data[0].get("modo_trabalho") == "PULL":
+            return  # a regra de puxar (422 se não for para Em andamento) vem logo abaixo
+    raise HTTPException(status_code=403, detail="Só quem está com a task pode alterá-la.")
+
+
 @router.patch("/{task_id}", response_model=TaskResponse)
 async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_current_pessoa)):
     if pessoa["cargo"] == "operacional":
@@ -819,6 +839,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
     project_id = task["project_id"]
+    _checar_operacional_pode_mexer(client, pessoa, task, data)
 
     # Null explícito (campo presente no JSON) = "Sem operacional" em Atribuição.
     # Campo ausente continua significando "não mexer".
