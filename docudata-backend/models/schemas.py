@@ -43,7 +43,7 @@ class WipConfigResponse(BaseModel):
 
 # Fonte única das subáreas aceitas em criação, listagem e busca. `ProjectSubareaUpdate`
 # NÃO usa este tipo de propósito: não se entra em Produto pela troca Dados↔Dev.
-Subarea = Literal["dados", "dev", "produto"]
+Subarea = Literal["dados", "dev", "produto", "pta"]
 
 
 class ProjectCreate(BaseModel):
@@ -475,6 +475,7 @@ class TaskCreate(BaseModel):
     titulo: str
     pontos: Optional[int] = None  # ignorado: o nível vem do classificador (spec A2)
     opiniao_nivel: Optional[int] = None
+    nivel_gerente: Optional[int] = None  # gerente/líder/owner escolhe o nível: não passa pelo classificador
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
@@ -485,7 +486,7 @@ class TaskCreate(BaseModel):
     extra: bool = False  # task concedida além do que a pessoa tinha; não entra no previsto da sprint
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
 
-    @field_validator("pontos", "opiniao_nivel")
+    @field_validator("pontos", "opiniao_nivel", "nivel_gerente")
     @classmethod
     def nivel_na_regua(cls, v: Optional[int]) -> Optional[int]:
         if v is not None and v not in NIVEIS:
@@ -524,6 +525,7 @@ class TaskUpdate(BaseModel):
     bloqueio_tipo: Optional[str] = None
     extra: Optional[bool] = None
     requer_aprovacao: Optional[bool] = None
+    frente: Optional[Literal["software", "mobile", "dados", "ia"]] = None
 
     @field_validator("pontos")
     @classmethod
@@ -593,6 +595,8 @@ class TaskResponse(BaseModel):
     ordem_fila: Optional[int] = None
     requer_aprovacao: bool = False
     nivel_travado_em: Optional[datetime] = None
+    frente: Optional[str] = None
+    frente_definida_por: Optional[str] = None
     classificacao_status: Optional[str] = None
     justificativa_nivel: Optional[str] = None
     faltando: Optional[list[str]] = None
@@ -609,6 +613,17 @@ class ReclassificarResponse(BaseModel):
 class RevisaoNivelRequest(BaseModel):
     nivel: int
     motivo: str = Field(..., min_length=3)
+
+    @field_validator("nivel")
+    @classmethod
+    def nivel_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
+
+
+class NivelGerenteRequest(BaseModel):
+    nivel: int
 
     @field_validator("nivel")
     @classmethod

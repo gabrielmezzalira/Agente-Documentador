@@ -161,7 +161,7 @@ def test_integracao_permanente_inicia_sem_credenciais_e_migration():
         "import main; from services.github_app import configuracao_publica_github; "
         "c=configuracao_publica_github(); "
         "assert c == {'enabled': True, 'configured': False, "
-        "'subareas': ['dados', 'dev', 'produto'], 'app_slug': None}"
+        "'subareas': ['dados', 'dev', 'produto', 'pta'], 'app_slug': None}"
     )
     resultado = subprocess.run(
         [sys.executable, "-c", codigo], cwd=backend, env=env,
@@ -318,7 +318,7 @@ def test_sem_credenciais_nao_consulta_tabelas_novas(client, monkeypatch):
     assert capability.status_code == 200
     assert capability.json() == {
         "enabled": True, "configured": False,
-        "subareas": ["dados", "dev", "produto"], "app_slug": None,
+        "subareas": ["dados", "dev", "produto", "pta"], "app_slug": None,
     }
     assert sessao.status_code == 503
     assert webhook.status_code == 503
@@ -351,7 +351,7 @@ def test_dados_e_dev_iniciam_sessao(client, monkeypatch, github_env):
     }
 
     capabilities = client.get("/integrations/github/capabilities", headers=AUTH)
-    assert capabilities.json()["subareas"] == ["dados", "dev", "produto"]
+    assert capabilities.json()["subareas"] == ["dados", "dev", "produto", "pta"]
 
 
 def test_instalacao_existente_abre_seletor_interno_com_status_dos_repositorios(
@@ -779,6 +779,9 @@ async def test_extracao_persiste_origem_sem_diff(monkeypatch):
     assert row["source_url"].startswith("https://github.com/")
     assert row["extracted_content"]["_meta_autor"] == "Ana"
     assert "SEGREDO_NO_DIFF" not in json.dumps(row)
+    assert "cost_usd" not in row
+    assert "input_tokens" not in row
+    assert "output_tokens" not in row
 
 
 def test_contexto_commit_serializa_origem_e_tecnologias_sem_diff():

@@ -2,12 +2,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from models.schemas import (
     OpiniaoNivelRequest,
     ReclassificarResponse,
     RejeitarTaskRequest,
+    NivelGerenteRequest,
     RevisaoNivelRequest,
     TaskCreate,
     TaskUpdate,
@@ -26,6 +27,7 @@ from services.auth import (
     require_project_access,
     require_role,
 )
+from services.frente import atualizar_frente_da_task
 from services.email_service import (
     email_task_atribuida,
     email_task_concluida,
@@ -58,7 +60,7 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
     "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
-    "bloqueio_tipo", "requer_aprovacao",
+    "bloqueio_tipo", "requer_aprovacao", "frente",
 }
 
 
@@ -303,7 +305,11 @@ def _registrar_reabertura(
 
 
 @router.post("", response_model=TaskResponse, status_code=201)
-async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_operacional)):
+async def create_task(
+    data: TaskCreate,
+    background: BackgroundTasks,
+    pessoa: dict = Depends(require_not_operacional),
+):
     client = get_client()
 
     check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
@@ -351,11 +357,16 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
     # O nível vem do agente (spec A2): o `pontos` enviado pelo cliente é ignorado.
-    # Um 422 com `faltando` sai aqui, antes de criar a task.
-    resultado = await ciclo.classificar_para_criacao(
-        client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
-        opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
-    )
+    # Um 422 com `faltando` sai aqui, antes de criar a task. Exceção: quando o
+    # gerente escolhe o nível (`nivel_gerente`), o modelo nem é chamado. Operacional
+    # já não chega aqui (require_not_operacional → 403).
+    if data.nivel_gerente is not None:
+        resultado = ciclo.resultado_manual(data.nivel_gerente)
+    else:
+        resultado = await ciclo.classificar_para_criacao(
+            client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
+            opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
+        )
 
     payload: dict = {
         "project_id": data.project_id,
@@ -392,10 +403,22 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
         raise HTTPException(status_code=500, detail="Failed to create task")
 
     criada = resp.data[0]
-    ciclo.gravar_classificacao(
-        client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
-        texto=texto_da_task(data.titulo, data.descricao, data.checklist),
-    )
+    try:
+        ciclo.gravar_classificacao(
+            client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
+            texto=texto_da_task(data.titulo, data.descricao, data.checklist),
+        )
+    except Exception:
+        if data.nivel_gerente is None:
+            raise
+        # Caminho manual: o CHECK de status pode ainda não aceitar 'manual'
+        # (migração v12 pendente). Não deixa task órfã sem classificação.
+        _LOG.error("falha ao gravar a classificação manual da task %s", criada["id"], exc_info=True)
+        client.table("tasks").delete().eq("id", criada["id"]).execute()
+        raise HTTPException(
+            status_code=503,
+            detail="Nível do gerente indisponível: aplique a migração v12.",
+        )
     if (sprint_iniciada and payload.get("coluna_kanban") != "concluida") or payload.get("coluna_kanban") == "em_andamento":
         criada = _travar_e_atualizar(client, criada)
 
@@ -404,6 +427,8 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
 
     if payload.get("operacional_id"):
         _avisar_operacional_atribuicao(client, criada)
+
+    background.add_task(atualizar_frente_da_task, criada["id"])
 
     return {
         **criada,
@@ -560,6 +585,12 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not operacional_id:
         raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
 
+    if not task.get("sprint_id"):
+        raise HTTPException(
+            status_code=409,
+            detail="DoR: associe a task a uma sprint antes de movê-la para Em Andamento.",
+        )
+
     ok, motivo = check_wip(client, task["project_id"], operacional_id, "em_andamento")
     if not ok:
         raise HTTPException(status_code=409, detail=motivo)
@@ -609,6 +640,12 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
             detail="Task está em Pendente de aprovação — use /aprovar ou /rejeitar.",
         )
 
+    proj = client.table("projects").select("modo_trabalho").eq("id", task["project_id"]).execute()
+    if not proj.data or proj.data[0].get("modo_trabalho") != "PULL":
+        raise HTTPException(status_code=422, detail="Devolver à fila só existe em projetos em modo Pull.")
+    if task.get("coluna_kanban") not in ("em_andamento", "planejado"):
+        raise HTTPException(status_code=422, detail="Só dá para devolver uma task em Em andamento (ou parada em Planejado com dono).")
+
     if pessoa["cargo"] not in ("owner", "lider", "gerente"):
         meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
         if meu_operacional_id != task.get("operacional_id"):
@@ -634,6 +671,20 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
                 }).execute()
             except Exception:
                 _LOG.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da devolução da task %s", task_id)
+
+    # A task volta para a fila: quem concluir depois não pode herdar a penalidade
+    # do dono antigo (task_travamentos.operacional_id aponta para ele). O extrato
+    # acima já registrou a devolução.
+    try:
+        (
+            client.table("task_travamentos")
+            .update({"dispensado": True})
+            .eq("task_id", task_id)
+            .eq("dispensado", False)
+            .execute()
+        )
+    except Exception:
+        _LOG.warning("Falha ao dispensar travamentos da task %s na devolução", task_id)
 
     agora = datetime.now(timezone.utc).isoformat()
     fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
@@ -757,6 +808,21 @@ async def revisar_nivel_task(task_id: str, data: RevisaoNivelRequest, pessoa: di
     }
 
 
+@router.post("/{task_id}/nivel-gerente", response_model=TaskResponse)
+async def definir_nivel_gerente_task(
+    task_id: str, data: NivelGerenteRequest, pessoa: dict = Depends(require_role("gerente")),
+):
+    """Gerente/líder/owner escolhe o nível da task, sem o classificador (spec PTA §3)."""
+    client = get_client()
+    rows = client.table("tasks").select("id, project_id").eq("id", task_id).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await require_project_access(rows[0]["project_id"], pessoa)
+    ciclo.definir_nivel_gerente(client, task_id, data.nivel, pessoa["id"])
+    fresca = client.table("tasks").select("*").eq("id", task_id).execute().data[0]
+    return _com_classificacao_status(client, [fresca])[0]
+
+
 @router.post("/{task_id}/opiniao-nivel", status_code=204)
 async def opiniao_nivel_task(task_id: str, data: OpiniaoNivelRequest, pessoa: dict = Depends(get_current_pessoa)):
     """Opinião do operacional sobre o nível, depois de concluir (spec A2 §4)."""
@@ -801,8 +867,39 @@ async def list_task_transicoes(task_id: str):
     return resp.data or []
 
 
+def _checar_operacional_pode_mexer(client, pessoa: dict, task: dict, data: TaskUpdate) -> None:
+    """Operacional só altera task própria, ou puxa da fila em Pull (task sem
+    dono em Planejado). Precisa estar vinculado ao projeto. Gerente/líder/owner
+    passam direto. Vale para PATCH e para /mover (que delega ao PATCH)."""
+    if pessoa["cargo"] != "operacional":
+        return
+    project_id = task["project_id"]
+    meu_id = _resolver_operacional_id_da_pessoa(client, project_id, pessoa["email"])
+    if not meu_id:
+        raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
+    dono = task.get("operacional_id")
+    if dono == meu_id:
+        return
+    if dono is None and task.get("coluna_kanban") == "planejado":
+        proj = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
+        if (
+            proj.data
+            and proj.data[0].get("modo_trabalho") == "PULL"
+            and data.coluna_kanban not in (None, "planejado")
+        ):
+            # Só arrastar para fora de Planejado (puxar) é permitido em task sem
+            # dono; patch_task devolve 422 se o destino não for Em andamento.
+            return
+    raise HTTPException(status_code=403, detail="Só quem está com a task pode alterá-la.")
+
+
 @router.patch("/{task_id}", response_model=TaskResponse)
-async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_current_pessoa)):
+async def patch_task(
+    task_id: str,
+    data: TaskUpdate,
+    pessoa: dict = Depends(get_current_pessoa),
+    background: BackgroundTasks = None,
+):
     if pessoa["cargo"] == "operacional":
         pedidos = set(data.model_dump(exclude_unset=True))
         negados = pedidos & _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL
@@ -819,8 +916,16 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
     project_id = task["project_id"]
+    _checar_operacional_pode_mexer(client, pessoa, task, data)
 
-    if data.operacional_id is not None:
+    # Null explícito (campo presente no JSON) = "Sem operacional" em Atribuição.
+    # Campo ausente continua significando "não mexer".
+    desatribuir = "operacional_id" in data.model_fields_set and data.operacional_id is None
+    operacional_muda = (
+        data.operacional_id is not None and data.operacional_id != task.get("operacional_id")
+    ) or (desatribuir and task.get("operacional_id") is not None)
+
+    if operacional_muda:
         proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
         if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
             raise HTTPException(
@@ -866,6 +971,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         and coluna_atual == "planejado"
         and not task.get("operacional_id")
         and data.operacional_id is None
+        and not desatribuir
     ):
         proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
         if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
@@ -946,6 +1052,9 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     houve_atribuicao_operacional = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
+        if campo == "operacional_id" and desatribuir and task.get("operacional_id") is not None:
+            _registrar_task_transicao(client, task_id, task, "operacional_id", None, data.autor, data.motivo, agora)
+            continue
         if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
             continue
         if campo == "operacional_id":
@@ -1016,8 +1125,14 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # bloqueado pode ser False, precisa checar explicitamente
     if data.bloqueado is not None:
         updates["bloqueado"] = data.bloqueado
+    if desatribuir and task.get("operacional_id") is not None:
+        updates["operacional_id"] = None
     if puxada_por:
-        updates.update({"operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None})
+        updates.update({
+            "operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None,
+            "entrou_em_andamento_em": agora.isoformat(),
+            "travado_automatico": False,
+        })
     if data.extra is not None:
         updates["extra"] = data.extra
     if data.sprint_id is not None and str(data.sprint_id) != str(task.get("sprint_id") or ""):
@@ -1092,7 +1207,20 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     if virou_cliente:
         updates["travado_automatico"] = False
 
+    frente_override = "frente" in data.model_fields_set and data.frente is not None
+    if frente_override:
+        updates["frente"] = data.frente
+        updates["frente_definida_por"] = "gerente"
+
     result = client.table("tasks").update(updates).eq("id", task_id).execute()
+
+    if (
+        background is not None
+        and not frente_override
+        and task.get("frente_definida_por") != "gerente"
+        and _texto_mudou(task, data)
+    ):
+        background.add_task(atualizar_frente_da_task, task_id)
 
     if _texto_mudou(task, data) and not task.get("nivel_travado_em"):
         atual = ciclo.classificacao_atual(client, task_id)
@@ -1172,7 +1300,11 @@ async def mover_task(
 
 
 @router.post("/{task_id}/travado/override", response_model=TaskResponse)
-async def override_travamento(task_id: str, autor: Optional[str] = None):
+async def override_travamento(
+    task_id: str,
+    autor: Optional[str] = None,
+    pessoa: dict = Depends(require_not_operacional),
+):
     """
     ALERT-03: suprime o alerta de travamento automático e reinicia o relógio
     (revisão 2026-09-12) — não é mais imunidade permanente. Muita task trava
@@ -1198,6 +1330,7 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    await require_project_access(task["project_id"], pessoa)
 
     if task.get("coluna_kanban") == "concluida" or not task.get("entrou_em_andamento_em"):
         raise HTTPException(
@@ -1208,7 +1341,7 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
     agora = datetime.now(timezone.utc)
     updates = {
         "travado_override": True,
-        "travado_override_por": autor,
+        "travado_override_por": autor or pessoa["email"],
         "travado_override_em": agora.isoformat(),
         "travado_automatico": False,
         "entrou_em_andamento_em": agora.isoformat(),
@@ -1230,9 +1363,30 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
 
 
 @router.patch("/reordenar/batch", status_code=200)
-async def reordenar_tasks(itens: list[TaskReordenarItem]):
-    """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna)."""
+async def reordenar_tasks(
+    itens: list[TaskReordenarItem],
+    pessoa: dict = Depends(get_current_pessoa),
+):
+    """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna).
+
+    Gerente/líder/owner reordenam qualquer task. Operacional só as próprias —
+    a fila do Pull (sem dono) e tasks alheias o barram com 403, e nada é gravado.
+    """
     client = get_client()
+    if pessoa["cargo"] not in ("owner", "lider", "gerente") and itens:
+        ids = [i.id for i in itens]
+        linhas = client.table("tasks").select("id, project_id, operacional_id").in_("id", ids).execute().data or []
+        por_id = {r["id"]: r for r in linhas}
+        meus: dict[str, Optional[str]] = {}
+        for item in itens:
+            row = por_id.get(item.id)
+            if row is None or not row.get("operacional_id"):
+                raise HTTPException(status_code=403, detail="Você só pode reordenar as suas próprias tasks")
+            pid = row["project_id"]
+            if pid not in meus:
+                meus[pid] = _resolver_operacional_id_da_pessoa(client, pid, pessoa["email"])
+            if meus[pid] != row["operacional_id"]:
+                raise HTTPException(status_code=403, detail="Você só pode reordenar as suas próprias tasks")
     for item in itens:
         client.table("tasks").update({"ordem": item.ordem}).eq("id", item.id).execute()
     return {"updated": len(itens)}

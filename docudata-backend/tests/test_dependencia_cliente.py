@@ -122,7 +122,7 @@ def test_job_de_travamento_pula_task_bloqueada_por_cliente(monkeypatch):
     import services.travamento_checker as checker
     from tests.test_travamento_job_override import _iso, _make_job_mock_client
     task = {
-        "id": "task-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
         "travado_automatico": False, "bloqueado_manual": True, "bloqueio_tipo": "cliente",
     }
     mock_sb, calls = _make_job_mock_client([task])
@@ -137,7 +137,7 @@ def test_job_de_travamento_continua_travando_bloqueio_interno(monkeypatch):
     import services.travamento_checker as checker
     from tests.test_travamento_job_override import _iso, _make_job_mock_client
     task = {
-        "id": "task-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
         "travado_automatico": False, "bloqueado_manual": True, "bloqueio_tipo": "interno",
     }
     mock_sb, calls = _make_job_mock_client([task])

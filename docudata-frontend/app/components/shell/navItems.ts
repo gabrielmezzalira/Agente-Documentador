@@ -3,6 +3,7 @@ import type { Cargo } from "../../lib/api";
 export const SUBAREAS = [
   { slug: "dados", label: "Dados" },
   { slug: "dev", label: "Dev" },
+  { slug: "pta", label: "PTA" },
 ] as const;
 
 export type SubareaSlug = (typeof SUBAREAS)[number]["slug"];

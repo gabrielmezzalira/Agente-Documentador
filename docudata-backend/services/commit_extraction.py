@@ -18,8 +18,6 @@ from services.sprints import ensure_sprint_row, get_current_sprint_number
 _LOG = logging.getLogger("docudata.commit_extraction")
 
 
-_COST_PER_INPUT_TOKEN = 0.30 / 1_000_000
-_COST_PER_OUTPUT_TOKEN = 2.50 / 1_000_000
 _SPRINT_RE = re.compile(r"\[sprint:(\d+)\]", re.IGNORECASE)
 _TASK_TAG_RE = re.compile(r"\[task:([0-9a-fA-F-]{36})\]")
 
@@ -115,14 +113,8 @@ async def extrair_e_salvar_commit(client: Any, dados: DadosCommit) -> dict[str, 
             HumanMessage(content=prompt),
         ])
         parsed: ConteudoEstruturado = resultado["parsed"]
-        raw_msg = resultado["raw"]
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Falha ao processar o commit com Gemini") from exc
-
-    uso = getattr(raw_msg, "usage_metadata", None) or {}
-    tokens_entrada = uso.get("input_tokens", 0) or 0
-    tokens_saida = uso.get("output_tokens", 0) or 0
-    custo = tokens_entrada * _COST_PER_INPUT_TOKEN + tokens_saida * _COST_PER_OUTPUT_TOKEN
 
     conteudo = parsed.model_dump()
     conteudo.update({
@@ -151,9 +143,6 @@ async def extrair_e_salvar_commit(client: Any, dados: DadosCommit) -> dict[str, 
         "file_type": "commit",
         "tipo_documentacao": "commit",
         "extracted_content": conteudo,
-        "input_tokens": tokens_entrada,
-        "output_tokens": tokens_saida,
-        "cost_usd": round(custo, 8),
     }
     origem = {
         "source_repository_id": dados.repositorio_id,

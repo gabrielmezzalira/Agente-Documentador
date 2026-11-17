@@ -45,7 +45,7 @@ def _cycle_time_segundos(client, task_id: str, pull_em=None) -> Optional[int]:
     timestamps é robusta a quantas idas e vindas a task tenha tido.
 
     Task puxada via /puxar não grava transição -> em_andamento (é estrutural);
-    aí o início é `pull_em`. Sem nenhum dos dois, volta ao comportamento
+    aí o início é `pull_em`, e também quando ele é posterior à transição. Sem nenhum dos dois, volta ao comportamento
     antigo em vez de sumir com a task do relatório.
     """
     concluida = _ultima_transicao_para(client, task_id, "concluida")
@@ -54,7 +54,14 @@ def _cycle_time_segundos(client, task_id: str, pull_em=None) -> Optional[int]:
 
     em_andamento = _ultima_transicao_para(client, task_id, "em_andamento")
     ts_fim = _parse_ts(concluida.get("timestamp"))
-    ts_inicio = _parse_ts(em_andamento.get("timestamp")) if em_andamento else _parse_ts(pull_em)
+    ts_transicao = _parse_ts(em_andamento.get("timestamp")) if em_andamento else None
+    ts_pull = _parse_ts(pull_em)
+    # Puxar (de novo) depois da transição antiga reinicia o trabalho: o tempo na
+    # fila não é cycle time. /puxar não grava transição, por isso o pull_em manda.
+    if ts_pull and (ts_transicao is None or ts_pull > ts_transicao):
+        ts_inicio = ts_pull
+    else:
+        ts_inicio = ts_transicao
     if ts_inicio and ts_fim and ts_fim >= ts_inicio:
         return int((ts_fim - ts_inicio).total_seconds())
 
@@ -180,8 +187,9 @@ async def get_cycle_time(
             .eq("numero", sprint_numero)
             .execute()
         )
-        if sprint_resp.data:
-            tasks_query = tasks_query.eq("sprint_id", sprint_resp.data[0]["id"])
+        if not sprint_resp.data:
+            return []
+        tasks_query = tasks_query.eq("sprint_id", sprint_resp.data[0]["id"])
 
     tasks = tasks_query.execute().data or []
 

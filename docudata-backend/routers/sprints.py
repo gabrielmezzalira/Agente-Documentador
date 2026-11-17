@@ -14,7 +14,7 @@ from core.observability import falha_externa
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.previsto_sprint import previsto_da_sprint
-from services.sprints import iniciar_sprint_e_ancorar_tasks
+from services.sprints import congelar_modo_da_sprint, iniciar_sprint_e_ancorar_tasks
 from services.status_funcionalidade import sincronizar_status
 from services.avaliacoes import contar_avaliacao_por_sprint
 
@@ -65,6 +65,12 @@ async def create_sprint(project_id: str, data: SprintCreate):
 
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create sprint")
+    if data.iniciada:
+        try:
+            congelar_modo_da_sprint(client, response.data[0]["id"])
+        except Exception:
+            # Sem snapshot o fechamento cai no modo atual do projeto.
+            logger.warning("Falha ao congelar o modo da sprint %s", response.data[0]["id"], exc_info=True)
     return response.data[0]
 
 

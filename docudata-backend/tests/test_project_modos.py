@@ -171,6 +171,7 @@ def test_get_modos_historico_lista_registros(make_client, monkeypatch):
         if name == "configuracao_historico":
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
+            q.in_ = MagicMock(return_value=q)
             q.order = MagicMock(return_value=q)
             resp = MagicMock()
             resp.data = registros

@@ -8,6 +8,7 @@ import { ds, cardStyle, labelStyle } from "./lib/ds";
 const subareas = [
   { slug: "dados", title: "Dados", description: "Projetos de dados, analytics e inteligência artificial." },
   { slug: "dev", title: "Dev", description: "Projetos de desenvolvimento de software e seus repositórios." },
+  { slug: "pta", title: "PTA", description: "Projetos do processo seletivo do CITi." },
 ] as const;
 
 export default function SubareaSelector() {

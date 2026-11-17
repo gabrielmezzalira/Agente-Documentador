@@ -61,7 +61,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     if existentes:
         return existentes
 
-    sprint_resp = client.table("sprints").select("id, project_id").eq("id", sprint_id).execute()
+    sprint_resp = client.table("sprints").select("id, project_id, modo_trabalho, modo_avaliacao").eq("id", sprint_id).execute()
     if not sprint_resp.data:
         return []
     project_id = sprint_resp.data[0]["project_id"]
@@ -70,12 +70,15 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         "modo_trabalho, modo_avaliacao, pull_piso_pontos, pull_teto"
     ).eq("id", project_id).execute()
     projeto_row = projeto_resp.data[0] if projeto_resp.data else {}
-    modo_trabalho = projeto_row.get("modo_trabalho") or "ATRIBUICAO"
-    modo_avaliacao = projeto_row.get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
+    sprint_row = sprint_resp.data[0]
+    # O snapshot nasce no início da sprint (services/sprints.py); o modo do
+    # projeto só entra como fallback para sprints antigas sem snapshot.
+    modo_trabalho = sprint_row.get("modo_trabalho") or projeto_row.get("modo_trabalho") or "ATRIBUICAO"
+    modo_avaliacao = sprint_row.get("modo_avaliacao") or projeto_row.get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
 
-    # Congela o modo vigente na sprint no momento do fechamento (RF-E1) — os
-    # dois períodos do experimento (ATRIBUICAO x PULL) precisam ficar
-    # comparáveis mesmo que o projeto troque de modo depois.
+    # Grava o modo efetivo na sprint (RF-E1) — os dois períodos do experimento
+    # (ATRIBUICAO x PULL) precisam ficar comparáveis mesmo que o projeto troque
+    # de modo depois.
     client.table("sprints").update({
         "modo_trabalho": modo_trabalho,
         "modo_avaliacao": modo_avaliacao,

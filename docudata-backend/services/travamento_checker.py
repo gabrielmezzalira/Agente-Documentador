@@ -23,6 +23,8 @@ contagem, e é marcado como dispensado quando o gerente dá override no alerta.
 Autonomia continua alimentada exclusivamente por bloqueado_manual: travamento por
 tempo penaliza Entrega, nunca Autonomia.
 
+Tasks sem operacional_id (fila do Pull) são ignoradas: o tempo de espera não é de ninguém.
+
 Bloqueio de cliente (2026-09-23) pausa o relógio: a task é pulada enquanto
 estiver bloqueada com bloqueio_tipo='cliente'.
 """
@@ -57,6 +59,9 @@ def check_travamento_automatico() -> None:
     for task in tasks:
         if task.get("travado_automatico"):
             # Idempotência — já sinalizada, nada a fazer.
+            continue
+        if not task.get("operacional_id"):
+            # Task da fila (Pull) ou sem responsável: ninguém a quem atribuir o atraso.
             continue
 
         if task.get("bloqueado_manual") and task.get("bloqueio_tipo") == "cliente":

@@ -82,6 +82,9 @@ def _client_como(monkeypatch, mock_supabase, cargo: str):
     monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.tasks as tasks_router
     monkeypatch.setattr(tasks_router, "get_client", lambda: mock_supabase)
+    if cargo == "operacional":
+        # a pessoa operacional é a dona (op-1) das tasks-base destes testes
+        monkeypatch.setattr(tasks_router, "_resolver_operacional_id_da_pessoa", lambda *a: "op-1")
     from main import app
     tc = TestClient(app)
     tc.cookies.set("docudata_session", criar_jwt("pessoa-test-1", f"{cargo}@citi.com", cargo))

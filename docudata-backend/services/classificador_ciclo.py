@@ -81,6 +81,16 @@ async def classificar_para_criacao(client, *, titulo, descricao, checklist, opin
     return resultado
 
 
+def resultado_manual(nivel: int) -> dict:
+    """Nível escolhido pelo gerente: não passa pelo modelo (spec PTA §3)."""
+    r = {c: None for c in _COLUNAS_CLASSIFICACAO}
+    r.update({
+        "status": "manual", "faltando": [], "ajuste_tempo": 0, "vetor": None,
+        "nivel_final": nivel,
+    })
+    return r
+
+
 def gravar_classificacao(client, task_id: str, resultado: dict, *, tipo: str, criado_por: str | None, texto: str) -> dict:
     linha = {
         "task_id": task_id,
@@ -88,7 +98,7 @@ def gravar_classificacao(client, task_id: str, resultado: dict, *, tipo: str, cr
         "criado_por": criado_por,
         "criado_em": _agora(),
         "versao_regua": VERSAO_REGUA,
-        "modelo": None if resultado["status"] == "provisoria" else MODELO_CLASSIFICADOR,
+        "modelo": None if resultado["status"] in ("provisoria", "manual") else MODELO_CLASSIFICADOR,
         "ajuste_tempo": resultado.get("ajuste_tempo") or 0,
         "status": resultado["status"],
     }
@@ -132,7 +142,7 @@ def travar_nivel(client, task_ids: list[str]) -> None:
         if not rows or rows[0].get("nivel_travado_em"):
             continue
         atual = classificacao_atual(client, task_id)
-        if atual is None or atual["status"] in ("aplicada", "resolvida"):
+        if atual is None or atual["status"] in ("aplicada", "resolvida", "manual"):
             client.table("tasks").update({"nivel_travado_em": _agora()}).eq("id", task_id).execute()
 
 
@@ -182,6 +192,9 @@ async def reclassificar(client, task_id: str, pessoa_id: str) -> dict:
         raise HTTPException(status_code=409, detail="O nível desta task já está travado.")
     if task.get("coluna_kanban") == "concluida":
         raise HTTPException(status_code=409, detail="A task já foi concluída: o nível não pode mais ser reclassificado.")
+    atual = classificacao_atual(client, task_id)
+    if atual and atual["status"] == "manual":
+        raise HTTPException(status_code=409, detail="O nível desta task foi escolhido pelo gerente.")
     try:
         resultado = await _reclassificar_task(client, task, pessoa_id)
     except HTTPException:
@@ -216,6 +229,23 @@ def resolver_revisao(client, task_id: str, nivel: int, motivo: str, pessoa_id: s
             registrar_conclusao(client, task_id)
         except Exception as exc:
             _LOG.warning("aprendizado_revisao_falhou task=%s exc=%s", task_id, type(exc).__name__)
+    return resultado
+
+
+def definir_nivel_gerente(client, task_id: str, nivel: int, pessoa_id: str) -> dict:
+    """Gerente/líder/owner escolhe o nível da task, sem o classificador. Só
+    enquanto o nível não travou; se a task já está em trabalho, trava em seguida."""
+    rows = client.table("tasks").select("*").eq("id", task_id).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task = rows[0]
+    if task.get("nivel_travado_em"):
+        raise HTTPException(status_code=409, detail="Nível já travado: a task começou")
+    if task.get("coluna_kanban") == "concluida":
+        raise HTTPException(status_code=409, detail="A task já foi concluída: o nível não pode mais ser alterado.")
+    resultado = resultado_manual(nivel)
+    gravar_classificacao(client, task_id, resultado, tipo="reclassificacao", criado_por=pessoa_id, texto="")
+    _travar_se_em_trabalho(client, task)
     return resultado
 
 

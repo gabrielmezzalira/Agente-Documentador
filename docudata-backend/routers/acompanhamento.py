@@ -12,7 +12,7 @@ router = APIRouter(prefix="/acompanhamento", tags=["acompanhamento"])
 
 
 @router.get("", response_model=AcompanhamentoResponse)
-def get_acompanhamento(subarea: str = Query("dados", pattern="^(dados|dev)$"), gerente_email: str | None = Query(None),
+def get_acompanhamento(subarea: str = Query("dados", pattern="^(dados|dev|pta)$"), gerente_email: str | None = Query(None),
                        _=Depends(require_role("lider"))):
     return montar_acompanhamento(get_client(), subarea, gerente_email=gerente_email or None)
 

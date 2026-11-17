@@ -7,7 +7,7 @@ import { createProject, type Subarea } from "../../../lib/api";
 import { ds } from "../../../lib/ds";
 import { Button, Card, Chip, ErrorNotice, Field, Input, Textarea } from "../../../components/ds";
 
-const LABEL: Record<Subarea, string> = { dados: "Dados", dev: "Dev" };
+const LABEL: Record<Subarea, string> = { dados: "Dados", dev: "Dev", pta: "PTA" };
 
 export default function NewProject() {
   const router = useRouter();

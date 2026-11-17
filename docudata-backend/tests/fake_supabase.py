@@ -31,6 +31,22 @@ class _Query:
         self._filtros.append(lambda r: r.get(col) != val)
         return self
 
+    def or_(self, expr):
+        """Subconjunto do PostgREST `or=(...)`: cláusulas `col.is.null`, `col.eq.v` e `col.neq.v`
+        separadas por vírgula (neq NÃO casa NULL, como no Postgres)."""
+        def _clausula(c):
+            col, op, val = c.split(".", 2)
+            if op == "is" and val == "null":
+                return lambda r: r.get(col) is None
+            if op == "eq":
+                return lambda r: r.get(col) == val
+            if op == "neq":
+                return lambda r: r.get(col) is not None and r.get(col) != val
+            raise NotImplementedError(f"FakeClient.or_ não suporta {c!r}")
+        clausulas = [_clausula(c) for c in expr.split(",")]
+        self._filtros.append(lambda r: any(c(r) for c in clausulas))
+        return self
+
     def gte(self, col, val):
         """Comparação lexicográfica de strings ISO (os testes usam o mesmo formato nos dois lados)."""
         self._filtros.append(lambda r: r.get(col) is not None and str(r.get(col)) >= str(val))

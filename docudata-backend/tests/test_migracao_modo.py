@@ -126,6 +126,15 @@ def _mock_client_completo(projeto, tasks):
                 iq.execute = MagicMock(return_value=iresp)
                 return iq
             tbl.insert = MagicMock(side_effect=_insert)
+        elif name == "configuracao_historico":
+            # Sem registro de WIP anterior: sair de Pull não restaura nada.
+            hq = MagicMock()
+            for metodo in ("eq", "order", "limit"):
+                setattr(hq, metodo, MagicMock(return_value=hq))
+            hresp = MagicMock()
+            hresp.data = []
+            hq.execute = MagicMock(return_value=hresp)
+            tbl.select = MagicMock(return_value=hq)
         return tbl
 
     client.table = MagicMock(side_effect=table_side_effect)
@@ -347,7 +356,11 @@ def test_aplicar_migracao_grava_configuracao_historico_quando_modo_muda(make_cli
     resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
 
     assert resp.status_code == 200
-    assert len(historico_insert) == 1
+    modo = [h for h in historico_insert if h["campo"] == "modo_trabalho"]
+    assert len(modo) == 1
+    # entrar em Pull também guarda o WIP por pessoa de antes (campo à parte)
+    assert [h["campo"] for h in historico_insert if h["campo"] != "modo_trabalho"] == ["wip_por_pessoa"]
+    historico_insert = modo
     assert historico_insert[0]["campo"] == "modo_trabalho"
     assert historico_insert[0]["valor_anterior"] == "ATRIBUICAO"
     assert historico_insert[0]["valor_novo"] == "PULL"
@@ -371,3 +384,17 @@ def test_desvincular_planejado_limpa_responsavel_so_de_tasks_planejadas(make_cli
     assert resp.status_code == 200
     assert resp.json() == {"desvinculadas": 1}
     assert tasks_update[0]["operacional_id"] is None
+
+
+def test_migracao_para_o_mesmo_modo_nao_marca_sprint_como_hibrida(make_client_completo, monkeypatch):
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
+    tc, _, _, sprints_update, _ = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO"},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "ATRIBUICAO"})
+
+    assert resp.status_code == 200
+    assert {"hibrida": True} not in sprints_update

@@ -149,6 +149,7 @@ def test_operacional_conclui_task_dispara_email_pro_gerente(monkeypatch):
     tc = _client_como(monkeypatch, mock_sb, "operacional")
 
     import routers.tasks as tasks_router
+    monkeypatch.setattr(tasks_router, "_resolver_operacional_id_da_pessoa", lambda *a: "op-1")
     envios = []
     monkeypatch.setattr(
         tasks_router, "send_email",

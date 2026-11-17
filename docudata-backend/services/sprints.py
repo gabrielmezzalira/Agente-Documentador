@@ -1,8 +1,11 @@
 """Helpers compartilhados pra entidade Sprint."""
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from services.previsto_sprint import marcar_foto_do_inicio
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_sprint_row(client, project_id: str, numero: int) -> None:
@@ -23,10 +26,46 @@ def ensure_sprint_row(client, project_id: str, numero: int) -> None:
     if existing.data:
         return
     try:
-        client.table("sprints").insert({"project_id": project_id, "numero": numero}).execute()
+        criada = client.table("sprints").insert({"project_id": project_id, "numero": numero}).execute()
     except Exception:
         # Race condition (UNIQUE violation) ou outro erro — outra request criou primeiro
-        pass
+        return
+    try:
+        if criada.data:
+            congelar_modo_da_sprint(client, criada.data[0]["id"])
+    except Exception:
+        # Sem snapshot o fechamento cai no modo atual do projeto.
+        logger.warning("Falha ao congelar o modo da sprint do projeto %s #%s", project_id, numero, exc_info=True)
+
+
+def congelar_modo_da_sprint(client, sprint_id: str) -> Optional[str]:
+    """Grava em sprints.modo_trabalho/modo_avaliacao o modo vigente do projeto
+    quando a sprint começa. Só preenche o que ainda está nulo (o snapshot de
+    uma sprint nunca muda depois). No-op se sprint ou projeto não existem.
+    Devolve o modo_trabalho efetivo da sprint."""
+    linhas = (
+        client.table("sprints").select("project_id, modo_trabalho, modo_avaliacao").eq("id", sprint_id).execute().data
+    )
+    if not linhas:
+        return None
+    sprint = linhas[0]
+    if sprint.get("modo_trabalho") and sprint.get("modo_avaliacao"):
+        return sprint["modo_trabalho"]
+    projeto = (
+        client.table("projects")
+        .select("modo_trabalho, modo_avaliacao")
+        .eq("id", sprint.get("project_id"))
+        .execute()
+        .data
+    )
+    if not projeto:
+        return sprint.get("modo_trabalho")
+    modo_trabalho = sprint.get("modo_trabalho") or projeto[0].get("modo_trabalho") or "ATRIBUICAO"
+    modo_avaliacao = sprint.get("modo_avaliacao") or projeto[0].get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
+    client.table("sprints").update(
+        {"modo_trabalho": modo_trabalho, "modo_avaliacao": modo_avaliacao}
+    ).eq("id", sprint_id).execute()
+    return modo_trabalho
 
 
 def get_current_sprint_number(client, project_id: str) -> int:
@@ -133,6 +172,9 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     Chamado tanto pelo botão "Iniciar próxima sprint" quanto, implicitamente,
     pela confirmação da Avaliação Semanal da sprint anterior (routers/avaliacoes.py).
 
+    Em projeto Pull, tasks sem dono (fila) não são ancoradas: a âncora nasce
+    quando alguém puxa a task.
+
     Também tira a foto do previsto (tasks não extras da sprint ganham
     prevista_no_inicio)."""
     ja_iniciada = bool(
@@ -147,10 +189,13 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     if not ja_iniciada:
         marcar_foto_do_inicio(client, sprint_id)
 
+    # Snapshot do modo no início da sprint (idempotente); decide o Pull abaixo.
+    em_pull = congelar_modo_da_sprint(client, sprint_id) == "PULL"
+
     agora_iso = datetime.now(timezone.utc).isoformat()
     pendentes = (
         client.table("tasks")
-        .select("id")
+        .select("id, operacional_id")
         .eq("sprint_id", sprint_id)
         .neq("coluna_kanban", "concluida")
         .is_("entrou_em_andamento_em", "null")
@@ -158,6 +203,10 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
         .data or []
     )
     for t in pendentes:
+        # Em Pull a task da fila (sem dono) não tem relógio: o tempo de espera
+        # não é do operacional. A âncora nasce quando alguém puxa.
+        if em_pull and not t.get("operacional_id"):
+            continue
         client.table("tasks").update({"entrou_em_andamento_em": agora_iso}).eq("id", t["id"]).execute()
 
     # Com a sprint em curso o nível das tasks dela fica fixo (spec A2 §5).

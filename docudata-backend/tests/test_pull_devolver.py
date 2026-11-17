@@ -142,7 +142,7 @@ def make_client(monkeypatch, autenticar):
 
 
 def test_puxar_task_disponivel_atribui_a_quem_puxou(make_client):
-    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
+    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "sprint_id": "sprint-1", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
     tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"})
 
     resp = tc.post("/tasks/t1/puxar")
@@ -152,7 +152,7 @@ def test_puxar_task_disponivel_atribui_a_quem_puxou(make_client):
 
 
 def test_puxar_task_ja_puxada_da_409(make_client):
-    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
+    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "sprint_id": "sprint-1", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
     tc = make_client(task, operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"}, update_rowcount=0)
 
     resp = tc.post("/tasks/t1/puxar")
@@ -169,7 +169,7 @@ def test_puxar_task_projeto_em_atribuicao_da_403(make_client):
     PULL — sem esta guarda, /puxar era um desvio de
     _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL (que barra o mesmo em PATCH
     /tasks/{id}) para todo projeto em ATRIBUICAO."""
-    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
+    task = {"id": "t1", "project_id": "proj-1", "operacional_id": None, "rascunho": False, "coluna_kanban": "planejado", "sprint_id": "sprint-1", "titulo": "X", "pontos": 3, "checklist": [], "bloqueado": False, "ordem": 0, "created_at": "2026-01-01T00:00:00+00:00"}
     tc = make_client(
         task,
         operacional_da_pessoa={"id": "op-a", "email": "pessoa@citi.org.br", "project_id": "proj-1"},

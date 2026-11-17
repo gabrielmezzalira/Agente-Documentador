@@ -24,6 +24,9 @@ import {
   aprovarTask,
   rejeitarTask,
   reclassificarTask,
+  definirNivelGerente,
+  FRENTES,
+  rotuloFrente,
   opinarNivelTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
@@ -135,21 +138,35 @@ interface TaskModalProps {
   modoTrabalho: "ATRIBUICAO" | "PULL";
   onClose: () => void;
   onSaved: (t: TaskKanbanResponse, criada?: boolean) => void;
+  /** Atualiza a task na lista sem fechar o modal (preserva edições não salvas). */
+  onTaskUpdated?: (t: TaskKanbanResponse) => void;
   onReclassified?: () => void;
   onDeleted?: (id: string) => void;
 }
 
+function origemNivel(status?: string | null): string {
+  return status === "manual" ? "definido pelo gerente" : "definido pelo classificador";
+}
+
 function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
-  defaultSprintId, modoTrabalho, onClose, onSaved, onReclassified, onDeleted,
+  defaultSprintId, modoTrabalho, onClose, onSaved, onTaskUpdated, onReclassified, onDeleted,
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
   const auth = useAuth();
   const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
+  const ehGerente = !!auth && auth.cargo !== "operacional";
+  const [nivelProprio, setNivelProprio] = useState(false);
+  const [nivelGerente, setNivelGerente] = useState("");
   const [opiniao, setOpiniao] = useState("");
   const [faltando, setFaltando] = useState<string[]>([]);
   const [reclassificando, setReclassificando] = useState(false);
+  const [frenteAtual, setFrenteAtual] = useState(task?.frente ?? "");
+  const [frenteOrigem, setFrenteOrigem] = useState(task?.frente_definida_por ?? null);
+  const [salvandoFrente, setSalvandoFrente] = useState(false);
+  const [novoNivel, setNovoNivel] = useState("");
+  const [mudandoNivel, setMudandoNivel] = useState(false);
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
   const [operacionalId, setOperacionalId] = useState(task?.operacional_id ?? "");
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
@@ -196,6 +213,7 @@ function TaskModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
+    if (mode === "create" && nivelProprio && !nivelGerente) { setErr("Escolha o nível da task."); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
       return;
@@ -203,6 +221,7 @@ function TaskModal({
     setSaving(true);
     setErr("");
     setFaltando([]);
+    const operacionalMudou = modoTrabalho !== "PULL" && operacionalId !== (task?.operacional_id ?? "");
     try {
       let saved: TaskKanbanResponse;
       if (mode === "create") {
@@ -216,7 +235,9 @@ function TaskModal({
           extra,
           requer_aprovacao: requerAprovacao,
           checklist,
-          ...(opiniao ? { opiniao_nivel: Number(opiniao) } : {}),
+          ...(nivelProprio && nivelGerente
+            ? { nivel_gerente: Number(nivelGerente) }
+            : opiniao ? { opiniao_nivel: Number(opiniao) } : {}),
         });
       } else {
         // O backend trata qualquer diferença de texto como mudança de escopo
@@ -227,7 +248,7 @@ function TaskModal({
           ...(descricaoMudou ? { descricao: descricao.trim() } : {}),
           ...(checklistMudou ? { checklist } : {}),
           sprint_id: sprintId || undefined,
-          operacional_id: operacionalId || undefined,
+          ...(operacionalMudou ? { operacional_id: operacionalId || null } : {}),
           funcionalidade_id: funcId || undefined,
           bloqueado,
           motivo_bloqueio: bloqueado ? motivoBloqueio.trim() || undefined : undefined,
@@ -251,6 +272,37 @@ function TaskModal({
       setErr(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleMudarFrente(valor: string) {
+    if (!task || !valor || valor === frenteAtual) return;
+    setSalvandoFrente(true);
+    setErr("");
+    try {
+      const atualizada = await patchTaskKanban(task.id, { frente: valor as (typeof FRENTES)[number]["value"] });
+      setFrenteAtual(atualizada.frente ?? valor);
+      setFrenteOrigem(atualizada.frente_definida_por ?? "gerente");
+      onTaskUpdated?.(atualizada);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao mudar a frente");
+    } finally {
+      setSalvandoFrente(false);
+    }
+  }
+
+  async function handleMudarNivel() {
+    if (!task || !novoNivel) return;
+    setMudandoNivel(true);
+    setErr("");
+    try {
+      const atualizada = await definirNivelGerente(task.id, Number(novoNivel));
+      onTaskUpdated?.(atualizada);
+      setNovoNivel("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao mudar o nível");
+    } finally {
+      setMudandoNivel(false);
     }
   }
 
@@ -369,7 +421,7 @@ function TaskModal({
 
           {mode === "edit" && task && (
             <p style={{ fontSize: 12.5, color: "#c3cbc6", margin: 0 }}>
-              nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : "definido pelo classificador"}
+              nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : origemNivel(task.classificacao_status)}
             </p>
           )}
 
@@ -495,7 +547,35 @@ function TaskModal({
             </p>
           </div>
 
-          {mode === "create" && (
+          {mode === "create" && ehGerente && (
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <input
+                  id="task-nivel-proprio"
+                  type="checkbox"
+                  checked={nivelProprio}
+                  onChange={(e) => { setNivelProprio(e.target.checked); if (!e.target.checked) setNivelGerente(""); }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#c3cbc6" }}>Definir o nível eu mesmo</span>
+              </label>
+              {nivelProprio && (
+                <div style={{ marginTop: 8 }}>
+                  <label htmlFor="task-nivel-gerente" style={labelSt}>Nível da task</label>
+                  <DsSelect id="task-nivel-gerente" value={nivelGerente} onChange={(e) => setNivelGerente(e.target.value)}>
+                    <option value="">escolha o nível</option>
+                    {NIVEIS.map((n) => (
+                      <option key={n} value={n}>{rotuloNivel(n)}</option>
+                    ))}
+                  </DsSelect>
+                  <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+                    O classificador não é consultado: o nível fica como você escolheu.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "create" && !nivelProprio && (
             <div>
               <label htmlFor="task-opiniao" style={labelSt}>Sua opinião sobre o nível (opcional)</label>
               <DsSelect id="task-opiniao" value={opiniao} onChange={(e) => setOpiniao(e.target.value)}>
@@ -516,13 +596,56 @@ function TaskModal({
                 nível travado desde {new Date(task.nivel_travado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
               </p>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
-                  {reclassificando ? "Reclassificando…" : "Reclassificar"}
-                </button>
-                {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
-              </div>
+              task.classificacao_status !== "manual" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
+                    {reclassificando ? "Reclassificando…" : "Reclassificar"}
+                  </button>
+                  {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
+                </div>
+              )
             )
+          )}
+
+          {mode === "edit" && task && ehGerente && !task.nivel_travado_em && task.coluna_kanban !== "concluida" && (
+            <div>
+              <label htmlFor="task-mudar-nivel" style={labelSt}>Escolher o nível eu mesmo</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <DsSelect id="task-mudar-nivel" value={novoNivel} onChange={(e) => setNovoNivel(e.target.value)}>
+                  <option value="">escolha o nível</option>
+                  {NIVEIS.map((n) => (
+                    <option key={n} value={n}>{rotuloNivel(n)}</option>
+                  ))}
+                </DsSelect>
+                <button type="button" onClick={handleMudarNivel} disabled={!novoNivel || mudandoNivel || saving || edicaoPendente} style={btnGhost}>
+                  {mudandoNivel ? "Salvando…" : "Mudar nível"}
+                </button>
+              </div>
+              {edicaoPendente && <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>Salve as edições antes de mudar o nível</p>}
+            </div>
+          )}
+
+          {mode === "edit" && task && ehGerente && (
+            <div>
+              <label htmlFor="task-frente" style={labelSt}>Frente</label>
+              <DsSelect
+                id="task-frente"
+                value={frenteAtual}
+                disabled={salvandoFrente}
+                aria-busy={salvandoFrente}
+                onChange={(e) => handleMudarFrente(e.target.value)}
+              >
+                {!frenteAtual && <option value="" disabled>Identificando…</option>}
+                {FRENTES.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </DsSelect>
+              {frenteOrigem && (
+                <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>
+                  {frenteOrigem === "gerente" ? "definida pelo gerente" : "definida pela IA"}
+                </p>
+              )}
+            </div>
           )}
 
           {mode === "edit" && (
@@ -809,7 +932,7 @@ function TaskViewModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
           {task.bloqueado && (
@@ -1017,9 +1140,10 @@ function formatDuration(sec: number): string {
 // Task card
 
 function TaskCard({
-  task, operacionais, onDragStart, onDragEnd, onClick,
+  task, operacionais, arrastavel, onDragStart, onDragEnd, onClick,
 }: {
   task: TaskKanbanResponse;
+  arrastavel: boolean;
   operacionais: OperacionalResponse[];
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -1032,7 +1156,7 @@ function TaskCard({
   return (
     <button
       type="button"
-      draggable
+      draggable={arrastavel}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
@@ -1047,11 +1171,15 @@ function TaskCard({
       </span>
 
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
+        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
 
         {(task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
           <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
         )}
+
+        {task.classificacao_status === "manual" && <Chip tone="green">nível do gerente</Chip>}
+
+        {task.frente && <Chip>{rotuloFrente(task.frente)}</Chip>}
 
         {op && (
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
@@ -1126,6 +1254,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   const jaPediu = meuOperacional
     ? solicitacoes.some((s) => s.operacional_id === meuOperacional.id)
     : false;
+
+  // Operacional só arrasta a própria task, ou puxa da fila em Pull (task sem dono em Planejado).
+  function podeArrastar(t: TaskKanbanResponse): boolean {
+    if (!ehOperacional) return true;
+    if (!meuOperacional) return false;
+    if (t.operacional_id === meuOperacional.id) return true;
+    return modoTrabalho === "PULL" && !t.operacional_id && t.coluna_kanban === "planejado";
+  }
 
   const carregarSolicitacoes = useCallback(() => {
     listSolicitacoesTask(projectId).then(setSolicitacoes).catch(() => setSolicitacoes([]));
@@ -1225,6 +1361,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
     const task = tasks.find((t) => t.id === dragId);
     setDragId(null);
     if (!task || task.coluna_kanban === coluna) return;
+    if (!podeArrastar(task)) return;
     // Saída de Pendente de aprovação só por aprovar/rejeitar, que são
     // gerente/líder-only no backend — operacional nem abre o modal.
     if (task.coluna_kanban === "pendente_aprovacao" && ehOperacional) {
@@ -1536,6 +1673,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                       key={t.id}
                       task={t}
                       operacionais={operacionais}
+                      arrastavel={podeArrastar(t)}
                       onDragStart={() => setDragId(t.id)}
                       onDragEnd={() => setDragId(null)}
                       onClick={() => setEditModal(t)}
@@ -1600,6 +1738,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             modoTrabalho={modoTrabalho}
             onClose={() => setEditModal(null)}
             onSaved={(t) => { upsertTask(t); setEditModal(null); }}
+            onTaskUpdated={(t) => { upsertTask(t); setEditModal(t); }}
             onReclassified={() => { load(); setEditModal(null); }}
             onDeleted={(id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setEditModal(null); }}
           />

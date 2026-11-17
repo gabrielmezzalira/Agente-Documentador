@@ -1343,3 +1343,87 @@ CREATE TABLE IF NOT EXISTS sprint_meta_eventos (
     criado_em          timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos(sprint_id, criado_em);
+
+-- =============================================================================
+-- Migration v10 (2026-11-17): configuracao_historico guarda o WIP por pessoa de antes de Pull
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend
+-- (sem ela, o insert de campo='wip_por_pessoa' ao entrar em Pull falha na migração de modo).
+-- =============================================================================
+
+-- Preflight (somente leitura): definição atual da constraint
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'configuracao_historico_campo_check';
+
+-- v10.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE configuracao_historico DROP CONSTRAINT IF EXISTS configuracao_historico_campo_check;
+-- ALTER TABLE configuracao_historico ADD CONSTRAINT configuracao_historico_campo_check
+--   CHECK (campo IN ('modo_trabalho','modo_avaliacao','wip_por_pessoa'));
+
+-- Rollback (só depois de apagar as linhas novas):
+-- DELETE FROM configuracao_historico WHERE campo = 'wip_por_pessoa';
+-- ALTER TABLE configuracao_historico DROP CONSTRAINT IF EXISTS configuracao_historico_campo_check;
+-- ALTER TABLE configuracao_historico ADD CONSTRAINT configuracao_historico_campo_check
+--   CHECK (campo IN ('modo_trabalho','modo_avaliacao'));
+
+-- =============================================================================
+-- Migration v11 (2026-11-17): subárea PTA (processo seletivo do CITi)
+-- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §1
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
+-- =============================================================================
+
+-- Preflight (somente leitura)
+-- SELECT subarea, count(*) FROM projects GROUP BY subarea ORDER BY 1;
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'projects_subarea_check';
+
+-- v11.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto','pta'));
+
+-- Rollback (só se NENHUM projeto tiver subarea = 'pta'):
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto'));
+
+-- =============================================================================
+-- Migration v12 (2026-11-17): status manual em task_classificacoes (nível escolhido pelo gerente)
+-- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §3
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
+-- =============================================================================
+
+-- Preflight (somente leitura): nome real da constraint e distribuição atual
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+--   WHERE conrelid = 'task_classificacoes'::regclass AND contype = 'c';
+-- SELECT status, count(*) FROM task_classificacoes GROUP BY 1 ORDER BY 1;
+
+-- v12.1 — recria o CHECK com o status novo (nenhum dado existente muda).
+-- A constraint inline foi criada sem nome: o Postgres a chama task_classificacoes_status_check
+-- (confirme no preflight; se o nome for outro, use-o no DROP).
+-- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
+-- ALTER TABLE task_classificacoes ADD CONSTRAINT task_classificacoes_status_check
+--   CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida','manual'));
+
+-- Rollback (só se NENHUMA linha tiver status = 'manual'; senão converta-as antes):
+-- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
+-- ALTER TABLE task_classificacoes ADD CONSTRAINT task_classificacoes_status_check
+--   CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida'));
+
+-- =============================================================================
+-- Migration v13 (2026-11-17): frente da task (software, mobile, dados, ia)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase. O backend funciona antes dela
+-- (criar e editar task não gravam `frente`); só a classificação em segundo plano
+-- e o override do gerente dependem das colunas.
+-- =============================================================================
+
+-- Preflight (somente leitura): as colunas ainda não devem existir
+-- SELECT column_name FROM information_schema.columns
+--   WHERE table_name = 'tasks' AND column_name IN ('frente','frente_definida_por');
+
+-- v13.1 — colunas novas, nulas (nenhum dado existente muda)
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frente text NULL
+--   CHECK (frente IS NULL OR frente IN ('software','mobile','dados','ia'));
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frente_definida_por text NULL
+--   CHECK (frente_definida_por IS NULL OR frente_definida_por IN ('ia','gerente'));
+
+-- Rollback:
+-- ALTER TABLE tasks DROP COLUMN IF EXISTS frente_definida_por;
+-- ALTER TABLE tasks DROP COLUMN IF EXISTS frente;

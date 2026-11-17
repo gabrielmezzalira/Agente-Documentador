@@ -174,7 +174,7 @@ export interface Project {
   wip_config?: { por_pessoa?: number | null; por_coluna_em_andamento?: number | null } | null;
 }
 
-export type Subarea = "dados" | "dev";
+export type Subarea = "dados" | "dev" | "pta";
 
 export interface GeminiApiKeyStatus {
   configured: boolean;
@@ -1744,8 +1744,10 @@ export interface TaskKanbanResponse {
   requer_aprovacao: boolean;
   pontos_legado?: number | null;
   nivel_travado_em?: string | null;
-  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | null;
+  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | "manual" | null;
   justificativa_nivel?: string | null;
+  frente?: "software" | "mobile" | "dados" | "ia" | null;
+  frente_definida_por?: "ia" | "gerente" | null;
   created_at: string;
   updated_at: string;
 }
@@ -1791,6 +1793,7 @@ export async function createTaskKanban(data: {
   checklist?: { texto: string; done: boolean }[];
   requer_aprovacao?: boolean;
   opiniao_nivel?: number;
+  nivel_gerente?: number;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
@@ -1842,6 +1845,16 @@ export async function resolverRevisaoNivel(id: string, nivel: number, motivo: st
     body: JSON.stringify({ nivel, motivo }),
   });
   if (!res.ok) throw await erroDetail(res, "Erro ao resolver revisão de nível");
+  return res.json();
+}
+
+export async function definirNivelGerente(id: string, nivel: number): Promise<TaskKanbanResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/nivel-gerente`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao definir o nível da task");
   return res.json();
 }
 
@@ -1985,13 +1998,24 @@ export async function definirExclusaoAprendizado(taskId: string, excluida: boole
   if (!res.ok) throw await erroDetail(res, "Erro ao atualizar exclusão da contagem");
 }
 
+export const FRENTES = [
+  { value: "software", label: "Software" },
+  { value: "mobile", label: "Mobile" },
+  { value: "dados", label: "Dados" },
+  { value: "ia", label: "IA" },
+] as const;
+
+export function rotuloFrente(f?: string | null): string {
+  return FRENTES.find((x) => x.value === f)?.label ?? "";
+}
+
 export async function patchTaskKanban(
   id: string,
   data: {
     titulo?: string;
     descricao?: string;
     coluna_kanban?: string;
-    operacional_id?: string;
+    operacional_id?: string | null;
     sprint_id?: string;
     funcionalidade_id?: string;
     bloqueado?: boolean;
@@ -2005,6 +2029,7 @@ export async function patchTaskKanban(
     bloqueio_tipo?: "interno" | "cliente";
     extra?: boolean;
     requer_aprovacao?: boolean;
+    frente?: "software" | "mobile" | "dados" | "ia";
   }
 ): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks/${id}`, {
@@ -2238,8 +2263,10 @@ export interface PerformanceResponse {
   projetos: PerformanceProjeto[];
 }
 
-export async function getPerformance(): Promise<PerformanceResponse> {
-  const res = await apiFetch(`${API}/performance`);
+export type EscopoPerformance = "citi" | "pta";
+
+export async function getPerformance(escopo: EscopoPerformance = "citi"): Promise<PerformanceResponse> {
+  const res = await apiFetch(`${API}/performance?escopo=${escopo}`);
   if (!res.ok) throw new Error("Erro ao buscar ranking de performance");
   return res.json();
 }

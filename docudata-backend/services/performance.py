@@ -16,13 +16,17 @@ BONUS_EXTRA_POR_PONTO = 1.0
 BONUS_EXTRA_TETO = 5.0
 
 
-def listar_pessoas_ativas_por_projeto(client) -> dict[str, dict]:
+def listar_pessoas_ativas_por_projeto(client, escopo: str = "citi") -> dict[str, dict]:
     """Agrupa operacionais ativos por projeto e, dentro de cada projeto, por
     e-mail — o ranking passa a ser por projeto, não mais cross-projeto
     (decisão do usuário, 2026-09-23: "eu quero que o ranking seja dividido
     por projeto, nao geral"). Retorna {projeto_id: {"projeto_nome": str,
     "pessoas": [...]}}. Sem e-mail, cada linha vira sua própria pessoa (mesmo
-    racional da função anterior)."""
+    racional da função anterior).
+
+    `escopo` separa o PTA das métricas reais: "citi" (padrão) só considera
+    projetos cuja subárea não é `pta`; "pta" só considera os projetos PTA.
+    Projeto sem subárea (legado) conta como CITi."""
     rows = (
         client.table("operacionais")
         .select("id, nome, email, ativo, project_id")
@@ -33,8 +37,13 @@ def listar_pessoas_ativas_por_projeto(client) -> dict[str, dict]:
     if not rows:
         return {}
     projeto_ids = list({r["project_id"] for r in rows})
-    projetos_rows = client.table("projects").select("id, name").in_("id", projeto_ids).execute().data or []
+    projetos_rows = client.table("projects").select("id, name, subarea").in_("id", projeto_ids).execute().data or []
     nomes_projeto = {p["id"]: p["name"] for p in projetos_rows}
+    e_pta = {p["id"]: p.get("subarea") == "pta" for p in projetos_rows}
+    quer_pta = escopo == "pta"
+    rows = [r for r in rows if e_pta.get(r["project_id"], False) == quer_pta]
+    if not rows:
+        return {}
 
     por_projeto: dict[str, dict] = {}
     for row in rows:

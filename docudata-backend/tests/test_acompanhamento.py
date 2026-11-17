@@ -650,3 +650,10 @@ def test_detalhe_sem_funcionalidades_nao_mostra_zero_de_escopo():
     from services.acompanhamento import montar_detalhe
     d = montar_detalhe(_fake_spi([0.9], 0.9, com_funcs=False), "p", agora=AGORA)
     assert d["numeros"]["sem_funcionalidades"] is True and d["numeros"]["pct_escopo"] is None and d["numeros"]["pct_prazo"] is None
+
+
+def test_rota_aceita_subarea_pta(monkeypatch, autenticar):
+    r = _tc(monkeypatch, autenticar).get("/acompanhamento?subarea=pta")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["subarea"] == "pta" and j["kpis"]["projetos"] == 0

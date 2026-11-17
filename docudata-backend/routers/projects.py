@@ -370,6 +370,8 @@ async def update_modos(
     # modo pull com WIP de atribuição, incoerente com a regra do modo.
     if payload.get("modo_trabalho") == "PULL":
         wip_atual = response.data[0].get("wip_config") or {}
+        if atual.get("modo_trabalho") != "PULL":
+            _guardar_wip_anterior(client, project_id, wip_atual, pessoa["email"])
         novo_wip = {**wip_atual, "por_pessoa": 1}
         response = client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
 
@@ -383,10 +385,47 @@ async def get_modos_historico(project_id: str, _pessoa: dict = Depends(require_n
         client.table("configuracao_historico")
         .select("*")
         .eq("project_id", project_id)
+        .in_("campo", ["modo_trabalho", "modo_avaliacao"])
         .order("criado_em", desc=True)
         .execute()
     )
     return resp.data or []
+
+
+def _guardar_wip_anterior(client, project_id: str, wip_atual: dict, email: str) -> None:
+    """Registra o WIP por pessoa de antes de entrar em Pull (texto; "" = nulo)."""
+    anterior = wip_atual.get("por_pessoa")
+    # Best-effort: sem a migração v10 aplicada o CHECK recusa o campo, e isso não
+    # pode deixar a migração de modo pela metade (modo já gravado, WIP não forçado).
+    try:
+        client.table("configuracao_historico").insert({
+            "project_id": project_id,
+            "campo": "wip_por_pessoa",
+            "valor_anterior": "" if anterior is None else str(anterior),
+            "valor_novo": "1",
+            "usuario_email": email,
+        }).execute()
+    except Exception:
+        _LOG.warning("falha ao guardar o WIP anterior do projeto %s", project_id, exc_info=True)
+
+
+def _restaurar_wip_anterior(client, project_id: str, wip_atual: dict) -> dict:
+    """Volta o por_pessoa ao valor guardado na última entrada em Pull. Sem
+    registro (projeto que já estava em Pull), mantém o que está."""
+    linhas = (
+        client.table("configuracao_historico").select("valor_anterior")
+        .eq("project_id", project_id).eq("campo", "wip_por_pessoa")
+        .order("criado_em", desc=True).limit(1).execute().data or []
+    )
+    if not linhas:
+        return wip_atual
+    bruto = linhas[0].get("valor_anterior")
+    if bruto in (None, ""):
+        return {**wip_atual, "por_pessoa": None}
+    try:
+        return {**wip_atual, "por_pessoa": int(bruto)}
+    except (TypeError, ValueError):
+        return wip_atual  # registro corrompido: trata como sem registro
 
 
 @router.patch("/{project_id}/wip-config", response_model=ProjectResponse)
@@ -525,10 +564,17 @@ async def aplicar_migrar_modo(
     # RF-A5: entrar em PULL força WIP por pessoa = 1, mesmo vindo de uma
     # migração (não só de PATCH /modos) — sem isso um projeto migrado ficaria
     # em modo pull com WIP de atribuição, incoerente com a regra do modo.
+    wip_atual = (proj_update.data[0].get("wip_config") if proj_update.data else None) or {}
     if data.para == "PULL":
-        wip_atual = (proj_update.data[0].get("wip_config") if proj_update.data else None) or {}
+        if de_modo != "PULL":
+            _guardar_wip_anterior(client, project_id, wip_atual, pessoa["email"])
         novo_wip = {**wip_atual, "por_pessoa": 1}
         client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
+    elif de_modo == "PULL":
+        # Sair de Pull devolve o WIP por pessoa de antes (o 1 era só do modo).
+        novo_wip = _restaurar_wip_anterior(client, project_id, wip_atual)
+        if novo_wip != wip_atual:
+            client.table("projects").update({"wip_config": novo_wip}).eq("id", project_id).execute()
 
     tasks = client.table("tasks").select("id, coluna_kanban, operacional_id, titulo, pontos, descricao, checklist, bloqueado").eq("project_id", project_id).execute().data or []
 
@@ -564,7 +610,7 @@ async def aplicar_migrar_modo(
     }).execute()
 
     sprint_ativa_id = get_current_sprint_id(client, project_id)
-    if sprint_ativa_id:
+    if sprint_ativa_id and de_modo != data.para:
         client.table("sprints").update({"hibrida": True}).eq("id", sprint_ativa_id).execute()
 
     if de_modo != data.para and data.para == "PULL":
