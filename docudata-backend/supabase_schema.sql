@@ -1383,3 +1383,26 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
 -- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
 --   CHECK (subarea IN ('dados','dev','produto'));
+
+-- =============================================================================
+-- Migration v12 (2026-11-17): status manual em task_classificacoes (nível escolhido pelo gerente)
+-- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §3
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
+-- =============================================================================
+
+-- Preflight (somente leitura): nome real da constraint e distribuição atual
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+--   WHERE conrelid = 'task_classificacoes'::regclass AND contype = 'c';
+-- SELECT status, count(*) FROM task_classificacoes GROUP BY 1 ORDER BY 1;
+
+-- v12.1 — recria o CHECK com o status novo (nenhum dado existente muda).
+-- A constraint inline foi criada sem nome: o Postgres a chama task_classificacoes_status_check
+-- (confirme no preflight; se o nome for outro, use-o no DROP).
+-- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
+-- ALTER TABLE task_classificacoes ADD CONSTRAINT task_classificacoes_status_check
+--   CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida','manual'));
+
+-- Rollback (só se NENHUMA linha tiver status = 'manual'; senão converta-as antes):
+-- ALTER TABLE task_classificacoes DROP CONSTRAINT IF EXISTS task_classificacoes_status_check;
+-- ALTER TABLE task_classificacoes ADD CONSTRAINT task_classificacoes_status_check
+--   CHECK (status IN ('aplicada','em_revisao','provisoria','resolvida'));
