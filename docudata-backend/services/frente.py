@@ -72,6 +72,14 @@ async def atualizar_frente_da_task(task_id: str) -> None:
         )
         if frente is None:
             return
-        client.table("tasks").update({"frente": frente, "frente_definida_por": "ia"}).eq("id", task_id).execute()
+        # A IA leva segundos: o filtro impede de sobrescrever uma frente que o gerente
+        # gravou nesse meio tempo. `.neq` sozinho não casa NULL no PostgREST, daí o `or_`.
+        (
+            client.table("tasks")
+            .update({"frente": frente, "frente_definida_por": "ia"})
+            .eq("id", task_id)
+            .or_("frente_definida_por.is.null,frente_definida_por.neq.gerente")
+            .execute()
+        )
     except Exception:
         _LOG.warning("falha ao classificar a frente da task %s", task_id, exc_info=True)

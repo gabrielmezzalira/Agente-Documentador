@@ -170,3 +170,20 @@ def test_migracao_v13_comentada_com_preflight_e_rollback():
     assert "Preflight" in b and "Rollback" in b
     for linha in b.splitlines():
         assert not linha.strip() or linha.startswith("--"), linha
+
+
+def test_job_nao_sobrescreve_frente_gravada_pelo_gerente_durante_a_chamada(monkeypatch):
+    """A IA leva segundos: se o gerente grava a frente nesse meio tempo, ela vence."""
+    fake = _fake()
+
+    async def cls(api_key, **kw):
+        t = fake.tables["tasks"][0]
+        t["frente"], t["frente_definida_por"] = "mobile", "gerente"
+        return "dados"
+
+    monkeypatch.setattr(frente, "get_client", lambda: fake)
+    monkeypatch.setattr(frente, "get_gemini_api_key", lambda: "k")
+    monkeypatch.setattr(frente, "classificar_frente", cls)
+    asyncio.run(frente.atualizar_frente_da_task("t1"))
+    t = fake.tables["tasks"][0]
+    assert t["frente"] == "mobile" and t["frente_definida_por"] == "gerente"
