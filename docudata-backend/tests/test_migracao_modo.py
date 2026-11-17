@@ -371,3 +371,17 @@ def test_desvincular_planejado_limpa_responsavel_so_de_tasks_planejadas(make_cli
     assert resp.status_code == 200
     assert resp.json() == {"desvinculadas": 1}
     assert tasks_update[0]["operacional_id"] is None
+
+
+def test_migracao_para_o_mesmo_modo_nao_marca_sprint_como_hibrida(make_client_completo, monkeypatch):
+    import routers.projects as projects_router
+    monkeypatch.setattr(projects_router, "get_current_sprint_id", lambda client, project_id: "sprint-1")
+    tc, _, _, sprints_update, _ = make_client_completo(
+        projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO"},
+        tasks=[],
+    )
+
+    resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "ATRIBUICAO"})
+
+    assert resp.status_code == 200
+    assert {"hibrida": True} not in sprints_update

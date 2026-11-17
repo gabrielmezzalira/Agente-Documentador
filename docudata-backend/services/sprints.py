@@ -23,10 +23,45 @@ def ensure_sprint_row(client, project_id: str, numero: int) -> None:
     if existing.data:
         return
     try:
-        client.table("sprints").insert({"project_id": project_id, "numero": numero}).execute()
+        criada = client.table("sprints").insert({"project_id": project_id, "numero": numero}).execute()
     except Exception:
         # Race condition (UNIQUE violation) ou outro erro — outra request criou primeiro
-        pass
+        return
+    try:
+        if criada.data:
+            congelar_modo_da_sprint(client, criada.data[0]["id"])
+    except Exception:
+        pass  # best-effort: o fechamento cai no modo do projeto
+
+
+def congelar_modo_da_sprint(client, sprint_id: str) -> Optional[str]:
+    """Grava em sprints.modo_trabalho/modo_avaliacao o modo vigente do projeto
+    quando a sprint começa. Só preenche o que ainda está nulo (o snapshot de
+    uma sprint nunca muda depois). No-op se sprint ou projeto não existem.
+    Devolve o modo_trabalho efetivo da sprint."""
+    linhas = (
+        client.table("sprints").select("project_id, modo_trabalho, modo_avaliacao").eq("id", sprint_id).execute().data
+    )
+    if not linhas:
+        return None
+    sprint = linhas[0]
+    if sprint.get("modo_trabalho") and sprint.get("modo_avaliacao"):
+        return sprint["modo_trabalho"]
+    projeto = (
+        client.table("projects")
+        .select("modo_trabalho, modo_avaliacao")
+        .eq("id", sprint.get("project_id"))
+        .execute()
+        .data
+    )
+    if not projeto:
+        return sprint.get("modo_trabalho")
+    modo_trabalho = sprint.get("modo_trabalho") or projeto[0].get("modo_trabalho") or "ATRIBUICAO"
+    modo_avaliacao = sprint.get("modo_avaliacao") or projeto[0].get("modo_avaliacao") or "PONTOS_ATRIBUIDOS"
+    client.table("sprints").update(
+        {"modo_trabalho": modo_trabalho, "modo_avaliacao": modo_avaliacao}
+    ).eq("id", sprint_id).execute()
+    return modo_trabalho
 
 
 def get_current_sprint_number(client, project_id: str) -> int:
@@ -150,11 +185,8 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     if not ja_iniciada:
         marcar_foto_do_inicio(client, sprint_id)
 
-    sprint_row = (client.table("sprints").select("project_id").eq("id", sprint_id).execute().data or [{}])[0]
-    projeto = (
-        client.table("projects").select("modo_trabalho").eq("id", sprint_row.get("project_id")).execute().data or [{}]
-    )[0] if sprint_row.get("project_id") else {}
-    em_pull = projeto.get("modo_trabalho") == "PULL"
+    # Snapshot do modo no início da sprint (idempotente); decide o Pull abaixo.
+    em_pull = congelar_modo_da_sprint(client, sprint_id) == "PULL"
 
     agora_iso = datetime.now(timezone.utc).isoformat()
     pendentes = (

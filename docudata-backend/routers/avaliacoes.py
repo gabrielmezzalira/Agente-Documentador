@@ -98,7 +98,7 @@ def _montar_historico(client, avaliacoes: list[dict]) -> list[dict]:
     e resumo de edições, em lote — uma query por tabela, não por linha."""
     if not avaliacoes:
         return []
-    sprints = _por_id(client, "sprints", "id, numero, project_id", [a["sprint_id"] for a in avaliacoes])
+    sprints = _por_id(client, "sprints", "id, numero, project_id, modo_trabalho", [a["sprint_id"] for a in avaliacoes])
     projetos = _por_id(client, "projects", "id, name, modo_trabalho", [s["project_id"] for s in sprints.values()])
     operacionais = _por_id(client, "operacionais", "id, nome", [a["operacional_id"] for a in avaliacoes])
     edicoes = (
@@ -134,7 +134,7 @@ def _montar_historico(client, avaliacoes: list[dict]) -> list[dict]:
             "sprint_numero": sprint.get("numero"),
             "projeto_id": sprint.get("project_id"),
             "projeto_nome": projeto.get("name", "—"),
-            "modo_trabalho": projeto.get("modo_trabalho") or "ATRIBUICAO",
+            "modo_trabalho": sprint.get("modo_trabalho") or projeto.get("modo_trabalho") or "ATRIBUICAO",
             "avaliador_nome": pessoas.get(a["gerente_id"], {}).get("nome", "—"),
             **{c: a.get(c) for c in _CAMPOS_RESPOSTA},
             "criado_em": a["criado_em"],

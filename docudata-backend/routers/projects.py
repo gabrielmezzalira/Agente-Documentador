@@ -564,7 +564,7 @@ async def aplicar_migrar_modo(
     }).execute()
 
     sprint_ativa_id = get_current_sprint_id(client, project_id)
-    if sprint_ativa_id:
+    if sprint_ativa_id and de_modo != data.para:
         client.table("sprints").update({"hibrida": True}).eq("id", sprint_ativa_id).execute()
 
     if de_modo != data.para and data.para == "PULL":

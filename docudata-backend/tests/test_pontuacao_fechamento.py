@@ -954,3 +954,18 @@ def test_golden_regression_atribuicao_nao_muda_apos_entrega_3():
     assert linha["entrega_pontos_pessoa"] is None
     assert linha["entrega_denominador"] is None
     assert linha["entrega_nota_relativa"] is None
+
+
+def test_fechamento_usa_o_snapshot_da_sprint_e_nao_o_modo_atual_do_projeto():
+    sprint_update_capture = []
+    client = _mock_client(
+        sprint=dict(_SPRINT, modo_trabalho="PULL", modo_avaliacao="PONTOS_RELATIVO"),
+        projeto={"modo_trabalho": "ATRIBUICAO", "modo_avaliacao": "PONTOS_ATRIBUIDOS"},
+        tasks=[{"id": "task-1", "operacional_id": "op-1", "pontos": 3, "coluna_kanban": "em_andamento"}],
+        sprint_update_capture=sprint_update_capture,
+    )
+
+    calcular_e_travar_pontuacao(client, "sprint-1")
+
+    assert sprint_update_capture[0]["modo_trabalho"] == "PULL"
+    assert sprint_update_capture[0]["modo_avaliacao"] == "PONTOS_RELATIVO"
