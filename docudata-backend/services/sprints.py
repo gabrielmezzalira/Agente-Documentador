@@ -133,6 +133,9 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     Chamado tanto pelo botão "Iniciar próxima sprint" quanto, implicitamente,
     pela confirmação da Avaliação Semanal da sprint anterior (routers/avaliacoes.py).
 
+    Em projeto Pull, tasks sem dono (fila) não são ancoradas: a âncora nasce
+    quando alguém puxa a task.
+
     Também tira a foto do previsto (tasks não extras da sprint ganham
     prevista_no_inicio)."""
     ja_iniciada = bool(
@@ -147,10 +150,16 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
     if not ja_iniciada:
         marcar_foto_do_inicio(client, sprint_id)
 
+    sprint_row = (client.table("sprints").select("project_id").eq("id", sprint_id).execute().data or [{}])[0]
+    projeto = (
+        client.table("projects").select("modo_trabalho").eq("id", sprint_row.get("project_id")).execute().data or [{}]
+    )[0] if sprint_row.get("project_id") else {}
+    em_pull = projeto.get("modo_trabalho") == "PULL"
+
     agora_iso = datetime.now(timezone.utc).isoformat()
     pendentes = (
         client.table("tasks")
-        .select("id")
+        .select("id, operacional_id")
         .eq("sprint_id", sprint_id)
         .neq("coluna_kanban", "concluida")
         .is_("entrou_em_andamento_em", "null")
@@ -158,6 +167,10 @@ def iniciar_sprint_e_ancorar_tasks(client, sprint_id: str) -> None:
         .data or []
     )
     for t in pendentes:
+        # Em Pull a task da fila (sem dono) não tem relógio: o tempo de espera
+        # não é do operacional. A âncora nasce quando alguém puxa.
+        if em_pull and not t.get("operacional_id"):
+            continue
         client.table("tasks").update({"entrou_em_andamento_em": agora_iso}).eq("id", t["id"]).execute()
 
     # Com a sprint em curso o nível das tasks dela fica fixo (spec A2 §5).

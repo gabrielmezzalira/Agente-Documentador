@@ -1083,7 +1083,11 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     if desatribuir and task.get("operacional_id") is not None:
         updates["operacional_id"] = None
     if puxada_por:
-        updates.update({"operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None})
+        updates.update({
+            "operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None,
+            "entrou_em_andamento_em": agora.isoformat(),
+            "travado_automatico": False,
+        })
     if data.extra is not None:
         updates["extra"] = data.extra
     if data.sprint_id is not None and str(data.sprint_id) != str(task.get("sprint_id") or ""):

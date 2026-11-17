@@ -82,7 +82,7 @@ def _iso(dias_atras: float) -> str:
 def test_job_marca_travado_quando_limiar_cruzado(monkeypatch):
     import services.travamento_checker as checker
     task = {
-        "id": "task-1", "pontos": 2, "entrou_em_andamento_em": _iso(5),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 2, "entrou_em_andamento_em": _iso(5),
         "travado_automatico": False, "travado_override": False,
     }
     mock_sb, calls = _make_job_mock_client([task])
@@ -98,7 +98,7 @@ def test_job_marca_travado_quando_limiar_cruzado(monkeypatch):
 def test_job_nao_marca_quando_abaixo_do_limiar(monkeypatch):
     import services.travamento_checker as checker
     task = {
-        "id": "task-1", "pontos": 2, "entrou_em_andamento_em": _iso(2),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 2, "entrou_em_andamento_em": _iso(2),
         "travado_automatico": False, "travado_override": False,
     }
     mock_sb, calls = _make_job_mock_client([task])
@@ -116,7 +116,7 @@ def test_job_marca_travado_mesmo_com_override_antigo_e_relogio_vencido(monkeypat
     que é aplicado, não isenta a task para sempre."""
     import services.travamento_checker as checker
     task = {
-        "id": "task-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
         "travado_automatico": False, "travado_override": True,
     }
     mock_sb, calls = _make_job_mock_client([task])
@@ -131,7 +131,7 @@ def test_job_marca_travado_mesmo_com_override_antigo_e_relogio_vencido(monkeypat
 def test_job_idempotente_quando_ja_travado_automatico(monkeypatch):
     import services.travamento_checker as checker
     task = {
-        "id": "task-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
+        "id": "task-1", "operacional_id": "op-1", "pontos": 1, "entrou_em_andamento_em": _iso(30),
         "travado_automatico": True, "travado_override": False,
     }
     mock_sb, calls = _make_job_mock_client([task])
@@ -145,7 +145,7 @@ def test_job_idempotente_quando_ja_travado_automatico(monkeypatch):
 def test_job_pula_task_sem_entrou_em_andamento_em(monkeypatch):
     import services.travamento_checker as checker
     task = {
-        "id": "task-1", "pontos": 3, "entrou_em_andamento_em": None,
+        "id": "task-1", "operacional_id": "op-1", "pontos": 3, "entrou_em_andamento_em": None,
         "travado_automatico": False, "travado_override": False,
     }
     mock_sb, calls = _make_job_mock_client([task])

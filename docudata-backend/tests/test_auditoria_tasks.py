@@ -184,3 +184,14 @@ def test_devolver_task_travada_dispensa_os_travamentos(make_client):
     assert resp.status_code == 200
     assert capturas == [{"dispensado": True}]
     assert filtros == [("task_id", "t1"), ("dispensado", False)]
+
+
+def test_arrastar_para_puxar_sempre_reancora(cliente_para):
+    antigo = "2026-01-01T00:00:00+00:00"
+    task = dict(_TASK_BASE, operacional_id=None, coluna_kanban="planejado", sprint_id="sp-1",
+                entrou_em_andamento_em=antigo)
+    resp = cliente_para("PULL", task, cargo="operacional", meu_operacional="op-9").patch(
+        "/tasks/task-1", json={"coluna_kanban": "em_andamento"})
+    assert resp.status_code == 200
+    ancora = resp.json()["entrou_em_andamento_em"]
+    assert ancora and ancora != antigo
