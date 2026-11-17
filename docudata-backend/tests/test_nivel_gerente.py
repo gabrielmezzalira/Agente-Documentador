@@ -125,3 +125,71 @@ def test_resolver_revisao_nao_se_aplica_a_task_manual():
     with pytest.raises(HTTPException) as exc:
         ciclo.resolver_revisao(fake, "t1", 2, "motivo", "lider-1")
     assert exc.value.status_code == 409
+
+
+# --- criação ---
+
+BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro"}
+
+
+@pytest.fixture
+def modelo_proibido(monkeypatch):
+    async def explode(**kw):
+        raise AssertionError("o classificador não pode ser chamado quando o gerente define o nível")
+
+    monkeypatch.setattr(ciclo, "classificar", explode)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+
+
+@pytest.mark.parametrize("cargo", ["gerente", "lider", "owner"])
+def test_criar_com_nivel_gerente_nao_chama_ia(monkeypatch, autenticar, modelo_proibido, cargo):
+    fake = _fake()
+    resp = _tc(monkeypatch, autenticar, fake, cargo).post("/tasks", json={**BODY, "nivel_gerente": 5})
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["pontos"] == 5 and body["classificacao_status"] == "manual"
+    linhas = fake.tables["task_classificacoes"]
+    assert len(linhas) == 1 and linhas[0]["tipo"] == "criacao" and linhas[0]["status"] == "manual"
+    assert linhas[0]["nivel_final"] == 5 and linhas[0]["modelo"] is None
+    assert fake.tables["tasks"][0]["pontos"] == 5
+
+
+def test_criar_com_nivel_gerente_ignora_opiniao(monkeypatch, autenticar, modelo_proibido):
+    fake = _fake()
+    resp = _tc(monkeypatch, autenticar, fake).post("/tasks", json={**BODY, "nivel_gerente": 3, "opiniao_nivel": 5})
+    assert resp.status_code == 201 and resp.json()["pontos"] == 3
+    assert fake.tables["task_classificacoes"][0]["opiniao_gerente"] is None
+
+
+def test_criar_com_nivel_gerente_em_sprint_iniciada_trava(monkeypatch, autenticar, modelo_proibido):
+    resp = _tc(monkeypatch, autenticar, _fake()).post("/tasks", json={**BODY, "nivel_gerente": 2, "sprint_id": "s2"})
+    assert resp.status_code == 201 and resp.json()["nivel_travado_em"] is not None
+
+
+def test_criar_com_nivel_gerente_operacional_403(monkeypatch, autenticar, modelo_proibido):
+    fake = _fake()
+    resp = _tc(monkeypatch, autenticar, fake, "operacional").post("/tasks", json={**BODY, "nivel_gerente": 3})
+    assert resp.status_code == 403
+    assert fake.tables["tasks"] == []
+
+
+@pytest.mark.parametrize("invalido", [0, 4, 8, -1])
+def test_criar_com_nivel_gerente_fora_da_regua_422(monkeypatch, autenticar, modelo_proibido, invalido):
+    fake = _fake()
+    resp = _tc(monkeypatch, autenticar, fake).post("/tasks", json={**BODY, "nivel_gerente": invalido})
+    assert resp.status_code == 422 and fake.tables["tasks"] == []
+
+
+def test_criar_sem_nivel_gerente_segue_o_fluxo_da_ia(monkeypatch, autenticar):
+    chamadas = []
+
+    async def fake_cls(**kw):
+        chamadas.append(kw)
+        return {"status": "aplicada", "faltando": [], "sinais": {}, "nivel_sinais": 3, "parecidas": [],
+                "nivel_parecidas": None, "nivel_geral": 3, "justificativa_geral": "ia", "nivel_combinado": 3,
+                "ajuste_tempo": 0, "nivel_final": 3, "motivo_revisao": None, "parametros": {}, "vetor": None}
+
+    monkeypatch.setattr(ciclo, "classificar", fake_cls)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    resp = _tc(monkeypatch, autenticar, _fake()).post("/tasks", json=BODY)
+    assert resp.status_code == 201 and resp.json()["classificacao_status"] == "aplicada" and len(chamadas) == 1

@@ -351,11 +351,16 @@ async def create_task(data: TaskCreate, pessoa: dict = Depends(require_not_opera
             raise HTTPException(status_code=422, detail="sprint_id não pertence a este projeto")
 
     # O nível vem do agente (spec A2): o `pontos` enviado pelo cliente é ignorado.
-    # Um 422 com `faltando` sai aqui, antes de criar a task.
-    resultado = await ciclo.classificar_para_criacao(
-        client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
-        opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
-    )
+    # Um 422 com `faltando` sai aqui, antes de criar a task. Exceção: quando o
+    # gerente escolhe o nível (`nivel_gerente`), o modelo nem é chamado. Operacional
+    # já não chega aqui (require_not_operacional → 403).
+    if data.nivel_gerente is not None:
+        resultado = ciclo.resultado_manual(data.nivel_gerente)
+    else:
+        resultado = await ciclo.classificar_para_criacao(
+            client, titulo=data.titulo, descricao=data.descricao, checklist=data.checklist,
+            opiniao_gerente=data.opiniao_nivel, gerente_id=pessoa["id"],
+        )
 
     payload: dict = {
         "project_id": data.project_id,
