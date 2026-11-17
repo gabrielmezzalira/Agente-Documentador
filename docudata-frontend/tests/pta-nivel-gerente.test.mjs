@@ -26,3 +26,11 @@ test("performance: escopo CITi/PTA vai da tela até a API", () => {
   assert.ok(pagina.includes('{ value: "pta", label: "PTA" }'));
   assert.ok(pagina.includes("getPerformance(escopo)"));
 });
+
+test("api: nível escolhido pelo gerente", () => {
+  const api = ler("app/lib/api.ts");
+  assert.ok(api.includes('"aplicada" | "em_revisao" | "provisoria" | "resolvida" | "manual"'));
+  assert.ok(api.includes("nivel_gerente?: number;"));
+  assert.ok(api.includes("export async function definirNivelGerente(id: string, nivel: number): Promise<TaskKanbanResponse>"));
+  assert.ok(api.includes("`${API}/tasks/${id}/nivel-gerente`"));
+});

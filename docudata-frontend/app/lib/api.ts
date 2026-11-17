@@ -1744,7 +1744,7 @@ export interface TaskKanbanResponse {
   requer_aprovacao: boolean;
   pontos_legado?: number | null;
   nivel_travado_em?: string | null;
-  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | null;
+  classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | "manual" | null;
   justificativa_nivel?: string | null;
   created_at: string;
   updated_at: string;
@@ -1791,6 +1791,7 @@ export async function createTaskKanban(data: {
   checklist?: { texto: string; done: boolean }[];
   requer_aprovacao?: boolean;
   opiniao_nivel?: number;
+  nivel_gerente?: number;
 }): Promise<TaskKanbanResponse> {
   const res = await apiFetch(`${API}/tasks`, {
     method: "POST",
@@ -1842,6 +1843,16 @@ export async function resolverRevisaoNivel(id: string, nivel: number, motivo: st
     body: JSON.stringify({ nivel, motivo }),
   });
   if (!res.ok) throw await erroDetail(res, "Erro ao resolver revisão de nível");
+  return res.json();
+}
+
+export async function definirNivelGerente(id: string, nivel: number): Promise<TaskKanbanResponse> {
+  const res = await apiFetch(`${API}/tasks/${id}/nivel-gerente`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel }),
+  });
+  if (!res.ok) throw await erroDetail(res, "Erro ao definir o nível da task");
   return res.json();
 }
 
