@@ -43,7 +43,7 @@ class WipConfigResponse(BaseModel):
 
 # Fonte única das subáreas aceitas em criação, listagem e busca. `ProjectSubareaUpdate`
 # NÃO usa este tipo de propósito: não se entra em Produto pela troca Dados↔Dev.
-Subarea = Literal["dados", "dev", "produto"]
+Subarea = Literal["dados", "dev", "produto", "pta"]
 
 
 class ProjectCreate(BaseModel):

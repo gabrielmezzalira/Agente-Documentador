@@ -1363,3 +1363,23 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ALTER TABLE configuracao_historico DROP CONSTRAINT IF EXISTS configuracao_historico_campo_check;
 -- ALTER TABLE configuracao_historico ADD CONSTRAINT configuracao_historico_campo_check
 --   CHECK (campo IN ('modo_trabalho','modo_avaliacao'));
+
+-- =============================================================================
+-- Migration v11 (2026-11-17): subárea PTA (processo seletivo do CITi)
+-- Spec: docs/superpowers/specs/2026-11-17-pta-nivel-gerente-design.md §1
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend.
+-- =============================================================================
+
+-- Preflight (somente leitura)
+-- SELECT subarea, count(*) FROM projects GROUP BY subarea ORDER BY 1;
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'projects_subarea_check';
+
+-- v11.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto','pta'));
+
+-- Rollback (só se NENHUM projeto tiver subarea = 'pta'):
+-- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_subarea_check;
+-- ALTER TABLE projects ADD CONSTRAINT projects_subarea_check
+--   CHECK (subarea IN ('dados','dev','produto'));
