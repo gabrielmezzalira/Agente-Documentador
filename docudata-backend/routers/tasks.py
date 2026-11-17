@@ -820,7 +820,14 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     task = resp.data[0]
     project_id = task["project_id"]
 
-    if data.operacional_id is not None:
+    # Null explícito (campo presente no JSON) = "Sem operacional" em Atribuição.
+    # Campo ausente continua significando "não mexer".
+    desatribuir = "operacional_id" in data.model_fields_set and data.operacional_id is None
+    operacional_muda = (
+        data.operacional_id is not None and data.operacional_id != task.get("operacional_id")
+    ) or (desatribuir and task.get("operacional_id") is not None)
+
+    if operacional_muda:
         proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
         if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
             raise HTTPException(
@@ -866,6 +873,7 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
         and coluna_atual == "planejado"
         and not task.get("operacional_id")
         and data.operacional_id is None
+        and not desatribuir
     ):
         proj_modo = client.table("projects").select("modo_trabalho").eq("id", project_id).execute()
         if proj_modo.data and proj_modo.data[0].get("modo_trabalho") == "PULL":
@@ -946,6 +954,9 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     houve_atribuicao_operacional = False
     for campo in ("coluna_kanban", "operacional_id", "sprint_id"):
         novo_valor = getattr(data, campo, None)
+        if campo == "operacional_id" and desatribuir and task.get("operacional_id") is not None:
+            _registrar_task_transicao(client, task_id, task, "operacional_id", None, data.autor, data.motivo, agora)
+            continue
         if novo_valor is None or str(novo_valor) == str(task.get(campo) or ""):
             continue
         if campo == "operacional_id":
@@ -1016,6 +1027,8 @@ async def patch_task(task_id: str, data: TaskUpdate, pessoa: dict = Depends(get_
     # bloqueado pode ser False, precisa checar explicitamente
     if data.bloqueado is not None:
         updates["bloqueado"] = data.bloqueado
+    if desatribuir and task.get("operacional_id") is not None:
+        updates["operacional_id"] = None
     if puxada_por:
         updates.update({"operacional_id": puxada_por, "pull_em": agora.isoformat(), "ordem_fila": None})
     if data.extra is not None:
