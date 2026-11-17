@@ -403,10 +403,22 @@ async def create_task(
         raise HTTPException(status_code=500, detail="Failed to create task")
 
     criada = resp.data[0]
-    ciclo.gravar_classificacao(
-        client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
-        texto=texto_da_task(data.titulo, data.descricao, data.checklist),
-    )
+    try:
+        ciclo.gravar_classificacao(
+            client, criada["id"], resultado, tipo="criacao", criado_por=pessoa["id"],
+            texto=texto_da_task(data.titulo, data.descricao, data.checklist),
+        )
+    except Exception:
+        if data.nivel_gerente is None:
+            raise
+        # Caminho manual: o CHECK de status pode ainda não aceitar 'manual'
+        # (migração v12 pendente). Não deixa task órfã sem classificação.
+        _LOG.error("falha ao gravar a classificação manual da task %s", criada["id"], exc_info=True)
+        client.table("tasks").delete().eq("id", criada["id"]).execute()
+        raise HTTPException(
+            status_code=503,
+            detail="Nível do gerente indisponível: aplique a migração v12.",
+        )
     if (sprint_iniciada and payload.get("coluna_kanban") != "concluida") or payload.get("coluna_kanban") == "em_andamento":
         criada = _travar_e_atualizar(client, criada)
 

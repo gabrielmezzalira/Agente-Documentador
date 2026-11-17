@@ -187,3 +187,20 @@ def test_job_nao_sobrescreve_frente_gravada_pelo_gerente_durante_a_chamada(monke
     asyncio.run(frente.atualizar_frente_da_task("t1"))
     t = fake.tables["tasks"][0]
     assert t["frente"] == "mobile" and t["frente_definida_por"] == "gerente"
+
+
+def test_post_nivel_gerente_com_gravar_classificacao_falhando_remove_task_e_503(monkeypatch, autenticar):
+    """Migração v12 não aplicada (CHECK não aceita 'manual'): não pode sobrar task órfã."""
+    import services.classificador_ciclo as ciclo
+    fake = _fake()
+    fake.tables["tasks"].clear()
+    c, _ = _tc(monkeypatch, autenticar, fake)
+
+    def explode(*a, **kw):
+        raise RuntimeError("violates check constraint")
+
+    monkeypatch.setattr(ciclo, "gravar_classificacao", explode)
+    resp = c.post("/tasks", json={"project_id": "p1", "titulo": "Nova", "descricao": "x", "nivel_gerente": 3})
+    assert resp.status_code == 503
+    assert "migração v12" in resp.json()["detail"]
+    assert fake.tables["tasks"] == []
