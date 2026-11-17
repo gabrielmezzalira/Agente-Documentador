@@ -74,3 +74,58 @@ def test_create_sprint_iniciada_grava_snapshot(monkeypatch, autenticar):
     resp = tc.post("/projects/p1/sprints", json={"iniciada": True})
     assert resp.status_code == 201, resp.text
     assert fake.tables["sprints"][0]["modo_trabalho"] == "PULL"
+
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def projetos_api(monkeypatch, autenticar):
+    def _make(fake):
+        import routers.projects as projects_router
+        from main import app
+        monkeypatch.setattr(projects_router, "get_client", lambda: fake)
+        return autenticar(TestClient(app), cargo="gerente")
+    return _make
+
+
+def _projeto(modo, wip):
+    return FakeClient({
+        "projects": [{"id": "p1", "name": "P", "modo_trabalho": modo, "modo_avaliacao": "PONTOS_ATRIBUIDOS",
+                      "wip_config": wip}],
+        "tasks": [], "sprints": [], "ingestions": [], "operacionais": [], "pessoa": [],
+        "configuracao_historico": [], "migracoes_modo": [],
+    }, defaults={"configuracao_historico": {"criado_em": "2026-11-17T10:00:00+00:00"}})
+
+
+def test_ida_e_volta_restaura_o_wip_por_pessoa(projetos_api):
+    fake = _projeto("ATRIBUICAO", {"por_pessoa": 3, "por_coluna_em_andamento": 5})
+    tc = projetos_api(fake)
+    assert tc.post("/projects/p1/migrar-modo", json={"para": "PULL"}).status_code == 200
+    assert fake.tables["projects"][0]["wip_config"]["por_pessoa"] == 1
+    assert tc.post("/projects/p1/migrar-modo", json={"para": "ATRIBUICAO"}).status_code == 200
+    assert fake.tables["projects"][0]["wip_config"] == {"por_pessoa": 3, "por_coluna_em_andamento": 5}
+
+
+def test_ida_e_volta_com_wip_nulo_volta_a_nulo(projetos_api):
+    fake = _projeto("ATRIBUICAO", {"por_pessoa": None, "por_coluna_em_andamento": None})
+    tc = projetos_api(fake)
+    tc.post("/projects/p1/migrar-modo", json={"para": "PULL"})
+    tc.post("/projects/p1/migrar-modo", json={"para": "ATRIBUICAO"})
+    assert fake.tables["projects"][0]["wip_config"]["por_pessoa"] is None
+
+
+def test_sair_de_pull_sem_registro_nao_mexe_no_wip(projetos_api):
+    fake = _projeto("PULL", {"por_pessoa": 1, "por_coluna_em_andamento": None})
+    projetos_api(fake).post("/projects/p1/migrar-modo", json={"para": "ATRIBUICAO"})
+    assert fake.tables["projects"][0]["wip_config"]["por_pessoa"] == 1
+
+
+def test_historico_de_modos_nao_expoe_o_registro_de_wip(projetos_api):
+    fake = _projeto("ATRIBUICAO", {"por_pessoa": 3, "por_coluna_em_andamento": None})
+    tc = projetos_api(fake)
+    tc.post("/projects/p1/migrar-modo", json={"para": "PULL"})
+    campos = {l["campo"] for l in tc.get("/projects/p1/modos-historico").json()}
+    assert "wip_por_pessoa" not in campos
+    assert "modo_trabalho" in campos

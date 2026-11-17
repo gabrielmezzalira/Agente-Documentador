@@ -1343,3 +1343,23 @@ CREATE TABLE IF NOT EXISTS sprint_meta_eventos (
     criado_em          timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos(sprint_id, criado_em);
+
+-- =============================================================================
+-- Migration v9 (2026-11-17): configuracao_historico guarda o WIP por pessoa de antes de Pull
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase ANTES do deploy do backend
+-- (sem ela, o insert de campo='wip_por_pessoa' ao entrar em Pull falha na migração de modo).
+-- =============================================================================
+
+-- Preflight (somente leitura): definição atual da constraint
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'configuracao_historico_campo_check';
+
+-- v9.1 — alarga o conjunto permitido (nenhum dado existente muda)
+-- ALTER TABLE configuracao_historico DROP CONSTRAINT IF EXISTS configuracao_historico_campo_check;
+-- ALTER TABLE configuracao_historico ADD CONSTRAINT configuracao_historico_campo_check
+--   CHECK (campo IN ('modo_trabalho','modo_avaliacao','wip_por_pessoa'));
+
+-- Rollback (só depois de apagar as linhas novas):
+-- DELETE FROM configuracao_historico WHERE campo = 'wip_por_pessoa';
+-- ALTER TABLE configuracao_historico DROP CONSTRAINT IF EXISTS configuracao_historico_campo_check;
+-- ALTER TABLE configuracao_historico ADD CONSTRAINT configuracao_historico_campo_check
+--   CHECK (campo IN ('modo_trabalho','modo_avaliacao'));

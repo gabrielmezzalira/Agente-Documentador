@@ -126,6 +126,15 @@ def _mock_client_completo(projeto, tasks):
                 iq.execute = MagicMock(return_value=iresp)
                 return iq
             tbl.insert = MagicMock(side_effect=_insert)
+        elif name == "configuracao_historico":
+            # Sem registro de WIP anterior: sair de Pull não restaura nada.
+            hq = MagicMock()
+            for metodo in ("eq", "order", "limit"):
+                setattr(hq, metodo, MagicMock(return_value=hq))
+            hresp = MagicMock()
+            hresp.data = []
+            hq.execute = MagicMock(return_value=hresp)
+            tbl.select = MagicMock(return_value=hq)
         return tbl
 
     client.table = MagicMock(side_effect=table_side_effect)
@@ -347,7 +356,11 @@ def test_aplicar_migracao_grava_configuracao_historico_quando_modo_muda(make_cli
     resp = tc.post("/projects/proj-1/migrar-modo", json={"para": "PULL"})
 
     assert resp.status_code == 200
-    assert len(historico_insert) == 1
+    modo = [h for h in historico_insert if h["campo"] == "modo_trabalho"]
+    assert len(modo) == 1
+    # entrar em Pull também guarda o WIP por pessoa de antes (campo à parte)
+    assert [h["campo"] for h in historico_insert if h["campo"] != "modo_trabalho"] == ["wip_por_pessoa"]
+    historico_insert = modo
     assert historico_insert[0]["campo"] == "modo_trabalho"
     assert historico_insert[0]["valor_anterior"] == "ATRIBUICAO"
     assert historico_insert[0]["valor_novo"] == "PULL"
