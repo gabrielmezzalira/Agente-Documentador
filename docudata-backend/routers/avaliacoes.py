@@ -345,6 +345,19 @@ async def criar_ou_atualizar_avaliacao(data: AvaliacaoGerenteCreate, pessoa: dic
 @router.post("/{sprint_id}/confirmar", response_model=ConfirmarAvaliacaoResponse)
 async def confirmar_avaliacao_semanal(sprint_id: str):
     client = get_client()
+    sprint_row = client.table("sprints").select("id, avaliacao_completa_em").eq("id", sprint_id).execute().data
+    if not sprint_row:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    if sprint_row[0].get("avaliacao_completa_em"):
+        # Já fechada: resposta idempotente, sem regravar a data nem recalcular.
+        existentes = (
+            client.table("pontuacao_operacional_sprint").select("id").eq("sprint_id", sprint_id).execute().data or []
+        )
+        return {
+            "sprint_id": sprint_id,
+            "avaliacao_completa_em": sprint_row[0]["avaliacao_completa_em"],
+            "pontuacao_travada_count": len(existentes),
+        }
     pendencias = await listar_pendencias(sprint_id)
     if pendencias:
         nomes = ", ".join(p["nome"] for p in pendencias)
@@ -410,6 +423,11 @@ async def reabrir_avaliacao_semanal(sprint_id: str):
     # Eventos que tinham sido redirecionados para cá voltam a ficar pendentes de
     # um fechamento; sem isso eles seriam contados no próximo fechamento também.
     client.table("eventos_pontuacao_tardios").delete().eq("sprint_id_alvo", sprint_id).execute()
+    # Extrato do fechamento é recriado ao confirmar de novo; sem apagar, duplica.
+    # devolucao_penalidade nasce no meio da sprint (/devolver) e não é recriada.
+    client.table("pontuacao_eventos").delete().eq("sprint_id", sprint_id).in_(
+        "tipo", ["entrega_concluida", "bonus_extra", "travamento_penalidade", "reabertura"]
+    ).execute()
 
     resp = client.table("sprints").update({"avaliacao_completa_em": None}).eq("id", sprint_id).execute()
     return {
