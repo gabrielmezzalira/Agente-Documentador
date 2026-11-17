@@ -325,3 +325,26 @@ def test_override_em_task_inexistente_retorna_404(monkeypatch):
 
     assert resp.status_code == 404
     assert len(calls["tasks_update"]) == 0
+
+
+def test_override_por_operacional_retorna_403_sem_escrever(monkeypatch):
+    """Dispensar penalidade de Entrega é decisão de gerente/líder."""
+    mock_sb, calls = _make_endpoint_mock_client(dict(_BASE_TASK))
+    tc = _patch_and_client(monkeypatch, mock_sb)
+    from services.auth import criar_jwt
+    tc.cookies.set("docudata_session", criar_jwt("pessoa-op", "op@citi.com", "operacional"))
+
+    resp = tc.post("/tasks/task-1/travado/override")
+
+    assert resp.status_code == 403
+    assert len(calls["tasks_update"]) == 0
+
+
+def test_override_sem_autor_usa_email_da_pessoa(monkeypatch):
+    mock_sb, calls = _make_endpoint_mock_client(dict(_BASE_TASK))
+    tc = _patch_and_client(monkeypatch, mock_sb)
+
+    resp = tc.post("/tasks/task-1/travado/override")
+
+    assert resp.status_code == 200
+    assert calls["tasks_update"][-1]["travado_override_por"] == "test@citi.com"

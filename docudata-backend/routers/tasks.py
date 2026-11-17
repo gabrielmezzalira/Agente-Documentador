@@ -1288,7 +1288,11 @@ async def mover_task(
 
 
 @router.post("/{task_id}/travado/override", response_model=TaskResponse)
-async def override_travamento(task_id: str, autor: Optional[str] = None):
+async def override_travamento(
+    task_id: str,
+    autor: Optional[str] = None,
+    pessoa: dict = Depends(require_not_operacional),
+):
     """
     ALERT-03: suprime o alerta de travamento automático e reinicia o relógio
     (revisão 2026-09-12) — não é mais imunidade permanente. Muita task trava
@@ -1314,6 +1318,7 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    await require_project_access(task["project_id"], pessoa)
 
     if task.get("coluna_kanban") == "concluida" or not task.get("entrou_em_andamento_em"):
         raise HTTPException(
@@ -1324,7 +1329,7 @@ async def override_travamento(task_id: str, autor: Optional[str] = None):
     agora = datetime.now(timezone.utc)
     updates = {
         "travado_override": True,
-        "travado_override_por": autor,
+        "travado_override_por": autor or pessoa["email"],
         "travado_override_em": agora.isoformat(),
         "travado_automatico": False,
         "entrou_em_andamento_em": agora.isoformat(),
