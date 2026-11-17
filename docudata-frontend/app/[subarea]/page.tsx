@@ -11,6 +11,7 @@ import ProjectListCard, { isStale } from "../components/projects/ProjectListCard
 const SUBAREA_COPY: Record<Subarea, { label: string; description: string }> = {
   dados: { label: "Dados", description: "Acompanhe sprints, decisões e documentação dos projetos de dados em um só lugar." },
   dev: { label: "Dev", description: "Centralize o contexto técnico, as decisões e a documentação dos projetos de desenvolvimento." },
+  pta: { label: "PTA", description: "Acompanhe sprints, decisões e documentação dos projetos do processo seletivo do CITi." },
 };
 
 function SubareaHome() {

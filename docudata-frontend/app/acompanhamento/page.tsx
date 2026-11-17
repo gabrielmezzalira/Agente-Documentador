@@ -12,6 +12,7 @@ import { getAcompanhamento, type AcompanhamentoResponse, type AcompGerente, type
 const SUBAREAS: { value: Subarea; label: string }[] = [
   { value: "dados", label: "Dados" },
   { value: "dev", label: "Dev" },
+  { value: "pta", label: "PTA" },
 ];
 
 const TOM: Record<AcompStatus, Tone> = { critico: "red", atencao: "amber", sem_dados: "neutral", saudavel: "green" };

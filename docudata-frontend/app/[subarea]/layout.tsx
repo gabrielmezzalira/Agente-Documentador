@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-const SUBAREAS = new Set(["dados", "dev"]);
+const SUBAREAS = new Set(["dados", "dev", "pta"]);
 
 /** Valida a subárea da URL. O cabeçalho agora vive na casca global (components/shell). */
 export default async function SubareaLayout({

@@ -874,7 +874,7 @@ export default function ProjectDashboard() {
 
   async function handleChangeSubarea() {
     if (!project || !subareaDestino || subareaDestino === project.subarea) return;
-    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : "Dados");
+    const rotuloSubarea = (sub: Subarea) => (sub === "dev" ? "Dev" : sub === "pta" ? "PTA" : "Dados");
     const origem = rotuloSubarea(project.subarea);
     const destino = rotuloSubarea(subareaDestino);
     const confirmado = confirm(
@@ -1761,6 +1761,7 @@ export default function ProjectDashboard() {
                   >
                     <option value="dados">Dados</option>
                     <option value="dev">Dev</option>
+                    {project.subarea === "pta" && <option value="pta">PTA</option>}
                   </select>
                   <button
                     type="button"
