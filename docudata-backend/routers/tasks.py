@@ -1351,9 +1351,30 @@ async def override_travamento(
 
 
 @router.patch("/reordenar/batch", status_code=200)
-async def reordenar_tasks(itens: list[TaskReordenarItem]):
-    """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna)."""
+async def reordenar_tasks(
+    itens: list[TaskReordenarItem],
+    pessoa: dict = Depends(get_current_pessoa),
+):
+    """Atualiza a ordem de múltiplas tasks de uma vez (drag-and-drop na mesma coluna).
+
+    Gerente/líder/owner reordenam qualquer task. Operacional só as próprias —
+    a fila do Pull (sem dono) e tasks alheias o barram com 403, e nada é gravado.
+    """
     client = get_client()
+    if pessoa["cargo"] not in ("owner", "lider", "gerente") and itens:
+        ids = [i.id for i in itens]
+        linhas = client.table("tasks").select("id, project_id, operacional_id").in_("id", ids).execute().data or []
+        por_id = {r["id"]: r for r in linhas}
+        meus: dict[str, Optional[str]] = {}
+        for item in itens:
+            row = por_id.get(item.id)
+            if row is None or not row.get("operacional_id"):
+                raise HTTPException(status_code=403, detail="Você só pode reordenar as suas próprias tasks")
+            pid = row["project_id"]
+            if pid not in meus:
+                meus[pid] = _resolver_operacional_id_da_pessoa(client, pid, pessoa["email"])
+            if meus[pid] != row["operacional_id"]:
+                raise HTTPException(status_code=403, detail="Você só pode reordenar as suas próprias tasks")
     for item in itens:
         client.table("tasks").update({"ordem": item.ordem}).eq("id", item.id).execute()
     return {"updated": len(itens)}
