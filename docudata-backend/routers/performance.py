@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.schemas import PerformanceResponse
 from services.audit import registrar_auditoria
@@ -10,7 +10,7 @@ router = APIRouter(tags=["performance"])
 
 
 @router.get("/performance", response_model=PerformanceResponse, dependencies=[Depends(require_role("lider"))])
-async def performance(pessoa: dict = Depends(get_current_pessoa)):
+async def performance(escopo: str = Query("citi", pattern="^(citi|pta)$"), pessoa: dict = Depends(get_current_pessoa)):
     registrar_auditoria(pessoa, "/performance", "acesso")
     client = get_client()
 
@@ -20,7 +20,7 @@ async def performance(pessoa: dict = Depends(get_current_pessoa)):
         raise HTTPException(status_code=500, detail="pesos_arquetipo não configurado")
 
     projetos_resultado = []
-    for projeto_id, info in listar_pessoas_ativas_por_projeto(client).items():
+    for projeto_id, info in listar_pessoas_ativas_por_projeto(client, escopo).items():
         janelas: dict[str, list[dict]] = {"sprint": [], "quinzenal": [], "mensal": []}
         for pessoa_ranking in info["pessoas"]:
             ranking = calcular_ranking_pessoa(client, pessoa_ranking, pesos_por_arquetipo)
