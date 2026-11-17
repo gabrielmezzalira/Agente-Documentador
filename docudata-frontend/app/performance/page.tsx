@@ -85,9 +85,17 @@ export default function PerformancePage() {
     if (!auth || (auth.cargo !== "lider" && auth.cargo !== "owner")) return;
     setDados(null);
     setErro("");
+    let ignore = false;
     getPerformance(escopo)
-      .then(setDados)
-      .catch((e: Error) => setErro(e.message));
+      .then((d) => {
+        if (!ignore) setDados(d);
+      })
+      .catch((e: Error) => {
+        if (!ignore) setErro(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [auth, escopo]);
 
   if (auth && auth.cargo !== "lider" && auth.cargo !== "owner") {
