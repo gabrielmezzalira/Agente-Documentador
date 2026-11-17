@@ -45,3 +45,15 @@ test("criação: gerente define o nível e a opinião some", () => {
   assert.match(k, /\{mode === "create" && !nivelProprio && \(/);
   assert.ok(k.includes('const ehGerente = !!auth && auth.cargo !== "operacional";'));
 });
+
+test("task aberta: Mudar nível e selos do gerente", () => {
+  const k = ler("app/components/TasksKanbanTab.tsx");
+  assert.ok(k.includes("definirNivelGerente"));
+  assert.ok(k.includes("Mudar nível"));
+  assert.ok(k.includes('id="task-mudar-nivel"'));
+  assert.ok(k.includes("function origemNivel("));
+  assert.ok(k.includes('"definido pelo gerente"'));
+  assert.ok(k.includes("nível do gerente"));
+  assert.ok(k.includes('task.classificacao_status === "manual"'));
+  assert.ok(!k.includes("· definido pelo classificador`"), "os títulos dos chips usam origemNivel");
+});

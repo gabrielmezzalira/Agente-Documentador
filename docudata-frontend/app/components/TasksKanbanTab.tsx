@@ -24,6 +24,7 @@ import {
   aprovarTask,
   rejeitarTask,
   reclassificarTask,
+  definirNivelGerente,
   opinarNivelTask,
   type SolicitacaoTask,
   type TaskKanbanResponse,
@@ -139,6 +140,10 @@ interface TaskModalProps {
   onDeleted?: (id: string) => void;
 }
 
+function origemNivel(status?: string | null): string {
+  return status === "manual" ? "definido pelo gerente" : "definido pelo classificador";
+}
+
 function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
   defaultSprintId, modoTrabalho, onClose, onSaved, onReclassified, onDeleted,
@@ -153,6 +158,8 @@ function TaskModal({
   const [opiniao, setOpiniao] = useState("");
   const [faltando, setFaltando] = useState<string[]>([]);
   const [reclassificando, setReclassificando] = useState(false);
+  const [novoNivel, setNovoNivel] = useState("");
+  const [mudandoNivel, setMudandoNivel] = useState(false);
   const [sprintId, setSprintId] = useState(task?.sprint_id ?? defaultSprintId ?? "");
   const [operacionalId, setOperacionalId] = useState(task?.operacional_id ?? "");
   const [funcId, setFuncId] = useState(task?.funcionalidade_id ?? "");
@@ -258,6 +265,21 @@ function TaskModal({
       setErr(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleMudarNivel() {
+    if (!task || !novoNivel) return;
+    setMudandoNivel(true);
+    setErr("");
+    try {
+      const atualizada = await definirNivelGerente(task.id, Number(novoNivel));
+      onSaved(atualizada);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao mudar o nível");
+    } finally {
+      setMudandoNivel(false);
     }
   }
 
@@ -376,7 +398,7 @@ function TaskModal({
 
           {mode === "edit" && task && (
             <p style={{ fontSize: 12.5, color: "#c3cbc6", margin: 0 }}>
-              nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : "definido pelo classificador"}
+              nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : origemNivel(task.classificacao_status)}
             </p>
           )}
 
@@ -551,13 +573,33 @@ function TaskModal({
                 nível travado desde {new Date(task.nivel_travado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
               </p>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
-                  {reclassificando ? "Reclassificando…" : "Reclassificar"}
-                </button>
-                {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
-              </div>
+              task.classificacao_status !== "manual" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
+                    {reclassificando ? "Reclassificando…" : "Reclassificar"}
+                  </button>
+                  {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
+                </div>
+              )
             )
+          )}
+
+          {mode === "edit" && task && ehGerente && !task.nivel_travado_em && task.coluna_kanban !== "concluida" && (
+            <div>
+              <label htmlFor="task-mudar-nivel" style={labelSt}>Escolher o nível eu mesmo</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <DsSelect id="task-mudar-nivel" value={novoNivel} onChange={(e) => setNovoNivel(e.target.value)}>
+                  <option value="">escolha o nível</option>
+                  {NIVEIS.map((n) => (
+                    <option key={n} value={n}>{rotuloNivel(n)}</option>
+                  ))}
+                </DsSelect>
+                <button type="button" onClick={handleMudarNivel} disabled={!novoNivel || mudandoNivel || saving || edicaoPendente} style={btnGhost}>
+                  {mudandoNivel ? "Salvando…" : "Mudar nível"}
+                </button>
+              </div>
+              {edicaoPendente && <p style={{ fontSize: 12, color: "#8a948e", margin: "6px 0 0" }}>Salve as edições antes de mudar o nível</p>}
+            </div>
           )}
 
           {mode === "edit" && (
@@ -844,7 +886,7 @@ function TaskViewModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
+          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
           {task.bloqueado && (
@@ -1083,11 +1125,13 @@ function TaskCard({
       </span>
 
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · definido pelo classificador`}>{task.pontos}pt</span>
+        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
 
         {(task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
           <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
         )}
+
+        {task.classificacao_status === "manual" && <Chip tone="green">nível do gerente</Chip>}
 
         {op && (
           <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
