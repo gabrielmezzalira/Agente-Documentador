@@ -8,6 +8,7 @@ from models.schemas import (
     OpiniaoNivelRequest,
     ReclassificarResponse,
     RejeitarTaskRequest,
+    NivelGerenteRequest,
     RevisaoNivelRequest,
     TaskCreate,
     TaskUpdate,
@@ -786,6 +787,21 @@ async def revisar_nivel_task(task_id: str, data: RevisaoNivelRequest, pessoa: di
         "justificativa_nivel": resultado.get("justificativa_geral"),
         "motivo_revisao": resultado.get("motivo_revisao"),
     }
+
+
+@router.post("/{task_id}/nivel-gerente", response_model=TaskResponse)
+async def definir_nivel_gerente_task(
+    task_id: str, data: NivelGerenteRequest, pessoa: dict = Depends(require_role("gerente")),
+):
+    """Gerente/líder/owner escolhe o nível da task, sem o classificador (spec PTA §3)."""
+    client = get_client()
+    rows = client.table("tasks").select("id, project_id").eq("id", task_id).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await require_project_access(rows[0]["project_id"], pessoa)
+    ciclo.definir_nivel_gerente(client, task_id, data.nivel, pessoa["id"])
+    fresca = client.table("tasks").select("*").eq("id", task_id).execute().data[0]
+    return _com_classificacao_status(client, [fresca])[0]
 
 
 @router.post("/{task_id}/opiniao-nivel", status_code=204)

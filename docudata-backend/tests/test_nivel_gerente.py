@@ -193,3 +193,103 @@ def test_criar_sem_nivel_gerente_segue_o_fluxo_da_ia(monkeypatch, autenticar):
     monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
     resp = _tc(monkeypatch, autenticar, _fake()).post("/tasks", json=BODY)
     assert resp.status_code == 201 and resp.json()["classificacao_status"] == "aplicada" and len(chamadas) == 1
+
+
+# --- endpoint /nivel-gerente ---
+
+@pytest.mark.parametrize("cargo", ["gerente", "lider", "owner"])
+def test_nivel_gerente_troca_o_nivel(monkeypatch, autenticar, cargo):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(pontos=2))
+    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    resp = _tc(monkeypatch, autenticar, fake, cargo).post("/tasks/t1/nivel-gerente", json={"nivel": 5})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["pontos"] == 5 and body["classificacao_status"] == "manual"
+    assert fake.tables["tasks"][0]["pontos"] == 5
+    ultima = [c for c in fake.tables["task_classificacoes"] if c["tipo"] == "reclassificacao"]
+    assert len(ultima) == 1 and ultima[0]["status"] == "manual" and ultima[0]["criado_por"] == "pessoa-teste"
+
+
+def test_nivel_gerente_operacional_403(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    resp = _tc(monkeypatch, autenticar, fake, "operacional").post("/tasks/t1/nivel-gerente", json={"nivel": 3})
+    assert resp.status_code == 403
+    assert fake.tables["task_classificacoes"] == []
+
+
+def test_nivel_gerente_task_travada_409(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    resp = _tc(monkeypatch, autenticar, fake).post("/tasks/t1/nivel-gerente", json={"nivel": 3})
+    assert resp.status_code == 409 and resp.json()["detail"] == "Nível já travado: a task começou"
+    assert fake.tables["tasks"][0]["pontos"] == 2
+
+
+def test_nivel_gerente_task_inexistente_404(monkeypatch, autenticar):
+    resp = _tc(monkeypatch, autenticar, _fake()).post("/tasks/nao-existe/nivel-gerente", json={"nivel": 3})
+    assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("invalido", [0, 4, 7])
+def test_nivel_gerente_fora_da_regua_422(monkeypatch, autenticar, invalido):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    resp = _tc(monkeypatch, autenticar, fake).post("/tasks/t1/nivel-gerente", json={"nivel": invalido})
+    assert resp.status_code == 422 and fake.tables["task_classificacoes"] == []
+
+
+def test_task_manual_comeca_e_trava(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("manual", 3))
+    resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={"coluna_kanban": "em_andamento"})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["tasks"][0]["nivel_travado_em"] is not None
+
+
+@pytest.mark.parametrize("campo,valor", [("titulo", "Outro título"), ("descricao", "outra"),
+                                         ("checklist", [{"texto": "novo", "done": False}])])
+def test_editar_texto_de_task_manual_nao_manda_para_revisao(monkeypatch, autenticar, campo, valor):
+    fake = _fake()
+    fake.tables["tasks"].append(_task(checklist=[{"texto": "a", "done": False}]))
+    fake.tables["task_classificacoes"].append(_clas("manual", 3))
+    resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={campo: valor})
+    assert resp.status_code == 200, resp.text
+    assert fake.tables["task_classificacoes"][0]["status"] == "manual"
+    assert len(fake.tables["task_classificacoes"]) == 1  # sem reclassificação
+    assert fake.tables["tasks"][0]["pontos"] == 2  # PATCH não mexe no nível
+
+
+def test_reclassificar_task_manual_pela_rota_409(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("manual", 3))
+    resp = _tc(monkeypatch, autenticar, fake, "lider").post("/tasks/t1/reclassificar")
+    assert resp.status_code == 409
+
+
+def test_get_task_traz_status_manual(monkeypatch, autenticar):
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("manual", 3))
+    assert _tc(monkeypatch, autenticar, fake).get("/tasks/t1").json()["classificacao_status"] == "manual"
+
+
+def test_task_manual_concluida_entra_no_aprendizado_fora_do_pta():
+    import services.classificador_aprendizado as ap
+    fake = _fake()
+    fake.tables["tasks"].append(_task(coluna_kanban="concluida", pontos=3, operacional_id="op1"))
+    fake.tables["task_classificacoes"].append(_clas("manual", 3, opiniao_gerente=None))
+    fake.tables["task_transicoes"] = [
+        {"task_id": "t1", "campo": "coluna_kanban", "de": "planejado", "para": "em_andamento",
+         "timestamp": "2026-10-01T08:00:00+00:00", "bloqueio_tipo": None},
+        {"task_id": "t1", "campo": "coluna_kanban", "de": "em_andamento", "para": "concluida",
+         "timestamp": "2026-10-01T12:00:00+00:00", "bloqueio_tipo": None},
+    ]
+    fake.tables["classificador_parametros"] = []
+    fake.tables["classificador_parametros_hist"] = []
+    ap.registrar_conclusao(fake, "t1")
+    ex = fake.tables["task_aprendizado"][0]
+    assert ex["nivel_sugerido"] == 3
