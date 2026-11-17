@@ -67,7 +67,7 @@ A auditoria leu o código da main. Os achados confirmados que entram nesta rodad
 | 1 | Em Pull, salvar o modal de uma task com dono dá 422, porque o front reenvia `operacional_id` | Back: em Pull, aceitar `operacional_id` igual ao atual (sem mudança). Front: não enviar `operacional_id` em Pull |
 | 2 | Em Pull, a âncora do travamento conta o tempo na fila e penaliza quem puxa | Ao iniciar a sprint, não ancorar task da fila (sem dono) de projeto Pull. Arrastar para puxar reancora sempre, como o `/puxar`. O job ignora task sem dono |
 | 4 | Devolver task travada penaliza o dono antigo quando outra pessoa conclui | Ao devolver, marcar como dispensados os `task_travamentos` ativos da task |
-| 5 | Operacional move ou conclui task de outro (e de outro projeto) | No PATCH/mover, operacional só move task própria (ou puxa da fila, em Pull) e precisa ter acesso ao projeto |
+| 5 | Pela interface, o operacional arrasta a task de um colega do mesmo projeto (para Concluída, ou de volta para Planejado, onde em Pull ela fica presa com dono e fora da fila). Além disso, PATCH e mover não checam se a pessoa está na equipe do projeto. Explorar isso exigiria chamar a API com o UUID da task, então o risco é baixo | Back: operacional só move task própria (ou puxa da fila, em Pull) e precisa estar na equipe do projeto. Front: para o operacional, card de outra pessoa não é arrastável |
 | 6 | `/puxar` não exige sprint (o DoR que o PATCH exige) | O mesmo 422 do PATCH |
 | 7 | `/devolver` aceita task concluída e projeto em Atribuição | 422 fora de Pull e para colunas diferentes de `em_andamento`/`em_ajuste` |
 | 8 | Reconfirmar avaliação de sprint fechada sobrescreve `avaliacao_completa_em` | Se já estiver fechada, não regravar a data (resposta idempotente) |
