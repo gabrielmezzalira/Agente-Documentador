@@ -142,3 +142,34 @@ def test_devolver_planejado_com_dono_libera_para_fila(make_client):
 def test_devolver_em_andamento_em_pull_continua_200(make_client):
     resp = make_client(_task(operacional_id="op-a", coluna_kanban="em_andamento"), _OP).post("/tasks/t1/devolver")
     assert resp.status_code == 200
+
+
+from unittest.mock import MagicMock  # noqa: E402
+
+
+def _capturar_dispensa(tc):
+    capturas = []
+    original = tc._mock_sb.table.side_effect
+
+    def tabela(nome):
+        tbl = original(nome)
+        if nome == "task_travamentos":
+            def upd(payload):
+                capturas.append(payload)
+                q = MagicMock()
+                q.eq = MagicMock(return_value=q)
+                return q
+            tbl.update = MagicMock(side_effect=upd)
+        return tbl
+
+    tc._mock_sb.table = MagicMock(side_effect=tabela)
+    return capturas
+
+
+def test_devolver_task_travada_dispensa_os_travamentos(make_client):
+    task = _task(operacional_id="op-a", coluna_kanban="em_andamento", travado_automatico=True, sprint_id="sprint-1")
+    tc = make_client(task, _OP, task_travamentos=[{"pontos": 3, "dispensado": False}])
+    capturas = _capturar_dispensa(tc)
+    resp = tc.post("/tasks/t1/devolver")
+    assert resp.status_code == 200
+    assert capturas == [{"dispensado": True}]

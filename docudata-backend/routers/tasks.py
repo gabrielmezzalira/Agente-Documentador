@@ -647,6 +647,20 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
             except Exception:
                 _LOG.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da devolução da task %s", task_id)
 
+    # A task volta para a fila: quem concluir depois não pode herdar a penalidade
+    # do dono antigo (task_travamentos.operacional_id aponta para ele). O extrato
+    # acima já registrou a devolução.
+    try:
+        (
+            client.table("task_travamentos")
+            .update({"dispensado": True})
+            .eq("task_id", task_id)
+            .eq("dispensado", False)
+            .execute()
+        )
+    except Exception:
+        _LOG.warning("Falha ao dispensar travamentos da task %s na devolução", task_id)
+
     agora = datetime.now(timezone.utc).isoformat()
     fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
     max_ordem = max((t.get("ordem_fila") or 0) for t in fila) if fila else 0
