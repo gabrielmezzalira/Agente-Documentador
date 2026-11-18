@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
+import PropostasMelhoria from "./PropostasMelhoria";
 import { Button as DsButton, Select as DsSelect, ErrorNotice, Chip } from "./ds";
 import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
@@ -29,6 +30,7 @@ import {
   rotuloFrente,
   opinarNivelTask,
   type SolicitacaoTask,
+  type Subarea,
   type TaskKanbanResponse,
   type TaskTransicaoKanban,
   type TaskSugestaoResponse,
@@ -43,6 +45,7 @@ interface Props {
   operacionais: OperacionalResponse[];
   funcionalidades: FuncionalidadeResponse[];
   modoTrabalho: "ATRIBUICAO" | "PULL";
+  subarea?: Subarea;
 }
 
 type Coluna = "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
@@ -1194,6 +1197,8 @@ function TaskCard({
           <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f", borderColor: "rgba(62,224,111,0.35)" }}>+ extra</span>
         )}
 
+        {task.inovacao && <Chip tone="green">inovação</Chip>}
+
         {task.bloqueado && (
           <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b", borderColor: "rgba(255,107,107,0.30)" }}>{task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}</span>
         )}
@@ -1220,7 +1225,7 @@ function TaskCard({
 // ---------------------------------------------------------------------------
 // Main component
 
-export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades, modoTrabalho }: Props) {
+export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades, modoTrabalho, subarea }: Props) {
   const [concluidasAbertas, setConcluidasAbertas] = useState(false);
   const [tasks, setTasks] = useState<TaskKanbanResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1487,6 +1492,9 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
           </DsButton>
         )}
       </div>
+
+      {/* Propostas de melhoria — só PTA (o componente se omite nas demais subáreas) */}
+      <PropostasMelhoria projectId={projectId} subarea={subarea} onAprovada={load} />
 
       {/* Pedir nova task — só aparece pro operacional que zerou a fila */}
       {ehOperacional && meuOperacional && minhasTasksAbertas === 0 && (

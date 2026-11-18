@@ -1427,3 +1427,56 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- Rollback:
 -- ALTER TABLE tasks DROP COLUMN IF EXISTS frente_definida_por;
 -- ALTER TABLE tasks DROP COLUMN IF EXISTS frente;
+
+-- =============================================================================
+-- Migration v14 (2026-11-18): propostas de melhoria (PTA)
+-- NÃO RODA SOZINHA. Cole no SQL Editor do Supabase. O fechamento de sprint funciona
+-- antes dela (a leitura de propostas_melhoria é tolerante a falha e a coluna nova só
+-- entra no payload quando há bônus); só as rotas de propostas dependem da tabela.
+-- =============================================================================
+
+-- Preflight (somente leitura): a tabela e as colunas ainda não devem existir
+-- SELECT to_regclass('propostas_melhoria');
+-- SELECT column_name FROM information_schema.columns
+--   WHERE (table_name = 'tasks' AND column_name = 'inovacao')
+--      OR (table_name = 'pontuacao_operacional_sprint' AND column_name = 'bonus_pontos_inovacao');
+-- SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+--   WHERE conrelid = 'pontuacao_eventos'::regclass AND contype = 'c';
+
+-- v14.1 — tabela de propostas
+-- CREATE TABLE IF NOT EXISTS propostas_melhoria (
+--     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--     project_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--     operacional_id  uuid NOT NULL REFERENCES operacionais(id) ON DELETE CASCADE,
+--     titulo          text NOT NULL,
+--     valor_cliente   text NOT NULL,
+--     esforco         int  NOT NULL CHECK (esforco IN (1,2,3,5)),
+--     status          text NOT NULL DEFAULT 'pendente'
+--                     CHECK (status IN ('pendente','aprovada','recusada','adiada')),
+--     motivo          text,
+--     decidido_por    uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+--     decidido_em     timestamptz,
+--     task_id         uuid REFERENCES tasks(id) ON DELETE SET NULL,
+--     sprint_id       uuid REFERENCES sprints(id) ON DELETE SET NULL,
+--     criado_em       timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_propostas_melhoria_projeto_status ON propostas_melhoria(project_id, status);
+
+-- v14.2 — colunas novas (nenhum dado existente muda)
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS inovacao boolean NOT NULL DEFAULT false;
+-- ALTER TABLE pontuacao_operacional_sprint ADD COLUMN IF NOT EXISTS bonus_pontos_inovacao int NOT NULL DEFAULT 0;
+
+-- v14.3 — recria o CHECK do extrato com o tipo novo (a constraint inline foi criada sem nome:
+-- o Postgres a chama pontuacao_eventos_tipo_check; confirme no preflight)
+-- ALTER TABLE pontuacao_eventos DROP CONSTRAINT IF EXISTS pontuacao_eventos_tipo_check;
+-- ALTER TABLE pontuacao_eventos ADD CONSTRAINT pontuacao_eventos_tipo_check
+--   CHECK (tipo IN ('entrega_concluida','travamento_penalidade','devolucao_penalidade','bonus_extra','reabertura','bonus_inovacao'));
+
+-- Rollback (só depois de apagar as linhas novas):
+-- DELETE FROM pontuacao_eventos WHERE tipo = 'bonus_inovacao';
+-- ALTER TABLE pontuacao_eventos DROP CONSTRAINT IF EXISTS pontuacao_eventos_tipo_check;
+-- ALTER TABLE pontuacao_eventos ADD CONSTRAINT pontuacao_eventos_tipo_check
+--   CHECK (tipo IN ('entrega_concluida','travamento_penalidade','devolucao_penalidade','bonus_extra','reabertura'));
+-- ALTER TABLE pontuacao_operacional_sprint DROP COLUMN IF EXISTS bonus_pontos_inovacao;
+-- ALTER TABLE tasks DROP COLUMN IF EXISTS inovacao;
+-- DROP TABLE IF EXISTS propostas_melhoria;

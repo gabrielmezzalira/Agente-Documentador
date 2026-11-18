@@ -1442,6 +1442,7 @@ export default function ProjectDashboard() {
           operacionais={operacionais}
           funcionalidades={funcionalidades}
           modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"}
+          subarea={project?.subarea}
         />
       )}
 
