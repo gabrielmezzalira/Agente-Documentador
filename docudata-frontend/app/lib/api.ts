@@ -1736,6 +1736,7 @@ export interface TaskKanbanResponse {
   travado_override_por?: string | null;
   travado_override_em?: string | null;
   extra: boolean;
+  inovacao?: boolean;
   entrou_na_fila_em?: string | null;
   pull_em?: string | null;
   atribuida_manualmente: boolean;
@@ -2616,5 +2617,70 @@ export async function definirMetaSprint(sprintId: string, funcionalidadeIds: str
 export async function getEventosMeta(sprintId: string): Promise<MetaEvento[]> {
   const res = await apiFetch(`${API}/sprints/${sprintId}/meta/eventos`);
   if (!res.ok) throw await erroDoBackend(res, "Erro ao buscar o histórico da meta");
+  return res.json();
+}
+
+// Propostas de melhoria (PTA)
+
+export type StatusProposta = "pendente" | "aprovada" | "recusada" | "adiada";
+
+export interface PropostaMelhoria {
+  id: string;
+  project_id: string;
+  operacional_id: string;
+  operacional_nome?: string | null;
+  titulo: string;
+  valor_cliente: string;
+  esforco: number;
+  status: StatusProposta;
+  motivo?: string | null;
+  decidido_por?: string | null;
+  decidido_em?: string | null;
+  task_id?: string | null;
+  sprint_id?: string | null;
+  criado_em: string;
+}
+
+/** O detail do FastAPI pode ser string ou lista de erros de validação (422). */
+function detalheProposta(err: unknown, padrao: string): string {
+  const d = (err as { detail?: unknown }).detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d) && d.length > 0) {
+    const msg = (d[0] as { msg?: string }).msg;
+    if (msg) return msg.replace(/^Value error, /, "");
+  }
+  return padrao;
+}
+
+export async function criarProposta(
+  projectId: string,
+  dados: { titulo: string; valor_cliente: string; esforco: number },
+): Promise<PropostaMelhoria> {
+  const res = await apiFetch(`${API}/projects/${projectId}/propostas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dados),
+  });
+  if (!res.ok) throw new Error(detalheProposta(await res.json().catch(() => ({})), "Erro ao enviar a proposta"));
+  return res.json();
+}
+
+export async function listarPropostas(projectId: string): Promise<PropostaMelhoria[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/propostas`);
+  if (!res.ok) throw new Error(detalheProposta(await res.json().catch(() => ({})), "Erro ao buscar propostas"));
+  return res.json();
+}
+
+export async function decidirProposta(
+  id: string,
+  acao: "aprovar" | "recusar" | "adiar",
+  motivo?: string,
+): Promise<PropostaMelhoria> {
+  const res = await apiFetch(`${API}/propostas/${id}/decisao`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ acao, motivo: motivo?.trim() || undefined }),
+  });
+  if (!res.ok) throw new Error(detalheProposta(await res.json().catch(() => ({})), "Erro ao decidir a proposta"));
   return res.json();
 }
