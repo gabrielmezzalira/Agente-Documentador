@@ -196,6 +196,26 @@ def test_proposta_inexistente_404(monkeypatch, autenticar):
     assert r.status_code == 404
 
 
+def test_decisao_concorrente_409_e_nao_deixa_task_orfa(monkeypatch, autenticar):
+    """Outra decisão vence entre a checagem de status e o update final."""
+    import routers.propostas as router
+    fake = _fake()
+    _proposta(fake)
+    original = router._aprovar
+
+    def aprovar_e_perde_a_corrida(*a, **kw):
+        resultado = original(*a, **kw)
+        fake.tables["propostas_melhoria"][0]["status"] = "recusada"
+        return resultado
+
+    monkeypatch.setattr(router, "_aprovar", aprovar_e_perde_a_corrida)
+    r = _api(monkeypatch, autenticar, fake, cargo="gerente").post("/propostas/pr1/decisao", json={"acao": "aprovar"})
+    assert r.status_code == 409
+    assert fake.tables["tasks"] == []
+    assert fake.tables["propostas_melhoria"][0]["status"] == "recusada"
+    assert fake.tables["propostas_melhoria"][0]["task_id"] is None
+
+
 # 7. operacional não decide --------------------------------------------------
 
 def test_operacional_nao_decide_403(monkeypatch, autenticar):

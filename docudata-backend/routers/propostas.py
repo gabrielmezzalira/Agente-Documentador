@@ -106,8 +106,29 @@ async def decidir_proposta(
         task_id, sprint_id = _aprovar(client, proposta, projeto, pessoa)
         updates.update({"status": "aprovada", "task_id": task_id, "sprint_id": sprint_id})
 
-    atualizada = client.table("propostas_melhoria").update(updates).eq("id", proposta_id).execute().data
-    return atualizada[0] if atualizada else {**proposta, **updates}
+    # Update condicional: só vale se a proposta continua aberta. Sem isso, duas
+    # decisões simultâneas criariam duas tasks e a segunda sobrescreveria task_id.
+    try:
+        atualizada = (
+            client.table("propostas_melhoria").update(updates)
+            .eq("id", proposta_id).in_("status", list(_ABERTAS)).execute().data
+        )
+    except Exception:
+        _remover_task_criada(client, updates.get("task_id"))
+        raise
+    if not atualizada:
+        _remover_task_criada(client, updates.get("task_id"))
+        raise HTTPException(status_code=409, detail="Esta proposta já foi decidida.")
+    return atualizada[0]
+
+
+def _remover_task_criada(client, task_id: str | None) -> None:
+    if not task_id:
+        return
+    try:
+        client.table("tasks").delete().eq("id", task_id).execute()
+    except Exception:
+        _LOG.error("falha ao remover a task %s da proposta não decidida", task_id, exc_info=True)
 
 
 def _aprovar(client, proposta: dict, projeto: dict, pessoa: dict) -> tuple[str, str | None]:
