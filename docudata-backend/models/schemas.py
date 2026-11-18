@@ -584,6 +584,7 @@ class TaskResponse(BaseModel):
     travado_override_por: Optional[str] = None
     travado_override_em: Optional[datetime] = None
     extra: bool = False
+    inovacao: bool = False
     prevista_no_inicio: bool = False
     surgiu_na_sprint: bool = False
     created_at: datetime
@@ -976,6 +977,59 @@ class SolicitacaoTaskResponse(BaseModel):
     status: str
     criado_em: datetime
     respondido_em: Optional[datetime] = None
+
+
+# ── Propostas de melhoria (PTA) ──────────────────────────────────────────────
+
+class PropostaMelhoriaCreate(BaseModel):
+    titulo: str = Field(min_length=3, max_length=200)
+    valor_cliente: str = Field(min_length=1, max_length=2000)
+    esforco: int
+
+    @field_validator("titulo", "valor_cliente")
+    @classmethod
+    def sem_espacos_nas_pontas(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Campo obrigatório.")
+        return v
+
+    @field_validator("esforco")
+    @classmethod
+    def esforco_na_regua(cls, v: int) -> int:
+        if v not in NIVEIS:
+            raise ValueError(MENSAGEM_NIVEL_INVALIDO)
+        return v
+
+
+class PropostaMelhoriaDecisao(BaseModel):
+    acao: Literal["aprovar", "recusar", "adiar"]
+    motivo: Optional[str] = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def recusa_exige_motivo(self):
+        if self.motivo is not None:
+            self.motivo = self.motivo.strip() or None
+        if self.acao == "recusar" and not self.motivo:
+            raise ValueError("Informe o motivo da recusa.")
+        return self
+
+
+class PropostaMelhoriaResponse(BaseModel):
+    id: str
+    project_id: str
+    operacional_id: str
+    operacional_nome: Optional[str] = None
+    titulo: str
+    valor_cliente: str
+    esforco: int
+    status: str
+    motivo: Optional[str] = None
+    decidido_por: Optional[str] = None
+    decidido_em: Optional[datetime] = None
+    task_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    criado_em: datetime
 
 
 # ── Painel de pessoas com acesso ao sistema ──────────────────────────────────

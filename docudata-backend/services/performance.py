@@ -14,6 +14,9 @@ JANELAS = {"sprint": 1, "quinzenal": 2, "mensal": 4}
 # principal do ranking.
 BONUS_EXTRA_POR_PONTO = 1.0
 BONUS_EXTRA_TETO = 5.0
+# Proposta de melhoria aprovada (PTA): cada ponto de esforço vale metade de um
+# ponto de task extra, dentro do mesmo teto.
+BONUS_INOVACAO_FATOR = 0.5
 
 
 def listar_pessoas_ativas_por_projeto(client, escopo: str = "citi") -> dict[str, dict]:
@@ -134,7 +137,9 @@ def _bonus_extra(linhas: list[dict]) -> float:
     denominador puniria quem pediu mais trabalho): vira um bônus somado ao score
     final, com teto, para que o ranking não vire "quem pediu mais task"."""
     pontos = sum(l.get("bonus_pontos_extra") or 0 for l in linhas)
-    return float(min(pontos * BONUS_EXTRA_POR_PONTO, BONUS_EXTRA_TETO))
+    pontos_inovacao = sum(l.get("bonus_pontos_inovacao") or 0 for l in linhas)
+    bruto = (pontos + pontos_inovacao * BONUS_INOVACAO_FATOR) * BONUS_EXTRA_POR_PONTO
+    return float(min(bruto, BONUS_EXTRA_TETO))
 
 
 def _media_cross_projeto(por_projeto: dict[str, list[dict]], calc_por_projeto) -> float | None:

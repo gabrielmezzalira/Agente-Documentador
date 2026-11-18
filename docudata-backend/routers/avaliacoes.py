@@ -426,7 +426,7 @@ async def reabrir_avaliacao_semanal(sprint_id: str):
     # Extrato do fechamento é recriado ao confirmar de novo; sem apagar, duplica.
     # devolucao_penalidade nasce no meio da sprint (/devolver) e não é recriada.
     client.table("pontuacao_eventos").delete().eq("sprint_id", sprint_id).in_(
-        "tipo", ["entrega_concluida", "bonus_extra", "travamento_penalidade", "reabertura"]
+        "tipo", ["entrega_concluida", "bonus_extra", "bonus_inovacao", "travamento_penalidade", "reabertura"]
     ).execute()
 
     resp = client.table("sprints").update({"avaliacao_completa_em": None}).eq("id", sprint_id).execute()

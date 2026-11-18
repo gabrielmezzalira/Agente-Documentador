@@ -96,7 +96,9 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
 
     tasks = (
         client.table("tasks")
-        .select("id, operacional_id, pontos, coluna_kanban, extra, bloqueado_resolvido_por, bloqueado_resolvido_em, bloqueado_manual, bloqueio_tipo")
+        # "*" (não a lista de colunas): `inovacao` só existe depois da migração v14,
+        # e nomeá-la aqui quebraria o fechamento em produção antes dela.
+        .select("*")
         .eq("sprint_id", sprint_id)
         .execute()
         .data or []
@@ -126,6 +128,16 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
     aguardando_cliente_por_op: set[str] = set()
 
     eventos: list[dict] = []
+    bonus_inovacao = _bonus_inovacao_da_sprint(client, sprint_id)
+    for prop in bonus_inovacao:
+        eventos.append({
+            "operacional_id": prop["operacional_id"], "task_id": prop.get("task_id"),
+            "tipo": "bonus_inovacao", "pontos": prop["esforco"],
+            "descricao": "Proposta de melhoria aprovada",
+        })
+    inovacao_por_op: dict[str, int] = {}
+    for prop in bonus_inovacao:
+        inovacao_por_op[prop["operacional_id"]] = inovacao_por_op.get(prop["operacional_id"], 0) + prop["esforco"]
 
     for task in tasks:
         pontos = task.get("pontos") or 0
@@ -139,13 +151,16 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             if concluida:
                 operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
                 if operacional_id:
-                    bonus_extra[operacional_id] = bonus_extra.get(operacional_id, 0) + pontos
                     tasks_concluidas[operacional_id] = tasks_concluidas.get(operacional_id, 0) + 1
-                    eventos.append({
-                        "operacional_id": operacional_id, "task_id": task["id"],
-                        "tipo": "bonus_extra", "pontos": pontos,
-                        "descricao": "Task extra concluída",
-                    })
+                    # Task de inovação (proposta aprovada) é paga pelo bônus de
+                    # inovação; concluí-la não paga de novo como extra.
+                    if not task.get("inovacao"):
+                        bonus_extra[operacional_id] = bonus_extra.get(operacional_id, 0) + pontos
+                        eventos.append({
+                            "operacional_id": operacional_id, "task_id": task["id"],
+                            "tipo": "bonus_extra", "pontos": pontos,
+                            "descricao": "Task extra concluída",
+                        })
         elif concluida:
             operacional_id = quem_completou.get(task["id"]) or task.get("operacional_id")
             if operacional_id:
@@ -230,6 +245,7 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
         | set(bloqueios_totais)
         | set(pontos_penalizados)
         | set(bonus_extra)
+        | set(inovacao_por_op)
         | set(avaliacao_por_operacional)
         | vinculados_ids
     )
@@ -302,6 +318,10 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             "entrega_denominador": entrega_denominador,
             "entrega_nota_relativa": entrega_nota_relativa,
         })
+        # Só entra no payload quando há bônus: antes da migração v14 a coluna não
+        # existe, e um projeto sem propostas deve gravar exatamente como antes.
+        if inovacao_por_op.get(operacional_id, 0) > 0:
+            linhas[-1]["bonus_pontos_inovacao"] = inovacao_por_op[operacional_id]
 
     resp = client.table("pontuacao_operacional_sprint").insert(linhas).execute()
 
@@ -328,6 +348,29 @@ def calcular_e_travar_pontuacao(client, sprint_id: str) -> list[dict]:
             log.warning("Falha ao registrar extrato de pontos (pontuacao_eventos) da sprint %s", sprint_id)
 
     return resp.data or []
+
+
+def _bonus_inovacao_da_sprint(client, sprint_id: str) -> list[dict]:
+    """Propostas de melhoria aprovadas cujo bônus conta nesta sprint. Antes da
+    migração v14 a tabela não existe: qualquer falha vira "nenhuma proposta" para
+    não impedir o fechamento."""
+    try:
+        rows = (
+            client.table("propostas_melhoria")
+            .select("id, operacional_id, esforco, task_id")
+            .eq("sprint_id", sprint_id)
+            .eq("status", "aprovada")
+            .execute()
+            .data
+        )
+        return [
+            {"operacional_id": r["operacional_id"], "esforco": int(r.get("esforco") or 0), "task_id": r.get("task_id")}
+            for r in list(rows or [])
+            if r.get("operacional_id") and int(r.get("esforco") or 0) > 0
+        ]
+    except Exception as exc:
+        log.warning("Leitura de propostas_melhoria falhou no fechamento da sprint %s: %s", sprint_id, type(exc).__name__)
+        return []
 
 
 def _aguardando_cliente(task: dict) -> bool:
