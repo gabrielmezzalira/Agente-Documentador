@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, field_validator
 
+from services.acesso import exigir_acesso
+from services.auth import get_current_pessoa
 from services.gemini_key import get_gemini_api_key
 from services.supabase_client import get_client
 from core.observability import falha_externa, registrar_falha_interna
@@ -106,7 +108,8 @@ def calcular_throughput_ref(
 
 
 @router.get("/rascunho/{project_id}/{sprint_numero}", response_model=RascunhoResponse)
-async def get_rascunho(project_id: str, sprint_numero: int):
+async def get_rascunho(project_id: str, sprint_numero: int, pessoa: dict = Depends(get_current_pessoa)):
+    exigir_acesso(get_client(), pessoa, project_id)
     step = "init"
     try:
         client = get_client()
@@ -192,13 +195,15 @@ async def get_rascunho(project_id: str, sprint_numero: int):
 
 @router.patch("/rascunho/{project_id}/{sprint_numero}")
 async def patch_rascunho(
-    project_id: str, sprint_numero: int, body: PatchRascunhoBody
+    project_id: str, sprint_numero: int, body: PatchRascunhoBody,
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Atualiza step_atual e dados_json do rascunho.
 
     Retorna 404 se o rascunho não existir (o frontend deve chamar GET antes de PATCH).
     """
     client = get_client()
+    exigir_acesso(client, pessoa, project_id)
 
     # Verificar que o rascunho existe antes de atualizar.
     check_resp = (
@@ -234,7 +239,7 @@ async def patch_rascunho(
 
 
 @router.post("/confirmar", status_code=201)
-async def confirmar_planning(body: ConfirmarBody):
+async def confirmar_planning(body: ConfirmarBody, pessoa: dict = Depends(get_current_pessoa)):
     """Oficializa o planning: insere em generated_docs e deleta o rascunho.
 
     ORDEM OBRIGATÓRIA (D-07 / Pitfall 3):
@@ -243,6 +248,7 @@ async def confirmar_planning(body: ConfirmarBody):
     Se o insert falhar, o rascunho é preservado.
     """
     client = get_client()
+    exigir_acesso(client, pessoa, body.project_id)
 
     # Verificar que o rascunho existe (Pitfall 2).
     rascunho_resp = (
@@ -388,13 +394,16 @@ def _montar_contexto_gerar(
 
 @router.post("/gerar")
 @limiter.limit(GEMINI_RATE_LIMIT)
-async def gerar_planning(request: Request, response: Response, body: GerarBody):
+async def gerar_planning(
+    request: Request, response: Response, body: GerarBody, pessoa: dict = Depends(get_current_pessoa)
+):
     """Gera o texto do planning via Gemini sem persistir.
 
     Retorna {"markdown": str}. A persistência ocorre somente em POST /confirmar.
     Conforme D-06: preview via react-markdown, confirmação explícita antes de oficializar.
     """
     client = get_client()
+    exigir_acesso(client, pessoa, body.project_id)
 
     # Buscar o rascunho (404 se não existe)
     rascunho_resp = (

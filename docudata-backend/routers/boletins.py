@@ -1,9 +1,11 @@
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from models.schemas import ResumoSemanalRequest
 from routers.painel import calcular_bloco_a, calcular_bloco_b
+from services.acesso import exigir_acesso
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/boletins", tags=["boletins"])
@@ -15,7 +17,7 @@ router = APIRouter(prefix="/boletins", tags=["boletins"])
 
 
 @router.post("/resumo_semanal")
-async def gerar_resumo_semanal(body: ResumoSemanalRequest):
+async def gerar_resumo_semanal(body: ResumoSemanalRequest, pessoa: dict = Depends(get_current_pessoa)):
     """Gera resumo semanal de anomalias do projeto de forma determinística, sem Gemini.
 
     M8 (§5): listagem estruturada — sem custo de token, zero risco de hallucination.
@@ -28,6 +30,7 @@ async def gerar_resumo_semanal(body: ResumoSemanalRequest):
     """
     client = get_client()
     project_id = body.project_id
+    exigir_acesso(client, pessoa, project_id)
 
     # Buscar projeto (404 se não existe)
     proj_resp = (

@@ -15,12 +15,14 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException, Request, Response
 
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.extraction_graph import extraction_graph, ExtractionState
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import SprintDocResponse
+from services.acesso import exigir_acesso
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row, compute_planejado_vs_entregue
@@ -150,9 +152,10 @@ def _require_lista_ou_confirmado(items: list, confirmado_vazio: bool, rotulo: st
         )
 
 
-def _project_or_404(project_id: str) -> dict:
-    """Carrega somente os campos públicos necessários do projeto."""
+def _project_or_404(project_id: str, pessoa: dict) -> dict:
+    """Confere o acesso e carrega somente os campos públicos necessários do projeto."""
     client = get_client()
+    exigir_acesso(client, pessoa, project_id)
     resp = client.table("projects").select("id, name, client, description").eq("id", project_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -232,11 +235,14 @@ def _insert_ingestion(
 
 
 @router.get("/review/planejado-entregue")
-async def get_planejado_vs_entregue(projeto_id: str, sprint_numero: int):
+async def get_planejado_vs_entregue(
+    projeto_id: str, sprint_numero: int, pessoa: dict = Depends(get_current_pessoa)
+):
     """Pré-preenchimento da tabela 'planejado vs. entregue' da Review, calculado
     a partir do kanban real da sprint (1 linha por task). Chamado pelo frontend
     ao abrir o formulário de Review — recalculado do zero a cada chamada."""
     client = get_client()
+    exigir_acesso(client, pessoa, projeto_id)
     if not client.table("projects").select("id").eq("id", projeto_id).execute().data:
         raise HTTPException(status_code=404, detail="Project not found")
     itens = compute_planejado_vs_entregue(client, projeto_id, sprint_numero)
@@ -266,6 +272,7 @@ async def submit_planning(
     contexto_livre: str = Form(""),  # texto solto do gerente, sem formato — opcional
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Submete o Planning de uma sprint. Cria ingestion + dispara geração do doc.
 
@@ -274,7 +281,7 @@ async def submit_planning(
     explícita de que não há nenhum (sem_riscos/sem_dependencias/sem_carry_over),
     pra impedir que o Planning saia do sistema com lacunas silenciosas.
     """
-    project = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id, pessoa)
     api_key = get_gemini_api_key()
     try:
         backlog = json.loads(itens_backlog)
@@ -383,9 +390,10 @@ async def submit_daily(
     impedimentos: Optional[str] = Form(None),
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Submete uma Daily. Cria ingestion + dispara geração do doc."""
-    project = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id, pessoa)
     api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
@@ -454,6 +462,7 @@ async def submit_ata_with_upload(
     sprint_numero: int = Form(...),
     anexo: UploadFile = File(...),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Gera Ata de Reunião a partir de uma transcrição em PDF (upload + extração + geração em uma chamada).
 
@@ -461,7 +470,7 @@ async def submit_ata_with_upload(
     SEMPRE de uma transcrição — o PDF é obrigatório. A ingestão resultante fica com
     tipo_documentacao=NULL (é um insumo livre, não conta como mínimo obrigatório).
     """
-    project = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id, pessoa)
     api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
@@ -559,6 +568,7 @@ async def submit_review(
     sem_itens_proxima_sprint: bool = Form(...),
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Submete a Review de uma sprint. Cria ingestion + dispara geração do doc.
 
@@ -572,7 +582,7 @@ async def submit_review(
     As demais listas de evento (pedidos fora de escopo, itens pra próxima sprint)
     exigem confirmação explícita de ausência quando vazias.
     """
-    project = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id, pessoa)
     api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
@@ -681,13 +691,14 @@ async def submit_retrospectiva(
     status_pedido_fora_escopo: Optional[str] = Form(None),  # lista informal | CR formalizado
     anexo: Optional[UploadFile] = File(None),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Submete a Retrospectiva de uma sprint. Cria ingestion + dispara geração do doc.
 
     A retrospectiva consolida planning, dailys, review, uploads e commits da sprint
     e captura o status dos pedidos fora de escopo recebidos durante o review.
     """
-    project = _project_or_404(projeto_id)
+    project = _project_or_404(projeto_id, pessoa)
     api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 

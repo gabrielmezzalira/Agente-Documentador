@@ -1,8 +1,10 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request, Response
 
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.extraction_graph import extraction_graph, ExtractionState
 from models.schemas import IngestResponse
+from services.acesso import exigir_acesso, exigir_acesso_por
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 from services.sprints import ensure_sprint_row
@@ -36,7 +38,10 @@ async def ingest(
     sprint_numero: int = Form(...),
     projeto_id: str = Form(...),
     force: bool = Form(False),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
+    db = get_client()
+    exigir_acesso(db, pessoa, projeto_id)
     if not _is_accepted(arquivo.content_type):
         raise HTTPException(
             status_code=422,
@@ -47,7 +52,6 @@ async def ingest(
             ),
         )
 
-    db = get_client()
     project_resp = db.table("projects").select("name, client, description").eq("id", projeto_id).execute()
     if not project_resp.data:
         raise HTTPException(status_code=404, detail="Project not found")
