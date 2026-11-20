@@ -70,7 +70,7 @@ class Q:
 @pytest.fixture
 def api(monkeypatch, autenticar, vinculos_gerente):
     fake = Fake()
-    for mod in ("operacionais", "pontuacao", "solicitacoes", "painel", "metricas", "github_integration", "discovery"):
+    for mod in ("operacionais", "pontuacao", "solicitacoes", "painel", "metricas", "github_integration", "discovery", "propostas"):
         monkeypatch.setattr(f"routers.{mod}.get_client", lambda: fake)
     monkeypatch.setattr("services.auth.get_client", lambda: fake)
     vinculos_gerente["pessoa-teste"] = {PID}
@@ -142,3 +142,38 @@ def test_discovery_mantem_404(api, monkeypatch):
     assert api.post("/discovery/reunioes/m1/analisar").status_code == 404
     assert api.get("/discovery/reunioes/m1/transcricao").status_code == 404
     assert api.get(f"/discovery/projetos/{OUTRO}/requisitos").status_code == 403
+
+
+def _como(api, autenticar, cargo):
+    autenticar(api, cargo)
+
+
+def test_operacional_de_fora_403(api, autenticar):
+    autenticar(api, "operacional")
+    assert api.get(f"/operacionais/projects/{OUTRO}").status_code == 403
+    assert api.get(f"/operacionais/disponiveis/{PID}").status_code == 403
+    assert api.get(f"/projects/{OUTRO}/propostas").status_code == 403
+
+
+def test_lider_passa_em_qualquer_projeto(api, autenticar):
+    autenticar(api, "lider")
+    assert api.get(f"/operacionais/projects/{OUTRO}").status_code != 403
+    assert api.get(f"/projects/{OUTRO}/painel").status_code != 403
+
+
+def test_proposta_decisao_de_fora_403(api):
+    api.fake.t["propostas_melhoria"] = [{"id": "p-out", "project_id": OUTRO, "status": "pendente"}]
+    assert api.post("/propostas/p-out/decisao", json={"acao": "recusar", "motivo": "x"}).status_code == 403
+
+
+def test_disponiveis_gerente_nao_ve_nomes_de_projetos_alheios(api, autenticar):
+    api.fake.t["operacionais"].append(
+        {"id": "o-3", "project_id": OUTRO, "nome": "Caio", "ativo": True, "email": "c@x"})
+    api.fake.t["operacionais"].append(
+        {"id": "o-4", "project_id": PID, "nome": "Dani", "ativo": True, "email": "d@x"})
+    r = api.get(f"/operacionais/disponiveis/{PID}")
+    assert r.status_code == 200
+    assert all(p != "B" for e in r.json() for p in e["projetos"])
+    autenticar(api, "lider")
+    r = api.get(f"/operacionais/disponiveis/{PID}")
+    assert any("B" in e["projetos"] for e in r.json())

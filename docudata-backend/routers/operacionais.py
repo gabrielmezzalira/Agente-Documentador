@@ -9,7 +9,7 @@ from models.schemas import (
     OperacionalResponse,
 )
 from core.observability import falha_externa
-from services.acesso import exigir_acesso, exigir_acesso_por
+from services.acesso import exigir_acesso, exigir_acesso_por, projetos_visiveis
 from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 
@@ -102,7 +102,7 @@ async def list_operacionais(project_id: str, ativo: bool = Query(default=True)):
 
 
 @router.get("/disponiveis/{project_id}", response_model=list[OperacionalDisponivelResponse], dependencies=[Depends(require_project_access)])
-async def listar_operacionais_disponiveis(project_id: str):
+async def listar_operacionais_disponiveis(project_id: str, pessoa: dict = Depends(require_not_operacional)):
     """Pessoas já cadastradas em outros projetos, para vincular a este sem
     redigitar. Redigitar é o que hoje cria a mesma pessoa com e-mail divergente
     e a parte em duas no ranking — o ranking casa identidade pelo e-mail.
@@ -128,9 +128,13 @@ async def listar_operacionais_disponiveis(project_id: str):
         if o["project_id"] == project_id
     }
 
+    # Gerente reaproveita o cadastro das pessoas, mas só vê o nome dos projetos
+    # a que tem acesso; owner/lider enxergam todos.
+    visiveis = projetos_visiveis(client, pessoa)
     projetos = {
         p["id"]: p["name"]
         for p in (client.table("projects").select("id, name").execute().data or [])
+        if visiveis is None or p["id"] in visiveis
     }
 
     por_chave: dict[str, dict] = {}

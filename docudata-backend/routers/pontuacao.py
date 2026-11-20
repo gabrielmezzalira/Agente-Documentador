@@ -29,7 +29,6 @@ router = APIRouter(tags=["pontuacao"])
 @router.get(
     "/operacionais/{operacional_id}/spi",
     response_model=SpiOperacionalResponse,
-    dependencies=[Depends(require_not_operacional)],
 )
 async def get_spi_operacional(operacional_id: str, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
@@ -40,7 +39,6 @@ async def get_spi_operacional(operacional_id: str, pessoa: dict = Depends(requir
 @router.get(
     "/projects/{projeto_id}/spi",
     response_model=list[SpiPorOperacionalDoProjetoResponse],
-    dependencies=[Depends(require_not_operacional)],
 )
 async def get_spi_do_projeto(projeto_id: str, pessoa: dict = Depends(require_not_operacional)):
     """SPI travado de cada operacional do projeto — a leitura que o gerente
@@ -56,7 +54,6 @@ async def get_spi_do_projeto(projeto_id: str, pessoa: dict = Depends(require_not
 @router.get(
     "/operacionais/{operacional_id}/extrato",
     response_model=list[PontuacaoEventoResponse],
-    dependencies=[Depends(require_not_operacional)],
 )
 async def get_extrato_pontos(
     operacional_id: str, sprint_id: Optional[str] = None, pessoa: dict = Depends(require_not_operacional)
