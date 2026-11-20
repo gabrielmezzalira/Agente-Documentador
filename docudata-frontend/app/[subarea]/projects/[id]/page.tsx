@@ -918,6 +918,18 @@ export default function ProjectDashboard() {
     }
   }
 
+  // Cria a próxima sprint sem iniciar: as tasks criadas nela entram como
+  // "planejadas" e viram a foto do início quando a sprint for iniciada.
+  async function handlePlanejarSprint() {
+    try {
+      await createSprint(id, undefined, false);
+      setPlanejadasAbertas(true);
+      refreshSprints();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao planejar sprint");
+    }
+  }
+
   async function handleDeleteSprint(sprintId: string) {
     try {
       await deleteSprint(sprintId);
@@ -1336,7 +1348,12 @@ export default function ProjectDashboard() {
             title="Sprints"
             count={`${sprints.length} ${sprints.length === 1 ? "sprint" : "sprints"}`}
             description="Cada sprint tem documentação mínima obrigatória (Planning, Review) e recomendada (Dailys). Clique nos chips para registrar, ou use os botões para gerar docs derivadas."
-            actions={<DsButton variant="primary" onClick={handleCreateSprint}>Iniciar próxima sprint</DsButton>}
+            actions={
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <DsButton variant="secondary" onClick={handlePlanejarSprint}>Planejar próxima sprint</DsButton>
+                <DsButton variant="primary" onClick={handleCreateSprint}>Iniciar próxima sprint</DsButton>
+              </div>
+            }
           />
 
           {sprintsIniciadas.length === 0 ? (
@@ -1889,13 +1906,19 @@ export default function ProjectDashboard() {
           sprintId={avaliacaoModal.sprintId}
           sprintNumero={avaliacaoModal.sprintNumero}
           modoTrabalho={project?.modo_trabalho ?? "ATRIBUICAO"}
-          onClose={() => setAvaliacaoModal(null)}
+          onClose={() => {
+            setAvaliacaoModal(null);
+            // O chip "Avaliação x/y" vem da listagem de sprints: sem recarregar,
+            // ele ficava em 0/N mesmo depois de avaliar todo mundo.
+            refreshSprints();
+          }}
           onCompleted={() => {
             setSprints((prev) =>
               prev.map((s) =>
                 s.id === avaliacaoModal.sprintId ? { ...s, avaliacao_completa_em: new Date().toISOString() } : s
               )
             );
+            refreshSprints();
           }}
         />
       )}
