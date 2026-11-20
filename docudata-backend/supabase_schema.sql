@@ -441,7 +441,7 @@ ALTER TABLE tasks ADD CONSTRAINT tasks_sprint_id_fkey
 -- Snapshot do operacional no momento de cada transição — permite saber
 -- "quem estava com a task" em qualquer ponto do histórico, mesmo após
 -- reatribuição posterior (necessário pro cálculo de entrega_pontos_concluidos).
-ALTER TABLE task_transicoes ADD COLUMN IF NOT EXISTS operacional_id uuid REFERENCES operacionais(id);
+ALTER TABLE task_transicoes ADD COLUMN IF NOT EXISTS operacional_id uuid REFERENCES operacionais(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS pontuacao_operacional_sprint (
     id                                      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1480,3 +1480,14 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ALTER TABLE pontuacao_operacional_sprint DROP COLUMN IF EXISTS bonus_pontos_inovacao;
 -- ALTER TABLE tasks DROP COLUMN IF EXISTS inovacao;
 -- DROP TABLE IF EXISTS propostas_melhoria;
+
+-- ============================================================
+-- v15 (2026-11-19): task_transicoes.operacional_id sem ON DELETE barrava
+-- excluir projeto/operacional com histórico (23503). O código já solta o
+-- vínculo antes de apagar; esta migração acerta o banco.
+-- ============================================================
+-- BEGIN;
+-- ALTER TABLE task_transicoes DROP CONSTRAINT IF EXISTS task_transicoes_operacional_id_fkey;
+-- ALTER TABLE task_transicoes ADD CONSTRAINT task_transicoes_operacional_id_fkey
+--   FOREIGN KEY (operacional_id) REFERENCES operacionais(id) ON DELETE SET NULL;
+-- COMMIT;

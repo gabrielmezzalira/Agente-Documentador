@@ -171,13 +171,19 @@ async def get_technologies(project_id: str):
     return build_tech_timeline(response.data or [])
 
 
-@router.delete("/{project_id}", status_code=204)
+@router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
 async def delete_project(project_id: str):
     """Delete a project and all its ingestions and generated docs (cascade)."""
     client = get_client()
     response = client.table("projects").select("id").eq("id", project_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
+    # task_transicoes.operacional_id não tem ON DELETE no banco (migração v15
+    # acerta): sem soltar esse vínculo, apagar os operacionais do projeto em
+    # cascata dá 23503 e o projeto não sai.
+    op_ids = [o["id"] for o in (client.table("operacionais").select("id").eq("project_id", project_id).execute().data or [])]
+    if op_ids:
+        client.table("task_transicoes").update({"operacional_id": None}).in_("operacional_id", op_ids).execute()
     try:
         client.table("projects").delete().eq("id", project_id).execute()
     except Exception as exc:
