@@ -14,8 +14,10 @@ from models.schemas import (
     ConfiguracaoHistoricoResponse,
     WipConfigUpdate,
     MigrarModoRequest,
+    GerenteVinculoCreate,
 )
 from core.observability import falha_externa
+from services.acesso import projetos_visiveis, tem_acesso, vincular_gerente
 from services.audit import registrar_auditoria
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access, require_role
 from services.discovery_promocao import promover_validados_do_projeto
@@ -51,8 +53,11 @@ def _sanitize(row: dict) -> dict:
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
-async def create_project(data: ProjectCreate):
-    """Create a new project. Returns the inserted row with its generated UUID."""
+async def create_project(data: ProjectCreate, pessoa: dict = Depends(get_current_pessoa)):
+    """Create a new project. Returns the inserted row with its generated UUID.
+    O criador (gerente/líder/owner) já nasce vinculado como gerente do projeto."""
+    if pessoa["cargo"] == "operacional":
+        raise HTTPException(status_code=403, detail="Operacional não cria projeto")
     client = get_client()
     payload = {
         "name": data.name,
@@ -64,6 +69,7 @@ async def create_project(data: ProjectCreate):
     response = client.table("projects").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
+    vincular_gerente(client, response.data[0]["id"], pessoa["id"], pessoa["id"])
     return _sanitize(response.data[0])
 
 
@@ -98,6 +104,10 @@ async def list_projects(
         )
         ids_permitidos = {v["project_id"] for v in vinculos}
         rows = [r for r in rows if r["id"] in ids_permitidos]
+    elif pessoa["cargo"] == "gerente":
+        visiveis = projetos_visiveis(client, pessoa)
+        if visiveis is not None:
+            rows = [r for r in rows if r["id"] in visiveis]
 
     projects = [_sanitize(row) for row in rows]
 
@@ -136,7 +146,7 @@ async def get_project(project_id: str):
     return _sanitize(response.data[0])
 
 
-@router.patch("/{project_id}/delivered", response_model=ProjectResponse)
+@router.patch("/{project_id}/delivered", response_model=ProjectResponse, dependencies=[Depends(require_project_access)])
 async def toggle_delivered(project_id: str):
     """Toggle the delivered status of a project."""
     client = get_client()
@@ -155,7 +165,7 @@ async def toggle_delivered(project_id: str):
     return _sanitize(response.data[0])
 
 
-@router.get("/{project_id}/technologies", response_model=TechTimelineResponse)
+@router.get("/{project_id}/technologies", response_model=TechTimelineResponse, dependencies=[Depends(require_project_access)])
 async def get_technologies(project_id: str):
     """Retorna stack atual + timeline de introdução/abandono por tecnologia."""
     client = get_client()
@@ -171,7 +181,7 @@ async def get_technologies(project_id: str):
     return build_tech_timeline(response.data or [])
 
 
-@router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
+@router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_not_operacional), Depends(require_project_access)])
 async def delete_project(project_id: str):
     """Delete a project and all its ingestions and generated docs (cascade)."""
     client = get_client()
@@ -193,7 +203,7 @@ async def delete_project(project_id: str):
         raise HTTPException(status_code=409, detail=f"Não foi possível excluir o projeto: {str(exc)[:300]}")
 
 
-@router.patch("/{project_id}/gerente-email", response_model=ProjectResponse)
+@router.patch("/{project_id}/gerente-email", response_model=ProjectResponse, dependencies=[Depends(require_project_access)])
 async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
     """Atualiza ou limpa o email do gerente responsável pelo projeto."""
     client = get_client()
@@ -215,10 +225,11 @@ async def update_gerente_email(project_id: str, data: GerenteEmailUpdate):
 async def update_project_subarea(
     project_id: str,
     data: ProjectSubareaUpdate,
-    _pessoa: dict = Depends(require_not_operacional),
+    pessoa: dict = Depends(require_not_operacional),
 ):
     """Move o projeto entre Dados e Dev sem alterar seus registros relacionados."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -251,6 +262,7 @@ async def encaminhar_projeto(
 ):
     """Bifurcação: o projeto sai de Produto e continua em Dados ou Dev, com todo o contexto."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     check = client.table("projects").select("id, subarea").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -284,7 +296,7 @@ async def encaminhar_projeto(
     return _sanitize(resposta.data[0])
 
 
-@router.patch("/{project_id}/contrato", response_model=ProjectResponse)
+@router.patch("/{project_id}/contrato", response_model=ProjectResponse, dependencies=[Depends(require_project_access)])
 async def update_contrato(project_id: str, data: ContratoUpdate):
     """Atualiza campos de contrato do projeto: datas, tolerância, garantia e arquétipo."""
     client = get_client()
@@ -341,6 +353,7 @@ async def update_modos(
     modo_trabalho ou modo_avaliacao grava um registro imutável em
     configuracao_historico."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     atual_resp = client.table("projects").select(
         "modo_trabalho, modo_avaliacao"
     ).eq("id", project_id).execute()
@@ -391,8 +404,9 @@ async def update_modos(
 
 
 @router.get("/{project_id}/modos-historico", response_model=list[ConfiguracaoHistoricoResponse])
-async def get_modos_historico(project_id: str, _pessoa: dict = Depends(require_not_operacional)):
+async def get_modos_historico(project_id: str, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
+    await require_project_access(project_id, pessoa)
     resp = (
         client.table("configuracao_historico")
         .select("*")
@@ -444,12 +458,13 @@ def _restaurar_wip_anterior(client, project_id: str, wip_atual: dict) -> dict:
 async def update_wip_config(
     project_id: str,
     data: WipConfigUpdate,
-    _pessoa: dict = Depends(require_not_operacional),
+    pessoa: dict = Depends(require_not_operacional),
 ):
     """Atualiza projects.wip_config. Em projeto PULL, por_pessoa é sempre
     forçado a 1 no servidor (RF-A5) — o valor que o cliente mandar para esse
     campo é ignorado nesse modo, nunca confiado."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     check = client.table("projects").select("modo_trabalho, wip_config").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -474,13 +489,14 @@ async def update_wip_config(
 async def preview_migrar_modo(
     project_id: str,
     para: str = Query(...),
-    _pessoa: dict = Depends(require_not_operacional),
+    pessoa: dict = Depends(require_not_operacional),
 ):
     """RF-M1/M2 (Entrega 3): dry-run — conta quantas tasks cairiam em cada
     categoria se a migração fosse aplicada agora, sem gravar nada."""
     if para not in ("ATRIBUICAO", "PULL"):
         raise HTTPException(status_code=422, detail="para deve ser ATRIBUICAO ou PULL")
     client = get_client()
+    await require_project_access(project_id, pessoa)
     check = client.table("projects").select("id").eq("id", project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -549,6 +565,7 @@ async def aplicar_migrar_modo(
     task_transicoes/task_reaberturas (RF-M3) — reclassificação estrutural,
     não movimento de Kanban."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     proj = client.table("projects").select("id, name, modo_trabalho").eq("id", project_id).execute()
     if not proj.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -632,10 +649,11 @@ async def aplicar_migrar_modo(
 
 
 @router.post("/{project_id}/desvincular-planejado")
-async def desvincular_planejado(project_id: str, _pessoa: dict = Depends(require_not_operacional)):
+async def desvincular_planejado(project_id: str, pessoa: dict = Depends(require_not_operacional)):
     """RF-M7 (Entrega 3): ação em massa independente de troca de modo — abre
     a fila numa sprint em andamento sem migrar o projeto inteiro."""
     client = get_client()
+    await require_project_access(project_id, pessoa)
     sprint_id = get_current_sprint_id(client, project_id)
     if not sprint_id:
         return {"desvinculadas": 0}
@@ -646,3 +664,94 @@ async def desvincular_planejado(project_id: str, _pessoa: dict = Depends(require
         client.table("tasks").update({"operacional_id": None}).eq("id", task["id"]).execute()
 
     return {"desvinculadas": len(planejadas)}
+
+
+_CARGOS_GERENCIAVEIS = ("gerente", "lider", "owner")
+_ULTIMO_GERENTE = "O projeto precisa de pelo menos um gerente."
+
+
+def _exigir_gerenciar_vinculos(client, pessoa: dict, project_id: str) -> None:
+    """Gerenciar vínculos: owner/líder, ou gerente com acesso ao projeto."""
+    if pessoa["cargo"] not in _CARGOS_GERENCIAVEIS or not tem_acesso(client, pessoa, project_id):
+        raise HTTPException(status_code=403, detail="Acesso restrito a Gerente/Líder")
+
+
+def _listar_gerentes(client, project_id: str) -> list[dict]:
+    vinculos = (
+        client.table("projeto_gerentes").select("pessoa_id, criado_em")
+        .eq("project_id", project_id).execute().data or []
+    )
+    if not vinculos:
+        return []
+    pessoas = (
+        client.table("pessoa").select("id, nome, email")
+        .in_("id", [v["pessoa_id"] for v in vinculos]).execute().data or []
+    )
+    por_id = {p["id"]: p for p in pessoas}
+    return [
+        {
+            "pessoa_id": v["pessoa_id"],
+            "nome": por_id.get(v["pessoa_id"], {}).get("nome"),
+            "email": por_id.get(v["pessoa_id"], {}).get("email"),
+            "criado_em": v.get("criado_em"),
+        }
+        for v in vinculos
+    ]
+
+
+@router.get("/{project_id}/gerentes")
+async def listar_gerentes(project_id: str, pessoa: dict = Depends(require_not_operacional)):
+    client = get_client()
+    await require_project_access(project_id, pessoa)
+    return _listar_gerentes(client, project_id)
+
+
+@router.get("/{project_id}/gerentes/candidatos")
+async def listar_candidatos_gerente(project_id: str, pessoa: dict = Depends(require_not_operacional)):
+    client = get_client()
+    await require_project_access(project_id, pessoa)
+    _exigir_gerenciar_vinculos(client, pessoa, project_id)
+    ja = {g["pessoa_id"] for g in _listar_gerentes(client, project_id)}
+    candidatos = (
+        client.table("pessoa").select("id, nome, email, cargo")
+        .in_("cargo", list(_CARGOS_GERENCIAVEIS)).execute().data or []
+    )
+    return [
+        {"pessoa_id": c["id"], "nome": c.get("nome"), "email": c.get("email"), "cargo": c.get("cargo")}
+        for c in candidatos if c["id"] not in ja
+    ]
+
+
+@router.post("/{project_id}/gerentes", status_code=201)
+async def vincular_gerente_projeto(
+    project_id: str,
+    data: GerenteVinculoCreate,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    client = get_client()
+    await require_project_access(project_id, pessoa)
+    _exigir_gerenciar_vinculos(client, pessoa, project_id)
+    alvo = client.table("pessoa").select("id, cargo").eq("id", data.pessoa_id).execute().data or []
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Pessoa não encontrada")
+    if alvo[0].get("cargo") not in _CARGOS_GERENCIAVEIS:
+        raise HTTPException(status_code=422, detail="Só gerente, líder ou owner pode ser vinculado a um projeto.")
+    vincular_gerente(client, project_id, data.pessoa_id, pessoa["id"])
+    return _listar_gerentes(client, project_id)
+
+
+@router.delete("/{project_id}/gerentes/{pessoa_id}", status_code=204)
+async def desvincular_gerente_projeto(
+    project_id: str,
+    pessoa_id: str,
+    pessoa: dict = Depends(require_not_operacional),
+):
+    client = get_client()
+    await require_project_access(project_id, pessoa)
+    _exigir_gerenciar_vinculos(client, pessoa, project_id)
+    atuais = _listar_gerentes(client, project_id)
+    if pessoa_id not in {g["pessoa_id"] for g in atuais}:
+        raise HTTPException(status_code=404, detail="Vínculo não encontrado")
+    if len(atuais) <= 1:
+        raise HTTPException(status_code=409, detail=_ULTIMO_GERENTE)
+    client.table("projeto_gerentes").delete().eq("project_id", project_id).eq("pessoa_id", pessoa_id).execute()

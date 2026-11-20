@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from models.schemas import Subarea
+from services.acesso import projetos_visiveis
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 
 router = APIRouter(tags=["search"])
@@ -23,6 +25,7 @@ class SearchResponse(BaseModel):
 async def search_stack(
     q: str = Query(..., min_length=1),
     subarea: Subarea = Query(...),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Search projects from one subarea for a technology mentioned in ingestions."""
     client = get_client()
@@ -34,6 +37,9 @@ async def search_stack(
         .execute()
     )
     project_ids = [project["id"] for project in (projects_resp.data or [])]
+    visiveis = projetos_visiveis(client, pessoa)
+    if visiveis is not None:
+        project_ids = [pid for pid in project_ids if pid in visiveis]
     if not project_ids:
         return SearchResponse(query=q, results=[])
 
