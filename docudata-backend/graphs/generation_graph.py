@@ -785,6 +785,7 @@ def buscar_ingestions(state: GenerationState) -> dict:
             client.table("ingestions")
             .select("*")
             .eq("id", state["ingestion_id"])
+            .eq("project_id", state["projeto_id"])
             .execute()
         )
     elif tipo_doc in ("repasse_semanal", "retrospectiva", "review"):

@@ -94,9 +94,7 @@ def api(monkeypatch, autenticar, vinculos_gerente):
         monkeypatch.setattr(f"routers.{mod}.get_client", lambda: fake)
     monkeypatch.setattr("services.auth.get_client", lambda: fake)
     for mod in ("generate", "ingest", "enrich", "sprint_docs", "composer"):
-        if mod != "composer":
-            monkeypatch.setattr(f"routers.{mod}.get_gemini_api_key", _gemini_proibido)
-    monkeypatch.setattr("routers.composer.get_gemini_api_key", _gemini_proibido)
+        monkeypatch.setattr(f"routers.{mod}.get_gemini_api_key", _gemini_proibido)
     for mod, nome in (("generate", "generation_graph"), ("ingest", "extraction_graph"),
                       ("sprint_docs", "generation_graph"), ("sprint_docs", "extraction_graph")):
         monkeypatch.setattr(f"routers.{mod}.{nome}", _GrafoProibido())
@@ -118,6 +116,12 @@ def test_generate_de_fora_403_antes_do_grafo(api):
     corpo = {"projeto_id": OUTRO, "tipo_doc": "repasse_semanal", "sprint_numero": 1}
     assert api.post("/generate", json=corpo).status_code == 403
     assert api.post("/generate", json={**corpo, "projeto_id": PID}).status_code == PASSOU
+
+
+def test_generate_ingestao_de_outro_projeto_403(api):
+    corpo = {"projeto_id": PID, "tipo_doc": "planning", "ingestion_id": "i-out"}
+    assert api.post("/generate", json=corpo).status_code == 403
+    assert api.post("/generate", json={**corpo, "ingestion_id": "i-in"}).status_code == PASSOU
 
 
 def test_docs_listar_criar_editar_apagar(api):

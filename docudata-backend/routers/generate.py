@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
-from services.acesso import exigir_acesso, exigir_acesso_por
+from services.acesso import SEM_ACESSO, exigir_acesso, exigir_acesso_por
 from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
@@ -29,7 +29,12 @@ async def generate(
     request: Request, response: Response, req: GenerateRequest,
     pessoa: dict = Depends(get_current_pessoa),
 ):
-    exigir_acesso(get_client(), pessoa, req.projeto_id)
+    acesso_client = get_client()
+    exigir_acesso(acesso_client, pessoa, req.projeto_id)
+    if req.ingestion_id:
+        projeto_da_ingestao = exigir_acesso_por(acesso_client, pessoa, "ingestion", req.ingestion_id)
+        if projeto_da_ingestao != req.projeto_id:
+            raise HTTPException(status_code=403, detail=SEM_ACESSO)
     if req.tipo_doc not in _VALID_DOC_TYPES:
         raise HTTPException(
             status_code=422,
