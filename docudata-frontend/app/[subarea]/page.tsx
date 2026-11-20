@@ -32,6 +32,21 @@ function SubareaHome() {
       .then(setProjects)
       .catch(() => setError("Não foi possível carregar os projetos."))
       .finally(() => setLoading(false));
+
+    // Voltar pelo navegador (o Safari restaura a página inteira do cache) ou
+    // retornar à aba mostrava a lista antiga: um projeto recém-criado só
+    // aparecia depois de recarregar. Busca de novo, em silêncio, nesses casos.
+    const recarregar = () => {
+      listProjects(subarea).then(setProjects).catch(() => {});
+    };
+    const aoMostrar = (e: PageTransitionEvent) => { if (e.persisted) recarregar(); };
+    const aoVoltarAba = () => { if (document.visibilityState === "visible") recarregar(); };
+    window.addEventListener("pageshow", aoMostrar);
+    document.addEventListener("visibilitychange", aoVoltarAba);
+    return () => {
+      window.removeEventListener("pageshow", aoMostrar);
+      document.removeEventListener("visibilitychange", aoVoltarAba);
+    };
   }, [subarea]);
 
   function runSearch(value: string, delay: number) {
