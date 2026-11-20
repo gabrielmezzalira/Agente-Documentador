@@ -102,7 +102,6 @@ def test_rotas_de_fora(api):
 
 def test_post_exige_mesmo_projeto(api):
     corpo = {f"resposta_{i}": 3 for i in range(1, 8)}
-    assert api.post("", json={}).status_code in (404, 405, 307) or True
     for sprint, op in (("s-out", "o-out"), ("s-in", "o-out"), ("s-out", "o-in")):
         r = api.post("/avaliacoes", json={"sprint_id": sprint, "operacional_id": op, **corpo})
         assert r.status_code == 403, (sprint, op, r.text)
