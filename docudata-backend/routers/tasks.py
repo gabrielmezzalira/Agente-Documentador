@@ -748,9 +748,12 @@ async def rejeitar_task(
     data: RejeitarTaskRequest,
     pessoa: dict = Depends(require_not_operacional),
 ):
-    """Só gerente/líder — rejeita uma task em Pendente de aprovação: limpa o
-    responsável e volta pra planejado (fila), sem penalidade de travamento
-    (o relógio já estava pausado desde a entrada em pendente_aprovacao)."""
+    """Só gerente/líder — rejeita uma task em Pendente de aprovação, sem
+    penalidade de travamento (o relógio já estava pausado desde a entrada em
+    pendente_aprovacao). Em Pull, limpa o responsável e volta pra fila; em
+    Atribuição, a task volta pra Em andamento com o mesmo responsável, que é
+    quem tem de corrigir — antes ela ia pra fila sem dono e o gerente tinha
+    de reatribuir toda vez."""
     client = get_client()
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
     if not resp.data:
@@ -759,23 +762,36 @@ async def rejeitar_task(
     if task.get("coluna_kanban") != "pendente_aprovacao":
         raise HTTPException(status_code=409, detail="Task não está em Pendente de aprovação.")
 
+    proj = client.table("projects").select("modo_trabalho").eq("id", task["project_id"]).execute()
+    em_pull = bool(proj.data) and proj.data[0].get("modo_trabalho") == "PULL"
+    devolve_ao_dono = not em_pull and bool(task.get("operacional_id"))
+    destino = "em_andamento" if devolve_ao_dono else "planejado"
+
     agora = datetime.now(timezone.utc)
-    _registrar_task_transicao(client, task_id, task, "coluna_kanban", "planejado", data.autor, data.motivo, agora)
+    _registrar_task_transicao(client, task_id, task, "coluna_kanban", destino, data.autor, data.motivo, agora)
 
-    fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
-    max_ordem = max((t.get("ordem_fila") or 0) for t in fila) if fila else 0
+    if devolve_ao_dono:
+        updates = {
+            "coluna_kanban": "em_andamento",
+            "entrou_em_andamento_em": agora.isoformat(),
+            "travado_automatico": False,
+            "updated_at": agora.isoformat(),
+        }
+    else:
+        fila = client.table("tasks").select("ordem_fila").eq("project_id", task["project_id"]).eq("coluna_kanban", "planejado").execute().data or []
+        max_ordem = max((t.get("ordem_fila") or 0) for t in fila) if fila else 0
+        updates = {
+            "operacional_id": None,
+            "coluna_kanban": "planejado",
+            "pull_em": None,
+            "entrou_em_andamento_em": None,
+            "travado_automatico": False,
+            "ordem_fila": max_ordem + 1,
+            "updated_at": agora.isoformat(),
+        }
+    result = client.table("tasks").update(updates).eq("id", task_id).execute()
 
-    result = client.table("tasks").update({
-        "operacional_id": None,
-        "coluna_kanban": "planejado",
-        "pull_em": None,
-        "entrou_em_andamento_em": None,
-        "travado_automatico": False,
-        "ordem_fila": max_ordem + 1,
-        "updated_at": agora.isoformat(),
-    }).eq("id", task_id).execute()
-
-    on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", "planejado")
+    on_task_transition(client, task, "coluna_kanban", "pendente_aprovacao", destino)
     _sincronizar_funcionalidades(client, [task.get("funcionalidade_id")], pessoa.get("email"))
     _avisar_operacional_rejeicao(client, task, data.motivo)
 
