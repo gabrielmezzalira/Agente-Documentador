@@ -1,10 +1,11 @@
 import statistics
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 
 from services.previsto_sprint import previsto_da_sprint
+from services.auth import require_project_access
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/metricas", tags=["metricas"])
@@ -79,7 +80,7 @@ def _percentiles(cycle_times_horas: list[float]) -> dict:
     return {"p50_horas": round(q[49], 1), "p85_horas": round(q[84], 1)}
 
 
-@router.get("/{project_id}/spi")
+@router.get("/{project_id}/spi", dependencies=[Depends(require_project_access)])
 async def get_spi(project_id: str):
     """SPI por sprint: realizado (tasks concluídas, sem extras) ÷ previsto (foto do início + o que surgiu)."""
     client = get_client()
@@ -120,7 +121,7 @@ async def get_spi(project_id: str):
     return result
 
 
-@router.get("/{project_id}/throughput")
+@router.get("/{project_id}/throughput", dependencies=[Depends(require_project_access)])
 async def get_throughput(project_id: str):
     """Tasks concluídas e pontos realizados por sprint."""
     client = get_client()
@@ -156,7 +157,7 @@ async def get_throughput(project_id: str):
     return result
 
 
-@router.get("/{project_id}/cycle-time")
+@router.get("/{project_id}/cycle-time", dependencies=[Depends(require_project_access)])
 async def get_cycle_time(
     project_id: str,
     sprint_numero: Optional[int] = Query(default=None),
@@ -233,7 +234,7 @@ async def get_cycle_time(
     return result
 
 
-@router.get("/{project_id}/cfd")
+@router.get("/{project_id}/cfd", dependencies=[Depends(require_project_access)])
 async def get_cfd(project_id: str):
     """
     Flow snapshot por sprint: total de tasks em cada coluna.
@@ -277,7 +278,7 @@ async def get_cfd(project_id: str):
     return result
 
 
-@router.get("/{project_id}/performance-operacional")
+@router.get("/{project_id}/performance-operacional", dependencies=[Depends(require_project_access)])
 async def get_performance_operacional(project_id: str):
     """
     Performance por operacional (MET-01 + MET-06): pontos_atribuidos, pontos_realizados,
@@ -332,7 +333,7 @@ async def get_performance_operacional(project_id: str):
     return result
 
 
-@router.get("/{project_id}/cycle-time/stats")
+@router.get("/{project_id}/cycle-time/stats", dependencies=[Depends(require_project_access)])
 async def get_cycle_time_stats(project_id: str):
     """
     Estatísticas agregadas de cycle-time (MET-02): p50_horas e p85_horas via

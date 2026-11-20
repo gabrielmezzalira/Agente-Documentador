@@ -9,15 +9,17 @@ from models.schemas import (
     OperacionalResponse,
 )
 from core.observability import falha_externa
-from services.auth import require_not_operacional
+from services.acesso import exigir_acesso, exigir_acesso_por
+from services.auth import require_not_operacional, require_project_access
 from services.supabase_client import get_client
 
 router = APIRouter(prefix="/operacionais", tags=["operacionais"])
 
 
-@router.post("", response_model=OperacionalResponse, status_code=201, dependencies=[Depends(require_not_operacional)])
-async def create_operacional(data: OperacionalCreate):
+@router.post("", response_model=OperacionalResponse, status_code=201)
+async def create_operacional(data: OperacionalCreate, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
+    exigir_acesso(client, pessoa, data.project_id)
     check = client.table("projects").select("id").eq("id", data.project_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -80,7 +82,7 @@ async def create_operacional(data: OperacionalCreate):
     return resp.data[0]
 
 
-@router.get("/projects/{project_id}", response_model=list[OperacionalResponse])
+@router.get("/projects/{project_id}", response_model=list[OperacionalResponse], dependencies=[Depends(require_project_access)])
 async def list_operacionais(project_id: str, ativo: bool = Query(default=True)):
     client = get_client()
     check = client.table("projects").select("id").eq("id", project_id).execute()
@@ -99,7 +101,7 @@ async def list_operacionais(project_id: str, ativo: bool = Query(default=True)):
     return query.execute().data or []
 
 
-@router.get("/disponiveis/{project_id}", response_model=list[OperacionalDisponivelResponse])
+@router.get("/disponiveis/{project_id}", response_model=list[OperacionalDisponivelResponse], dependencies=[Depends(require_project_access)])
 async def listar_operacionais_disponiveis(project_id: str):
     """Pessoas já cadastradas em outros projetos, para vincular a este sem
     redigitar. Redigitar é o que hoje cria a mesma pessoa com e-mail divergente
@@ -180,9 +182,12 @@ async def listar_operacionais_disponiveis(project_id: str):
     return sorted(por_chave.values(), key=lambda e: e["nome"].lower())
 
 
-@router.patch("/{operacional_id}", response_model=OperacionalResponse, dependencies=[Depends(require_not_operacional)])
-async def update_operacional(operacional_id: str, data: OperacionalUpdate):
+@router.patch("/{operacional_id}", response_model=OperacionalResponse)
+async def update_operacional(
+    operacional_id: str, data: OperacionalUpdate, pessoa: dict = Depends(require_not_operacional)
+):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "operacional", operacional_id)
     check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Operacional not found")
@@ -214,8 +219,8 @@ async def update_operacional(operacional_id: str, data: OperacionalUpdate):
     return resp.data[0]
 
 
-@router.post("/{operacional_id}/remover-do-projeto", response_model=OperacionalResponse, dependencies=[Depends(require_not_operacional)])
-async def remover_do_projeto(operacional_id: str):
+@router.post("/{operacional_id}/remover-do-projeto", response_model=OperacionalResponse)
+async def remover_do_projeto(operacional_id: str, pessoa: dict = Depends(require_not_operacional)):
     """Tira a pessoa do projeto sem apagar nada.
 
     É o caminho certo quando alguém troca de projeto no meio da execução: a
@@ -225,6 +230,7 @@ async def remover_do_projeto(operacional_id: str):
 
     Para apagar de fato, use DELETE, que é irreversível."""
     client = get_client()
+    exigir_acesso_por(client, pessoa, "operacional", operacional_id)
     check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Operacional not found")
@@ -243,14 +249,15 @@ async def remover_do_projeto(operacional_id: str):
     return resp.data[0]
 
 
-@router.delete("/{operacional_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
-async def delete_operacional(operacional_id: str):
+@router.delete("/{operacional_id}", status_code=204)
+async def delete_operacional(operacional_id: str, pessoa: dict = Depends(require_not_operacional)):
     """Apaga a pessoa e, por cascata do banco, toda a pontuação travada dela.
 
     Irreversível e quase sempre a escolha errada para quem só saiu do projeto:
     para esse caso existe POST /operacionais/{id}/remover-do-projeto, que
     preserva o histórico."""
     client = get_client()
+    exigir_acesso_por(client, pessoa, "operacional", operacional_id)
     check = client.table("operacionais").select("id").eq("id", operacional_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Operacional not found")

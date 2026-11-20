@@ -70,6 +70,8 @@ def test_extrato_lista_todos_os_eventos_do_operacional(monkeypatch, autenticar):
 
 
 def test_extrato_filtra_por_sprint(monkeypatch, autenticar):
+    monkeypatch.setattr("routers.pontuacao.project_id_de", lambda c, e, i: "proj-1")
+    monkeypatch.setattr("routers.pontuacao.exigir_acesso_por", lambda c, p, e, i: "proj-1")
     tc = _patch_and_client(monkeypatch, _mock_client(_EVENTOS), autenticar)
 
     resp = tc.get("/operacionais/op-1/extrato?sprint_id=sprint-2")

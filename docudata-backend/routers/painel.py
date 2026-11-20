@@ -1,7 +1,9 @@
 from datetime import date, datetime, timezone
 from statistics import mean, quantiles
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from services.auth import require_project_access
 
 from services.supabase_client import get_client
 from core.observability import registrar_falha_interna
@@ -297,7 +299,7 @@ def calcular_bloco_d(funcs: list[dict], transicoes: list[dict]) -> dict:
     }
 
 
-@router.get("/{project_id}/painel")
+@router.get("/{project_id}/painel", dependencies=[Depends(require_project_access)])
 async def get_painel(project_id: str):
     step = "init"
     try:

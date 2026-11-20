@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from models.schemas import (
@@ -39,6 +39,7 @@ from services.github_app import (
     validar_token_assinado,
 )
 from core.observability import falha_externa
+from services.auth import require_project_access
 from services.supabase_client import get_client
 
 
@@ -195,6 +196,7 @@ async def github_capabilities():
 @router.post(
     "/projects/{project_id}/repositories/github/session",
     response_model=GitHubConnectionSession,
+    dependencies=[Depends(require_project_access)],
 )
 def iniciar_conexao_github(project_id: str):
     client = get_client()
@@ -326,6 +328,7 @@ def listar_repositorios_disponiveis(
     "/projects/{project_id}/repositories",
     response_model=list[ProjectRepositoryResponse],
     status_code=201,
+    dependencies=[Depends(require_project_access)],
 )
 async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
     client = get_client()
@@ -397,6 +400,7 @@ async def conectar_repositorios(project_id: str, body: ProjectRepositoryCreate):
 @router.get(
     "/projects/{project_id}/repositories",
     response_model=list[ProjectRepositoryResponse],
+    dependencies=[Depends(require_project_access)],
 )
 async def listar_repositorios_projeto(project_id: str):
     client = get_client()
@@ -409,7 +413,10 @@ async def listar_repositorios_projeto(project_id: str):
     return [_repositorio_publico(row) for row in (resposta.data or [])]
 
 
-@router.delete("/projects/{project_id}/repositories/{repository_id}", status_code=204)
+@router.delete(
+    "/projects/{project_id}/repositories/{repository_id}", status_code=204,
+    dependencies=[Depends(require_project_access)],
+)
 async def desconectar_repositorio(project_id: str, repository_id: str):
     client = get_client()
     projeto = _obter_projeto(client, project_id)
