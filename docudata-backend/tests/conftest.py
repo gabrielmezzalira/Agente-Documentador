@@ -10,6 +10,35 @@ os.environ.setdefault("DOCUDATA_SECRETS_KEY", Fernet.generate_key().decode("utf-
 os.environ.setdefault("JWT_SECRET", "segredo-jwt-apenas-para-testes-automatizados")
 
 
+from services import acesso as _acesso_mod
+
+_ids_vinculados_original = _acesso_mod._ids_vinculados_gerente
+
+
+@pytest.fixture(autouse=True)
+def acesso_gerente_livre(monkeypatch):
+    """Por padrão todo gerente enxerga todos os projetos (como antes do vínculo),
+    para os testes antigos seguirem iguais. test_acesso.py usa `acesso_original`."""
+    monkeypatch.setattr("services.acesso._ids_vinculados_gerente", lambda client, pid: None)
+
+
+@pytest.fixture
+def acesso_original():
+    """A implementação real de _ids_vinculados_gerente, sem o stub autouse."""
+    return _ids_vinculados_original
+
+
+@pytest.fixture
+def vinculos_gerente(monkeypatch):
+    """Dict mutável {pessoa_id: set(project_ids)}; gerente fora dele não vê nada."""
+    vinculos: dict = {}
+    monkeypatch.setattr(
+        "services.acesso._ids_vinculados_gerente",
+        lambda client, pid: set(vinculos.get(pid, set())),
+    )
+    return vinculos
+
+
 @pytest.fixture
 def autenticar():
     """Simula a sessão do navegador sem enfraquecer a autenticação em produção."""
