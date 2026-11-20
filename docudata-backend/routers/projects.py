@@ -17,7 +17,7 @@ from models.schemas import (
     GerenteVinculoCreate,
 )
 from core.observability import falha_externa
-from services.acesso import projetos_visiveis, tem_acesso, vincular_gerente
+from services.acesso import _tabela_ausente, projetos_visiveis, tem_acesso, vincular_gerente
 from services.audit import registrar_auditoria
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access, require_role
 from services.discovery_promocao import promover_validados_do_projeto
@@ -676,11 +676,19 @@ def _exigir_gerenciar_vinculos(client, pessoa: dict, project_id: str) -> None:
         raise HTTPException(status_code=403, detail="Acesso restrito a Gerente/Líder")
 
 
+_V16_PENDENTE = "Migração v16 pendente: vínculo de gerentes indisponível."
+
+
 def _listar_gerentes(client, project_id: str) -> list[dict]:
-    vinculos = (
-        client.table("projeto_gerentes").select("pessoa_id, criado_em")
-        .eq("project_id", project_id).execute().data or []
-    )
+    try:
+        vinculos = (
+            client.table("projeto_gerentes").select("pessoa_id, criado_em")
+            .eq("project_id", project_id).execute().data or []
+        )
+    except Exception as exc:
+        if _tabela_ausente(exc):
+            return []
+        raise
     if not vinculos:
         return []
     pessoas = (
@@ -697,6 +705,15 @@ def _listar_gerentes(client, project_id: str) -> list[dict]:
         }
         for v in vinculos
     ]
+
+
+def _exigir_tabela_v16(client) -> None:
+    try:
+        client.table("projeto_gerentes").select("project_id").limit(1).execute()
+    except Exception as exc:
+        if _tabela_ausente(exc):
+            raise HTTPException(status_code=503, detail=_V16_PENDENTE)
+        raise
 
 
 @router.get("/{project_id}/gerentes")
@@ -736,6 +753,7 @@ async def vincular_gerente_projeto(
         raise HTTPException(status_code=404, detail="Pessoa não encontrada")
     if alvo[0].get("cargo") not in _CARGOS_GERENCIAVEIS:
         raise HTTPException(status_code=422, detail="Só gerente, líder ou owner pode ser vinculado a um projeto.")
+    _exigir_tabela_v16(client)
     vincular_gerente(client, project_id, data.pessoa_id, pessoa["id"])
     return _listar_gerentes(client, project_id)
 
@@ -749,6 +767,7 @@ async def desvincular_gerente_projeto(
     client = get_client()
     await require_project_access(project_id, pessoa)
     _exigir_gerenciar_vinculos(client, pessoa, project_id)
+    _exigir_tabela_v16(client)
     atuais = _listar_gerentes(client, project_id)
     if pessoa_id not in {g["pessoa_id"] for g in atuais}:
         raise HTTPException(status_code=404, detail="Vínculo não encontrado")

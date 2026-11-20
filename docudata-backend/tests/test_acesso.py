@@ -39,7 +39,7 @@ def test_gerente_sem_vinculo_403(real):
 
 def test_operacional_por_email(real):
     c = FakeClient({"operacionais": [
-        {"project_id": "A", "email": "x@citi.org.br"}, {"project_id": "B", "email": "y@citi.org.br"}]})
+        {"project_id": "A", "email": "x@citi.org.br", "ativo": True}, {"project_id": "B", "email": "y@citi.org.br", "ativo": True}]})
     assert acesso.projetos_visiveis(c, _pessoa("operacional")) == {"A"}
 
 

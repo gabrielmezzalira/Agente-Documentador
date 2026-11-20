@@ -162,3 +162,54 @@ def test_busca_filtrada(api):
     assert [x["project_id"] for x in res] == [PID]
     api.login("lider")
     assert len(api.get("/search?q=spark&subarea=dados").json()["results"]) == 2
+
+
+def test_desvincular_pessoa_nao_vinculada_404(api):
+    api.login("gerente")
+    api.post(f"/projects/{PID}/gerentes", json={"pessoa_id": "g2"})
+    assert api.delete(f"/projects/{PID}/gerentes/l1").status_code == 404
+
+
+def test_lider_vincula_e_desvincula_sem_estar_vinculado(api):
+    api.login("lider")
+    assert api.post(f"/projects/{PID}/gerentes", json={"pessoa_id": "g2"}).status_code == 201
+    assert api.delete(f"/projects/{PID}/gerentes/g2").status_code == 204
+
+
+def test_operacional_desativado_403(api):
+    api.fake.t["operacionais"] = [
+        {"id": "o1", "project_id": PID, "email": "pessoa@citi.org.br", "ativo": False}
+    ]
+    api.login("operacional")
+    assert api.get(f"/projects/{PID}").status_code == 403
+
+
+def test_operacional_ativo_200(api):
+    api.fake.t["operacionais"] = [
+        {"id": "o1", "project_id": PID, "email": "pessoa@citi.org.br", "ativo": True}
+    ]
+    api.login("operacional")
+    assert api.get(f"/projects/{PID}").status_code == 200
+
+
+def _sem_tabela(api):
+    orig = api.fake.table
+
+    def table(name):
+        if name == "projeto_gerentes":
+            raise Exception("{'code': 'PGRST205', 'message': \"Could not find the table 'public.projeto_gerentes'\"}")
+        return orig(name)
+
+    api.fake.table = table
+
+
+def test_antes_da_v16_listar_candidatos_e_503(api):
+    api.login("lider")
+    _sem_tabela(api)
+    r = api.get(f"/projects/{PID}/gerentes")
+    assert r.status_code == 200 and r.json() == []
+    assert api.get(f"/projects/{PID}/gerentes/candidatos").status_code == 200
+    r = api.post(f"/projects/{PID}/gerentes", json={"pessoa_id": "g2"})
+    assert r.status_code == 503
+    assert r.json()["detail"] == "Migração v16 pendente: vínculo de gerentes indisponível."
+    assert api.delete(f"/projects/{PID}/gerentes/g2").status_code == 503

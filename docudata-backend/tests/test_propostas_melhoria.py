@@ -16,9 +16,9 @@ EMAIL = "pessoa@citi.org.br"  # e-mail do JWT da fixture `autenticar`
 
 
 def _fake(subarea="pta", modo="ATRIBUICAO", sou_da_equipe=True, iniciada=True):
-    ops = [{"id": "op-2", "project_id": "p1", "nome": "Outra", "email": "outra@citi.org.br"}]
+    ops = [{"id": "op-2", "project_id": "p1", "nome": "Outra", "email": "outra@citi.org.br", "ativo": True}]
     if sou_da_equipe:
-        ops.append({"id": "op-1", "project_id": "p1", "nome": "Eu", "email": EMAIL})
+        ops.append({"id": "op-1", "project_id": "p1", "nome": "Eu", "email": EMAIL, "ativo": True})
     return FakeClient(
         {
             "projects": [{"id": "p1", "name": "Proj", "subarea": subarea, "modo_trabalho": modo}],

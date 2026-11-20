@@ -145,10 +145,19 @@ function GerentesSection({ projectId }: { projectId: string }) {
   const [escolhido, setEscolhido] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [carregado, setCarregado] = useState(false);
+  const [erroCarga, setErroCarga] = useState("");
 
   useEffect(() => {
     let ativo = true;
-    listGerentesProjeto(projectId).then((g) => { if (ativo) setGerentes(g); }).catch(() => {});
+    listGerentesProjeto(projectId)
+      .then((g) => { if (ativo) { setGerentes(g); setCarregado(true); setErroCarga(""); } })
+      .catch((e) => {
+        if (!ativo) return;
+        const msg = e instanceof Error ? e.message : "";
+        if (msg === "Você não tem acesso a este projeto") return;
+        setErroCarga(msg && msg !== "Failed to fetch" ? msg : "Não foi possível carregar os gerentes.");
+      });
     listCandidatosGerente(projectId)
       .then((c) => { if (ativo) { setCandidatos(c); setPodeGerir(true); } })
       .catch(() => { if (ativo) setPodeGerir(false); });
@@ -188,7 +197,8 @@ function GerentesSection({ projectId }: { projectId: string }) {
     <section style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 14, padding: "20px 24px", marginBottom: 16 }}>
       <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f2f5f3", margin: "0 0 14px" }}>Gerentes do projeto</h2>
 
-      {gerentes.length === 0 && <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>Nenhum gerente vinculado.</p>}
+      {erroCarga && <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>{erroCarga}</p>}
+      {carregado && gerentes.length === 0 && <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>Nenhum gerente vinculado.</p>}
 
       {gerentes.map((g) => (
         <div key={g.pessoa_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>

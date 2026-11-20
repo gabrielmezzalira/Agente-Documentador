@@ -60,7 +60,7 @@ def projetos_visiveis(client, pessoa: dict) -> set[str] | None:
         return None
     if cargo == "gerente":
         return _ids_vinculados_gerente(client, pessoa["id"])
-    resp = client.table("operacionais").select("project_id").eq("email", pessoa.get("email")).execute()
+    resp = client.table("operacionais").select("project_id").eq("email", pessoa.get("email")).eq("ativo", True).execute()
     return {r["project_id"] for r in (resp.data or [])}
 
 
@@ -69,7 +69,7 @@ def tem_acesso(client, pessoa: dict, project_id: str) -> bool:
         # consulta pontual: mesma query de sempre, sem varrer todos os vínculos
         check = (
             client.table("operacionais").select("id")
-            .eq("project_id", project_id).eq("email", pessoa.get("email")).execute()
+            .eq("project_id", project_id).eq("email", pessoa.get("email")).eq("ativo", True).execute()
         )
         return bool(check.data)
     visiveis = projetos_visiveis(client, pessoa)
