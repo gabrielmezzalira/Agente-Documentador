@@ -8,7 +8,8 @@ class _Resp:
 
 
 class _Query:
-    def __init__(self, tables, name, op, payload=None, defaults=None, on_conflict=None):
+    def __init__(self, tables, name, op, payload=None, defaults=None, on_conflict=None, ignore_duplicates=False):
+        self._ignore_dup = ignore_duplicates
         self._on_conflict = on_conflict
         self._defaults = defaults or {}
         self._tables = tables
@@ -93,6 +94,8 @@ class _Query:
             saida = []
             for item in itens:
                 alvo = next((r for r in linhas if all(r.get(c) == item.get(c) for c in chaves)), None)
+                if alvo is not None and self._ignore_dup:
+                    continue
                 if alvo is not None:
                     alvo.update(item)
                     saida.append(dict(alvo))
@@ -134,10 +137,10 @@ class _Table:
     def update(self, payload):
         return _Query(self._tables, self._name, "update", payload)
 
-    def upsert(self, payload, on_conflict=None):
+    def upsert(self, payload, on_conflict=None, ignore_duplicates=False):
         """Substitui a linha com os mesmos valores nas colunas de `on_conflict`
         ("a,b") ou insere; sem `on_conflict`, a chave é `id`."""
-        return _Query(self._tables, self._name, "upsert", payload, self._defaults, on_conflict)
+        return _Query(self._tables, self._name, "upsert", payload, self._defaults, on_conflict, ignore_duplicates)
 
     def delete(self):
         return _Query(self._tables, self._name, "delete")

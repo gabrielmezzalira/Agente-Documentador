@@ -11,6 +11,7 @@ import bcrypt
 import jwt
 from fastapi import Cookie, Depends, HTTPException
 
+from services.acesso import exigir_acesso
 from services.supabase_client import get_client
 
 _JWT_ALG = "HS256"
@@ -112,7 +113,5 @@ class _ClienteTardio:
 
 
 async def require_project_access(project_id: str, pessoa: dict = Depends(get_current_pessoa)) -> dict:
-    from services.acesso import exigir_acesso
-
     exigir_acesso(_ClienteTardio(), pessoa, project_id)
     return pessoa

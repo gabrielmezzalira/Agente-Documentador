@@ -98,3 +98,15 @@ def test_vincular_gerente_idempotente():
     acesso.vincular_gerente(c, "A", "p1", "p0")
     acesso.vincular_gerente(c, "A", "p1", "p0")
     assert len(c.table("projeto_gerentes").select("*").execute().data) == 1
+
+
+def test_pgrst205_vira_none(real):
+    c = _ClienteSemTabela(Exception(
+        "Could not find the table 'public.projeto_gerentes' in the schema cache PGRST205"))
+    assert acesso.projetos_visiveis(c, _pessoa("gerente")) is None
+
+
+def test_42p01_de_outra_tabela_propaga(real):
+    c = _ClienteSemTabela(Exception('relation "outra" does not exist 42P01'))
+    with pytest.raises(Exception, match="outra"):
+        acesso.projetos_visiveis(c, _pessoa("gerente"))

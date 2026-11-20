@@ -35,7 +35,7 @@ _ENTIDADES = {
 
 def _tabela_ausente(exc: Exception) -> bool:
     texto = str(exc)
-    return "42P01" in texto or ("projeto_gerentes" in texto and "does not exist" in texto)
+    return "projeto_gerentes" in texto and any(m in texto for m in ("PGRST205", "42P01", "does not exist"))
 
 
 def _ids_vinculados_gerente(client, pessoa_id: str) -> set[str] | None:
@@ -107,14 +107,9 @@ def exigir_acesso_por(client, pessoa: dict, entidade: str, objeto_id: str) -> st
 def vincular_gerente(client, project_id: str, pessoa_id: str, criado_por: str | None) -> None:
     """Idempotente; tolera a tabela ausente (pré-v16)."""
     try:
-        existe = (
-            client.table("projeto_gerentes").select("id")
-            .eq("project_id", project_id).eq("pessoa_id", pessoa_id).execute()
-        )
-        if existe.data:
-            return
-        client.table("projeto_gerentes").insert(
-            {"project_id": project_id, "pessoa_id": pessoa_id, "criado_por": criado_por}
+        client.table("projeto_gerentes").upsert(
+            {"project_id": project_id, "pessoa_id": pessoa_id, "criado_por": criado_por},
+            on_conflict="project_id,pessoa_id", ignore_duplicates=True,
         ).execute()
     except Exception as exc:
         if not _tabela_ausente(exc):
