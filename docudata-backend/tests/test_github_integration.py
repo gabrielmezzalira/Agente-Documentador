@@ -820,7 +820,7 @@ def test_escopo_de_documentos_inclui_commit_sem_invadir_ingestion_only(monkeypat
         {"id": "commit", "project_id": "p", "sprint_number": 2, "tipo_documentacao": "commit", "extracted_content": {"resumo": "Commit", "decisoes": ["Decisão"]}},
     ]})
     monkeypatch.setattr(graph, "get_client", lambda: banco)
-    daily = graph.buscar_ingestions({"tipo_doc": "daily", "ingestion_id": "daily"})
+    daily = graph.buscar_ingestions({"tipo_doc": "daily", "projeto_id": "p", "ingestion_id": "daily"})
     sprint = graph.buscar_ingestions({"tipo_doc": "repasse_semanal", "projeto_id": "p", "sprint_numero": 2})
     projeto = graph.buscar_ingestions({"tipo_doc": "onboarding", "projeto_id": "p"})
     assert [row["id"] for row in daily["ingestions"]] == ["daily"]

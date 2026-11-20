@@ -194,6 +194,10 @@ class ProjectRepositoryResponse(BaseModel):
     updated_at: datetime
 
 
+class GerenteVinculoCreate(BaseModel):
+    pessoa_id: str
+
+
 class GerenteEmailUpdate(BaseModel):
     gerente_email: Optional[str] = None
 

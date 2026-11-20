@@ -1491,3 +1491,26 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ALTER TABLE task_transicoes ADD CONSTRAINT task_transicoes_operacional_id_fkey
 --   FOREIGN KEY (operacional_id) REFERENCES operacionais(id) ON DELETE SET NULL;
 -- COMMIT;
+
+-- ============================================================
+-- v16 (2026-11-19): vínculo gerente <-> projeto. Gerente só acessa projetos
+-- vinculados aqui; owner/líder veem todos. Antes desta migração o backend
+-- trata gerente como "vê tudo" (com aviso no log).
+-- ============================================================
+-- BEGIN;
+-- CREATE TABLE IF NOT EXISTS projeto_gerentes (
+--     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--     project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--     pessoa_id   uuid NOT NULL REFERENCES pessoa(id) ON DELETE CASCADE,
+--     criado_por  uuid REFERENCES pessoa(id) ON DELETE SET NULL,
+--     criado_em   timestamptz NOT NULL DEFAULT now(),
+--     UNIQUE (project_id, pessoa_id)
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_projeto_gerentes_pessoa ON projeto_gerentes(pessoa_id);
+-- -- backfill pelo e-mail de lembrete
+-- INSERT INTO projeto_gerentes (project_id, pessoa_id)
+-- SELECT p.id, pe.id FROM projects p JOIN pessoa pe ON lower(pe.email) = lower(p.gerente_email)
+-- WHERE pe.cargo = 'gerente'
+-- ON CONFLICT (project_id, pessoa_id) DO NOTHING;
+-- COMMIT;
+-- Rollback: DROP TABLE IF EXISTS projeto_gerentes;

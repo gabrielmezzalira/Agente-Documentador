@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from models.schemas import GeminiApiKeyStatus, GeminiApiKeyUpdate
+from services.auth import require_role
 from services.gemini_key import get_gemini_api_key_status, set_gemini_api_key
 
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(prefix="/settings", tags=["settings"], dependencies=[Depends(require_role("lider"))])
 
 
 @router.get("/gemini", response_model=GeminiApiKeyStatus)

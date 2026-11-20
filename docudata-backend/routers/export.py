@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from core.observability import falha_externa
+from services.acesso import exigir_acesso, exigir_acesso_por
+from services.auth import get_current_pessoa
 from services.google_docs import export_to_gdocs
 from services.supabase_client import get_client
 
@@ -22,13 +24,14 @@ _DOC_TYPE_LABELS = {
 
 
 @router.post("/docs/{doc_id}/export-gdocs")
-async def export_doc_to_gdocs(doc_id: str):
+async def export_doc_to_gdocs(doc_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
 
     doc_resp = client.table("generated_docs").select("*").eq("id", doc_id).execute()
     if not doc_resp.data:
         raise HTTPException(status_code=404, detail="Document not found")
     doc = doc_resp.data[0]
+    exigir_acesso(client, pessoa, doc["project_id"])
 
     proj_resp = (
         client.table("projects")

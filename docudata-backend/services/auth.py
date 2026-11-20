@@ -11,6 +11,7 @@ import bcrypt
 import jwt
 from fastapi import Cookie, Depends, HTTPException
 
+from services.acesso import exigir_acesso
 from services.supabase_client import get_client
 
 _JWT_ALG = "HS256"
@@ -104,17 +105,13 @@ async def require_not_operacional(pessoa: dict = Depends(get_current_pessoa)) ->
     return pessoa
 
 
+class _ClienteTardio:
+    """Só abre o cliente Supabase quando alguma regra realmente consulta o banco
+    (owner/líder não consultam nada)."""
+    def __getattr__(self, nome):
+        return getattr(get_client(), nome)
+
+
 async def require_project_access(project_id: str, pessoa: dict = Depends(get_current_pessoa)) -> dict:
-    if pessoa["cargo"] in ("owner", "lider", "gerente"):
-        return pessoa
-    client = get_client()
-    check = (
-        client.table("operacionais")
-        .select("id")
-        .eq("project_id", project_id)
-        .eq("email", pessoa["email"])
-        .execute()
-    )
-    if not check.data:
-        raise HTTPException(status_code=403, detail="Você não tem acesso a este projeto")
+    exigir_acesso(_ClienteTardio(), pessoa, project_id)
     return pessoa

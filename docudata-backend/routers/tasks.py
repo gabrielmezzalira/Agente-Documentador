@@ -20,6 +20,7 @@ from models.schemas import (
     _COLUNAS_VALIDAS,
 )
 from services import classificador_ciclo as ciclo
+from services.acesso import exigir_acesso, exigir_acesso_por
 from services.auth import (
     get_current_pessoa,
     nivel as nivel_do_cargo,
@@ -304,6 +305,12 @@ def _registrar_reabertura(
     }).execute()
 
 
+def _exigir_acesso_nao_operacional(client, pessoa: dict, project_id: str) -> None:
+    """Operacional tem a própria checagem de vínculo (e mensagens) em cada rota."""
+    if pessoa["cargo"] != "operacional":
+        exigir_acesso(client, pessoa, project_id)
+
+
 @router.post("", response_model=TaskResponse, status_code=201)
 async def create_task(
     data: TaskCreate,
@@ -311,6 +318,7 @@ async def create_task(
     pessoa: dict = Depends(require_not_operacional),
 ):
     client = get_client()
+    exigir_acesso(client, pessoa, data.project_id)
 
     check = client.table("projects").select("id, modo_trabalho").eq("id", data.project_id).execute()
     if not check.data:
@@ -468,8 +476,9 @@ async def list_tasks(
 # ── Sugestões — rotas fixas antes de /{task_id} para evitar captura pelo path param ──
 
 @router.get("/sugestoes", response_model=list[TaskSugestaoResponse])
-async def list_task_sugestoes(project_id: str = Query(...)):
+async def list_task_sugestoes(project_id: str = Query(...), pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso(client, pessoa, project_id)
     resp = (
         client.table("task_sugestoes")
         .select("*, tasks(titulo, project_id, coluna_kanban)")
@@ -508,6 +517,7 @@ async def resolve_task_sugestao(sugestao_id: str, data: TaskSugestaoResolve, pes
     if not resp.data:
         raise HTTPException(status_code=404, detail="Sugestão não encontrada")
     row = resp.data[0]
+    exigir_acesso_por(client, pessoa, "sugestao", sugestao_id)
 
     if data.aceita and row["acao"] == "mover_para_concluida":
         task_id = row["task_id"]
@@ -562,6 +572,7 @@ async def puxar_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    _exigir_acesso_nao_operacional(client, pessoa, task["project_id"])
 
     if task.get("operacional_id") is not None:
         raise HTTPException(status_code=403, detail="Esta task não está disponível na fila.")
@@ -629,6 +640,7 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    _exigir_acesso_nao_operacional(client, pessoa, task["project_id"])
 
     # Pendente de aprovação só sai via /aprovar ou /rejeitar — mesmo gate que
     # patch_task aplica. Sem isto, o próprio dono da task devolvia ela pra fila
@@ -648,6 +660,8 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
 
     if pessoa["cargo"] not in ("owner", "lider", "gerente"):
         meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
+        if not meu_operacional_id:
+            raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
         if meu_operacional_id != task.get("operacional_id"):
             raise HTTPException(status_code=403, detail="Só quem está com a task (ou gerente/líder) pode devolvê-la.")
 
@@ -718,6 +732,7 @@ async def aprovar_task(
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    exigir_acesso(client, pessoa, task["project_id"])
     if task.get("coluna_kanban") != "pendente_aprovacao":
         raise HTTPException(status_code=409, detail="Task não está em Pendente de aprovação.")
 
@@ -759,6 +774,7 @@ async def rejeitar_task(
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
     task = resp.data[0]
+    exigir_acesso(client, pessoa, task["project_id"])
     if task.get("coluna_kanban") != "pendente_aprovacao":
         raise HTTPException(status_code=409, detail="Task não está em Pendente de aprovação.")
 
@@ -801,6 +817,7 @@ async def rejeitar_task(
 @router.post("/{task_id}/reclassificar", response_model=ReclassificarResponse)
 async def reclassificar_task(task_id: str, pessoa: dict = Depends(require_role("lider"))):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "task", task_id)
     resultado = await ciclo.reclassificar(client, task_id, pessoa["id"])
     return {
         "task_id": task_id,
@@ -814,6 +831,7 @@ async def reclassificar_task(task_id: str, pessoa: dict = Depends(require_role("
 @router.post("/{task_id}/revisao-nivel", response_model=ReclassificarResponse)
 async def revisar_nivel_task(task_id: str, data: RevisaoNivelRequest, pessoa: dict = Depends(require_role("lider"))):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "task", task_id)
     resultado = ciclo.resolver_revisao(client, task_id, data.nivel, data.motivo, pessoa["id"])
     return {
         "task_id": task_id,
@@ -862,17 +880,19 @@ async def opiniao_nivel_task(task_id: str, data: OpiniaoNivelRequest, pessoa: di
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: str):
+async def get_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
     resp = client.table("tasks").select("*").eq("id", task_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Task not found")
+    exigir_acesso(client, pessoa, resp.data[0]["project_id"])
     return _com_classificacao_status(client, [resp.data[0]])[0]
 
 
 @router.get("/{task_id}/transicoes", response_model=list[TaskTransicaoResponse])
-async def list_task_transicoes(task_id: str):
+async def list_task_transicoes(task_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "task", task_id)
     resp = (
         client.table("task_transicoes")
         .select("*")
@@ -933,6 +953,7 @@ async def patch_task(
     task = resp.data[0]
     project_id = task["project_id"]
     _checar_operacional_pode_mexer(client, pessoa, task, data)
+    _exigir_acesso_nao_operacional(client, pessoa, project_id)
 
     # Null explícito (campo presente no JSON) = "Sem operacional" em Atribuição.
     # Campo ausente continua significando "não mexer".
@@ -1389,6 +1410,10 @@ async def reordenar_tasks(
     a fila do Pull (sem dono) e tasks alheias o barram com 403, e nada é gravado.
     """
     client = get_client()
+    if pessoa["cargo"] in ("owner", "lider", "gerente") and itens:
+        linhas = client.table("tasks").select("id, project_id").in_("id", [i.id for i in itens]).execute().data or []
+        for pid in {r["project_id"] for r in linhas}:
+            exigir_acesso(client, pessoa, pid)
     if pessoa["cargo"] not in ("owner", "lider", "gerente") and itens:
         ids = [i.id for i in itens]
         linhas = client.table("tasks").select("id, project_id, operacional_id").in_("id", ids).execute().data or []
@@ -1411,9 +1436,10 @@ async def reordenar_tasks(
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(task_id: str, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
-    check = client.table("tasks").select("id, sprint_id, funcionalidade_id").eq("id", task_id).execute()
+    check = client.table("tasks").select("id, project_id, sprint_id, funcionalidade_id").eq("id", task_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Task not found")
+    exigir_acesso(client, pessoa, check.data[0]["project_id"])
 
     sprint_id = check.data[0].get("sprint_id")
     if sprint_id:

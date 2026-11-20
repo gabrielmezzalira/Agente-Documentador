@@ -63,7 +63,7 @@ def _patch_and_client(monkeypatch, mock_supabase):
 
 def test_delete_task_bloqueado_quando_pontuacao_ja_travada(monkeypatch):
     mock_sb, calls = _make_mock_client(
-        task_data={"id": "task-1", "sprint_id": "sprint-1"},
+        task_data={"id": "task-1", "project_id": "proj-1", "sprint_id": "sprint-1"},
         sprint_data={"avaliacao_completa_em": "2026-09-01T00:00:00+00:00"},
     )
     tc = _patch_and_client(monkeypatch, mock_sb)
@@ -77,7 +77,7 @@ def test_delete_task_bloqueado_quando_pontuacao_ja_travada(monkeypatch):
 
 def test_delete_task_permitido_quando_sprint_sem_avaliacao_confirmada(monkeypatch):
     mock_sb, calls = _make_mock_client(
-        task_data={"id": "task-1", "sprint_id": "sprint-1"},
+        task_data={"id": "task-1", "project_id": "proj-1", "sprint_id": "sprint-1"},
         sprint_data={"avaliacao_completa_em": None},
     )
     tc = _patch_and_client(monkeypatch, mock_sb)
@@ -90,7 +90,7 @@ def test_delete_task_permitido_quando_sprint_sem_avaliacao_confirmada(monkeypatc
 
 def test_delete_task_permitido_quando_task_sem_sprint(monkeypatch):
     mock_sb, calls = _make_mock_client(
-        task_data={"id": "task-1", "sprint_id": None},
+        task_data={"id": "task-1", "project_id": "proj-1", "sprint_id": None},
     )
     tc = _patch_and_client(monkeypatch, mock_sb)
 

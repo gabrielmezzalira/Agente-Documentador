@@ -51,7 +51,7 @@ async def test_lista_vinculado_sem_task_com_zero_e_nao_avaliado():
     import routers.avaliacoes as mod
     mod.get_client = lambda: client
 
-    resultado = await listar_elegiveis("sprint-1")
+    resultado = await listar_elegiveis("sprint-1", {"id": "p", "cargo": "lider"})
 
     assert resultado == [{"operacional_id": "op-1", "nome": "Ana", "tasks_na_sprint": 0, "avaliado": False}]
 
@@ -68,7 +68,7 @@ async def test_conta_tasks_e_avaliacao_corretamente():
     import routers.avaliacoes as mod
     mod.get_client = lambda: client
 
-    resultado = await listar_elegiveis("sprint-1")
+    resultado = await listar_elegiveis("sprint-1", {"id": "p", "cargo": "lider"})
 
     assert resultado[0]["tasks_na_sprint"] == 2
     assert resultado[0]["avaliado"] is True
@@ -81,7 +81,7 @@ async def test_sprint_inexistente_retorna_404():
     mod.get_client = lambda: client
 
     try:
-        await listar_elegiveis("sprint-x")
+        await listar_elegiveis("sprint-x", {"id": "p", "cargo": "lider"})
         assert False, "deveria ter levantado HTTPException"
     except HTTPException as exc:
         assert exc.status_code == 404

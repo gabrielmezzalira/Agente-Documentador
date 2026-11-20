@@ -46,7 +46,7 @@ def _endpoint_client(monkeypatch, mock_supabase):
 
 def test_endpoint_iniciar_sprint_chama_helper_e_retorna_sprint_atualizada(monkeypatch):
     check_resp = MagicMock()
-    check_resp.data = [{"id": "sprint-1"}]
+    check_resp.data = [{"id": "sprint-1", "project_id": "proj-1"}]
 
     final_resp = MagicMock()
     final_resp.data = [{
@@ -152,6 +152,7 @@ def test_confirmar_avaliacao_semanal_inicia_proxima_sprint_nao_iniciada(monkeypa
     client.table = MagicMock(side_effect=table_side_effect)
     monkeypatch.setattr(avaliacoes_router, "get_client", lambda: client)
     monkeypatch.setattr(avaliacoes_router, "listar_pendencias", _fake_listar_pendencias_vazia)
+    monkeypatch.setattr(avaliacoes_router, "exigir_acesso_por", lambda *a, **k: "proj-1")
 
     from fastapi.testclient import TestClient
     from main import app
@@ -204,6 +205,7 @@ def test_confirmar_avaliacao_semanal_nao_reinicia_proxima_sprint_ja_iniciada(mon
     client.table = MagicMock(side_effect=table_side_effect)
     monkeypatch.setattr(avaliacoes_router, "get_client", lambda: client)
     monkeypatch.setattr(avaliacoes_router, "listar_pendencias", _fake_listar_pendencias_vazia)
+    monkeypatch.setattr(avaliacoes_router, "exigir_acesso_por", lambda *a, **k: "proj-1")
 
     from fastapi.testclient import TestClient
     from main import app
@@ -216,5 +218,5 @@ def test_confirmar_avaliacao_semanal_nao_reinicia_proxima_sprint_ja_iniciada(mon
     assert chamadas == []
 
 
-async def _fake_listar_pendencias_vazia(sprint_id):
+async def _fake_listar_pendencias_vazia(sprint_id, pessoa=None):
     return []

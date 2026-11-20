@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button, Chip, Field, Input, PageHeader } from "../components/ds";
 import { PanelCard } from "../components/painel/PanelCard";
 import { ds } from "../lib/ds";
+import { useAuth } from "../components/AuthGuard";
 import {
   getGeminiApiKeyStatus,
   updateGeminiApiKey,
@@ -11,6 +12,8 @@ import {
 } from "../lib/api";
 
 export default function SettingsPage() {
+  const auth = useAuth();
+  const restrito = auth != null && auth.cargo !== "owner" && auth.cargo !== "lider";
   const [status, setStatus] = useState<GeminiApiKeyStatus | null>(null);
   const [newKey, setNewKey] = useState("");
   const [editing, setEditing] = useState(false);
@@ -19,11 +22,12 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
+    if (restrito) { setLoading(false); return; }
     getGeminiApiKeyStatus()
       .then(setStatus)
       .catch(() => setMessage({ ok: false, text: "Não foi possível carregar a configuração." }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [restrito]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -41,6 +45,15 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (restrito) {
+    return (
+      <>
+        <PageHeader title="Configurações" subtitle="Configurações compartilhadas por toda a aplicação." />
+        <p role="status" style={{ margin: 0, fontSize: 14, color: ds.muted }}>Acesso restrito a líderes.</p>
+      </>
+    );
   }
 
   const showForm = status?.configured !== true || editing;

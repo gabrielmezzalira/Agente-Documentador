@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
 from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
+from services.acesso import SEM_ACESSO, exigir_acesso, exigir_acesso_por
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -23,7 +25,16 @@ _INGESTION_REQUIRED = {"ata_reuniao", "planning", "daily"}
 
 @router.post("/generate", response_model=GenerateResponse)
 @limiter.limit(GEMINI_RATE_LIMIT)
-async def generate(request: Request, response: Response, req: GenerateRequest):
+async def generate(
+    request: Request, response: Response, req: GenerateRequest,
+    pessoa: dict = Depends(get_current_pessoa),
+):
+    acesso_client = get_client()
+    exigir_acesso(acesso_client, pessoa, req.projeto_id)
+    if req.ingestion_id:
+        projeto_da_ingestao = exigir_acesso_por(acesso_client, pessoa, "ingestion", req.ingestion_id)
+        if projeto_da_ingestao != req.projeto_id:
+            raise HTTPException(status_code=403, detail=SEM_ACESSO)
     if req.tipo_doc not in _VALID_DOC_TYPES:
         raise HTTPException(
             status_code=422,
@@ -84,8 +95,9 @@ async def generate(request: Request, response: Response, req: GenerateRequest):
 
 
 @router.get("/docs/{projeto_id}", response_model=list[GenerateResponse])
-async def list_docs(projeto_id: str):
+async def list_docs(projeto_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso(client, pessoa, projeto_id)
     response = (
         client.table("generated_docs")
         .select("*")
@@ -97,15 +109,16 @@ async def list_docs(projeto_id: str):
 
 
 @router.post("/docs/manual", response_model=GenerateResponse, status_code=201)
-async def create_manual_doc(req: ManualDocCreate):
+async def create_manual_doc(req: ManualDocCreate, pessoa: dict = Depends(get_current_pessoa)):
     """Cria um documento manualmente (markdown digitado pelo gerente), sem chamar o LLM.
 
     Útil quando o gerente quer registrar um doc final que foi escrito fora do sistema,
     ou quando quer editar/regenerar um doc com texto próprio.
     """
+    client = get_client()
+    exigir_acesso(client, pessoa, req.projeto_id)
     if not req.content.strip():
         raise HTTPException(status_code=422, detail="content não pode estar vazio")
-    client = get_client()
     check = client.table("projects").select("id").eq("id", req.projeto_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -130,16 +143,18 @@ async def create_manual_doc_from_pdf(
     doc_type: str = Form(...),
     sprint_numero: Optional[int] = Form(None),
     arquivo: UploadFile = File(...),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Cria doc manual a partir de PDF — extrai texto via pdfplumber, sem chamar LLM.
 
     PDFs escaneados (sem camada de texto) são rejeitados; nesse caso o gerente deveria
     usar o upload livre, que tem fallback para vision.
     """
+    client = get_client()
+    exigir_acesso(client, pessoa, projeto_id)
     if arquivo.content_type != "application/pdf":
         raise HTTPException(status_code=422, detail="Arquivo deve ser PDF")
 
-    client = get_client()
     check = client.table("projects").select("id").eq("id", projeto_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -172,12 +187,10 @@ async def create_manual_doc_from_pdf(
 
 
 @router.delete("/docs/{doc_id}", status_code=204)
-async def delete_doc(doc_id: str):
+async def delete_doc(doc_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """Delete a single generated document by UUID."""
     client = get_client()
-    response = client.table("generated_docs").select("id").eq("id", doc_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Document not found")
+    exigir_acesso_por(client, pessoa, "doc", doc_id)
     client.table("generated_docs").delete().eq("id", doc_id).execute()
 
 
@@ -187,7 +200,7 @@ class UpdateDocSprint(BaseModel):
 
 
 @router.patch("/docs/{doc_id}", response_model=GenerateResponse)
-async def update_doc_sprint(doc_id: str, body: UpdateDocSprint):
+async def update_doc_sprint(doc_id: str, body: UpdateDocSprint, pessoa: dict = Depends(get_current_pessoa)):
     """Move um documento gerado para outra sprint e/ou edita seu conteúdo markdown.
 
     Só atualiza os campos que vieram no corpo da requisição — `sprint_number`
@@ -201,9 +214,7 @@ async def update_doc_sprint(doc_id: str, body: UpdateDocSprint):
         raise HTTPException(status_code=422, detail="Nenhum campo para atualizar")
 
     client = get_client()
-    response = client.table("generated_docs").select("id").eq("id", doc_id).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Document not found")
+    exigir_acesso_por(client, pessoa, "doc", doc_id)
     result = (
         client.table("generated_docs")
         .update(updates)

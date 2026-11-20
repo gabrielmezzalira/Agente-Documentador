@@ -47,37 +47,40 @@ def _mock_client_update(existing_row, update_capture):
     return client
 
 
-async def test_desativar_via_patch_grava_data_saida():
+async def test_desativar_via_patch_grava_data_saida(monkeypatch):
     capture = []
     client = _mock_client_update({"id": "op-1", "ativo": True}, capture)
     import routers.operacionais as mod
-    mod.get_client = lambda: client
+    monkeypatch.setattr(mod, "get_client", lambda: client)
+    monkeypatch.setattr(mod, "exigir_acesso_por", lambda *a, **k: "proj-1")
 
-    await update_operacional("op-1", OperacionalUpdate(ativo=False))
+    await update_operacional("op-1", OperacionalUpdate(ativo=False), {"cargo": "owner"})
 
     assert capture[0]["ativo"] is False
     assert capture[0]["data_saida"] is not None
 
 
-async def test_reativar_via_patch_limpa_data_saida():
+async def test_reativar_via_patch_limpa_data_saida(monkeypatch):
     capture = []
     client = _mock_client_update({"id": "op-1", "ativo": False, "data_saida": "2026-01-01T00:00:00+00:00"}, capture)
     import routers.operacionais as mod
-    mod.get_client = lambda: client
+    monkeypatch.setattr(mod, "get_client", lambda: client)
+    monkeypatch.setattr(mod, "exigir_acesso_por", lambda *a, **k: "proj-1")
 
-    await update_operacional("op-1", OperacionalUpdate(ativo=True))
+    await update_operacional("op-1", OperacionalUpdate(ativo=True), {"cargo": "owner"})
 
     assert capture[0]["ativo"] is True
     assert capture[0]["data_saida"] is None
 
 
-async def test_remover_do_projeto_grava_data_saida():
+async def test_remover_do_projeto_grava_data_saida(monkeypatch):
     capture = []
     client = _mock_client_update({"id": "op-1", "ativo": True}, capture)
     import routers.operacionais as mod
-    mod.get_client = lambda: client
+    monkeypatch.setattr(mod, "get_client", lambda: client)
+    monkeypatch.setattr(mod, "exigir_acesso_por", lambda *a, **k: "proj-1")
 
-    await remover_do_projeto("op-1")
+    await remover_do_projeto("op-1", {"cargo": "owner"})
 
     assert capture[0]["ativo"] is False
     assert capture[0]["data_saida"] is not None

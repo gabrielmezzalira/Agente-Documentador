@@ -18,7 +18,8 @@ from models.schemas import (
     SolicitacaoTaskResponse,
     SolicitacaoTaskResolve,
 )
-from services.auth import get_current_pessoa, require_not_operacional
+from services.acesso import exigir_acesso, exigir_acesso_por
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.email_service import email_solicitacao_task, send_email
 from services.sprints import get_current_sprint_id
 from services.supabase_client import get_client
@@ -42,6 +43,7 @@ async def criar_solicitacao(data: SolicitacaoTaskCreate, pessoa: dict = Depends(
         raise HTTPException(status_code=404, detail="Operacional not found")
     operacional = op_resp.data[0]
     project_id = operacional["project_id"]
+    exigir_acesso(client, pessoa, project_id)
 
     # Só faz sentido pedir mais trabalho quando não sobrou nada em aberto.
     abertas = (
@@ -113,7 +115,11 @@ def _avisar_gerente(
         _LOG.warning("notificacao_solicitacao_falhou exc=%s", type(exc).__name__)
 
 
-@router.get("/projects/{project_id}", response_model=list[SolicitacaoTaskResponse])
+@router.get(
+    "/projects/{project_id}",
+    response_model=list[SolicitacaoTaskResponse],
+    dependencies=[Depends(require_project_access)],
+)
 async def listar_solicitacoes(project_id: str, status: str = "pendente"):
     client = get_client()
     rows = (
@@ -144,10 +150,12 @@ async def listar_solicitacoes(project_id: str, status: str = "pendente"):
 @router.patch(
     "/{solicitacao_id}",
     response_model=SolicitacaoTaskResponse,
-    dependencies=[Depends(require_not_operacional)],
 )
-async def resolver_solicitacao(solicitacao_id: str, data: SolicitacaoTaskResolve):
+async def resolver_solicitacao(
+    solicitacao_id: str, data: SolicitacaoTaskResolve, pessoa: dict = Depends(require_not_operacional)
+):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "solicitacao", solicitacao_id)
     check = client.table("solicitacoes_task").select("id").eq("id", solicitacao_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Solicitação not found")

@@ -18,7 +18,8 @@ from models.schemas import (
     SpiOperacionalResponse,
     SpiPorOperacionalDoProjetoResponse,
 )
-from services.auth import require_not_operacional, require_role
+from services.acesso import exigir_acesso, exigir_acesso_por, project_id_de
+from services.auth import require_not_operacional, require_project_access, require_role
 from services.pontuacao import calcular_spi_operacional, listar_extrato_pontos, listar_spi_do_projeto
 from services.supabase_client import get_client
 
@@ -28,22 +29,22 @@ router = APIRouter(tags=["pontuacao"])
 @router.get(
     "/operacionais/{operacional_id}/spi",
     response_model=SpiOperacionalResponse,
-    dependencies=[Depends(require_not_operacional)],
 )
-async def get_spi_operacional(operacional_id: str):
+async def get_spi_operacional(operacional_id: str, pessoa: dict = Depends(require_not_operacional)):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "operacional", operacional_id)
     return calcular_spi_operacional(client, operacional_id)
 
 
 @router.get(
     "/projects/{projeto_id}/spi",
     response_model=list[SpiPorOperacionalDoProjetoResponse],
-    dependencies=[Depends(require_not_operacional)],
 )
-async def get_spi_do_projeto(projeto_id: str):
+async def get_spi_do_projeto(projeto_id: str, pessoa: dict = Depends(require_not_operacional)):
     """SPI travado de cada operacional do projeto — a leitura que o gerente
     usa na conversa de feedback. Não expõe score final nem ranking."""
     client = get_client()
+    exigir_acesso(client, pessoa, projeto_id)
     projeto = client.table("projects").select("id").eq("id", projeto_id).execute()
     if not projeto.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -53,10 +54,14 @@ async def get_spi_do_projeto(projeto_id: str):
 @router.get(
     "/operacionais/{operacional_id}/extrato",
     response_model=list[PontuacaoEventoResponse],
-    dependencies=[Depends(require_not_operacional)],
 )
-async def get_extrato_pontos(operacional_id: str, sprint_id: Optional[str] = None):
+async def get_extrato_pontos(
+    operacional_id: str, sprint_id: Optional[str] = None, pessoa: dict = Depends(require_not_operacional)
+):
     """Extrato de todo ponto ganho ou descontado do operacional (extra do
     usuário). Gerente e Líder apenas."""
     client = get_client()
+    project_id = exigir_acesso_por(client, pessoa, "operacional", operacional_id)
+    if sprint_id and project_id_de(client, "sprint", sprint_id) != project_id:
+        raise HTTPException(status_code=403, detail="Esta sprint pertence a outro projeto.")
     return listar_extrato_pontos(client, operacional_id, sprint_id)

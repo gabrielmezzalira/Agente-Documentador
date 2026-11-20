@@ -17,8 +17,8 @@ def _seed(com_snapshot=True):
             {"id": "sp-9", "numero": 1, "project_id": "proj-2"},
         ],
         "operacionais": [
-            {"id": "op-1", "nome": "Victor Lemos"},
-            {"id": "op-2", "nome": "Antonio"},
+            {"id": "op-1", "nome": "Victor Lemos", "project_id": "proj-1"},
+            {"id": "op-2", "nome": "Antonio", "project_id": "proj-2"},
         ],
         "pessoa": [
             {"id": "pessoa-theo", "nome": "Theo"},

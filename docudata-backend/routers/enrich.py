@@ -6,12 +6,14 @@ Não salva nada no banco — é uma etapa de pré-visualização/validação.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, File, UploadFile, HTTPException, Request, Response
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from services.gemini_key import get_gemini_api_key
+from services.acesso import exigir_acesso
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from core.observability import falha_externa
 from core.rate_limit import GEMINI_RATE_LIMIT, limiter
@@ -298,11 +300,13 @@ async def enrich(
     doc_type: str = Form(...),
     texto: Optional[str] = Form(None),
     arquivo: Optional[UploadFile] = File(None),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Analisa matéria-prima bruta e retorna campos pré-preenchidos para validação manual.
 
     Não salva nada no banco — resposta serve apenas para pré-popular o modal antes da geração.
     """
+    exigir_acesso(get_client(), pessoa, projeto_id)
     if doc_type not in _SCHEMA_MAP:
         raise HTTPException(
             status_code=422,
@@ -360,6 +364,7 @@ async def enrich_planning_com_correlacoes(
     projeto_id: str = Form(...),
     texto: Optional[str] = Form(None),
     arquivo: Optional[UploadFile] = File(None),
+    pessoa: dict = Depends(get_current_pessoa),
 ):
     """Extrai tasks do kanban/texto E auto-correlaciona cada task a uma funcionalidade do projeto.
 
@@ -368,6 +373,7 @@ async def enrich_planning_com_correlacoes(
     2. Para cada task, identifica a funcionalidade mais provável do escopo do projeto.
     Não salva nada no banco — serve para pré-popular o PlanningModal antes da confirmação.
     """
+    exigir_acesso(get_client(), pessoa, projeto_id)
     api_key = get_gemini_api_key()
     content_text, is_vision, image_b64, image_mime = await _prepare_content(texto, arquivo)
 
@@ -406,7 +412,6 @@ async def enrich_planning_com_correlacoes(
     tasks = [item.item for item in enriquecimento.itens_backlog if item.item]
 
     # Busca funcionalidades do projeto para correlação
-    from services.supabase_client import get_client
     client = get_client()
     funcs_resp = client.table("funcionalidades").select("id, id_funcional, titulo, descricao").eq("project_id", projeto_id).execute()
     funcionalidades = funcs_resp.data or []
