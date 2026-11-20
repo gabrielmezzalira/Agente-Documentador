@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from services.gemini_key import get_gemini_api_key
-from services.acesso import exigir_acesso, exigir_acesso_por
+from services.acesso import exigir_acesso
 from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from core.observability import falha_externa
