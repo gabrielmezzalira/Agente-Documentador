@@ -5,7 +5,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from services.acesso import exigir_acesso, exigir_acesso_por
+from services.acesso import SEM_ACESSO, exigir_acesso, exigir_acesso_por
 from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 
@@ -45,7 +45,17 @@ def create_sprint_funcionalidades(data: BatchCreate, pessoa: dict = Depends(get_
     sprint_resp = client.table("sprints").select("id, project_id, numero").eq("id", data.sprint_id).execute()
     if not sprint_resp.data:
         raise HTTPException(status_code=404, detail="Sprint não encontrada")
-    exigir_acesso(client, pessoa, sprint_resp.data[0]["project_id"])
+    sprint_project_id = sprint_resp.data[0]["project_id"]
+    exigir_acesso(client, pessoa, sprint_project_id)
+
+    func_ids = list({c.funcionalidade_id for c in data.correlacoes if c.funcionalidade_id})
+    if func_ids:
+        achadas = client.table("funcionalidades").select("id, project_id").in_("id", func_ids).execute().data or []
+        por_id = {f["id"]: f["project_id"] for f in achadas}
+        if any(fid not in por_id for fid in func_ids):
+            raise HTTPException(status_code=422, detail="Funcionalidade não encontrada")
+        if any(pid != sprint_project_id for pid in por_id.values()):
+            raise HTTPException(status_code=403, detail=SEM_ACESSO)
 
     results = []
     func_ids_to_update: list[str] = []
@@ -102,6 +112,7 @@ def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate, p
     Se status = concluida, propaga para funcionalidades.status.
     """
     client = get_client()
+    exigir_acesso_por(client, pessoa, "sprint_funcionalidade", sf_id)
 
     updates: dict[str, Any] = {}
     if data.status is not None:
@@ -114,7 +125,6 @@ def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate, p
     if not updates:
         raise HTTPException(status_code=422, detail="Nenhum campo para atualizar")
 
-    exigir_acesso_por(client, pessoa, "sprint_funcionalidade", sf_id)
     resp = client.table("sprint_funcionalidades").update(updates).eq("id", sf_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="sprint_funcionalidade não encontrada")

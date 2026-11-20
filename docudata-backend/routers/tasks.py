@@ -660,6 +660,8 @@ async def devolver_task(task_id: str, pessoa: dict = Depends(get_current_pessoa)
 
     if pessoa["cargo"] not in ("owner", "lider", "gerente"):
         meu_operacional_id = _resolver_operacional_id_da_pessoa(client, task["project_id"], pessoa["email"])
+        if not meu_operacional_id:
+            raise HTTPException(status_code=403, detail="Você não está vinculado a este projeto.")
         if meu_operacional_id != task.get("operacional_id"):
             raise HTTPException(status_code=403, detail="Só quem está com a task (ou gerente/líder) pode devolvê-la.")
 

@@ -19,12 +19,12 @@ class Fake:
                 {"id": "t-out", "project_id": OUTRO, "coluna_kanban": "planejado", "titulo": "b", "ordem": 0},
             ],
             "funcionalidades": [
-                {"id": "f-in", "project_id": PID, "titulo": "f", "status": "nao_iniciada"},
-                {"id": "f-out", "project_id": OUTRO, "titulo": "f", "status": "nao_iniciada"},
+                {"id": "f-in", "project_id": PID, "titulo": "f", "status": "nao_iniciada", "id_funcional": "RF1", "criterios_aceite": ["c"], "prioridade": "must", "created_at": "2026-01-01", "updated_at": "2026-01-01"},
+                {"id": "f-out", "project_id": OUTRO, "titulo": "f", "status": "nao_iniciada", "id_funcional": "RF1", "criterios_aceite": ["c"], "prioridade": "must", "created_at": "2026-01-01", "updated_at": "2026-01-01"},
             ],
             "sprints": [
-                {"id": "s-in", "project_id": PID, "numero": 1, "created_at": "2026-01-01"},
-                {"id": "s-out", "project_id": OUTRO, "numero": 1, "created_at": "2026-01-01"},
+                {"id": "s-in", "project_id": PID, "numero": 1, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
+                {"id": "s-out", "project_id": OUTRO, "numero": 1, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
             ],
             "sprint_funcionalidades": [
                 {"id": "sf-in", "sprint_id": "s-in", "funcionalidade_id": "f-in"},
@@ -45,6 +45,7 @@ class Q:
     def select(self, *a, **k): return self
     def order(self, *a, **k): return self
     def limit(self, *a, **k): return self
+    def range(self, *a, **k): return self
     def eq(self, c, v): self.f.append((c, lambda x: x == v)); return self
     def in_(self, c, vs): self.f.append((c, lambda x: x in vs)); return self
     def insert(self, p): self.op, self.payload = "insert", p; return self
@@ -161,3 +162,38 @@ def test_sprint_funcionalidades_vinculado_passa(api):
     assert api.get("/sprint-funcionalidades/sprint/s-in").status_code == 200
     assert api.get(f"/sprint-funcionalidades/recomendadas/{PID}").status_code == 200
     assert api.patch("/sprint-funcionalidades/sf-in", json={"status": "em_andamento"}).status_code == 200
+
+
+# ---- fix round 1 ----
+def _operacional_de_a(api, autenticar):
+    api.fake.t["operacionais"].append({"id": "op-a", "project_id": PID, "email": "pessoa@citi.org.br"})
+    for p in api.fake.t["projects"]:
+        p["modo_trabalho"] = "PULL"
+    autenticar(api, "operacional")
+
+
+def test_operacional_de_a_nao_mexe_em_task_de_b(api, autenticar):
+    _operacional_de_a(api, autenticar)
+    assert api.post("/tasks/t-out/devolver").status_code == 403
+    assert api.patch("/tasks/t-out", json={"coluna_kanban": "em_andamento"}).status_code == 403
+    assert api.post("/tasks/t-out/mover", params={"coluna_destino": "em_andamento"}).status_code == 403
+    assert api.post("/tasks/t-out/puxar").status_code == 403
+    _sem_escrita(api, [])
+
+
+def test_leituras_de_gerente_vinculado(api):
+    assert api.get(f"/projects/{PID}/sprints").status_code == 200
+    assert api.get("/funcionalidades", params={"project_id": PID}).status_code == 200
+
+
+def test_sprint_funcionalidades_rejeita_funcionalidade_de_outro_projeto(api):
+    body = {"sprint_id": "s-in", "correlacoes": [{"funcionalidade_id": "f-out", "tasks": []}]}
+    assert api.post("/sprint-funcionalidades", json=body).status_code == 403
+    body = {"sprint_id": "s-in", "correlacoes": [{"funcionalidade_id": "f-inexistente", "tasks": []}]}
+    assert api.post("/sprint-funcionalidades", json=body).status_code == 422
+    _sem_escrita(api, [])
+    assert next(f for f in api.fake.t["funcionalidades"] if f["id"] == "f-out")["status"] == "nao_iniciada"
+
+
+def test_sprint_funcionalidade_patch_confere_acesso_antes_da_validacao(api):
+    assert api.patch("/sprint-funcionalidades/sf-out", json={}).status_code == 403
