@@ -373,8 +373,59 @@ export async function listProjects(subarea: Subarea): Promise<Project[]> {
 
 export async function getProject(id: string): Promise<Project> {
   const res = await apiFetch(`${API}/projects/${id}`);
-  if (!res.ok) throw new Error("Projeto não encontrado");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = typeof body?.detail === "string" ? body.detail : "Projeto não encontrado";
+    throw Object.assign(new Error(detail), { status: res.status });
+  }
   return res.json();
+}
+
+export interface GerenteProjeto {
+  pessoa_id: string;
+  nome: string;
+  email: string | null;
+  criado_em?: string | null;
+}
+
+export interface CandidatoGerente {
+  pessoa_id: string;
+  nome: string;
+  email: string | null;
+  cargo?: string | null;
+}
+
+async function erroApi(res: Response, fallback: string): Promise<Error> {
+  const body = await res.json().catch(() => null);
+  const detail = typeof body?.detail === "string" ? body.detail : fallback;
+  return Object.assign(new Error(detail), { status: res.status });
+}
+
+export async function listGerentesProjeto(projectId: string): Promise<GerenteProjeto[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/gerentes`);
+  if (!res.ok) throw await erroApi(res, "Erro ao buscar gerentes do projeto");
+  return res.json();
+}
+
+export async function listCandidatosGerente(projectId: string): Promise<CandidatoGerente[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/gerentes/candidatos`);
+  if (!res.ok) throw await erroApi(res, "Erro ao buscar candidatos a gerente");
+  return res.json();
+}
+
+export async function vincularGerente(projectId: string, pessoaId: string): Promise<GerenteProjeto[]> {
+  const res = await apiFetch(`${API}/projects/${projectId}/gerentes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pessoa_id: pessoaId }),
+  });
+  if (!res.ok) throw await erroApi(res, "Erro ao vincular gerente");
+  return res.json();
+}
+
+export async function desvincularGerente(projectId: string, pessoaId: string): Promise<void> {
+  const res = await apiFetch(`${API}/projects/${projectId}/gerentes/${pessoaId}`, { method: "DELETE" });
+  if (!res.ok) throw await erroApi(res, "Erro ao remover gerente");
 }
 
 export async function updateContrato(

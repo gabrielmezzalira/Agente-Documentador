@@ -7,6 +7,12 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import {
   getProject,
+  listGerentesProjeto,
+  listCandidatosGerente,
+  vincularGerente,
+  desvincularGerente,
+  type GerenteProjeto,
+  type CandidatoGerente,
   updateGerenteEmail,
   updateProjectSubarea,
   listIngestions,
@@ -131,6 +137,103 @@ const GitHubRepositoryPicker = dynamic(
 type TabId = "sprints" | "escopo" | "painel" | "tasks" | "metricas" | "tecnologias" | "documentos" | "config";
 const OPERACIONAL_TABS = new Set<string>(["sprints", "tasks", "tecnologias", "documentos"]);
 
+
+function GerentesSection({ projectId }: { projectId: string }) {
+  const [gerentes, setGerentes] = useState<GerenteProjeto[]>([]);
+  const [candidatos, setCandidatos] = useState<CandidatoGerente[]>([]);
+  const [podeGerir, setPodeGerir] = useState(false);
+  const [escolhido, setEscolhido] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+    listGerentesProjeto(projectId).then((g) => { if (ativo) setGerentes(g); }).catch(() => {});
+    listCandidatosGerente(projectId)
+      .then((c) => { if (ativo) { setCandidatos(c); setPodeGerir(true); } })
+      .catch(() => { if (ativo) setPodeGerir(false); });
+    return () => { ativo = false; };
+  }, [projectId]);
+
+  const vinculados = new Set(gerentes.map((g) => g.pessoa_id));
+  const disponiveis = candidatos.filter((c) => !vinculados.has(c.pessoa_id));
+  const podeRemover = gerentes.length > 1;
+
+  async function handleVincular() {
+    if (!escolhido) return;
+    setBusy(true);
+    setErr("");
+    try {
+      setGerentes(await vincularGerente(projectId, escolhido));
+      setEscolhido("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao vincular gerente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemover(g: GerenteProjeto) {
+    if (!confirm(`Remover "${g.nome}" como gerente deste projeto?`)) return;
+    setErr("");
+    try {
+      await desvincularGerente(projectId, g.pessoa_id);
+      setGerentes((atual) => atual.filter((x) => x.pessoa_id !== g.pessoa_id));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao remover gerente.");
+    }
+  }
+
+  return (
+    <section style={{ background: "#0d1711", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 14, padding: "20px 24px", marginBottom: 16 }}>
+      <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f2f5f3", margin: "0 0 14px" }}>Gerentes do projeto</h2>
+
+      {gerentes.length === 0 && <p style={{ fontSize: 13, color: "#8a948e", margin: 0 }}>Nenhum gerente vinculado.</p>}
+
+      {gerentes.map((g) => (
+        <div key={g.pessoa_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f2f5f3" }}>
+            {g.nome}
+            {g.email && <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{g.email}</span>}
+          </span>
+          {podeGerir && podeRemover && (
+            <button
+              onClick={() => handleRemover(g)}
+              style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+            >
+              Remover
+            </button>
+          )}
+        </div>
+      ))}
+
+      {podeGerir && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
+          <select
+            aria-label="Gerente a vincular"
+            value={escolhido}
+            onChange={(e) => setEscolhido(e.target.value)}
+            style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13, color: "#f2f5f3", background: "#0d1711", minWidth: 220 }}
+          >
+            <option value="">{disponiveis.length ? "Selecione um gerente" : "Nenhum candidato disponível"}</option>
+            {disponiveis.map((c) => (
+              <option key={c.pessoa_id} value={c.pessoa_id}>{c.nome}{c.email ? ` (${c.email})` : ""}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleVincular}
+            disabled={busy || !escolhido}
+            style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: busy || !escolhido ? "default" : "pointer", opacity: busy || !escolhido ? 0.5 : 1 }}
+          >
+            {busy ? "…" : "Vincular"}
+          </button>
+        </div>
+      )}
+
+      {err && <p role="alert" style={{ fontSize: 12, color: "#ff6b6b", margin: "10px 0 0" }}>{err}</p>}
+    </section>
+  );
+}
 
 function OperacionaisSection({
   projectId,
@@ -768,10 +871,13 @@ export default function ProjectDashboard() {
   const [savingSubarea, setSavingSubarea] = useState(false);
   const [subareaMsg, setSubareaMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [semAcesso, setSemAcesso] = useState(false);
+
   // ---------- bootstrap ----------
   useEffect(() => {
+    const projetoReq = getProject(id);
     Promise.all([
-      getProject(id),
+      projetoReq,
       listIngestions(id),
       listDocs(id),
       listSprints(id),
@@ -790,6 +896,11 @@ export default function ProjectDashboard() {
           // O banco é a fonte de verdade; evita exibir um projeto Dev sob a navegação de Dados e vice-versa.
           router.replace(`/${p.subarea}/projects/${p.id}`);
         }
+      })
+      .catch(async () => {
+        // Outra chamada pode rejeitar antes; o status que importa é o do projeto.
+        const e = await projetoReq.then(() => null, (x) => x);
+        if ((e as { status?: number } | null)?.status === 403) setSemAcesso(true);
       })
       .finally(() => setLoading(false));
   }, [id, router, subarea]);
@@ -1252,6 +1363,14 @@ export default function ProjectDashboard() {
   }
 
   if (loading) return <p style={{ padding: 48, color: "#8a948e" }}>Carregando...</p>;
+  if (semAcesso) {
+    return (
+      <div style={{ padding: 48 }}>
+        <p role="alert" style={{ color: "#f2f5f3", fontSize: 15, margin: "0 0 12px" }}>Você não tem acesso a este projeto.</p>
+        <Link href={`/${subarea}`} style={{ color: "#3ee06f", fontSize: 13 }}>Voltar para os projetos</Link>
+      </div>
+    );
+  }
   if (!project) return <p style={{ padding: 48, color: "#ff6b6b" }}>Projeto não encontrado.</p>;
 
   return (
@@ -1745,6 +1864,8 @@ export default function ProjectDashboard() {
             project={project}
             onProjectUpdated={(updated) => setProject(updated)}
           />
+
+          <GerentesSection projectId={id} />
 
           <OperacionaisSection
             projectId={id}
