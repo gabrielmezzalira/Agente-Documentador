@@ -165,7 +165,9 @@ export function MetricasFluxoCard({ bloco }: { bloco: PainelData["bloco_c"] }) {
         <Muted small>
           {bloco.total_concluidas === 0
             ? "Nenhuma funcionalidade concluída · cycle time indisponível"
-            : `Cycle time: mediana ${fmtNum(bloco.cycle_time_p50_dias)} dias · 85% em até ${fmtNum(bloco.cycle_time_p85_dias)} dias`}
+            : bloco.cycle_time_p50_dias == null
+              ? `${bloco.total_concluidas} concluída${bloco.total_concluidas === 1 ? "" : "s"} · cycle time indisponível (sem registro de quando entraram em andamento)`
+              : `Cycle time: mediana ${fmtNum(bloco.cycle_time_p50_dias)} dias · 85% em até ${fmtNum(bloco.cycle_time_p85_dias)} dias`}
         </Muted>
         <InfoTip text={INFO.cycleTime} align="left" />
       </div>

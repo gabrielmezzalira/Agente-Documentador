@@ -99,6 +99,17 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
 
   async function handleDrop(targetStatus: "nao_iniciada" | "em_andamento" | "concluida") {
     if (!dragFuncId) { setDragFuncId(null); return; }
+    if (targetStatus === "concluida") {
+      const contagem = taskCountsByFuncId.get(dragFuncId);
+      const abertas = contagem ? contagem.total - contagem.concluidas : 0;
+      if (abertas > 0 && !confirm(
+        `Esta funcionalidade ainda tem ${abertas} task${abertas === 1 ? "" : "s"} aberta${abertas === 1 ? "" : "s"}. ` +
+        `Marcar como concluída mesmo assim?`
+      )) {
+        setDragFuncId(null);
+        return;
+      }
+    }
     const sf = sfByFuncId.get(dragFuncId);
     setKanbanSaving(true);
     try {

@@ -749,6 +749,7 @@ export default function SprintDocModal({
                   <option value="dados">Dados</option>
                   <option value="desenvolvimento">Desenvolvimento</option>
                   <option value="produto">Produto</option>
+                  <option value="pta">PTA</option>
                 </select>
 
                 <label style={labelStyle}>

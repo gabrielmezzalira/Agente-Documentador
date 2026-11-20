@@ -145,7 +145,7 @@ def email_task_rejeitada(projeto_nome: str, task_titulo: str, motivo: str) -> tu
     voltou para a fila (Entrega Pendente de aprovação)."""
     subject = f"[DocuData] Task rejeitada: {task_titulo}"
     corpo = f"""
-    <p>Sua task <strong>{task_titulo}</strong> no projeto <strong>{projeto_nome}</strong> foi rejeitada e voltou para a fila.</p>
+    <p>Sua task <strong>{task_titulo}</strong> no projeto <strong>{projeto_nome}</strong> foi rejeitada e precisa de ajuste.</p>
     <p style="background:#fef2f2;border-radius:8px;padding:10px 14px;"><strong>Motivo:</strong><br>{motivo}</p>
     """
     return subject, _base_template("Task rejeitada", corpo, badge="Rejeitada")

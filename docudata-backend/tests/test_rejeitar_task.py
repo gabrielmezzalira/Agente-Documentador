@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def _mock_client(task, fila_existente=None):
+def _mock_client(task, fila_existente=None, modo_trabalho="PULL"):
     fila_existente = fila_existente or []
     tasks_update = []
     transicoes_insert = []
@@ -77,7 +77,7 @@ def _mock_client(task, fila_existente=None):
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
             resp = MagicMock()
-            resp.data = [{"name": "Projeto X"}]
+            resp.data = [{"name": "Projeto X", "modo_trabalho": modo_trabalho}]
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
         else:
@@ -107,10 +107,10 @@ _TASK_PENDENTE = {
 
 @pytest.fixture
 def make_client(monkeypatch, autenticar):
-    def _make(task=None, cargo="gerente", fila_existente=None):
+    def _make(task=None, cargo="gerente", fila_existente=None, modo_trabalho="PULL"):
         import routers.tasks as tasks_router
         from main import app
-        mock_sb, tasks_update, transicoes_insert, envios = _mock_client(task or _TASK_PENDENTE, fila_existente)
+        mock_sb, tasks_update, transicoes_insert, envios = _mock_client(task or _TASK_PENDENTE, fila_existente, modo_trabalho)
         monkeypatch.setattr(tasks_router, "get_client", lambda: mock_sb)
         monkeypatch.setattr(
             tasks_router, "send_email",
@@ -121,7 +121,7 @@ def make_client(monkeypatch, autenticar):
     return _make
 
 
-def test_rejeitar_limpa_responsavel_e_volta_pra_planejado(make_client):
+def test_rejeitar_em_pull_limpa_responsavel_e_volta_pra_planejado(make_client):
     tc, tasks_update, _, _ = make_client()
 
     resp = tc.post("/tasks/task-1/rejeitar", json={"motivo": "Faltou cobrir o edge case"})
@@ -170,3 +170,27 @@ def test_rejeitar_bloqueia_operacional(make_client):
 
     assert resp.status_code == 403
     assert tasks_update == []
+
+
+def test_rejeitar_em_atribuicao_devolve_ao_mesmo_responsavel_em_andamento(make_client):
+    tc, tasks_update, transicoes, _ = make_client(modo_trabalho="ATRIBUICAO")
+
+    resp = tc.post("/tasks/task-1/rejeitar", json={"motivo": "Faltou o teste de aceite"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["coluna_kanban"] == "em_andamento"
+    assert body["operacional_id"] == "op-1"
+    assert "operacional_id" not in tasks_update[-1]
+    assert tasks_update[-1]["entrou_em_andamento_em"] is not None
+    assert transicoes[-1]["para"] == "em_andamento"
+
+
+def test_rejeitar_em_atribuicao_sem_responsavel_volta_pra_planejado(make_client):
+    task = {**_TASK_PENDENTE, "operacional_id": None}
+    tc, _, _, _ = make_client(task=task, modo_trabalho="ATRIBUICAO")
+
+    resp = tc.post("/tasks/task-1/rejeitar", json={"motivo": "x"})
+
+    assert resp.status_code == 200
+    assert resp.json()["coluna_kanban"] == "planejado"

@@ -610,7 +610,7 @@ function TaskModal({
             )
           )}
 
-          {mode === "edit" && task && ehGerente && !task.nivel_travado_em && task.coluna_kanban !== "concluida" && (
+          {mode === "edit" && task && ehGerente && (!task.nivel_travado_em || task.coluna_kanban === "planejado") && task.coluna_kanban !== "concluida" && (
             <div>
               <label htmlFor="task-mudar-nivel" style={labelSt}>Escolher o nível eu mesmo</label>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -781,7 +781,7 @@ function TaskModal({
                         value={motivoRejeicao}
                         onChange={(e) => setMotivoRejeicao(e.target.value)}
                         rows={2}
-                        placeholder="Por que esta task está voltando pra fila?"
+                        placeholder="O que precisa ser corrigido?"
                         style={{ ...inputSt, resize: "vertical", marginBottom: 8 }}
                       />
                       <div style={{ display: "flex", gap: 8 }}>

@@ -185,7 +185,10 @@ def calcular_bloco_c(funcs: list[dict], transicoes: list[dict]) -> dict:
     else:
         weeks = 1
 
-    total_concluidas = len(cycle_times)
+    # Toda funcionalidade concluída conta no throughput, mesmo sem a transição
+    # de início registrada (fechada direto pela tela de status pós-review);
+    # o cycle time continua só com quem tem o intervalo completo.
+    total_concluidas = sum(1 for f in funcs if f.get("status") == "concluida")
     throughput = round(total_concluidas / weeks, 2) if weeks > 0 else 0.0
 
     p50 = None

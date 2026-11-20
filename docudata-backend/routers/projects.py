@@ -178,7 +178,13 @@ async def delete_project(project_id: str):
     response = client.table("projects").select("id").eq("id", project_id).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    client.table("projects").delete().eq("id", project_id).execute()
+    try:
+        client.table("projects").delete().eq("id", project_id).execute()
+    except Exception as exc:
+        # Algum vínculo no banco sem ON DELETE CASCADE barra a exclusão; antes
+        # isso virava um 500 mudo e ninguém sabia qual tabela travava.
+        _LOG.error("falha ao excluir o projeto %s", project_id, exc_info=True)
+        raise HTTPException(status_code=409, detail=f"Não foi possível excluir o projeto: {str(exc)[:300]}")
 
 
 @router.patch("/{project_id}/gerente-email", response_model=ProjectResponse)
