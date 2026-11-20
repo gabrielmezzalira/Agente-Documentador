@@ -46,7 +46,7 @@ def _endpoint_client(monkeypatch, mock_supabase):
 
 def test_endpoint_iniciar_sprint_chama_helper_e_retorna_sprint_atualizada(monkeypatch):
     check_resp = MagicMock()
-    check_resp.data = [{"id": "sprint-1"}]
+    check_resp.data = [{"id": "sprint-1", "project_id": "proj-1"}]
 
     final_resp = MagicMock()
     final_resp.data = [{

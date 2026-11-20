@@ -11,7 +11,8 @@ from models.schemas import (
     SprintStatusResponse,
 )
 from core.observability import falha_externa
-from services.auth import require_not_operacional, require_project_access
+from services.acesso import exigir_acesso
+from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.previsto_sprint import previsto_da_sprint
 from services.sprints import congelar_modo_da_sprint, iniciar_sprint_e_ancorar_tasks
@@ -161,7 +162,7 @@ async def list_sprints(project_id: str):
 
 
 @router.delete("/sprints/{sprint_id}", status_code=204, dependencies=[Depends(require_not_operacional)])
-async def delete_sprint(sprint_id: str):
+async def delete_sprint(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """
     Remove uma sprint e TUDO associado a ela (cascade completo):
     tasks, ingestões e documentos gerados. Sem confirmação adicional no backend —
@@ -176,6 +177,7 @@ async def delete_sprint(sprint_id: str):
         raise HTTPException(status_code=404, detail="Sprint not found")
 
     sprint = check.data[0]
+    exigir_acesso(client, pessoa, sprint["project_id"])
     project_id = sprint["project_id"]
     numero = sprint["numero"]
 
@@ -204,14 +206,15 @@ async def delete_sprint(sprint_id: str):
 
 
 @router.patch("/sprints/{sprint_id}/iniciar", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
-async def iniciar_sprint(sprint_id: str):
+async def iniciar_sprint(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """Tira a sprint do modo planejamento e a faz aparecer na aba Sprints, com
     Planning/Daily/Review/Kanban/Avaliação Semanal. Sem volta pela API: uma vez
     iniciada, a sprint é execução real, não mais uma sprint só de planejamento."""
     client = get_client()
-    check = client.table("sprints").select("id").eq("id", sprint_id).execute()
+    check = client.table("sprints").select("id, project_id").eq("id", sprint_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
+    exigir_acesso(client, pessoa, check.data[0]["project_id"])
 
     iniciar_sprint_e_ancorar_tasks(client, sprint_id)
 
@@ -222,7 +225,7 @@ async def iniciar_sprint(sprint_id: str):
 
 
 @router.patch("/sprints/{sprint_id}/health", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
-async def update_health(sprint_id: str, data: SprintHealthUpdate):
+async def update_health(sprint_id: str, data: SprintHealthUpdate, pessoa: dict = Depends(get_current_pessoa)):
     """Atualiza semáforo de saúde e plano de correção da sprint."""
     if data.status_saude is not None and data.status_saude not in _VALID_HEALTH:
         raise HTTPException(
@@ -231,9 +234,10 @@ async def update_health(sprint_id: str, data: SprintHealthUpdate):
         )
 
     client = get_client()
-    check = client.table("sprints").select("id").eq("id", sprint_id).execute()
+    check = client.table("sprints").select("id, project_id").eq("id", sprint_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
+    exigir_acesso(client, pessoa, check.data[0]["project_id"])
 
     payload = {
         "status_saude": data.status_saude,

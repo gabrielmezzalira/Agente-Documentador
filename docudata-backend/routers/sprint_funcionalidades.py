@@ -2,9 +2,11 @@
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from services.acesso import exigir_acesso, exigir_acesso_por
+from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 
 _LOG = logging.getLogger("docudata.sprint_funcionalidades")
@@ -33,7 +35,7 @@ class SprintFuncionalidadeUpdate(BaseModel):
 
 
 @router.post("")
-def create_sprint_funcionalidades(data: BatchCreate):
+def create_sprint_funcionalidades(data: BatchCreate, pessoa: dict = Depends(get_current_pessoa)):
     """Cria ou atualiza sprint_funcionalidades a partir das correlações confirmadas pelo gerente.
 
     Atualiza funcionalidades.status para em_andamento se ainda estavam como nao_iniciada.
@@ -43,6 +45,7 @@ def create_sprint_funcionalidades(data: BatchCreate):
     sprint_resp = client.table("sprints").select("id, project_id, numero").eq("id", data.sprint_id).execute()
     if not sprint_resp.data:
         raise HTTPException(status_code=404, detail="Sprint não encontrada")
+    exigir_acesso(client, pessoa, sprint_resp.data[0]["project_id"])
 
     results = []
     func_ids_to_update: list[str] = []
@@ -82,9 +85,10 @@ def create_sprint_funcionalidades(data: BatchCreate):
 
 
 @router.get("/sprint/{sprint_id}")
-def get_sprint_funcionalidades(sprint_id: str):
+def get_sprint_funcionalidades(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """Lista sprint_funcionalidades de uma sprint com dados da funcionalidade."""
     client = get_client()
+    exigir_acesso_por(client, pessoa, "sprint", sprint_id)
     resp = client.table("sprint_funcionalidades").select(
         "*, funcionalidades(id, id_funcional, titulo, status, prioridade)"
     ).eq("sprint_id", sprint_id).execute()
@@ -92,7 +96,7 @@ def get_sprint_funcionalidades(sprint_id: str):
 
 
 @router.patch("/{sf_id}")
-def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate):
+def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate, pessoa: dict = Depends(get_current_pessoa)):
     """Atualiza status ou tasks de uma sprint_funcionalidade.
 
     Se status = concluida, propaga para funcionalidades.status.
@@ -110,6 +114,7 @@ def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate):
     if not updates:
         raise HTTPException(status_code=422, detail="Nenhum campo para atualizar")
 
+    exigir_acesso_por(client, pessoa, "sprint_funcionalidade", sf_id)
     resp = client.table("sprint_funcionalidades").update(updates).eq("id", sf_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="sprint_funcionalidade não encontrada")
@@ -128,9 +133,10 @@ def update_sprint_funcionalidade(sf_id: str, data: SprintFuncionalidadeUpdate):
 
 
 @router.get("/recomendadas/{project_id}")
-def get_funcionalidades_recomendadas(project_id: str):
+def get_funcionalidades_recomendadas(project_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """Retorna funcionalidades em_andamento do projeto para sugestão na próxima planning."""
     client = get_client()
+    exigir_acesso(client, pessoa, project_id)
     resp = (
         client.table("funcionalidades")
         .select("id, id_funcional, titulo, status, sprint_alvo")
