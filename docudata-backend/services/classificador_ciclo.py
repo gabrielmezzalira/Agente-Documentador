@@ -233,13 +233,16 @@ def resolver_revisao(client, task_id: str, nivel: int, motivo: str, pessoa_id: s
 
 
 def definir_nivel_gerente(client, task_id: str, nivel: int, pessoa_id: str) -> dict:
-    """Gerente/líder/owner escolhe o nível da task, sem o classificador. Só
-    enquanto o nível não travou; se a task já está em trabalho, trava em seguida."""
+    """Gerente/líder/owner escolhe o nível da task, sem o classificador.
+    Vale enquanto ninguém começou a task: destravada, ou travada só porque a
+    sprint dela já estava em curso mas ainda em Planejado (task criada no meio
+    da sprint nascia travada e o gerente não conseguia corrigir o nível). Se a
+    task já está em trabalho, trava em seguida."""
     rows = client.table("tasks").select("*").eq("id", task_id).execute().data
     if not rows:
         raise HTTPException(status_code=404, detail="Task not found")
     task = rows[0]
-    if task.get("nivel_travado_em"):
+    if task.get("nivel_travado_em") and task.get("coluna_kanban") != "planejado":
         raise HTTPException(status_code=409, detail="Nível já travado: a task começou")
     if task.get("coluna_kanban") == "concluida":
         raise HTTPException(status_code=409, detail="A task já foi concluída: o nível não pode mais ser alterado.")

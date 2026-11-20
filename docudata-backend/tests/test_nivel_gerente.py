@@ -80,9 +80,17 @@ def test_definir_nivel_gerente_em_andamento_trava_em_seguida():
     assert fake.tables["tasks"][0]["nivel_travado_em"] is not None
 
 
+def test_definir_nivel_gerente_travada_pela_sprint_mas_em_planejado_permite():
+    fake = _fake()
+    fake.tables["tasks"].append(_task(pontos=2, nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    ciclo.definir_nivel_gerente(fake, "t1", 3, "g1")
+    assert fake.tables["tasks"][0]["pontos"] == 3
+    assert fake.tables["tasks"][0]["nivel_travado_em"] == "2026-01-02T00:00:00+00:00"
+
+
 def test_definir_nivel_gerente_travada_409():
     fake = _fake()
-    fake.tables["tasks"].append(_task(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    fake.tables["tasks"].append(_task(coluna_kanban="em_andamento", nivel_travado_em="2026-01-02T00:00:00+00:00"))
     with pytest.raises(HTTPException) as exc:
         ciclo.definir_nivel_gerente(fake, "t1", 3, "g1")
     assert exc.value.status_code == 409 and exc.value.detail == "Nível já travado: a task começou"
@@ -221,7 +229,7 @@ def test_nivel_gerente_operacional_403(monkeypatch, autenticar):
 
 def test_nivel_gerente_task_travada_409(monkeypatch, autenticar):
     fake = _fake()
-    fake.tables["tasks"].append(_task(nivel_travado_em="2026-01-02T00:00:00+00:00"))
+    fake.tables["tasks"].append(_task(coluna_kanban="em_andamento", nivel_travado_em="2026-01-02T00:00:00+00:00"))
     resp = _tc(monkeypatch, autenticar, fake).post("/tasks/t1/nivel-gerente", json={"nivel": 3})
     assert resp.status_code == 409 and resp.json()["detail"] == "Nível já travado: a task começou"
     assert fake.tables["tasks"][0]["pontos"] == 2
