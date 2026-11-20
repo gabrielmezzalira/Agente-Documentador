@@ -124,7 +124,7 @@ def test_endpoints_de_settings_nao_expoem_segredo_e_substituem(monkeypatch, aute
 
     assert client.get("/settings/gemini").status_code == 401
     assert client.put("/settings/gemini/api-key", json={"api_key": "first-secret-1111"}).status_code == 401
-    autenticar(client)
+    autenticar(client, "lider")
 
     first = client.put(
         "/settings/gemini/api-key",
@@ -146,7 +146,7 @@ def test_endpoints_de_settings_nao_expoem_segredo_e_substituem(monkeypatch, aute
 def test_put_rejeita_chave_vazia_ou_so_espacos(settings_store, api_key, autenticar):
     from main import app
 
-    response = autenticar(TestClient(app)).put(
+    response = autenticar(TestClient(app), "lider").put(
         "/settings/gemini/api-key",
         json={"api_key": api_key},
     )

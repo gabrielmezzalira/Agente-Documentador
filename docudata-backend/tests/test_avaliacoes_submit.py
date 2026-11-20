@@ -53,6 +53,7 @@ def _patch_and_client(monkeypatch, mock_supabase):
     monkeypatch.setenv("JWT_SECRET", "test-secret-nao-usar-em-producao")
     import routers.avaliacoes as avaliacoes_router
     monkeypatch.setattr(avaliacoes_router, "get_client", lambda: mock_supabase)
+    monkeypatch.setattr(avaliacoes_router, "project_id_de", lambda *a, **k: "proj-1")
     from main import app
     tc = TestClient(app)
     token = criar_jwt("pessoa-ger-1", "ger@citi.com", "gerente")

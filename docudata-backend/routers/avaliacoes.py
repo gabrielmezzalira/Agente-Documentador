@@ -13,6 +13,7 @@ from models.schemas import (
     ElegivelResponse,
     PendenciaAvaliacaoResponse,
 )
+from services.acesso import SEM_ACESSO, exigir_acesso, exigir_acesso_por, project_id_de, projetos_visiveis
 from services.auth import get_current_pessoa, require_not_operacional, require_role
 from services.elegibilidade import listar_vinculados_no_projeto
 from services.pontuacao import calcular_e_travar_pontuacao, sincronizar_snapshot_gerente
@@ -147,20 +148,37 @@ def _montar_historico(client, avaliacoes: list[dict]) -> list[dict]:
 
 
 @router.get("/historico", response_model=list[AvaliacaoHistoricoItem])
-async def historico_avaliacoes(project_id: Optional[str] = None, sprint_id: Optional[str] = None):
-    """Todas as avaliações (gerente/líder/owner veem tudo — decisão da spec
-    2026-09-25), filtráveis por projeto ou sprint."""
+async def historico_avaliacoes(
+    project_id: Optional[str] = None,
+    sprint_id: Optional[str] = None,
+    pessoa: dict = Depends(get_current_pessoa),
+):
+    """Avaliações filtráveis por projeto ou sprint. Líder/owner veem tudo;
+    gerente só as de sprints dos projetos a que está vinculado."""
     client = get_client()
     q = client.table("avaliacoes_gerente").select("*")
     if sprint_id:
+        exigir_acesso_por(client, pessoa, "sprint", sprint_id)
         q = q.eq("sprint_id", sprint_id)
     elif project_id:
+        exigir_acesso(client, pessoa, project_id)
         sprint_ids = [
             s["id"] for s in client.table("sprints").select("id").eq("project_id", project_id).execute().data or []
         ]
         if not sprint_ids:
             return []
         q = q.in_("sprint_id", sprint_ids)
+    else:
+        visiveis = projetos_visiveis(client, pessoa)
+        if visiveis is not None:
+            if not visiveis:
+                return []
+            sprint_ids = [
+                s["id"] for s in client.table("sprints").select("id").in_("project_id", list(visiveis)).execute().data or []
+            ]
+            if not sprint_ids:
+                return []
+            q = q.in_("sprint_id", sprint_ids)
     return _montar_historico(client, q.execute().data or [])
 
 
@@ -177,6 +195,7 @@ async def editar_avaliacao(
     if not encontrada:
         raise HTTPException(status_code=404, detail="Avaliação não encontrada")
     atual = encontrada[0]
+    exigir_acesso_por(client, pessoa, "avaliacao", avaliacao_id)
 
     novas = {
         "resposta_1": data.resposta_1,
@@ -209,8 +228,9 @@ async def editar_avaliacao(
 
 
 @router.get("/{avaliacao_id}/edicoes", response_model=list[AvaliacaoEdicaoItem])
-async def listar_edicoes(avaliacao_id: str):
+async def listar_edicoes(avaliacao_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "avaliacao", avaliacao_id)
     rows = (
         client.table("avaliacoes_gerente_edicoes")
         .select("*")
@@ -234,8 +254,9 @@ async def listar_edicoes(avaliacao_id: str):
 
 
 @router.get("/{sprint_id}/pendencias", response_model=list[PendenciaAvaliacaoResponse])
-async def listar_pendencias(sprint_id: str):
+async def listar_pendencias(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "sprint", sprint_id)
     operacionais = _operacionais_elegiveis(client, sprint_id)
     if not operacionais:
         return []
@@ -257,7 +278,7 @@ async def listar_pendencias(sprint_id: str):
 
 
 @router.get("/{sprint_id}/elegiveis", response_model=list[ElegivelResponse], dependencies=[Depends(require_not_operacional)])
-async def listar_elegiveis(sprint_id: str):
+async def listar_elegiveis(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """RF-C7 (Entrega 2): todo operacional vinculado ao projeto no momento da
     consulta, com contagem de tasks na sprint (0 é válido) e se já tem
     avaliação registrada — audita quem entra no denominador da Avaliação
@@ -266,6 +287,7 @@ async def listar_elegiveis(sprint_id: str):
     sprint_resp = client.table("sprints").select("project_id").eq("id", sprint_id).execute()
     if not sprint_resp.data:
         raise HTTPException(status_code=404, detail="Sprint not found")
+    exigir_acesso(client, pessoa, sprint_resp.data[0]["project_id"])
 
     operacionais = _operacionais_elegiveis(client, sprint_id)
 
@@ -293,6 +315,10 @@ async def listar_elegiveis(sprint_id: str):
 @router.post("", response_model=AvaliacaoGerenteResponse, status_code=201)
 async def criar_ou_atualizar_avaliacao(data: AvaliacaoGerenteCreate, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    projeto_sprint = project_id_de(client, "sprint", data.sprint_id)
+    exigir_acesso(client, pessoa, projeto_sprint)
+    if project_id_de(client, "operacional", data.operacional_id) != projeto_sprint:
+        raise HTTPException(status_code=403, detail=SEM_ACESSO)
     agora = datetime.now(timezone.utc)
 
     existing = (
@@ -343,8 +369,9 @@ async def criar_ou_atualizar_avaliacao(data: AvaliacaoGerenteCreate, pessoa: dic
 
 
 @router.post("/{sprint_id}/confirmar", response_model=ConfirmarAvaliacaoResponse)
-async def confirmar_avaliacao_semanal(sprint_id: str):
+async def confirmar_avaliacao_semanal(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     client = get_client()
+    exigir_acesso_por(client, pessoa, "sprint", sprint_id)
     sprint_row = client.table("sprints").select("id, avaliacao_completa_em").eq("id", sprint_id).execute().data
     if not sprint_row:
         raise HTTPException(status_code=404, detail="Sprint not found")
@@ -358,7 +385,7 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
             "avaliacao_completa_em": sprint_row[0]["avaliacao_completa_em"],
             "pontuacao_travada_count": len(existentes),
         }
-    pendencias = await listar_pendencias(sprint_id)
+    pendencias = await listar_pendencias(sprint_id, pessoa)
     if pendencias:
         nomes = ", ".join(p["nome"] for p in pendencias)
         raise HTTPException(status_code=409, detail=f"Ainda há avaliações pendentes: {nomes}")
@@ -398,7 +425,7 @@ async def confirmar_avaliacao_semanal(sprint_id: str):
 
 
 @router.delete("/{sprint_id}/confirmar", response_model=ConfirmarAvaliacaoResponse, dependencies=[Depends(require_role("lider"))])
-async def reabrir_avaliacao_semanal(sprint_id: str):
+async def reabrir_avaliacao_semanal(sprint_id: str, pessoa: dict = Depends(get_current_pessoa)):
     """Desfaz o fechamento de uma sprint: apaga a pontuação travada e limpa a
     marca de conclusão, para que o gerente corrija o Kanban e confirme de novo.
 
@@ -410,6 +437,7 @@ async def reabrir_avaliacao_semanal(sprint_id: str):
     do fechamento mais recente do projeto, então apagar estas linhas devolve o
     marco ao estado anterior automaticamente."""
     client = get_client()
+    exigir_acesso_por(client, pessoa, "sprint", sprint_id)
 
     sprint = client.table("sprints").select("id, avaliacao_completa_em").eq("id", sprint_id).execute()
     if not sprint.data:
