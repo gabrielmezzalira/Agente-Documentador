@@ -256,4 +256,7 @@ async def delete_operacional(operacional_id: str):
         raise HTTPException(status_code=404, detail="Operacional not found")
 
     client.table("tasks").update({"operacional_id": None}).eq("operacional_id", operacional_id).execute()
+    # Sem ON DELETE no vínculo (até a migração v15), o histórico de transições
+    # barrava a exclusão de quem já tinha mexido em alguma task.
+    client.table("task_transicoes").update({"operacional_id": None}).eq("operacional_id", operacional_id).execute()
     client.table("operacionais").delete().eq("id", operacional_id).execute()
