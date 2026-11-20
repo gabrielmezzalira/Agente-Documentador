@@ -650,7 +650,10 @@ export async function listIngestions(projectId: string): Promise<Ingestion[]> {
 
 export async function deleteProject(id: string): Promise<void> {
   const res = await apiFetch(`${API}/projects/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Erro ao excluir projeto");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Erro ao excluir projeto");
+  }
 }
 
 export async function listDocs(projectId: string): Promise<GeneratedDoc[]> {
