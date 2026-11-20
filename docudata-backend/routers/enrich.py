@@ -105,7 +105,7 @@ class ReviewEnrichment(BaseModel):
     squad: Optional[str] = None
     periodo_inicio: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
     periodo_fim: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
-    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados' ou 'produto'")
+    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados', 'produto' ou 'pta'")
     itens_planejados_entregues: list[ItemEntregue] = Field(default_factory=list)
     percentual_itens_prontos: Optional[str] = Field(default=None, description="Ex: '8 de 10 = 80%'")
     pedidos_fora_escopo_itens: list[PedidoForaEscopoItem] = Field(default_factory=list)
@@ -130,7 +130,7 @@ class RetrospectivaEnrichment(BaseModel):
     squad: Optional[str] = None
     periodo_inicio: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
     periodo_fim: Optional[str] = Field(default=None, description="DD/MM/AAAA ou YYYY-MM-DD")
-    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados' ou 'produto'")
+    subarea: Optional[str] = Field(default=None, description="'desenvolvimento', 'dados', 'produto' ou 'pta'")
     o_que_funcionou: list[str] = Field(default_factory=list, description="Mínimo 1 item específico")
     o_que_nao_funcionou: list[str] = Field(default_factory=list, description="Mínimo 1 item específico")
     causa_raiz_impacto: list[CausaRaizImpacto] = Field(default_factory=list)
@@ -206,7 +206,7 @@ _PROMPTS = {
         "- squad: membros do time e seus papéis mencionados no texto, null se não identificado\n"
         "- periodo_inicio: data de início da sprint (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
         "- periodo_fim: data de fim da sprint (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
-        "- subarea: 'desenvolvimento', 'dados' ou 'produto' se mencionado, null caso contrário\n"
+        "- subarea: 'desenvolvimento', 'dados', 'produto' ou 'pta' se mencionado, null caso contrário\n"
         "- itens_planejados_entregues: lista de itens planejados com status de entrega. Para cada item: "
         "item (nome da tarefa), entregue ('S' ou 'N'), motivo_nao (motivo se não entregue), "
         "causa_raiz_num (número 1-7 da causa raiz se não entregue). Lista vazia se não identificado\n"
@@ -229,7 +229,7 @@ _PROMPTS = {
         "- squad: membros do time e seus papéis mencionados, null se não identificado\n"
         "- periodo_inicio: data de início (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
         "- periodo_fim: data de fim (DD/MM/AAAA ou YYYY-MM-DD), null se não mencionada\n"
-        "- subarea: 'desenvolvimento', 'dados' ou 'produto' se mencionado, null caso contrário\n"
+        "- subarea: 'desenvolvimento', 'dados', 'produto' ou 'pta' se mencionado, null caso contrário\n"
         "- o_que_funcionou: lista de itens específicos que funcionaram bem (processo, entrega, decisão acertada). "
         "Mínimo 1 se identificável. Lista vazia se não houver\n"
         "- o_que_nao_funcionou: lista de itens que não funcionaram (bloqueio, estimativa errada, problema de processo). "
