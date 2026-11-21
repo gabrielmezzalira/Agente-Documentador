@@ -110,3 +110,31 @@ def test_42p01_de_outra_tabela_propaga(real):
     c = _ClienteSemTabela(Exception('relation "outra" does not exist 42P01'))
     with pytest.raises(Exception, match="outra"):
         acesso.projetos_visiveis(c, _pessoa("gerente"))
+
+
+def test_gerente_que_tambem_e_operacional_ve_os_dois_projetos(real):
+    # PM do PTA (gerente vinculado em A) que trabalha como operacional em B
+    c = FakeClient({
+        "projeto_gerentes": [{"project_id": "A", "pessoa_id": "p1"}],
+        "operacionais": [{"project_id": "B", "email": "x@citi.org.br", "ativo": True}],
+    })
+    assert acesso.projetos_visiveis(c, _pessoa("gerente")) == {"A", "B"}
+    assert acesso.tem_acesso(c, _pessoa("gerente"), "A")
+    assert acesso.tem_acesso(c, _pessoa("gerente"), "B")
+    assert not acesso.tem_acesso(c, _pessoa("gerente"), "C")
+
+
+def test_gerente_operacional_desativado_nao_ganha_o_projeto(real):
+    c = FakeClient({
+        "projeto_gerentes": [{"project_id": "A", "pessoa_id": "p1"}],
+        "operacionais": [{"project_id": "B", "email": "x@citi.org.br", "ativo": False}],
+    })
+    assert acesso.projetos_visiveis(c, _pessoa("gerente")) == {"A"}
+
+
+def test_gerente_sem_vinculo_mas_operacional_ainda_ve_o_projeto_dele(real):
+    c = FakeClient({
+        "projeto_gerentes": [],
+        "operacionais": [{"project_id": "B", "email": "x@citi.org.br", "ativo": True}],
+    })
+    assert acesso.projetos_visiveis(c, _pessoa("gerente")) == {"B"}
