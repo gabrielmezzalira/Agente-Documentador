@@ -58,10 +58,16 @@ def projetos_visiveis(client, pessoa: dict) -> set[str] | None:
     cargo = pessoa.get("cargo")
     if cargo in ("owner", "lider"):
         return None
+    vinculados: set[str] = set()
     if cargo == "gerente":
-        return _ids_vinculados_gerente(client, pessoa["id"])
+        vinculados = _ids_vinculados_gerente(client, pessoa["id"])
+        if vinculados is None:
+            return None
     resp = client.table("operacionais").select("project_id").eq("email", pessoa.get("email")).eq("ativo", True).execute()
-    return {r["project_id"] for r in (resp.data or [])}
+    como_operacional = {r["project_id"] for r in (resp.data or [])}
+    # Quem é gerente num projeto (ex.: PM do PTA) pode ser operacional em
+    # outro; sem somar os dois, o projeto em que trabalha some da lista.
+    return vinculados | como_operacional
 
 
 def tem_acesso(client, pessoa: dict, project_id: str) -> bool:
