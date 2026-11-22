@@ -730,3 +730,52 @@ def test_leitura_de_projeto_nao_pede_a_chave_gemini_legada(client, monkeypatch):
 
     assert "gemini_api_key" not in projects._CAMPOS_PROJETO
     assert "github_token" in projects._CAMPOS_PROJETO
+
+
+def _docx_com_imagem_sem_content_type() -> bytes:
+    """DOCX real cujo cabeçalho aponta para uma imagem '.undefined'."""
+    import io
+    import zipfile
+
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph("Requisito um")
+    doc.add_paragraph("Requisito dois")
+    buf = io.BytesIO()
+    doc.save(buf)
+    src = zipfile.ZipFile(io.BytesIO(buf.getvalue()))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == "word/_rels/document.xml.rels":
+                data = data.replace(
+                    b"</Relationships>",
+                    b'<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/'
+                    b'officeDocument/2006/relationships/image" Target="media/x.undefined"/>'
+                    b"</Relationships>",
+                )
+            z.writestr(item, data)
+        z.writestr("word/media/x.undefined", b"\x89PNG")
+    return out.getvalue()
+
+
+def test_parse_docx_com_parte_sem_content_type_usa_fallback():
+    from docx import Document
+
+    from services.file_parser import parse_docx
+
+    dados = _docx_com_imagem_sem_content_type()
+    import io
+    with pytest.raises(KeyError):
+        Document(io.BytesIO(dados))
+
+    assert parse_docx(dados) == "Requisito um\nRequisito dois"
+
+
+def test_parse_docx_lixo_levanta_arquivo_invalido():
+    from services.file_parser import ArquivoInvalido, parse_docx
+
+    with pytest.raises(ArquivoInvalido):
+        parse_docx(b"nao e um docx")

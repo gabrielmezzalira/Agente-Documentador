@@ -57,8 +57,43 @@ def poppler_timeout_seconds() -> int:
 def parse_docx(file_bytes: bytes) -> str:
     from docx import Document
 
-    doc = Document(io.BytesIO(file_bytes))
-    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    except Exception as exc:
+        # Alguns geradores gravam partes sem content type (ex.: imagem do
+        # cabeçalho com extensão ".undefined"); o python-docx recusa o pacote
+        # inteiro, mas o texto em word/document.xml continua legível.
+        texto = _docx_texto_do_xml(file_bytes)
+        if texto is None:
+            raise ArquivoInvalido("DOCX inválido ou corrompido") from exc
+        return texto
+
+
+def _docx_texto_do_xml(file_bytes: bytes) -> str | None:
+    """Extrai os parágrafos direto de word/document.xml; None se não der."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            raiz = ElementTree.fromstring(z.read("word/document.xml"))
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError):
+        return None
+
+    paragrafos = []
+    for p in raiz.iter(f"{ns}p"):
+        partes = []
+        for el in p.iter():
+            if el.tag == f"{ns}t" and el.text:
+                partes.append(el.text)
+            elif el.tag == f"{ns}tab":
+                partes.append("\t")
+        linha = "".join(partes)
+        if linha.strip():
+            paragrafos.append(linha)
+    return "\n".join(paragrafos)
 
 
 def parse_txt(file_bytes: bytes) -> str:
