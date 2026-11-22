@@ -89,7 +89,7 @@ async def importar_funcionalidades_arquivo(
 ):
     """Propõe funcionalidades extraindo texto de PDF, DOCX ou TXT. Não salva nada."""
     from graphs.import_graph import import_graph
-    from services.file_parser import parse_pdf, parse_docx, parse_txt
+    from services.file_parser import ArquivoInvalido, parse_pdf, parse_docx, parse_txt
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -113,7 +113,10 @@ async def importar_funcionalidades_arquivo(
         else:
             texto = result["text"]
     elif content_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",) or arquivo.filename.endswith(".docx"):
-        texto = parse_docx(file_bytes)
+        try:
+            texto = parse_docx(file_bytes)
+        except ArquivoInvalido:
+            raise HTTPException(status_code=422, detail="DOCX inválido ou corrompido")
     else:
         texto = parse_txt(file_bytes)
 
