@@ -115,8 +115,8 @@ async def importar_funcionalidades_arquivo(
     elif content_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",) or arquivo.filename.endswith(".docx"):
         try:
             texto = parse_docx(file_bytes)
-        except ArquivoInvalido as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+        except ArquivoInvalido:
+            raise HTTPException(status_code=422, detail="DOCX inválido ou corrompido")
     else:
         texto = parse_txt(file_bytes)
 
