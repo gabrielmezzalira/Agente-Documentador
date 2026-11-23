@@ -29,6 +29,9 @@ import {
   FRENTES,
   rotuloFrente,
   opinarNivelTask,
+  getClassificadorTask,
+  type ClassificadorClassificacao,
+  type ClassificadorParecida,
   type SolicitacaoTask,
   type Subarea,
   type TaskKanbanResponse,
@@ -149,6 +152,84 @@ interface TaskModalProps {
 
 function origemNivel(status?: string | null): string {
   return status === "manual" ? "definido pelo gerente" : "definido pelo classificador";
+}
+
+const ROTULO_SINAL: Record<string, string> = {
+  partes: "Partes", novidade: "Novidade", incerteza: "Incerteza",
+  dependencia: "Dependência", tamanho: "Tamanho", risco: "Risco",
+};
+
+function PorQueNivel({ taskId }: { taskId: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [classificacao, setClassificacao] = useState<ClassificadorClassificacao | null>(null);
+  const [parecidas, setParecidas] = useState<ClassificadorParecida[]>([]);
+
+  async function alternar() {
+    const abrir = !aberto;
+    setAberto(abrir);
+    if (!abrir || classificacao) return;
+    setCarregando(true);
+    setErro("");
+    try {
+      const d = await getClassificadorTask(taskId);
+      setClassificacao(d.classificacao);
+      setParecidas(d.classificacao.parecidas ?? []);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao buscar a classificação");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  const sinais = classificacao?.sinais ? Object.entries(classificacao.sinais) : [];
+  return (
+    <div>
+      <button type="button" onClick={alternar} aria-expanded={aberto} style={btnGhost}>
+        {aberto ? "Ocultar justificativa" : "Por que esse nível?"}
+      </button>
+      {aberto && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: "#c3cbc6", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 10 }}>
+          {carregando && <span style={{ color: "#8a948e" }}>Carregando…</span>}
+          {erro && <span style={{ color: "#f87171" }}>{erro}</span>}
+          {classificacao && (
+            <>
+              {classificacao.motivo_revisao && (
+                <p style={{ margin: 0 }}><strong>Motivo da revisão:</strong> {classificacao.motivo_revisao}</p>
+              )}
+              <p style={{ margin: 0 }}>
+                <strong>Justificativa:</strong> {classificacao.justificativa_geral || "o classificador não registrou justificativa para esta classificação."}
+              </p>
+              {sinais.length > 0 && (
+                <div>
+                  <strong>Sinais (nota de 0 a 2)</strong>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                    {sinais.map(([nome, s]) => (
+                      <li key={nome}>
+                        {ROTULO_SINAL[nome] ?? nome}: {s.nota}
+                        {s.evidencia ? <span style={{ color: "#8a948e" }}> — “{s.evidencia}”</span> : <span style={{ color: "#8a948e" }}> — sem trecho que comprove</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {parecidas.length > 0 && (
+                <div>
+                  <strong>Tasks parecidas</strong>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                    {parecidas.map((p) => (
+                      <li key={p.task_id}>{p.titulo ?? "task removida"} — nível {p.nivel_real}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function TaskModal({
@@ -426,6 +507,10 @@ function TaskModal({
             <p style={{ fontSize: 12.5, color: "#c3cbc6", margin: 0 }}>
               nível {task.pontos} · {task.classificacao_status === "provisoria" ? "provisório" : task.classificacao_status === "em_revisao" ? "em revisão" : origemNivel(task.classificacao_status)}
             </p>
+          )}
+
+          {mode === "edit" && task && ehLider && task.classificacao_status !== "manual" && (
+            <PorQueNivel taskId={task.id} />
           )}
 
           <div>
@@ -887,7 +972,7 @@ function TaskModal({
 // checklist (cada marcação salva na hora, sem botão de Salvar separado).
 
 function TaskViewModal({
-  task, sprints, funcionalidades, onClose, onSaved, modoTrabalho, meuOperacionalId,
+  task, sprints, funcionalidades, onClose, onSaved, modoTrabalho, meuOperacionalId, onEditar,
 }: {
   task: TaskKanbanResponse;
   sprints: SprintWithStatus[];
@@ -896,7 +981,11 @@ function TaskViewModal({
   onSaved: (t: TaskKanbanResponse) => void;
   modoTrabalho: "ATRIBUICAO" | "PULL";
   meuOperacionalId: string | null;
+  /** Só gerente/líder: quando presente, mostra o botão "Editar task" e esconde as ações de operacional. */
+  onEditar?: () => void;
 }) {
+  const auth = useAuth();
+  const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
   const [checklist, setChecklist] = useState(task.checklist);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -938,6 +1027,9 @@ function TaskViewModal({
           <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
+          {onEditar && (task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
+            <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
+          )}
           {task.bloqueado && (
             <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b" }}>
               {task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
@@ -976,7 +1068,11 @@ function TaskViewModal({
 
         {err && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 10 }}>{err}</p>}
 
-        {modoTrabalho === "PULL" && !task.operacional_id && (
+        {onEditar && ehLider && task.classificacao_status !== "manual" && (
+          <div style={{ marginTop: 16 }}><PorQueNivel taskId={task.id} /></div>
+        )}
+
+        {!onEditar && modoTrabalho === "PULL" && !task.operacional_id && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button
               type="button"
@@ -993,7 +1089,7 @@ function TaskViewModal({
         {/* Task em Pendente de aprovação só sai via Aprovar/Rejeitar (o backend
             devolve 409 em /devolver) — esconder o botão evita oferecer uma ação
             que só pode dar erro. */}
-        {modoTrabalho === "PULL" && task.coluna_kanban !== "pendente_aprovacao" && task.operacional_id && (meuOperacionalId === task.operacional_id) && (
+        {!onEditar && modoTrabalho === "PULL" && task.coluna_kanban !== "pendente_aprovacao" && task.operacional_id && (meuOperacionalId === task.operacional_id) && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button
               type="button"
@@ -1008,7 +1104,8 @@ function TaskViewModal({
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          {onEditar && <button type="button" onClick={onEditar} style={btnGhost}>Editar task</button>}
           <button type="button" onClick={onClose} style={btnPrimary}>Fechar</button>
         </div>
       </div>
@@ -1315,6 +1412,8 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   // modals
   const [createModal, setCreateModal] = useState<{ defaultSprintId?: string } | null>(null);
   const [editModal, setEditModal] = useState<TaskKanbanResponse | null>(null);
+  // Gerente/líder abre a task na visão de leitura (a mesma do operacional); o botão "Editar task" troca para o formulário.
+  const [editando, setEditando] = useState(false);
 
   // sugestões
   const [sugestoes, setSugestoes] = useState<TaskSugestaoResponse[]>([]);
@@ -1684,7 +1783,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                       arrastavel={podeArrastar(t)}
                       onDragStart={() => setDragId(t.id)}
                       onDragEnd={() => setDragId(null)}
-                      onClick={() => setEditModal(t)}
+                      onClick={() => { setEditando(false); setEditModal(t); }}
                     />
                   ))
                 )}
@@ -1725,7 +1824,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       )}
 
       {editModal !== null && (
-        ehOperacional ? (
+        ehOperacional || !editando ? (
           <TaskViewModal
             task={editModal}
             sprints={sprints}
@@ -1734,6 +1833,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             onSaved={(t) => { upsertTask(t); setEditModal(t); }}
             modoTrabalho={modoTrabalho}
             meuOperacionalId={meuOperacional?.id ?? null}
+            onEditar={ehOperacional ? undefined : () => setEditando(true)}
           />
         ) : (
           <TaskModal
