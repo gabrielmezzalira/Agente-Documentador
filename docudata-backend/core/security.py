@@ -22,6 +22,24 @@ def require_app_key(
         )
 
 
+def require_painel_key(
+    x_painel_key: str | None = Header(default=None, alias="X-Painel-Key"),
+) -> None:
+    """Chave de serviço dedicada do Painel do Projeto CITi (só leitura).
+
+    Mesmo padrão da chave do Agente Diagnóstico: lida a cada requisição, falha fechada com
+    503 se a variável não existir, e NÃO reusa DOCUDATA_APP_SECRET (cada chave gira separada).
+    Só protege as rotas de leitura de `/integracoes/painel/v1`.
+    """
+    esperada = os.environ.get("DOCUDATA_PAINEL_KEY", "")
+    if not esperada:
+        raise HTTPException(status_code=503, detail="Integração do Painel não configurada")
+    if not x_painel_key or not secrets.compare_digest(
+        x_painel_key.encode("utf-8"), esperada.encode("utf-8")
+    ):
+        raise HTTPException(status_code=401, detail="Chave de serviço ausente ou inválida")
+
+
 def require_discovery_key(
     x_discovery_key: str | None = Header(default=None, alias="X-Discovery-Key"),
 ) -> None:

@@ -22,8 +22,8 @@ from core.observability import (
     registrar_resposta,
 )
 from core.rate_limit import limiter
-from core.security import require_app_key, require_discovery_key
-from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery, classificador, metas, acompanhamento, propostas
+from core.security import require_app_key, require_discovery_key, require_painel_key
+from routers import projects, ingest, generate, ingestions, search, sprints, sprint_docs, export, commit_ingest, enrich, funcionalidades, painel, revisao_ingest, composer, boletins, sprint_funcionalidades, operacionais, tasks, metricas, auth, performance, avaliacoes, pontuacao, metodologia, solicitacoes, pessoas, settings, github_integration, discovery_ingest, discovery, classificador, metas, acompanhamento, propostas, painel_leitura
 from services.gemini_key import (
     GeminiApiKeyInvalid,
     GeminiApiKeyNotConfigured,
@@ -177,8 +177,10 @@ app_key = [Depends(require_app_key)]
 authenticated = [Depends(get_current_pessoa)]
 restricted = [Depends(require_not_operacional)]
 discovery_service = [Depends(require_discovery_key)]
+painel_service = [Depends(require_painel_key)]
 
 app.include_router(auth.router)
+app.include_router(painel_leitura.router, dependencies=painel_service)
 app.include_router(projects.router, dependencies=authenticated)
 app.include_router(sprints.router, dependencies=authenticated)
 app.include_router(sprint_docs.router, dependencies=authenticated)
