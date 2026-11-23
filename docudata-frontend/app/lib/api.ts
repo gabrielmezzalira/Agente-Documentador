@@ -1800,6 +1800,7 @@ export interface TaskKanbanResponse {
   pontos_legado?: number | null;
   nivel_travado_em?: string | null;
   classificacao_status?: "aplicada" | "em_revisao" | "provisoria" | "resolvida" | "manual" | null;
+  motivo_revisao?: string | null;
   justificativa_nivel?: string | null;
   frente?: "software" | "mobile" | "dados" | "ia" | null;
   frente_definida_por?: "ia" | "gerente" | null;

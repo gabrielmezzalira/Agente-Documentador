@@ -603,6 +603,7 @@ class TaskResponse(BaseModel):
     frente: Optional[str] = None
     frente_definida_por: Optional[str] = None
     classificacao_status: Optional[str] = None
+    motivo_revisao: Optional[str] = None
     justificativa_nivel: Optional[str] = None
     faltando: Optional[list[str]] = None
 

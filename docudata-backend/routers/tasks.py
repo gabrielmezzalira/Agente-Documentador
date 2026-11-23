@@ -157,23 +157,28 @@ def _avisar_operacional_atribuicao(client, task: dict) -> None:
 _LOTE_IN = 100
 
 
-def _status_classificacao_por_task(client, task_ids: list[str]) -> dict[str, str]:
-    """Status da classificação mais recente de cada task (em lotes de 100 ids)."""
-    status: dict[str, str] = {}
+def _status_classificacao_por_task(client, task_ids: list[str]) -> dict[str, tuple[str, str | None]]:
+    """(status, motivo_revisao) da classificação mais recente de cada task (em lotes de 100 ids)."""
+    atual: dict[str, tuple[str, str | None]] = {}
     for i in range(0, len(task_ids), _LOTE_IN):
         lote = task_ids[i:i + _LOTE_IN]
         linhas = ler_tudo(
-            lambda: client.table("task_classificacoes").select("task_id, status, criado_em")
+            lambda: client.table("task_classificacoes").select("task_id, status, motivo_revisao, criado_em")
             .in_("task_id", lote).order("criado_em", desc=True).order("id")
         )
         for l in linhas:
-            status.setdefault(l["task_id"], l["status"])
-    return status
+            atual.setdefault(l["task_id"], (l["status"], l.get("motivo_revisao")))
+    return atual
 
 
 def _com_classificacao_status(client, tasks: list[dict]) -> list[dict]:
-    status = _status_classificacao_por_task(client, [t["id"] for t in tasks])
-    return [{**t, "classificacao_status": status.get(t["id"])} for t in tasks]
+    atual = _status_classificacao_por_task(client, [t["id"] for t in tasks])
+    saida = []
+    for t in tasks:
+        status, motivo = atual.get(t["id"], (None, None))
+        # Em "resolvida" o motivo é a justificativa do líder, não um pendência: só expõe na revisão.
+        saida.append({**t, "classificacao_status": status, "motivo_revisao": motivo if status == "em_revisao" else None})
+    return saida
 
 
 def _norm(texto) -> str:

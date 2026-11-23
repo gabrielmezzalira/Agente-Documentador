@@ -150,6 +150,21 @@ interface TaskModalProps {
   onDeleted?: (id: string) => void;
 }
 
+/** Chip de pontos: amarelo enquanto o nível não foi confirmado, verde quando o classificador (ou o gerente) fechou. */
+function estiloPontos(status?: string | null): React.CSSProperties {
+  const pendente = status === "provisoria" || status === "em_revisao";
+  return pendente
+    ? { background: "rgba(232,195,90,0.14)", color: "#e8c35a" }
+    : { background: "rgba(62,224,111,0.14)", color: "#3ee06f" };
+}
+
+function tituloPontos(task: TaskKanbanResponse): string {
+  const base = `${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`;
+  if (task.classificacao_status === "em_revisao") return `${rotuloNivel(task.pontos)} · em revisão${task.motivo_revisao ? `: ${task.motivo_revisao}` : ""}`;
+  if (task.classificacao_status === "provisoria") return `${rotuloNivel(task.pontos)} · provisório: o classificador ainda não respondeu`;
+  return base;
+}
+
 function origemNivel(status?: string | null): string {
   return status === "manual" ? "definido pelo gerente" : "definido pelo classificador";
 }
@@ -1042,12 +1057,9 @@ function TaskViewModal({
         boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <span style={{ ...chip, background: "rgba(62,224,111,0.055)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
+          <span style={{ ...chip, ...estiloPontos(task.classificacao_status) }} title={tituloPontos(task)}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
           {task.extra && <span style={{ ...chip, background: "rgba(62,224,111,0.12)", color: "#3ee06f" }}>+ extra</span>}
-          {onEditar && (task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
-            <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
-          )}
           {task.bloqueado && (
             <span style={{ ...chip, background: "rgba(255,107,107,0.10)", color: "#ff6b6b" }}>
               {task.bloqueio_tipo === "cliente" ? "Aguardando cliente" : "Bloqueada"}{task.motivo_bloqueio ? `: ${task.motivo_bloqueio}` : ""}
@@ -1093,6 +1105,17 @@ function TaskViewModal({
             </button>
             <span style={{ fontSize: 12, color: "#8a948e" }}>O nível desta task ainda não foi confirmado pelo classificador.</span>
           </div>
+        )}
+
+        {onEditar && task.classificacao_status === "em_revisao" && (
+          <p style={{ fontSize: 12.5, color: "#e8c35a", margin: "10px 0 0", lineHeight: 1.5 }}>
+            <strong>Em revisão:</strong> {task.motivo_revisao || "motivo não registrado."}
+          </p>
+        )}
+        {onEditar && task.classificacao_status === "provisoria" && (
+          <p style={{ fontSize: 12.5, color: "#e8c35a", margin: "10px 0 0", lineHeight: 1.5 }}>
+            <strong>Provisório:</strong> o classificador não respondeu. O sistema tenta de novo a cada 10 minutos.
+          </p>
         )}
 
         {onEditar && ehLider && task.classificacao_status !== "manual" && (
@@ -1298,11 +1321,7 @@ function TaskCard({
       </span>
 
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ ...chip, background: "rgba(255,255,255,0.05)", color: "#c3cbc6" }} title={`${rotuloNivel(task.pontos)} · ${origemNivel(task.classificacao_status)}`}>{task.pontos}pt</span>
-
-        {(task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao") && (
-          <Chip tone="amber">{task.classificacao_status === "provisoria" ? "provisório" : "em revisão"}</Chip>
-        )}
+        <span style={{ ...chip, ...estiloPontos(task.classificacao_status) }} title={tituloPontos(task)}>{task.pontos}pt</span>
 
         {task.classificacao_status === "manual" && <Chip tone="green">nível do gerente</Chip>}
 
