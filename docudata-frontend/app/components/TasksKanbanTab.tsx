@@ -972,7 +972,7 @@ function TaskModal({
 // checklist (cada marcação salva na hora, sem botão de Salvar separado).
 
 function TaskViewModal({
-  task, sprints, funcionalidades, onClose, onSaved, modoTrabalho, meuOperacionalId, onEditar,
+  task, sprints, funcionalidades, onClose, onSaved, modoTrabalho, meuOperacionalId, onEditar, onReclassified,
 }: {
   task: TaskKanbanResponse;
   sprints: SprintWithStatus[];
@@ -983,12 +983,30 @@ function TaskViewModal({
   meuOperacionalId: string | null;
   /** Só gerente/líder: quando presente, mostra o botão "Editar task" e esconde as ações de operacional. */
   onEditar?: () => void;
+  /** Chamado depois de reclassificar com sucesso (recarrega a lista e fecha). */
+  onReclassified?: () => void;
 }) {
   const auth = useAuth();
   const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
   const [checklist, setChecklist] = useState(task.checklist);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [reclassificando, setReclassificando] = useState(false);
+  const precisaReclassificar = !!onEditar && ehLider && !task.nivel_travado_em
+    && (task.classificacao_status === "provisoria" || task.classificacao_status === "em_revisao");
+
+  async function reclassificar() {
+    setReclassificando(true);
+    setErr("");
+    try {
+      await reclassificarTask(task.id);
+      onReclassified?.();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erro ao reclassificar");
+    } finally {
+      setReclassificando(false);
+    }
+  }
 
   const sprint = sprints.find((s) => s.id === task.sprint_id);
   const funcionalidade = funcionalidades.find((f) => f.id === task.funcionalidade_id);
@@ -1068,8 +1086,17 @@ function TaskViewModal({
 
         {err && <p style={{ fontSize: 12, color: "#ff6b6b", marginTop: 10 }}>{err}</p>}
 
+        {precisaReclassificar && (
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" onClick={reclassificar} disabled={reclassificando} style={btnGhost}>
+              {reclassificando ? "Reclassificando…" : "Reclassificar"}
+            </button>
+            <span style={{ fontSize: 12, color: "#8a948e" }}>O nível desta task ainda não foi confirmado pelo classificador.</span>
+          </div>
+        )}
+
         {onEditar && ehLider && task.classificacao_status !== "manual" && (
-          <div style={{ marginTop: 16 }}><PorQueNivel taskId={task.id} /></div>
+          <div style={{ marginTop: 12 }}><PorQueNivel taskId={task.id} /></div>
         )}
 
         {!onEditar && modoTrabalho === "PULL" && !task.operacional_id && (
@@ -1834,6 +1861,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
             modoTrabalho={modoTrabalho}
             meuOperacionalId={meuOperacional?.id ?? null}
             onEditar={ehOperacional ? undefined : () => setEditando(true)}
+            onReclassified={() => { load(); setEditModal(null); }}
           />
         ) : (
           <TaskModal
