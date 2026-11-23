@@ -207,6 +207,33 @@ async def reclassificar(client, task_id: str, pessoa_id: str) -> dict:
     return resultado
 
 
+async def reclassificar_apos_edicao(client, task: dict, pessoa_id: str | None) -> bool:
+    """Reclassifica na hora uma task cujo texto foi editado. Devolve True se gravou um nível novo.
+
+    Se o classificador não conseguir (texto insuficiente ou serviço fora do ar), a
+    classificação antiga vai para a revisão do líder, com o motivo, em vez de
+    manter um nível que já não vale para o texto atual."""
+    atual = classificacao_atual(client, task["id"])
+    if not atual or atual["status"] not in ("aplicada", "resolvida"):
+        return False
+    motivo = MOTIVO_TEXTO_EDITADO
+    try:
+        await _reclassificar_task(client, task, pessoa_id)
+        return True
+    except ReclassificacaoObsoleta:
+        return False  # travou ou mudou durante a chamada: não há o que revisar
+    except HTTPException as exc:
+        if exc.status_code == 422:
+            motivo = MOTIVO_TEXTO_INSUFICIENTE
+    except Exception as exc:
+        _LOG.warning("reclassificar_apos_edicao_falhou exc=%s", type(exc).__name__)
+        motivo = MOTIVO_INDISPONIVEL
+    client.table("task_classificacoes").update(
+        {"status": "em_revisao", "motivo_revisao": motivo}
+    ).eq("id", atual["id"]).execute()
+    return False
+
+
 def resolver_revisao(client, task_id: str, nivel: int, motivo: str, pessoa_id: str) -> dict:
     rows = client.table("tasks").select("*").eq("id", task_id).execute().data
     if not rows:

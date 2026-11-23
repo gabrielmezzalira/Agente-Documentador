@@ -427,14 +427,40 @@ def test_opiniao_nivel_gerente_ok(monkeypatch, autenticar):
 
 @pytest.mark.parametrize("campo,valor", [("titulo", "Outro título"), ("descricao", "outra"),
                                          ("checklist", [{"texto": "novo", "done": False}])])
-def test_editar_texto_manda_aplicada_para_revisao(monkeypatch, autenticar, campo, valor):
+@pytest.mark.parametrize("status_antes", ["aplicada", "resolvida"])
+def test_editar_texto_reclassifica_na_hora(monkeypatch, autenticar, classificar_ok, campo, valor, status_antes):
     fake = _fake()
     fake.tables["tasks"].append(_task(checklist=[{"texto": "a", "done": False}]))
-    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    fake.tables["task_classificacoes"].append(_clas(status_antes, 2))
     resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={campo: valor})
     assert resp.status_code == 200, resp.text
+    linhas = fake.tables["task_classificacoes"]
+    assert len(linhas) == 2
+    nova = max(linhas, key=lambda c: c["criado_em"])
+    assert nova["status"] == "aplicada" and nova["nivel_final"] == 3
+    assert linhas[0]["status"] == status_antes  # a classificação antiga não vai para revisão
+    assert resp.json()["pontos"] == 3
+
+
+@pytest.mark.parametrize("faltando,motivo", [
+    (True, "texto insuficiente para classificar"),
+    (False, "classificador indisponível"),
+])
+def test_editar_texto_com_classificador_falhando_vai_para_revisao(monkeypatch, autenticar, faltando, motivo):
+    async def falha(**kw):
+        if faltando:
+            return _resultado(status="faltando", faltando=["descricao"])
+        raise RuntimeError("fora do ar")
+
+    monkeypatch.setattr(ciclo, "classificar", falha)
+    monkeypatch.setattr(ciclo, "get_gemini_api_key", lambda: "k")
+    fake = _fake()
+    fake.tables["tasks"].append(_task())
+    fake.tables["task_classificacoes"].append(_clas("aplicada", 2))
+    resp = _tc(monkeypatch, autenticar, fake).patch("/tasks/t1", json={"descricao": "x"})
+    assert resp.status_code == 200, resp.text
     c = fake.tables["task_classificacoes"][0]
-    assert c["status"] == "em_revisao" and c["motivo_revisao"] == "texto editado após a classificação"
+    assert c["status"] == "em_revisao" and c["motivo_revisao"] == motivo
 
 
 def test_editar_texto_em_task_travada_ou_so_done_nao_mexe(monkeypatch, autenticar):

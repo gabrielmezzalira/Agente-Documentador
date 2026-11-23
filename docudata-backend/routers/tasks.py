@@ -1260,11 +1260,11 @@ async def patch_task(
         background.add_task(atualizar_frente_da_task, task_id)
 
     if _texto_mudou(task, data) and not task.get("nivel_travado_em"):
-        atual = ciclo.classificacao_atual(client, task_id)
-        if atual and atual["status"] in ("aplicada", "resolvida"):
-            client.table("task_classificacoes").update(
-                {"status": "em_revisao", "motivo_revisao": ciclo.MOTIVO_TEXTO_EDITADO}
-            ).eq("id", atual["id"]).execute()
+        if await ciclo.reclassificar_apos_edicao(client, result.data[0], pessoa["id"]):
+            # O nível novo já foi gravado em tasks.pontos: devolve a linha fresca.
+            fresca = client.table("tasks").select("*").eq("id", task_id).execute().data
+            if fresca:
+                result.data[0] = fresca[0]
 
     if coluna_nova in ("em_andamento", "pendente_aprovacao", "concluida") and coluna_nova != coluna_atual:
         result.data[0] = _travar_e_atualizar(client, result.data[0])
