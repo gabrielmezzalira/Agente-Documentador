@@ -127,7 +127,7 @@ export default function ManualDocModal({
   async function submit() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setError("Selecione um PDF.");
+      setError("Selecione um PDF ou Markdown.");
       return;
     }
     if (isCustom && !customLabel.trim()) {
@@ -159,7 +159,7 @@ export default function ManualDocModal({
           Adicionar documento manual
         </h2>
         <p style={{ fontSize: 13, color: "#8a948e", margin: "8px 0 0", lineHeight: 1.5 }}>
-          Subir um PDF de doc final escrito fora do sistema. O texto é extraído e armazenado
+          Subir um PDF ou Markdown de doc final escrito fora do sistema. O texto é extraído e armazenado
           junto com os outros documentos do projeto. Não chama o LLM (sem custo).
         </p>
 
@@ -203,11 +203,11 @@ export default function ManualDocModal({
           placeholder="—"
         />
 
-        <label style={labelStyle}>PDF do documento</label>
+        <label style={labelStyle}>PDF ou Markdown do documento</label>
         <input
           ref={fileRef}
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,.md"
           onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
           style={{ fontSize: 13 }}
         />

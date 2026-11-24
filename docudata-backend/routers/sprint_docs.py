@@ -25,6 +25,7 @@ from services.acesso import exigir_acesso
 from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
+from services.file_parser import mime_efetivo
 from services.sprints import ensure_sprint_row, compute_planejado_vs_entregue
 
 _LOG = logging.getLogger("docudata.sprint_docs")
@@ -53,10 +54,11 @@ async def _extract_anexo_to_content(
     Cuidado: o graph atual cria um registro em `ingestions` ao final. Para evitar
     duplicação, deletamos esse registro intermediário e retornamos apenas o conteúdo.
     """
-    if anexo.content_type not in _ACCEPTED_ANEXO_MIMES:
+    mime_anexo = mime_efetivo(anexo.filename, anexo.content_type)
+    if mime_anexo not in _ACCEPTED_ANEXO_MIMES and not mime_anexo.startswith("text/"):
         raise HTTPException(
             status_code=422,
-            detail=f"Anexo deve ser PDF ou imagem (PNG/JPG/WEBP). Recebido: {anexo.content_type}",
+            detail=f"Anexo deve ser PDF, imagem (PNG/JPG/WEBP) ou Markdown. Recebido: {anexo.content_type}",
         )
 
     _project = project or {}
@@ -64,7 +66,7 @@ async def _extract_anexo_to_content(
     state: ExtractionState = {
         "arquivo_bytes": file_bytes,
         "arquivo_nome": anexo.filename or "anexo.pdf",
-        "mime_type": anexo.content_type,
+        "mime_type": mime_anexo,
         "sprint_numero": sprint_numero,
         "projeto_id": project_id,
         "api_key": api_key,
@@ -474,10 +476,11 @@ async def submit_ata_with_upload(
     api_key = get_gemini_api_key()
     ensure_sprint_row(get_client(), projeto_id, sprint_numero)
 
-    if anexo.content_type != _PDF_MIME:
+    mime_ata = mime_efetivo(anexo.filename, anexo.content_type)
+    if mime_ata != _PDF_MIME and mime_ata != "text/markdown":
         raise HTTPException(
             status_code=422,
-            detail=f"Transcrição da ata deve ser PDF. Recebido: {anexo.content_type}",
+            detail=f"Transcrição da ata deve ser PDF ou Markdown. Recebido: {anexo.content_type}",
         )
 
     # Roda extraction_graph — ele já cria a ingestion intermediária
@@ -485,7 +488,7 @@ async def submit_ata_with_upload(
     state: ExtractionState = {
         "arquivo_bytes": file_bytes,
         "arquivo_nome": anexo.filename or "transcricao.pdf",
-        "mime_type": anexo.content_type,
+        "mime_type": mime_ata,
         "sprint_numero": sprint_numero,
         "projeto_id": projeto_id,
         "api_key": api_key,

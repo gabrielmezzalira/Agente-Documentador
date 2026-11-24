@@ -9,6 +9,7 @@ from graphs.generation_graph import generation_graph, GenerationState
 from models.schemas import GenerateRequest, GenerateResponse, ManualDocCreate
 from services.acesso import SEM_ACESSO, exigir_acesso, exigir_acesso_por
 from services.auth import get_current_pessoa
+from services.file_parser import mime_efetivo
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
 
@@ -152,24 +153,31 @@ async def create_manual_doc_from_pdf(
     """
     client = get_client()
     exigir_acesso(client, pessoa, projeto_id)
-    if arquivo.content_type != "application/pdf":
-        raise HTTPException(status_code=422, detail="Arquivo deve ser PDF")
+    mime_arquivo = mime_efetivo(arquivo.filename, arquivo.content_type)
+    eh_markdown = mime_arquivo == "text/markdown"
+    if mime_arquivo != "application/pdf" and not eh_markdown:
+        raise HTTPException(status_code=422, detail="Arquivo deve ser PDF ou Markdown")
 
     check = client.table("projects").select("id").eq("id", projeto_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
     pdf_bytes = await arquivo.read()
-    from services.file_parser import parse_pdf
-    parsed = parse_pdf(pdf_bytes)
-    if parsed["is_scanned"]:
-        raise HTTPException(
-            status_code=422,
-            detail="PDF parece escaneado (sem camada de texto). Use o upload livre para PDFs escaneados.",
-        )
-    text = parsed["text"].strip()
-    if not text:
-        raise HTTPException(status_code=422, detail="PDF não contém texto extraível")
+    if eh_markdown:
+        text = pdf_bytes.decode("utf-8", errors="replace").strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="Arquivo Markdown vazio")
+    else:
+        from services.file_parser import parse_pdf
+        parsed = parse_pdf(pdf_bytes)
+        if parsed["is_scanned"]:
+            raise HTTPException(
+                status_code=422,
+                detail="PDF parece escaneado (sem camada de texto). Use o upload livre para PDFs escaneados.",
+            )
+        text = parsed["text"].strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="PDF não contém texto extraível")
 
     response = (
         client.table("generated_docs")

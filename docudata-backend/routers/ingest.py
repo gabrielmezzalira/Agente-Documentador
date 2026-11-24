@@ -7,6 +7,7 @@ from services.acesso import exigir_acesso
 from services.auth import get_current_pessoa
 from services.supabase_client import get_client
 from services.gemini_key import get_gemini_api_key
+from services.file_parser import mime_efetivo
 from services.sprints import ensure_sprint_row
 from services.task_events import on_review_ingested
 
@@ -42,7 +43,8 @@ async def ingest(
 ):
     db = get_client()
     exigir_acesso(db, pessoa, projeto_id)
-    if not _is_accepted(arquivo.content_type):
+    mime_arquivo = mime_efetivo(arquivo.filename, arquivo.content_type)
+    if not _is_accepted(mime_arquivo):
         raise HTTPException(
             status_code=422,
             detail=(
@@ -65,7 +67,7 @@ async def ingest(
     state: ExtractionState = {
         "arquivo_bytes": file_bytes,
         "arquivo_nome": arquivo.filename,
-        "mime_type": arquivo.content_type,
+        "mime_type": mime_arquivo,
         "sprint_numero": sprint_numero,
         "projeto_id": projeto_id,
         "api_key": api_key,

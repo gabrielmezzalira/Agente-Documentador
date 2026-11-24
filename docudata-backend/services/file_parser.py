@@ -96,6 +96,14 @@ def _docx_texto_do_xml(file_bytes: bytes) -> str | None:
     return "\n".join(paragrafos)
 
 
+def mime_efetivo(filename: str | None, content_type: str | None) -> str:
+    """MIME do upload, tratando .md: alguns navegadores mandam vazio ou octet-stream."""
+    mime = content_type or ""
+    if (filename or "").lower().endswith((".md", ".markdown")) and not mime.startswith("text/"):
+        return "text/markdown"
+    return mime
+
+
 def parse_txt(file_bytes: bytes) -> str:
     return file_bytes.decode("utf-8", errors="replace")
 

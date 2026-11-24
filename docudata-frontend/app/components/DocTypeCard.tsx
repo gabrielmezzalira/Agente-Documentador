@@ -105,8 +105,8 @@ export function DocTypeGeneratePanel({ meta, sprints, ingestions, generating, on
             {onUploadAndGenerate && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <label style={{ fontSize: 13, color: ds.muted }}>
-                  ou subir transcrição (PDF){" "}
-                  <input ref={fileRef} type="file" accept="application/pdf" onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)} style={{ fontSize: 12, color: ds.text2 }} />
+                  ou subir transcrição (PDF ou MD){" "}
+                  <input ref={fileRef} type="file" accept="application/pdf,.md" onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)} style={{ fontSize: 12, color: ds.text2 }} />
                 </label>
                 {pdfName && sprintSelect}
               </div>

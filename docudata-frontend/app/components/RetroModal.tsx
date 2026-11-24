@@ -157,7 +157,7 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             <textarea style={{ ...textareaStyle, minHeight: 160 }} value={enrichText} onChange={(e) => setEnrichText(e.target.value)}
               placeholder="Ex: anotações da reunião de retro, transcrição, relato pós-sprint..." />
             <label style={labelStyle}>Ou faça upload de arquivo</label>
-            <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden} ref={enrichFileRef} type="file" accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+            <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden} ref={enrichFileRef} type="file" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => setEnrichFileName(e.target.files?.[0]?.name ?? null)} /></label>
             {enrichFileName && <div style={{ fontSize: 12, color: ds.muted, marginTop: 4 }}>Arquivo: {enrichFileName}</div>}
             {error && <div style={{ marginTop: 14, padding: 10, background: ds.redSoft, color: ds.red, borderRadius: 8, fontSize: 13 }}>{error}</div>}
@@ -318,7 +318,7 @@ export default function RetroModal({ open, onClose, projetoId, sprintNumero, onS
             <label style={labelStyle}>
               Anexo <span style={{ fontWeight: 400, color: ds.muted }}>(opcional) — ex: Tactiq da reunião, ata externa</span>
             </label>
-            <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden} ref={fileRef} type="file" accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+            <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden} ref={fileRef} type="file" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)} /></label>
             {anexoName && <div style={{ fontSize: 12, color: ds.muted, marginTop: 4 }}>Anexo: {anexoName}</div>}
 

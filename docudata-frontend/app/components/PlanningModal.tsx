@@ -794,7 +794,7 @@ export default function PlanningModal({
                         Arraste o print do kanban aqui, ou clique para selecionar
                       </p>
                       <p style={{ margin: "4px 0 0", fontSize: 11, color: "#8a948e" }}>
-                        PNG, JPG, PDF, DOCX, TXT
+                        PNG, JPG, PDF, DOCX, TXT, MD
                       </p>
                     </>
                   )}
@@ -802,7 +802,7 @@ export default function PlanningModal({
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.txt"
+                  accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.txt,.md"
                   style={{ display: "none" }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
                 />

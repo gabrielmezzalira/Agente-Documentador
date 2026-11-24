@@ -420,7 +420,7 @@ export default function SprintDocModal({
             <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden}
               ref={enrichFileRef}
               type="file"
-              accept=".txt,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+              accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => setEnrichFileName(e.target.files?.[0]?.name ?? null)}
             /></label>
             {enrichFileName && (
@@ -866,17 +866,17 @@ export default function SprintDocModal({
               Anexo (opcional)
               {tipo === "planning" && (
                 <span style={{ fontWeight: 400, color: ds.muted, marginLeft: 6 }}>
-                  — PDF ou print do kanban
+                  — PDF, Markdown ou print do kanban
                 </span>
               )}
               {tipo !== "planning" && (
-                <span style={{ fontWeight: 400, color: ds.muted, marginLeft: 6 }}>— PDF</span>
+                <span style={{ fontWeight: 400, color: ds.muted, marginLeft: 6 }}>— PDF ou Markdown</span>
               )}
             </label>
             <label style={fileBtnStyle}>Escolher arquivo<input style={fileInputHidden}
               ref={fileRef}
               type="file"
-              accept={tipo === "planning" ? "application/pdf,image/png,image/jpeg,image/jpg,image/webp" : "application/pdf"}
+              accept={tipo === "planning" ? "application/pdf,image/png,image/jpeg,image/jpg,image/webp,.md" : "application/pdf,.md"}
               onChange={(e) => setAnexoName(e.target.files?.[0]?.name ?? null)}
             /></label>
             {anexoName && (

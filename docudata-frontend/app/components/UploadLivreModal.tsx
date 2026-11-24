@@ -279,7 +279,7 @@ export default function UploadLivreModal({
 
         {mode === "file" ? (
           <form onSubmit={handleSingle}>
-            <label style={labelStyle}>Arquivo (.txt, .docx, .pdf, imagens, código)</label>
+            <label style={labelStyle}>Arquivo (.txt, .md, .docx, .pdf, imagens, código)</label>
             <input
               ref={fileInputRef}
               type="file"

@@ -178,8 +178,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
-    const ok = file.name.endsWith(".pdf") || file.name.endsWith(".docx") || file.name.endsWith(".txt");
-    if (!ok) { setErro("Formato não suportado. Use PDF, DOCX ou TXT."); return; }
+    const ok = file.name.endsWith(".pdf") || file.name.endsWith(".docx") || file.name.endsWith(".txt") || file.name.endsWith(".md");
+    if (!ok) { setErro("Formato não suportado. Use PDF, DOCX, TXT ou MD."); return; }
     setErro("");
     setArquivo(file);
   }
@@ -318,7 +318,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
             {inputMode === "arquivo" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <p style={{ margin: 0, fontSize: 13.5, color: ds.muted, lineHeight: 1.55 }}>
-                  Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX e TXT.
+                  Faça upload do contrato ou proposta. Aceita PDF (com ou sem texto), DOCX, TXT e MD.
                 </p>
                 <label
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -334,7 +334,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                 >
                   <input
                     type="file"
-                    accept=".pdf,.docx,.txt"
+                    accept=".pdf,.docx,.txt,.md"
                     style={{ display: "none" }}
                     onChange={(e) => { setErro(""); setArquivo(e.target.files?.[0] ?? null); }}
                   />
@@ -350,7 +350,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                   ) : (
                     <>
                       <span style={{ fontSize: 14, fontWeight: 600, color: ds.text2 }}>Arraste o arquivo aqui</span>
-                      <span style={{ fontSize: 12.5, color: ds.muted }}>ou clique para selecionar · PDF, DOCX ou TXT</span>
+                      <span style={{ fontSize: 12.5, color: ds.muted }}>ou clique para selecionar · PDF, DOCX, TXT ou MD</span>
                     </>
                   )}
                 </label>
