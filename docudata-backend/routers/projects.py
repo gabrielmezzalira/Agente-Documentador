@@ -178,7 +178,13 @@ async def get_technologies(project_id: str):
         .eq("project_id", project_id)
         .execute()
     )
-    return build_tech_timeline(response.data or [])
+    ingestions = response.data or []
+    # Sprint só planejada não conta: as tecnologias valem até a última sprint iniciada.
+    sprints = client.table("sprints").select("numero, iniciada").eq("project_id", project_id).execute().data or []
+    iniciadas = {s["numero"] for s in sprints if s.get("iniciada")}
+    if iniciadas:
+        ingestions = [i for i in ingestions if i.get("sprint_number") in iniciadas]
+    return build_tech_timeline(ingestions)
 
 
 @router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_not_operacional), Depends(require_project_access)])

@@ -71,11 +71,17 @@ def congelar_modo_da_sprint(client, sprint_id: str) -> Optional[str]:
 def get_current_sprint_number(client, project_id: str) -> int:
     """Resolve a sprint vigente sem depender de uma chamada HTTP interna."""
     sprints_resp = (
-        client.table("sprints").select("numero").eq("project_id", project_id).execute()
+        client.table("sprints").select("numero, iniciada").eq("project_id", project_id).execute()
     )
-    numeros = {row["numero"] for row in (sprints_resp.data or [])}
+    linhas = sprints_resp.data or []
+    numeros = {row["numero"] for row in linhas}
     if not numeros:
         return 1
+
+    # Sprint só planejada (não iniciada) nunca é a atual: a vigente é a iniciada mais recente.
+    iniciadas = {row["numero"] for row in linhas if row.get("iniciada")}
+    if iniciadas:
+        return max(iniciadas)
 
     plannings = (
         client.table("ingestions")
@@ -96,10 +102,13 @@ def get_current_sprint_id(client, project_id: str) -> Optional[str]:
     GET /projects/{id}/current-sprint (routers/commit_ingest.py), mas devolve
     o id em vez do número. Usado pelo Motor de Score (Phase 18) pra rotear
     eventos tardios (services/pontuacao.py)."""
-    sprints_resp = client.table("sprints").select("id, numero").eq("project_id", project_id).execute()
+    sprints_resp = client.table("sprints").select("id, numero, iniciada").eq("project_id", project_id).execute()
     sprints_rows = sprints_resp.data or []
     if not sprints_rows:
         return None
+    iniciadas_rows = [r for r in sprints_rows if r.get("iniciada")]
+    if iniciadas_rows:
+        return max(iniciadas_rows, key=lambda r: r["numero"])["id"]
     numero_para_id = {row["numero"]: row["id"] for row in sprints_rows}
 
     plannings = (

@@ -22,6 +22,8 @@ interface Props {
   sprint: SprintWithStatus;
   /** Sprint em andamento (a mais recente iniciada): aparece aberta e marcada como "Atual". */
   isCurrent: boolean;
+  /** No PTA a Daily é obrigatória; nas outras subáreas segue opcional. */
+  dailyObrigatoria?: boolean;
   ingestions: Ingestion[];
   docs: GeneratedDoc[];
   generating: boolean;
@@ -170,6 +172,7 @@ const tinyBtnDanger: React.CSSProperties = {
 export default function SprintCard({
   sprint,
   isCurrent,
+  dailyObrigatoria = false,
   ingestions,
   docs,
   generating,
@@ -325,8 +328,8 @@ export default function SprintCard({
         }]
       : []),
     {
-      key: "dailys", label: "Dailys", state: sprint.dailys_count > 0 ? "done" : "optional",
-      count: sprint.dailys_count > 0 ? String(sprint.dailys_count) : "opcional",
+      key: "dailys", label: "Dailys", state: sprint.dailys_count > 0 ? "done" : dailyObrigatoria ? "pending" : "optional",
+      count: sprint.dailys_count > 0 ? String(sprint.dailys_count) : dailyObrigatoria ? "0/1" : "opcional",
       onClick: () => onOpenSprintDoc("daily", sprint.numero), title: "Registrar Daily",
     },
   ];

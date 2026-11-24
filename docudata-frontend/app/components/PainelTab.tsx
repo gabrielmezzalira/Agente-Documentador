@@ -37,7 +37,9 @@ export default function PainelTab({ projectId, sprints, project, operacionais, o
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sprintSelecionada, setSprintSelecionada] = useState<number>(
-    sprints.length > 0 ? Math.max(...sprints.map((s) => s.numero)) : 1
+    sprints.length > 0
+      ? Math.max(...(sprints.some((s) => s.iniciada) ? sprints.filter((s) => s.iniciada) : sprints).map((s) => s.numero))
+      : 1
   );
   const [sprintFuncs, setSprintFuncs] = useState<SprintFuncionalidade[]>([]);
   const [dragFuncId, setDragFuncId] = useState<string | null>(null);

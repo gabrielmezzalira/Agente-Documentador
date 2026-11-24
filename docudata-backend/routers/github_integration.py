@@ -417,16 +417,26 @@ async def listar_repositorios_projeto(project_id: str):
     "/projects/{project_id}/repositories/{repository_id}", status_code=204,
     dependencies=[Depends(require_project_access)],
 )
-async def desconectar_repositorio(project_id: str, repository_id: str):
+async def desconectar_repositorio(project_id: str, repository_id: str, remover: bool = False):
+    """Desconecta o repositório. Com remover=true apaga o registro da lista, mas
+    só se ele já estiver desconectado; os commits ingeridos são preservados."""
     client = get_client()
     projeto = _obter_projeto(client, project_id)
     _exigir_subarea_habilitada(projeto)
     resposta = (
-        client.table("project_repositories").select("id").eq("id", repository_id)
+        client.table("project_repositories").select("id, active").eq("id", repository_id)
         .eq("project_id", project_id).execute()
     )
     if not resposta.data:
         raise HTTPException(status_code=404, detail="Repositório não encontrado.")
+    if remover:
+        if resposta.data[0].get("active"):
+            raise HTTPException(status_code=409, detail="Desconecte o repositório antes de removê-lo.")
+        client.table("ingestions").update({"source_repository_id": None}).eq(
+            "source_repository_id", repository_id
+        ).execute()
+        client.table("project_repositories").delete().eq("id", repository_id).execute()
+        return
     client.table("project_repositories").update({
         "active": False, "inactive_reason": "disconnected", "updated_at": _iso(_agora())
     }).eq("id", repository_id).execute()

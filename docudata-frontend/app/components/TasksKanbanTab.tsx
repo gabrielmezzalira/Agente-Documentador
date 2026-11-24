@@ -1376,7 +1376,8 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
 
   // filters
   const sortedSprints = [...sprints].sort((a, b) => a.numero - b.numero);
-  const lastSprint = sortedSprints[sortedSprints.length - 1];
+  // Começa na sprint em andamento (a iniciada mais recente); sem nenhuma iniciada, cai na última.
+  const lastSprint = [...sortedSprints].reverse().find((s) => s.iniciada) ?? sortedSprints[sortedSprints.length - 1];
   const [filterSprintId, setFilterSprintId] = useState<string>(lastSprint?.id ?? "");
   const [filterOpId, setFilterOpId] = useState("");
   const [filterFuncId, setFilterFuncId] = useState("");

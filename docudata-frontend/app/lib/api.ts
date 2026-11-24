@@ -654,6 +654,12 @@ export async function disconnectProjectRepository(projectId: string, repositoryI
   if (!res.ok) throw await githubError(res, "Não foi possível desconectar o repositório.");
 }
 
+/** Tira da lista um repositório já desconectado; os commits ingeridos continuam. */
+export async function removeProjectRepository(projectId: string, repositoryId: string): Promise<void> {
+  const res = await apiFetch(`${API}/projects/${projectId}/repositories/${repositoryId}?remover=true`, { method: "DELETE" });
+  if (!res.ok) throw await githubError(res, "Não foi possível remover o repositório.");
+}
+
 export async function getGeminiApiKeyStatus(): Promise<GeminiApiKeyStatus> {
   const res = await apiFetch(`${API}/settings/gemini`);
   if (!res.ok) throw new Error("Erro ao consultar configuração do Gemini");

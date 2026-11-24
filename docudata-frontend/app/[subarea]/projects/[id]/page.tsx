@@ -38,6 +38,7 @@ import {
   connectProjectRepositories,
   listProjectRepositories,
   disconnectProjectRepository,
+  removeProjectRepository,
   listFuncionalidades,
   gerarResumoSemanal,
   listOperacionais,
@@ -1187,6 +1188,22 @@ export default function ProjectDashboard() {
     }
   }
 
+  async function handleRemoveRepository(repository: ProjectRepository) {
+    if (!confirm(`Remover ${repository.full_name} da lista? O histórico de commits já ingerido será preservado.`)) return;
+    setGithubLoading(true);
+    setGithubRepositoryActionId(repository.id);
+    setGithubError("");
+    try {
+      await removeProjectRepository(id, repository.id);
+      setGithubRepositories(await listProjectRepositories(id));
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Não foi possível remover o repositório.");
+    } finally {
+      setGithubLoading(false);
+      setGithubRepositoryActionId(null);
+    }
+  }
+
   async function handleReconnectRepository(repository: ProjectRepository) {
     const confirmado = confirm(
       `Reconectar ${repository.full_name} a este projeto?\n\n` +
@@ -1495,6 +1512,7 @@ export default function ProjectDashboard() {
                 key={s.id}
                 sprint={s}
                 isCurrent={s.id === sprintAtual?.id}
+                dailyObrigatoria={subarea === "pta"}
                 ingestions={ingestionsBySprint[s.numero] ?? []}
                 docs={docsBySprint[s.numero] ?? []}
                 generating={generating}
@@ -1781,6 +1799,15 @@ export default function ProjectDashboard() {
                         <span style={{ ...badgeChip, background: repo.active ? "rgba(62,224,111,0.12)" : "rgba(255,107,107,0.10)", color: repo.active ? "#3ee06f" : "#ff6b6b" }}>
                           {repo.active ? "✓ Ativo" : repo.permission_status === "disconnected" ? "Desconectado" : "Permissão revogada"}
                         </span>
+                        {!repo.active && (
+                          <button
+                            style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            onClick={() => handleRemoveRepository(repo)}
+                            disabled={githubLoading}
+                          >
+                            Remover
+                          </button>
+                        )}
                         {repo.active ? (
                           <button
                             style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
