@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type FormEvent } from "react";
 import { buttonClass, buttonStyle } from "../ds/Button";
 import { ds, cardStyle } from "../../lib/ds";
@@ -11,6 +11,8 @@ import styles from "./shell.module.css";
 /** Barra superior de 72px: busca (⌘K), seletor de subárea e ação primária. */
 export default function Topbar({ subarea }: { subarea: SubareaSlug }) {
   const router = useRouter();
+  // Páginas com seletor de subárea próprio (o da barra levaria para a lista de projetos e confunde).
+  const seletorProprio = usePathname().startsWith("/acompanhamento");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function Topbar({ subarea }: { subarea: SubareaSlug }) {
       </form>
 
       {/* Seletor de subárea logo depois da busca, como no protótipo */}
-      <div role="group" aria-label="Subárea" style={{ ...cardStyle, boxShadow: "none", borderRadius: 12, display: "flex", padding: 4, flexShrink: 0 }}>
+      {!seletorProprio && <div role="group" aria-label="Subárea" style={{ ...cardStyle, boxShadow: "none", borderRadius: 12, display: "flex", padding: 4, flexShrink: 0 }}>
         {SUBAREAS.map((s) => {
           const active = s.slug === subarea;
           return (
@@ -80,7 +82,7 @@ export default function Topbar({ subarea }: { subarea: SubareaSlug }) {
             </Link>
           );
         })}
-      </div>
+      </div>}
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <Link href={`/${subarea}/projects/new`} className={buttonClass("primary")} style={buttonStyle("primary")}>

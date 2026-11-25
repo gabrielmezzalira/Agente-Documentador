@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useAuth } from "../components/AuthGuard";
 import ProjetoDetalhePainel from "../components/acompanhamento/ProjetoDetalhePainel";
 import {
-  COR_STATUS, ORDEM_STATUS, PENDENCIAS, STATUS_INFO, TOM_STATUS, corDoSpi, num, pendencia, pts,
+  ORDEM_STATUS, PENDENCIAS, STATUS_INFO, TOM_STATUS, corDoSpi, num, pendencia, pts,
 } from "../components/acompanhamento/visual";
-import { Card, Chip, EmptyState, ErrorNotice, PageHeader, ProgressBar, SegmentedControl, Select, StatusDot } from "../components/ds";
-import { ds, labelStyle, toneColors } from "../lib/ds";
+import { EmptyState, ErrorNotice, PageHeader, SegmentedControl, Select, StatusDot } from "../components/ds";
+import { cardStyle, ds, labelStyle, toneColors, type Tone } from "../lib/ds";
 import { nomeCurto } from "../lib/nome";
 import {
-  getAcompanhamento, type AcompanhamentoResponse, type AcompGerente, type AcompProjetoStatus, type AcompStatus, type Subarea,
+  getAcompanhamento, type AcompanhamentoResponse, type AcompGerente, type AcompProjetoStatus, type AcompSinal, type AcompStatus, type Subarea,
 } from "../lib/api";
 
 const SUBAREAS: { value: Subarea; label: string }[] = [
@@ -21,137 +21,169 @@ const SUBAREAS: { value: Subarea; label: string }[] = [
 
 const STATUS_ORDEM: AcompStatus[] = ["critico", "atencao", "sem_dados", "saudavel"];
 
-const mono: CSSProperties = { fontFamily: ds.fontMono };
-const apagado: CSSProperties = { fontSize: 12.5, color: ds.muted };
+const mono: CSSProperties = { fontFamily: ds.fontMono, fontVariantNumeric: "tabular-nums" };
+const legenda: CSSProperties = { fontSize: 12.5, lineHeight: 1.4, color: ds.muted };
+const vazio: CSSProperties = { fontSize: 13, color: ds.dim };
 
 function plural(n: number, um: string, varios: string): string {
   return `${n} ${n === 1 ? um : varios}`;
 }
 
-// ── resumo da carteira ──
-
-function FiltroStatus({ status, qtd, ativo, onClick }: { status: AcompStatus; qtd: number; ativo: boolean; onClick: () => void }) {
-  const tom = toneColors[TOM_STATUS[status]];
-  return (
-    <button
-      type="button"
-      aria-pressed={ativo}
-      onClick={onClick}
-      title={STATUS_INFO[status].regra}
-      style={{
-        display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start", textAlign: "left",
-        padding: "14px 16px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
-        background: ativo ? tom.bg : "rgba(255, 255, 255, 0.02)",
-        border: `1px solid ${ativo ? tom.line : ds.border}`,
-        opacity: qtd === 0 && !ativo ? 0.55 : 1,
-      }}
-    >
-      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: ativo ? tom.fg : ds.text2 }}>
-        <StatusDot tone={TOM_STATUS[status]} />
-        {STATUS_INFO[status].nome}
-      </span>
-      <span style={{ ...mono, fontSize: 28, fontWeight: 700, lineHeight: 1, color: qtd > 0 ? COR_STATUS[status] : ds.dim }}>{qtd}</span>
-    </button>
-  );
+function corDoTom(t: Tone): string {
+  return t === "neutral" ? ds.dim : toneColors[t].fg;
 }
 
-// ── linha do projeto ──
+// ── filtro por status (abas com contagem) ──
 
-function BarraSprint({ p }: { p: AcompProjetoStatus }) {
-  const pr = p.progresso;
-  if (!p.sprint_atual) return <span style={apagado}>Nenhuma sprint iniciada</span>;
-  if (!pr || pr.tasks_total === 0) return <span style={apagado}>Sprint {p.sprint_atual.numero} sem tasks</span>;
-  const pct = pr.pct ?? 0;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ fontSize: 12.5, color: ds.text2 }}>
-          Sprint {p.sprint_atual.numero}
-          {p.sprint_atual.fechada && <span style={{ color: ds.muted }}> · fechada</span>}
-        </span>
-        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: ds.white }}>{pr.pct != null ? `${Math.round(pct)}%` : "—"}</span>
-      </div>
-      <ProgressBar pct={pct} label={`Progresso da sprint ${p.sprint_atual.numero} de ${p.nome ?? "projeto"}`} />
-      <span style={apagado}>
-        {pts(pr.pts_concluidos)} de {pts(pr.pts_previstos)} pts · {pr.tasks_concluidas}/{pr.tasks_total} tasks
-        {pr.tasks_aguardando > 0 && <> · {pr.tasks_aguardando} aguardando aprovação</>}
-      </span>
-    </div>
-  );
-}
-
-function PrazoEscopo({ p }: { p: AcompProjetoStatus }) {
-  if (p.pct_prazo == null || p.pct_escopo == null) {
-    return <span style={apagado}>{p.sinais.some((s) => s.codigo === "sem_funcionalidades") ? "Escopo vazio" : "Sem datas do contrato"}</span>;
-  }
-  const prazo = Math.max(0, Math.min(100, p.pct_prazo));
-  const escopo = Math.max(0, Math.min(100, p.pct_escopo));
-  const atrasado = prazo > escopo;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ fontSize: 12.5, color: ds.text2 }}>Projeto</span>
-        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: ds.white }}>{Math.round(escopo)}%</span>
-      </div>
-      <div
-        role="img"
-        aria-label={`${Math.round(escopo)}% do escopo aprovado com ${Math.round(prazo)}% do prazo consumido`}
-        style={{ position: "relative", height: 6, borderRadius: 3, background: "rgba(255, 255, 255, 0.08)" }}
+function Abas({ contagem, total, ativo, onMudar }: {
+  contagem: Record<AcompStatus, number>; total: number; ativo: AcompStatus | null; onMudar: (s: AcompStatus | null) => void;
+}) {
+  const aba = (chave: AcompStatus | null, rotulo: string, qtd: number, tom?: Tone) => {
+    const sel = ativo === chave;
+    return (
+      <button
+        key={chave ?? "todos"}
+        type="button"
+        role="tab"
+        aria-selected={sel}
+        onClick={() => onMudar(chave)}
+        title={chave ? STATUS_INFO[chave].regra : undefined}
+        className="acomp-aba"
+        style={{ color: sel ? ds.white : qtd === 0 ? ds.dim : ds.text2, borderBottomColor: sel ? ds.green : "transparent" }}
       >
-        <div style={{ width: `${escopo}%`, height: "100%", borderRadius: 3, background: ds.violet }} />
-        <span title={`${Math.round(prazo)}% do prazo`} style={{ position: "absolute", top: -3, left: `calc(${prazo}% - 1px)`, width: 2, height: 12, borderRadius: 1, background: atrasado ? ds.amber : ds.text2 }} />
-      </div>
-      <span style={apagado}>{Math.round(escopo)}% do escopo · {Math.round(prazo)}% do prazo</span>
+        {tom && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: qtd === 0 ? ds.dim : corDoTom(tom) }} />}
+        {rotulo}
+        <span style={{ ...mono, fontSize: 12.5, color: sel ? ds.text2 : ds.muted }}>{qtd}</span>
+      </button>
+    );
+  };
+  return (
+    <div role="tablist" aria-label="Filtrar por status" className="acomp-abas">
+      {aba(null, "Todos", total)}
+      {STATUS_ORDEM.map((s) => aba(s, STATUS_INFO[s].nome, contagem[s], TOM_STATUS[s]))}
     </div>
   );
 }
 
-function Tendencia({ p }: { p: AcompProjetoStatus }) {
-  const anteriores = p.tendencia.filter((t) => !t.parcial);
-  if (anteriores.length === 0) return <span style={apagado}>sem sprint fechada</span>;
+// ── células da linha ──
+
+function Barra({ pct, cor, marca, rotulo }: { pct: number; cor: string; marca?: { pct: number; cor: string; titulo: string }; rotulo: string }) {
+  const v = Math.max(0, Math.min(100, pct));
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 12.5, color: ds.text2 }}>Ritmo</span>
-      <div style={{ display: "flex", gap: 3 }}>
-        {anteriores.slice(-5).map((t) => (
+    <div role="img" aria-label={rotulo} style={{ position: "relative", height: 4, borderRadius: 2, background: "rgba(255, 255, 255, 0.08)" }}>
+      <div style={{ width: `${v}%`, height: "100%", borderRadius: 2, background: cor }} />
+      {marca && (
+        <span title={marca.titulo} style={{ position: "absolute", top: -4, left: `calc(${Math.max(0, Math.min(100, marca.pct))}% - 1px)`, width: 2, height: 12, borderRadius: 1, background: marca.cor }} />
+      )}
+    </div>
+  );
+}
+
+function Celula({ valor, barra, legenda: texto }: { valor: ReactNode; barra?: ReactNode; legenda: ReactNode }) {
+  return (
+    <div className="acomp-celula">
+      <span style={{ ...mono, fontSize: 14, fontWeight: 600, color: ds.white }}>{valor}</span>
+      {barra}
+      <span style={legenda}>{texto}</span>
+    </div>
+  );
+}
+
+function CelulaSprint({ p }: { p: AcompProjetoStatus }) {
+  const pr = p.progresso;
+  if (!p.sprint_atual) return <span className="acomp-celula" style={vazio} data-rotulo="Sprint atual">Nenhuma sprint iniciada</span>;
+  if (!pr || pr.tasks_total === 0) return <span className="acomp-celula" style={vazio} data-rotulo="Sprint atual">Sprint {p.sprint_atual.numero} sem tasks</span>;
+  return (
+    <Celula
+      valor={pr.pct != null ? `${Math.round(pr.pct)}%` : "—"}
+      barra={<Barra pct={pr.pct ?? 0} cor={ds.green} rotulo={`${Math.round(pr.pct ?? 0)}% dos pontos da sprint ${p.sprint_atual.numero} concluídos`} />}
+      legenda={<>S{p.sprint_atual.numero}{p.sprint_atual.fechada ? " fechada" : ""} · {pts(pr.pts_concluidos)}/{pts(pr.pts_previstos)} pts · {pr.tasks_concluidas}/{pr.tasks_total} tasks</>}
+    />
+  );
+}
+
+function CelulaEscopo({ p }: { p: AcompProjetoStatus }) {
+  if (p.pct_prazo == null || p.pct_escopo == null) {
+    const semEscopo = p.sinais.some((s) => s.codigo === "sem_funcionalidades");
+    return <span className="acomp-celula" style={vazio}>{semEscopo ? "Escopo vazio" : "Sem datas do contrato"}</span>;
+  }
+  const atrasado = p.pct_prazo > p.pct_escopo;
+  return (
+    <Celula
+      valor={`${Math.round(p.pct_escopo)}%`}
+      barra={
+        <Barra
+          pct={p.pct_escopo} cor={ds.violet}
+          marca={{ pct: p.pct_prazo, cor: atrasado ? ds.amber : ds.text2, titulo: `${Math.round(p.pct_prazo)}% do prazo` }}
+          rotulo={`${Math.round(p.pct_escopo)}% do escopo aprovado, ${Math.round(p.pct_prazo)}% do prazo consumido`}
+        />
+      }
+      legenda={<span style={{ color: atrasado ? ds.amber : undefined }}>{Math.round(p.pct_prazo)}% do prazo passou</span>}
+    />
+  );
+}
+
+function CelulaRitmo({ p }: { p: AcompProjetoStatus }) {
+  const fechadas = p.tendencia.filter((t) => !t.parcial).slice(-5);
+  if (fechadas.length === 0) return <span className="acomp-celula" style={vazio}>—</span>;
+  const ultima = fechadas[fechadas.length - 1];
+  return (
+    <div className="acomp-celula">
+      <span style={{ ...mono, fontSize: 14, fontWeight: 600, color: ultima.spi != null ? corDoSpi(ultima.spi) : ds.dim }}>
+        {ultima.spi != null ? num(ultima.spi) : "—"}
+      </span>
+      <span style={{ display: "flex", gap: 3, alignItems: "flex-end", height: 12 }} aria-hidden="true">
+        {fechadas.map((t) => (
           <span
             key={t.numero}
-            title={`Sprint ${t.numero} · SPI ${t.spi != null ? num(t.spi) : "sem dado"}${t.meta_batida ? " · meta batida" : ""}`}
-            style={{ width: 14, height: 14, borderRadius: 3, background: corDoSpi(t.spi), opacity: t.spi == null ? 0.5 : 1 }}
+            title={`Sprint ${t.numero} · SPI ${t.spi != null ? num(t.spi) : "sem dado"}`}
+            style={{ width: 8, height: t.spi == null ? 3 : Math.max(3, Math.min(12, t.spi * 12)), borderRadius: 1, background: corDoSpi(t.spi) }}
           />
         ))}
-      </div>
-      <span style={apagado}>SPI das fechadas</span>
+      </span>
+      <span style={legenda}>SPI de S{ultima.numero}</span>
     </div>
+  );
+}
+
+/** Pendências como texto: marcador pequeno pela gravidade, sem pílula. */
+function Pendencias({ sinais }: { sinais: AcompSinal[] }) {
+  return (
+    <ul className="acomp-pendencias" aria-label="Pendências">
+      {sinais.map((s) => {
+        const pe = pendencia(s);
+        return (
+          <li key={s.codigo} title={`${pe.explicacao}${pe.quem ? ` Quem resolve: ${pe.quem}.` : ""}`}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 1.5, flexShrink: 0, background: corDoTom(pe.tom) }} />
+            <span style={{ color: pe.tom === "red" ? ds.text : ds.text2 }}>{pe.titulo}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
 function ProjetoLinha({ p, onAbrir }: { p: AcompProjetoStatus; onAbrir: () => void }) {
   return (
-    <li style={{ listStyle: "none" }}>
-      <button type="button" onClick={onAbrir} className="acomp-linha" aria-label={`Abrir ${p.nome ?? "projeto"}: ${STATUS_INFO[p.status].nome}`}>
-        <span style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
-          <span style={{ paddingTop: 6 }}><StatusDot tone={TOM_STATUS[p.status]} /></span>
+    <li>
+      <button type="button" onClick={onAbrir} className="acomp-cols acomp-linha" aria-label={`Abrir ${p.nome ?? "projeto"}: ${STATUS_INFO[p.status].nome}`}>
+        <span className="acomp-nome">
+          <span style={{ paddingTop: 7 }}><StatusDot tone={TOM_STATUS[p.status]} /></span>
           <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: ds.white, overflowWrap: "anywhere" }}>{p.nome ?? "Projeto"}</span>
-            <span style={apagado}>
+            <span style={legenda}>
               {p.gerente && p.gerente !== "Sem gerente" ? nomeCurto(p.gerente) : "sem gerente"}
               {p.cliente ? ` · ${p.cliente}` : ""}
             </span>
           </span>
         </span>
-        <BarraSprint p={p} />
-        <PrazoEscopo p={p} />
-        <Tendencia p={p} />
-        <span aria-hidden="true" className="acomp-seta">›</span>
-        {p.sinais.length > 0 && (
-          <span className="acomp-pendencias">
-            {p.sinais.map((s) => {
-              const pe = pendencia(s);
-              return <span key={s.codigo} title={`${pe.explicacao}${pe.quem ? ` Quem resolve: ${pe.quem}.` : ""}`}><Chip tone={pe.tom}>{pe.titulo}</Chip></span>;
-            })}
-          </span>
-        )}
+        <CelulaSprint p={p} />
+        <CelulaEscopo p={p} />
+        <CelulaRitmo p={p} />
+        <span aria-hidden="true" className="acomp-seta">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        {p.sinais.length > 0 && <Pendencias sinais={p.sinais} />}
       </button>
     </li>
   );
@@ -183,37 +215,42 @@ function PorGerente({ projetos, onFiltrar }: { projetos: AcompProjetoStatus[]; o
       .sort((a, b) => (a.nome === "Sem gerente" ? 1 : 0) - (b.nome === "Sem gerente" ? 1 : 0) || b.criticos - a.criticos || b.atencao - a.atencao || a.nome.localeCompare(b.nome));
   }, [projetos]);
 
+  const num0 = (v: number, cor: string) => <span style={{ ...mono, color: v > 0 ? cor : ds.dim }}>{v}</span>;
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+      <table className="acomp-tabela">
         <thead>
           <tr>
-            {["Gerente", "Projetos", "Sprint atual", "Críticos", "Atenção", "Travadas", "Pendências"].map((h, i) => (
-              <th key={h} scope="col" style={{ ...labelStyle, textAlign: i === 0 ? "left" : i === 2 ? "left" : "right", padding: "0 10px 10px", whiteSpace: "nowrap" }}>{h}</th>
-            ))}
+            <th scope="col" style={{ textAlign: "left" }}>Gerente</th>
+            <th scope="col">Projetos</th>
+            <th scope="col" style={{ textAlign: "left", minWidth: 180 }}>Sprint atual</th>
+            <th scope="col">Críticos</th>
+            <th scope="col">Atenção</th>
+            <th scope="col">Travadas</th>
+            <th scope="col">Pendências</th>
           </tr>
         </thead>
         <tbody>
           {grupos.map((g) => (
-            <tr key={g.nome} style={{ borderTop: `1px solid ${ds.border}` }}>
-              <td style={{ padding: "10px" }}>
-                <button type="button" onClick={() => onFiltrar(g.nome)} title="Ver só os projetos deste gerente" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 600, color: ds.white, textAlign: "left" }}>
+            <tr key={g.nome}>
+              <td style={{ textAlign: "left" }}>
+                <button type="button" onClick={() => onFiltrar(g.nome)} title="Ver só os projetos deste gerente" className="acomp-link">
                   {g.nome === "Sem gerente" ? g.nome : nomeCurto(g.nome)}
                 </button>
               </td>
-              <td style={{ ...mono, padding: "10px", textAlign: "right", color: ds.text2 }}>{g.projetos.length}</td>
-              <td style={{ padding: "10px", minWidth: 140 }}>
-                {g.pct == null ? <span style={apagado}>sem tasks</span> : (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ flex: 1 }}><ProgressBar pct={g.pct} label={`Progresso médio de ${g.nome}`} /></span>
-                    <span style={{ ...mono, fontSize: 12, color: ds.text2 }}>{Math.round(g.pct)}%</span>
+              <td><span style={{ ...mono, color: ds.text2 }}>{g.projetos.length}</span></td>
+              <td style={{ textAlign: "left" }}>
+                {g.pct == null ? <span style={vazio}>sem tasks</span> : (
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ flex: 1 }}><Barra pct={g.pct} cor={ds.green} rotulo={`${Math.round(g.pct)}% dos pontos concluídos`} /></span>
+                    <span style={{ ...mono, fontSize: 12.5, color: ds.text2, width: 36, textAlign: "right" }}>{Math.round(g.pct)}%</span>
                   </span>
                 )}
               </td>
-              <td style={{ ...mono, padding: "10px", textAlign: "right", color: g.criticos > 0 ? ds.red : ds.dim }}>{g.criticos}</td>
-              <td style={{ ...mono, padding: "10px", textAlign: "right", color: g.atencao > 0 ? ds.amber : ds.dim }}>{g.atencao}</td>
-              <td style={{ ...mono, padding: "10px", textAlign: "right", color: g.travadas > 0 ? ds.amber : ds.dim }}>{g.travadas}</td>
-              <td style={{ ...mono, padding: "10px", textAlign: "right", color: g.pendencias > 0 ? ds.text2 : ds.dim }}>{g.pendencias}</td>
+              <td>{num0(g.criticos, ds.red)}</td>
+              <td>{num0(g.atencao, ds.amber)}</td>
+              <td>{num0(g.travadas, ds.amber)}</td>
+              <td>{num0(g.pendencias, ds.text2)}</td>
             </tr>
           ))}
         </tbody>
@@ -227,60 +264,75 @@ function PorGerente({ projetos, onFiltrar }: { projetos: AcompProjetoStatus[]; o
 function Legenda() {
   return (
     <details className="acomp-legenda">
-      <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: ds.text2 }}>O que significa cada status e pendência</summary>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 20, marginTop: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <span style={labelStyle}>Status</span>
+      <summary>O que significa cada status e pendência</summary>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: "24px 40px", marginTop: 20 }}>
+        <dl style={{ margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
           {STATUS_ORDEM.map((s) => (
-            <div key={s} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: ds.white }}><StatusDot tone={TOM_STATUS[s]} />{STATUS_INFO[s].nome}</span>
-              <span style={{ fontSize: 13, lineHeight: 1.5, color: ds.muted }}>{STATUS_INFO[s].regra}</span>
+            <div key={s}>
+              <dt style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: ds.white }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: corDoTom(TOM_STATUS[s]) }} />{STATUS_INFO[s].nome}
+              </dt>
+              <dd style={{ margin: "4px 0 0 15px", fontSize: 13, lineHeight: 1.5, color: ds.muted }}>{STATUS_INFO[s].regra}</dd>
             </div>
           ))}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <span style={labelStyle}>Pendências</span>
+        </dl>
+        <dl style={{ margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
           {Object.entries(PENDENCIAS).map(([codigo, p]) => (
-            <div key={codigo} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: ds.white }}>{p.titulo(codigo === "travadas" ? "1 travada" : codigo === "spi_critico" ? "SPI 0,6" : "")}</span>
-              <span style={{ fontSize: 13, lineHeight: 1.5, color: ds.muted }}>{p.explicacao} <span style={{ color: ds.text2 }}>Quem resolve: {p.quem}.</span></span>
+            <div key={codigo}>
+              <dt style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: ds.white }}>
+                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 1.5, background: corDoTom(p.tom) }} />
+                {p.titulo(codigo === "travadas" ? "2 travadas" : codigo === "spi_critico" ? "SPI 0,6" : "")}
+              </dt>
+              <dd style={{ margin: "4px 0 0 14px", fontSize: 13, lineHeight: 1.5, color: ds.muted }}>
+                {p.explicacao} <span style={{ color: ds.text2 }}>Quem resolve: {p.quem}.</span>
+              </dd>
             </div>
           ))}
-        </div>
+        </dl>
       </div>
     </details>
   );
 }
 
-function Bloco({ titulo, extra, children }: { titulo: string; extra?: ReactNode; children: ReactNode }) {
-  return (
-    <Card>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: ds.white }}>{titulo}</h2>
-          {extra}
-        </div>
-        {children}
-      </div>
-    </Card>
-  );
-}
+const painel: CSSProperties = { ...cardStyle, boxShadow: "none", borderRadius: 14 };
 
 const CSS = `
-.acomp-linha{display:grid;grid-template-columns:minmax(200px,1.4fr) minmax(170px,1fr) minmax(150px,1fr) 96px 16px;gap:8px 24px;align-items:center;
-  width:100%;text-align:left;background:none;border:none;border-top:1px solid ${ds.border};padding:16px 4px;cursor:pointer;font-family:inherit;color:${ds.text};border-radius:0}
+.acomp-abas{display:flex;gap:4px;overflow-x:auto;padding:0 20px;border-bottom:1px solid ${ds.border}}
+.acomp-aba{display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 12px;background:none;border:none;border-bottom:2px solid transparent;
+  margin-bottom:-1px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.acomp-aba:hover{color:${ds.white} !important}
+.acomp-aba:focus-visible{outline:2px solid ${ds.green};outline-offset:-4px;border-radius:6px}
+.acomp-cols{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(170px,1fr) minmax(170px,1fr) 110px 16px;column-gap:32px}
+.acomp-cabecalho{padding:14px 24px 10px}
+.acomp-cabecalho span{font-family:${ds.fontMono};font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${ds.dim}}
+.acomp-lista{list-style:none;margin:0;padding:0}
+.acomp-linha{row-gap:12px;align-items:center;width:100%;text-align:left;
+  background:none;border:none;border-top:1px solid ${ds.border};padding:18px 24px;cursor:pointer;font-family:inherit;color:${ds.text};transition:background .15s}
 .acomp-linha:hover{background:rgba(255,255,255,0.025)}
-.acomp-linha:focus-visible{outline:2px solid ${ds.green};outline-offset:2px;border-radius:8px}
-.acomp-seta{color:${ds.dim};font-size:20px;line-height:1;justify-self:end}
+.acomp-linha:focus-visible{outline:2px solid ${ds.green};outline-offset:-2px}
+.acomp-nome{display:flex;gap:12px;align-items:flex-start;min-width:0}
+.acomp-celula{display:flex;flex-direction:column;gap:7px;min-width:0}
+.acomp-seta{color:${ds.dim};display:flex;justify-content:flex-end}
 .acomp-linha:hover .acomp-seta{color:${ds.text2}}
-.acomp-pendencias{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap;padding-left:17px}
-.acomp-resumo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.acomp-legenda summary::marker{color:${ds.dim}}
+.acomp-pendencias{grid-column:1 / -1;list-style:none;margin:0;padding:0 0 0 19px;display:flex;flex-wrap:wrap;gap:6px 20px}
+.acomp-pendencias li{display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.acomp-tabela{width:100%;border-collapse:collapse;font-size:13.5px}
+.acomp-tabela th{font-family:${ds.fontMono};font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${ds.dim};font-weight:500;
+  text-align:right;padding:0 12px 10px;white-space:nowrap}
+.acomp-tabela td{text-align:right;padding:12px;border-top:1px solid ${ds.border}}
+.acomp-tabela th:first-child,.acomp-tabela td:first-child{padding-left:0}
+.acomp-tabela th:last-child,.acomp-tabela td:last-child{padding-right:0}
+.acomp-link{background:none;border:none;padding:0;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;color:${ds.white};text-align:left}
+.acomp-link:hover{color:${ds.green}}
+.acomp-legenda summary{cursor:pointer;font-size:13.5px;font-weight:600;color:${ds.text2};list-style:none;display:flex;align-items:center;gap:8px}
+.acomp-legenda summary::-webkit-details-marker{display:none}
+.acomp-legenda summary::before{content:"";width:6px;height:6px;border-right:1.5px solid ${ds.muted};border-bottom:1.5px solid ${ds.muted};transform:rotate(-45deg);transition:transform .15s}
+.acomp-legenda[open] summary::before{transform:rotate(45deg)}
 @media (max-width: 900px){
-  .acomp-linha{grid-template-columns:1fr 1fr;gap:12px 16px}
-  .acomp-linha > :first-child{grid-column:1 / -1}
+  .acomp-cabecalho{display:none !important}
+  .acomp-linha{grid-template-columns:1fr 1fr;row-gap:14px;column-gap:20px;padding:16px 20px}
+  .acomp-linha > .acomp-nome,.acomp-pendencias{grid-column:1 / -1}
   .acomp-seta{display:none}
-  .acomp-resumo{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 `;
 
@@ -348,6 +400,7 @@ export default function AcompanhamentoPage() {
   };
   const k = dados?.kpis;
   const contagem: Record<AcompStatus, number> = { critico: k?.criticos ?? 0, atencao: k?.atencao ?? 0, sem_dados: k?.sem_dados ?? 0, saudavel: k?.saudaveis ?? 0 };
+  const forte = (t: ReactNode) => <strong style={{ ...mono, fontWeight: 600, color: ds.white }}>{t}</strong>;
 
   return (
     <>
@@ -374,50 +427,38 @@ export default function AcompanhamentoPage() {
       {dados && k && (
         k.projetos === 0 ? <EmptyState>{gerente ? "Nenhum projeto com este filtro." : "Nenhum projeto nesta subárea."}</EmptyState> : (
           <>
-            <section aria-label="Resumo da carteira" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="acomp-resumo">
-                {STATUS_ORDEM.map((s) => (
-                  <FiltroStatus key={s} status={s} qtd={contagem[s]} ativo={statusFiltro === s} onClick={() => setStatusFiltro((f) => (f === s ? null : s))} />
-                ))}
-              </div>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: ds.text2 }}>
-                {carteira.pct != null
-                  ? <>Nas sprints atuais, <strong style={{ color: ds.white }}>{Math.round(carteira.pct)}%</strong> dos pontos planejados já foram concluídos ({pts(carteira.conc)} de {pts(carteira.prev)}).</>
-                  : "Nenhuma sprint atual com tasks planejadas."}
-                {" "}<span style={{ color: carteira.travadas > 0 ? ds.amber : ds.muted }}>{plural(carteira.travadas, "task travada", "tasks travadas")}</span>
-                {carteira.aguardando > 0 && <> · <span style={{ color: ds.violet }}>{carteira.aguardando} aguardando aprovação</span></>}
-                {" · "}<span style={{ color: carteira.semMeta > 0 ? ds.amber : ds.muted }}>{plural(carteira.semMeta, "projeto sem meta", "projetos sem meta")}</span>
-                {k.metas_fechadas > 0 ? <> · metas batidas na última sprint fechada: {k.metas_batidas} de {k.metas_fechadas}</> : null}
-              </p>
-            </section>
+            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: ds.muted, maxWidth: "75ch" }}>
+              {carteira.pct != null
+                ? <>Nas sprints atuais, {forte(`${Math.round(carteira.pct)}%`)} dos pontos planejados já foram concluídos ({pts(carteira.conc)} de {pts(carteira.prev)}).</>
+                : "Nenhuma sprint atual com tasks planejadas."}{" "}
+              {forte(carteira.travadas)} {carteira.travadas === 1 ? "task travada" : "tasks travadas"}, {forte(carteira.aguardando)} aguardando aprovação
+              {" "}e {forte(carteira.semMeta)} {carteira.semMeta === 1 ? "projeto sem meta" : "projetos sem meta"}.
+              {k.metas_fechadas > 0 ? <> Metas batidas na última sprint fechada: {forte(`${k.metas_batidas} de ${k.metas_fechadas}`)}.</> : null}
+            </p>
 
-            <Bloco
-              titulo={statusFiltro ? `Projetos · ${STATUS_INFO[statusFiltro].nome}` : "Projetos"}
-              extra={
-                <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  {statusFiltro && (
-                    <button type="button" onClick={() => setStatusFiltro(null)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: ds.green }}>
-                      Ver todos
-                    </button>
-                  )}
-                  <span style={apagado}>{plural(visiveis.length, "projeto", "projetos")} · clique para ver o detalhe</span>
-                </span>
-              }
-            >
+            <section aria-label="Projetos" style={painel}>
+              <Abas contagem={contagem} total={k.projetos} ativo={statusFiltro} onMudar={setStatusFiltro} />
               {visiveis.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 14, color: ds.muted }}>Nenhum projeto com este status.</p>
+                <p style={{ margin: 0, padding: "28px 24px", fontSize: 14, color: ds.muted }}>Nenhum projeto com este status.</p>
               ) : (
-                <ul style={{ margin: 0, padding: 0, display: "flex", flexDirection: "column" }}>
+                <ul className="acomp-lista">
+                  <li aria-hidden="true" className="acomp-cols acomp-cabecalho">
+                    <span>Projeto</span><span>Sprint atual</span><span>Escopo × prazo</span><span>Ritmo</span><span />
+                  </li>
                   {visiveis.map((p) => <ProjetoLinha key={p.id} p={p} onAbrir={() => setProjetoAberto(p.id)} />)}
                 </ul>
               )}
-            </Bloco>
+            </section>
 
-            <Bloco titulo="Por gerente" extra={<span style={apagado}>clique no nome para filtrar</span>}>
+            <section aria-labelledby="acomp-por-gerente" style={{ ...painel, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <h2 id="acomp-por-gerente" style={{ margin: 0, fontSize: 16, fontWeight: 600, color: ds.white }}>Por gerente</h2>
+                <span style={legenda}>Clique no nome para ver só os projetos dele</span>
+              </div>
               <PorGerente projetos={projetos} onFiltrar={filtrarPorGerente} />
-            </Bloco>
+            </section>
 
-            <Card><Legenda /></Card>
+            <section style={{ ...painel, padding: "18px 24px" }}><Legenda /></section>
           </>
         )
       )}

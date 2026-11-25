@@ -7,8 +7,8 @@ const ler = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 test("dashboard de acompanhamento: filtro por status, lista de projetos com progresso, por gerente e legenda", () => {
   const p = ler("app/acompanhamento/page.tsx");
   for (const s of ["Acompanhamento dos projetos", "Projetos", "Por gerente", "Todos os gerentes", "O que significa cada status e pendência",
-                   "dos pontos planejados já foram concluídos", "aria-pressed", "Nenhum projeto com este status.", "Escopo vazio",
-                   "Sem datas do contrato", "sem sprint fechada", "Nenhuma sprint iniciada"]) assert.ok(p.includes(s), s);
+                   "dos pontos planejados já foram concluídos", "aria-selected", "Nenhum projeto com este status.", "Escopo vazio",
+                   "Sem datas do contrato", "Escopo × prazo", "Nenhuma sprint iniciada"]) assert.ok(p.includes(s), s);
 });
 
 test("pendências e status têm explicação e quem resolve", () => {
@@ -51,7 +51,7 @@ test("painel de detalhe do projeto", () => {
 
 test("SPI parcial da sprint aberta, projeto sem funcionalidades e estados sem dado", () => {
   const p = ler("app/acompanhamento/page.tsx");
-  for (const s of ["SPI das fechadas", "Atualizando...", "!t.parcial"]) assert.ok(p.includes(s), s);
+  for (const s of ["SPI de S", "Atualizando...", "!t.parcial"]) assert.ok(p.includes(s), s);
   assert.ok(/metas_fechadas > 0 \?/.test(p), "metas sem fechadas não aparecem");
   assert.ok(!/const carregar[\s\S]{0,200}setDados\(null\)/.test(p), "recarregar não esvazia o dashboard");
   const d = ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx");
