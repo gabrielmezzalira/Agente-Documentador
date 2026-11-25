@@ -40,3 +40,18 @@ def test_recalculo_diario_inclui_task_pta(monkeypatch):
     monkeypatch.setattr(ap, "recalcular_tudo", lambda c: None)
     ap.recalcular_diario()
     assert sorted(criadas) == ["t1", "t2"]
+
+
+import pytest
+
+
+@pytest.mark.parametrize("status", ["em_revisao", "provisoria", "aplicada", "manual"])
+def test_toda_task_concluida_treina_mesmo_com_nivel_em_revisao(status):
+    # O tempo que a task leva diz muito sobre o nível real dela: revisão pendente não tira a task do treino.
+    fake = _com_projeto("pta")
+    fake.tables["task_classificacoes"][0]["status"] = status
+    ap.registrar_conclusao(fake, "t1")
+    ex = fake.tables["task_aprendizado"][0]
+    assert ex["tempo_limpo_s"] == 4 * 3600
+    params = {(p["tipo"], p["chave"]): p["valor"] for p in fake.tables["classificador_parametros"]}
+    assert params[("media_nivel", "3")] == 4 * 3600
