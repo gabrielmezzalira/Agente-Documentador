@@ -683,6 +683,7 @@ def test_lista_traz_progresso_pendencias_e_tendencia(monkeypatch, autenticar):
     assert alfa["gerente"] == "Ana" and alfa["sprint_atual"]["numero"] == 2
     assert alfa["progresso"]["pts_previstos"] == 6 and alfa["progresso"]["pts_concluidos"] == 3 and alfa["progresso"]["pct"] == 50.0
     assert (alfa["funcs_planejadas"], alfa["meta_total"], alfa["travadas"]) == (2, 1, 1)
+    assert [(f["id_funcional"], f["aprovada"]) for f in alfa["meta_funcionalidades"]] == [("F3", False)]
     assert [t["numero"] for t in alfa["tendencia"]] == [1, 2] and alfa["tendencia"][-1]["parcial"] is True
     assert {"codigo", "texto"} == set(alfa["sinais"][0])
     gama = next(p for p in j["projetos"] if p["nome"] == "Gama")

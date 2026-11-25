@@ -58,3 +58,11 @@ test("SPI parcial da sprint aberta, projeto sem funcionalidades e estados sem da
   for (const s of ["SPI da sprint atual (parcial)", "SPI da última sprint fechada", "sem funcionalidades", "setEventos(null)"]) assert.ok(d.includes(s), s);
   assert.ok(d.includes("f.pct_tasks != null && <ProgressBar"), "barra omitida sem pct_tasks");
 });
+
+test("aba Indicadores e metas: números, meta da sprint atual e histórico", () => {
+  const p = ler("app/acompanhamento/page.tsx");
+  for (const s of ["Indicadores e metas", "<Indicadores"]) assert.ok(p.includes(s), s);
+  const i = ler("app/components/acompanhamento/Indicadores.tsx");
+  for (const s of ["Metas batidas", "SPI médio", "Funcionalidades entregues", "Tasks travadas", "Meta da sprint atual",
+                   "Meta não definida", "Histórico de metas", "meta batida", "sprint em andamento", "meta_funcionalidades"]) assert.ok(i.includes(s), s);
+});

@@ -1187,6 +1187,14 @@ class AcompSprintRefResumo(BaseModel):
     fechada: bool
 
 
+class AcompMetaFuncResumo(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+    aprovada: bool
+    pct_tasks: Optional[float] = None
+
+
 class AcompProjetoStatus(BaseModel):
     id: str
     nome: Optional[str] = None
@@ -1203,6 +1211,7 @@ class AcompProjetoStatus(BaseModel):
     funcs_planejadas_entregues: int = 0
     meta_total: int = 0
     meta_entregues: int = 0
+    meta_funcionalidades: list[AcompMetaFuncResumo] = []
     pct_prazo: Optional[float] = None
     pct_escopo: Optional[float] = None
     travadas: int = 0

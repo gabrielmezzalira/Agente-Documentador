@@ -523,6 +523,8 @@ def resumo_do_projeto(i: dict, gerente: str) -> dict:
         "funcs_planejadas": i.get("_funcs_na_sprint", i["planejado"]["funcs_planejadas"]),
         "funcs_planejadas_entregues": i["planejado"]["funcs_planejadas_entregues"],
         "meta_total": i["meta"]["total"], "meta_entregues": i["meta"]["entregues"],
+        "meta_funcionalidades": [{"id": f["id"], "id_funcional": f["id_funcional"], "titulo": f["titulo"],
+                                  "aprovada": f["aprovada"], "pct_tasks": f["pct_tasks"]} for f in i["meta"]["funcionalidades"]],
         "pct_prazo": pct_prazo, "pct_escopo": pct_escopo, "travadas": i["saude"]["tasks_travadas"],
         "tendencia": [{"numero": m["numero"], "spi": m["spi"], "parcial": m["parcial"], "meta_batida": m["meta_batida"]}
                       for m in i["_mapa"] if m["numero"] is not None],

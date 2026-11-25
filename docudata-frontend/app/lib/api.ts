@@ -2631,6 +2631,7 @@ export interface AcompProjetoStatus {
   funcs_planejadas_entregues: number;
   meta_total: number;
   meta_entregues: number;
+  meta_funcionalidades: { id: string; id_funcional: string | null; titulo: string | null; aprovada: boolean; pct_tasks: number | null }[];
   pct_prazo: number | null;
   pct_escopo: number | null;
   travadas: number;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useAuth } from "../components/AuthGuard";
+import Indicadores from "../components/acompanhamento/Indicadores";
 import ProjetoDetalhePainel from "../components/acompanhamento/ProjetoDetalhePainel";
 import {
   ORDEM_STATUS, PENDENCIAS, STATUS_INFO, TOM_STATUS, corDoSpi, num, pendencia, pts,
@@ -342,6 +343,7 @@ export default function AcompanhamentoPage() {
   const [subarea, setSubarea] = useState<Subarea>("dados");
   const [gerente, setGerente] = useState(""); // "" = todos; "sem" = sem gerente; senão, e-mail
   const [statusFiltro, setStatusFiltro] = useState<AcompStatus | null>(null);
+  const [visao, setVisao] = useState<"projetos" | "indicadores">("projetos");
   const [dados, setDados] = useState<AcompanhamentoResponse | null>(null);
   const [gerentes, setGerentes] = useState<AcompGerente[]>([]); // sobrevive ao recarregar, para o select não esvaziar
   const [erro, setErro] = useState("");
@@ -427,6 +429,13 @@ export default function AcompanhamentoPage() {
       {dados && k && (
         k.projetos === 0 ? <EmptyState>{gerente ? "Nenhum projeto com este filtro." : "Nenhum projeto nesta subárea."}</EmptyState> : (
           <>
+            <SegmentedControl
+              label="Visão"
+              options={[{ value: "projetos", label: "Projetos" }, { value: "indicadores", label: "Indicadores e metas" }]}
+              value={visao}
+              onChange={setVisao}
+            />
+            {visao === "indicadores" ? <Indicadores dados={dados} projetos={projetos} onAbrir={setProjetoAberto} /> : <>
             <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: ds.muted, maxWidth: "75ch" }}>
               {carteira.pct != null
                 ? <>Nas sprints atuais, {forte(`${Math.round(carteira.pct)}%`)} dos pontos planejados já foram concluídos ({pts(carteira.conc)} de {pts(carteira.prev)}).</>
@@ -457,6 +466,8 @@ export default function AcompanhamentoPage() {
               </div>
               <PorGerente projetos={projetos} onFiltrar={filtrarPorGerente} />
             </section>
+
+            </>}
 
             <section style={{ ...painel, padding: "18px 24px" }}><Legenda /></section>
           </>
