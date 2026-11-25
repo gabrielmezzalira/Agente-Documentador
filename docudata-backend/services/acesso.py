@@ -130,7 +130,7 @@ def gerentes_por_projeto(client) -> dict[str, list[dict]]:
     for v in vinculos:
         p = por_id.get(v["pessoa_id"])
         if p and p.get("email"):
-            saida.setdefault(v["project_id"], []).append({"nome": p.get("nome") or p["email"], "email": p["email"]})
+            saida.setdefault(v["project_id"], []).append({"nome": " ".join((p.get("nome") or "").split()) or p["email"], "email": p["email"]})
     return saida
 
 
