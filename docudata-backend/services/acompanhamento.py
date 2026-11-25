@@ -9,6 +9,7 @@ from statistics import quantiles
 from routers.painel import calcular_bloco_a
 from services.status_projeto import ORDEM_STATUS, diagnostico, motivos, sinais_do_projeto, status_de
 from services import piso as piso_svc
+from services.acesso import gerentes_por_projeto
 from services.metas import _lotes, funcionalidade_entregue, metas_das_sprints, resultado_meta
 from services.supabase_paginacao import ler_tudo
 
@@ -319,6 +320,13 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
     projetos = ler_tudo(lambda: client.table("projects")
                         .select("id, name, client, data_inicio, data_fim_contratada, tolerancia_desvio_pontos, gerente_email")
                         .eq("subarea", subarea).order("id"))
+    # O gerente do projeto vem dos vínculos (projeto_gerentes); o e-mail de lembrete
+    # antigo só vale quando não há vínculo.
+    vinculados = gerentes_por_projeto(client)
+    for p in projetos:
+        lista = vinculados.get(p["id"])
+        if lista:
+            p["gerente_email"] = lista[0]["email"]
     todos = projetos
     if gerente_email:
         alvo = gerente_email.strip().lower()
@@ -372,6 +380,8 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
             horas.setdefault(projeto_da_task[a["task_id"]], []).append(a["tempo_limpo_s"] / 3600)
 
     pessoas = ler_tudo(lambda: client.table("pessoa").select("id, nome, email").order("id"))
+    for p in pessoas:
+        p["nome"] = " ".join((p.get("nome") or "").split())
     por_email = {(p.get("email") or "").lower(): p for p in pessoas}
 
     funcs_por_proj: dict[str, list[dict]] = {}

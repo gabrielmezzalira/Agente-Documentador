@@ -20,6 +20,7 @@ from services.email_service import (
     send_email,
 )
 from core.observability import registrar_falha_interna
+from services.acesso import gerentes_por_projeto
 from services.supabase_client import get_client
 
 log = logging.getLogger("notification_checker")
@@ -72,15 +73,17 @@ def _run_check() -> None:
     now = datetime.now(timezone.utc)
 
     # 1. Busca todos os projetos que têm gerente_email configurado
-    projects_resp = (
-        client.table("projects")
-        .select("id, name, gerente_email")
-        .not_.is_("gerente_email", "null")
-        .execute()
-    )
-    projects = [p for p in (projects_resp.data or []) if p.get("gerente_email")]
+    todos_projetos = client.table("projects").select("id, name, gerente_email").execute().data or []
+    vinculados = gerentes_por_projeto(client)
+    projects = []
+    for p in todos_projetos:
+        emails = [g["email"] for g in vinculados.get(p["id"], [])]
+        if not emails and p.get("gerente_email"):
+            emails = [p["gerente_email"]]
+        if emails:
+            projects.append({**p, "emails": emails})
     if not projects:
-        log.info("Nenhum projeto com gerente_email configurado.")
+        log.info("Nenhum projeto com gerente vinculado.")
         return
 
     project_ids = [p["id"] for p in projects]
@@ -133,7 +136,7 @@ def _run_check() -> None:
         pid = sprint["project_id"]
         sn = sprint["numero"]
         project = project_map[pid]
-        email = project["gerente_email"]
+        emails = project["emails"]
         nome = project["name"]
 
         created_at_str = sprint.get("created_at", "")
@@ -153,7 +156,8 @@ def _run_check() -> None:
             if not _already_sent_today(client, pid, sn, "planning"):
                 try:
                     subject, html = email_planning_lembrete(nome, sn, horas)
-                    send_email(email, subject, html)
+                    for email in emails:
+                        send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "planning")
                     sent_count += 1
                     log.info("Email planning enviado: projeto_id=%s sprint=%s", pid, sn)
@@ -165,7 +169,8 @@ def _run_check() -> None:
             if not _already_sent_today(client, pid, sn, "review"):
                 try:
                     subject, html = email_review_lembrete(nome, sn, dias)
-                    send_email(email, subject, html)
+                    for email in emails:
+                        send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "review")
                     sent_count += 1
                     log.info("Email review enviado: projeto_id=%s sprint=%s", pid, sn)
@@ -177,7 +182,8 @@ def _run_check() -> None:
             if not _already_sent_today(client, pid, sn, "retro"):
                 try:
                     subject, html = email_retro_lembrete(nome, sn, dias)
-                    send_email(email, subject, html)
+                    for email in emails:
+                        send_email(email, subject, html)
                     _mark_sent(client, pid, sn, "retro")
                     sent_count += 1
                     log.info("Email retro enviado: projeto_id=%s sprint=%s", pid, sn)

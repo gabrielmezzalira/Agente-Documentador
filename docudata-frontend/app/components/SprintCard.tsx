@@ -41,6 +41,7 @@ interface Props {
   onDeleteIngestion: (ingestionId: string) => void;
   onMoveIngestion: (ingestionId: string, sprintNumber: number) => void;
   onDeleteSprint: (sprintId: string) => void;
+  onRenameSprint: (sprintId: string, numeroAtual: number) => void;
   onSprintUpdated?: (updated: SprintWithStatus) => void;
   onOpenAvaliacaoSemanal?: (sprint: SprintWithStatus) => void;
 }
@@ -190,6 +191,7 @@ export default function SprintCard({
   onDeleteIngestion,
   onMoveIngestion,
   onDeleteSprint,
+  onRenameSprint,
   onSprintUpdated,
   onOpenAvaliacaoSemanal,
 }: Props) {
@@ -344,6 +346,7 @@ export default function SprintCard({
           title: "Apaga a pontuação travada desta sprint para o gerente corrigir o Kanban e confirmar de novo. As respostas do questionário são mantidas.",
         }]
       : []),
+    { label: "Renomear sprint", onSelect: () => onRenameSprint(sprint.id, sprint.numero) },
     {
       label: "Excluir sprint",
       danger: true,

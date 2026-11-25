@@ -7,6 +7,7 @@ import PropostasMelhoria from "./PropostasMelhoria";
 import { Button as DsButton, Select as DsSelect, ErrorNotice, Chip } from "./ds";
 import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
+import { nomeCurto } from "../lib/nome";
 import {
   listTasksKanban,
   createTaskKanban,
@@ -1328,7 +1329,7 @@ function TaskCard({
         {task.frente && <Chip>{rotuloFrente(task.frente)}</Chip>}
 
         {op && (
-          <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }}>{op.nome}</span>
+          <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }} title={op.nome}>{nomeCurto(op.nome)}</span>
         )}
 
         {/* Fora da fila, task sem dono é anomalia (ninguém recebe o crédito): tem que aparecer. */}

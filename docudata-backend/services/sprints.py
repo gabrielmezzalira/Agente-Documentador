@@ -38,6 +38,26 @@ def ensure_sprint_row(client, project_id: str, numero: int) -> None:
         logger.warning("Falha ao congelar o modo da sprint do projeto %s #%s", project_id, numero, exc_info=True)
 
 
+def renumerar_sprint(client, project_id: str, sprint_id: str, antigo: int, novo: int) -> None:
+    """Troca o número da sprint e de tudo que a referencia por (project_id, número):
+    ingestões, documentos gerados, rascunhos de planning e o sprint_alvo (texto) das
+    funcionalidades. O chamador garante que `novo` está livre no projeto."""
+    if antigo == novo:
+        return
+    client.table("sprints").update({"numero": novo}).eq("id", sprint_id).execute()
+    client.table("ingestions").update({"sprint_number": novo}).eq("project_id", project_id).eq("sprint_number", antigo).execute()
+    client.table("generated_docs").update({"sprint_number": novo}).eq("project_id", project_id).eq("sprint_number", antigo).execute()
+    client.table("planning_rascunhos").update({"sprint_numero": novo}).eq("project_id", project_id).eq("sprint_numero", antigo).execute()
+    client.table("funcionalidades").update({"sprint_alvo": str(novo)}).eq("project_id", project_id).eq("sprint_alvo", str(antigo)).execute()
+
+
+def normalizar_sprint_unica(client, project_id: str) -> None:
+    """Projeto com uma única sprint sempre a chama de Sprint 1."""
+    linhas = client.table("sprints").select("id, numero").eq("project_id", project_id).execute().data or []
+    if len(linhas) == 1 and linhas[0]["numero"] != 1:
+        renumerar_sprint(client, project_id, linhas[0]["id"], linhas[0]["numero"], 1)
+
+
 def congelar_modo_da_sprint(client, sprint_id: str) -> Optional[str]:
     """Grava em sprints.modo_trabalho/modo_avaliacao o modo vigente do projeto
     quando a sprint começa. Só preenche o que ainda está nulo (o snapshot de

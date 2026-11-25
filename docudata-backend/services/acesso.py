@@ -110,6 +110,30 @@ def exigir_acesso_por(client, pessoa: dict, entidade: str, objeto_id: str) -> st
     return project_id
 
 
+def gerentes_por_projeto(client) -> dict[str, list[dict]]:
+    """project_id -> gerentes vinculados ([{nome, email}], do vínculo mais antigo ao mais novo).
+    Vazio se a tabela ainda não existe (pré-v16)."""
+    try:
+        vinculos = (
+            client.table("projeto_gerentes").select("project_id, pessoa_id, criado_em")
+            .order("criado_em").execute().data or []
+        )
+    except Exception as exc:
+        if not _tabela_ausente(exc):
+            raise
+        return {}
+    if not vinculos:
+        return {}
+    pessoas = client.table("pessoa").select("id, nome, email").in_("id", list({v["pessoa_id"] for v in vinculos})).execute().data or []
+    por_id = {p["id"]: p for p in pessoas}
+    saida: dict[str, list[dict]] = {}
+    for v in vinculos:
+        p = por_id.get(v["pessoa_id"])
+        if p and p.get("email"):
+            saida.setdefault(v["project_id"], []).append({"nome": p.get("nome") or p["email"], "email": p["email"]})
+    return saida
+
+
 def vincular_gerente(client, project_id: str, pessoa_id: str, criado_por: str | None) -> None:
     """Idempotente; tolera a tabela ausente (pré-v16)."""
     try:

@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from models.schemas import (
     SprintCreate,
@@ -15,7 +16,12 @@ from services.acesso import exigir_acesso
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.supabase_client import get_client
 from services.previsto_sprint import previsto_da_sprint
-from services.sprints import congelar_modo_da_sprint, iniciar_sprint_e_ancorar_tasks
+from services.sprints import (
+    congelar_modo_da_sprint,
+    iniciar_sprint_e_ancorar_tasks,
+    normalizar_sprint_unica,
+    renumerar_sprint,
+)
 from services.status_funcionalidade import sincronizar_status
 from services.avaliacoes import contar_avaliacao_por_sprint
 
@@ -203,6 +209,32 @@ async def delete_sprint(sprint_id: str, pessoa: dict = Depends(get_current_pesso
     client.table("planning_rascunhos").delete().eq("project_id", project_id).eq("sprint_numero", numero).execute()
 
     client.table("sprints").delete().eq("id", sprint_id).execute()
+    # Sobrou uma sprint só: ela volta a se chamar Sprint 1.
+    normalizar_sprint_unica(client, project_id)
+
+
+class SprintRenumerar(BaseModel):
+    numero: int = Field(ge=1, le=999)
+
+
+@router.patch("/sprints/{sprint_id}/numero", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])
+async def renumerar(sprint_id: str, data: SprintRenumerar, pessoa: dict = Depends(get_current_pessoa)):
+    """Muda o número (o nome) da sprint, levando junto ingestões, documentos e o
+    sprint_alvo das funcionalidades. Recusa número já usado no projeto."""
+    client = get_client()
+    check = client.table("sprints").select("id, project_id, numero").eq("id", sprint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = check.data[0]
+    exigir_acesso(client, pessoa, sprint["project_id"])
+    ocupado = (
+        client.table("sprints").select("id").eq("project_id", sprint["project_id"])
+        .eq("numero", data.numero).neq("id", sprint_id).execute().data
+    )
+    if ocupado:
+        raise HTTPException(status_code=409, detail=f"Já existe a Sprint {data.numero} neste projeto.")
+    renumerar_sprint(client, sprint["project_id"], sprint_id, sprint["numero"], data.numero)
+    return client.table("sprints").select("*").eq("id", sprint_id).execute().data[0]
 
 
 @router.patch("/sprints/{sprint_id}/iniciar", response_model=SprintResponse, dependencies=[Depends(require_not_operacional)])

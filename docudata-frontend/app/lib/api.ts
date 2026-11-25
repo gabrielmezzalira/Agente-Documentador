@@ -857,6 +857,19 @@ export async function getEdicoesAvaliacao(id: string): Promise<AvaliacaoEdicaoIt
   return res.json();
 }
 
+export async function renumberSprint(sprintId: string, numero: number): Promise<Sprint> {
+  const res = await apiFetch(`${API}/sprints/${sprintId}/numero`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ numero }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Erro ao renomear sprint");
+  }
+  return res.json();
+}
+
 export async function deleteSprint(sprintId: string): Promise<void> {
   const res = await apiFetch(`${API}/sprints/${sprintId}`, { method: "DELETE" });
   if (!res.ok) {
