@@ -21,21 +21,11 @@ def _agora() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def projeto_e_pta(client, project_id: str | None) -> bool:
-    """PTA fica fora das métricas reais: não vira exemplo nem calibra parâmetros."""
-    if not project_id:
-        return False
-    rows = client.table("projects").select("id, subarea").eq("id", project_id).execute().data or []
-    return bool(rows) and rows[0].get("subarea") == "pta"
-
-
 def registrar_conclusao(client, task_id: str) -> None:
     resp = client.table("tasks").select("id, project_id, pontos, operacional_id, pull_em, entrou_em_andamento_em, updated_at").eq("id", task_id).execute()
     if not resp.data:
         return
     task = resp.data[0]
-    if projeto_e_pta(client, task.get("project_id")):
-        return
     transicoes = (
         client.table("task_transicoes").select("campo, de, para, timestamp, bloqueio_tipo").eq("task_id", task_id).execute().data or []
     )
@@ -168,9 +158,6 @@ def parametros_vigentes(client) -> dict[tuple[str, str], float]:
 
 
 def registrar_opiniao_operacional(client, task_id: str, nivel: int) -> None:
-    tarefa = client.table("tasks").select("id, project_id").eq("id", task_id).execute().data
-    if tarefa and projeto_e_pta(client, tarefa[0].get("project_id")):
-        return
     def _existe() -> bool:
         return bool(client.table("task_aprendizado").select("task_id").eq("task_id", task_id).execute().data)
 
@@ -204,11 +191,9 @@ def recalcular_diario() -> None:
         from services.supabase_client import get_client
 
         client = get_client()
-        pta = {r["id"] for r in ler_tudo(lambda: client.table("projects").select("id").eq("subarea", "pta").order("id"))}
         concluidas = {
             r["id"]
-            for r in ler_tudo(lambda: client.table("tasks").select("id, project_id").eq("coluna_kanban", "concluida").order("id"))
-            if r.get("project_id") not in pta
+            for r in ler_tudo(lambda: client.table("tasks").select("id").eq("coluna_kanban", "concluida").order("id"))
         }
         com_exemplo = {r["task_id"] for r in ler_tudo(lambda: client.table("task_aprendizado").select("task_id").order("task_id"))}
         for task_id in sorted(concluidas - com_exemplo):
