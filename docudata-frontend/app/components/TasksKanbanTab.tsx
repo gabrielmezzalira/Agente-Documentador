@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
 import PropostasMelhoria from "./PropostasMelhoria";
@@ -1353,6 +1353,43 @@ function TaskCard({
 // ---------------------------------------------------------------------------
 // Main component
 
+/** Container rolável mais próximo (a página do app rola dentro de um elemento, não na janela). */
+function ancestralRolavel(el: HTMLElement | null): HTMLElement | null {
+  for (let n = el?.parentElement ?? null; n; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if ((o === "auto" || o === "scroll") && n.scrollHeight > n.clientHeight) return n;
+  }
+  return null;
+}
+
+/** Enquanto um card é arrastado, rola a tela quando o ponteiro chega perto da borda de cima ou de baixo
+ * (o arrasto nativo não faz isso de forma confiável e as outras colunas ficam fora de vista). */
+function useAutoScrollDuranteArrasto(ativo: boolean, ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!ativo) return;
+    const MARGEM = 110;
+    const VEL_MAX = 26;
+    let y = -1;
+    let raf = 0;
+    const onOver = (e: DragEvent) => { y = e.clientY; };
+    const passo = () => {
+      const alvo = ancestralRolavel(ref.current);
+      const topo = alvo ? alvo.getBoundingClientRect().top : 0;
+      const base = alvo ? alvo.getBoundingClientRect().bottom : window.innerHeight;
+      if (y >= 0) {
+        let dy = 0;
+        if (y < topo + MARGEM) dy = -Math.ceil(VEL_MAX * Math.min(1, (topo + MARGEM - y) / MARGEM));
+        else if (y > base - MARGEM) dy = Math.ceil(VEL_MAX * Math.min(1, (y - (base - MARGEM)) / MARGEM));
+        if (dy !== 0) (alvo ?? document.scrollingElement)?.scrollBy({ top: dy });
+      }
+      raf = requestAnimationFrame(passo);
+    };
+    window.addEventListener("dragover", onOver);
+    raf = requestAnimationFrame(passo);
+    return () => { window.removeEventListener("dragover", onOver); cancelAnimationFrame(raf); };
+  }, [ativo, ref]);
+}
+
 export default function TasksKanbanTab({ projectId, sprints, operacionais, funcionalidades, modoTrabalho, subarea }: Props) {
   const [concluidasAbertas, setConcluidasAbertas] = useState(false);
   const [tasks, setTasks] = useState<TaskKanbanResponse[]>([]);
@@ -1369,6 +1406,8 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
 
   // drag
   const [dragId, setDragId] = useState<string | null>(null);
+  const gradeRef = useRef<HTMLDivElement>(null);
+  useAutoScrollDuranteArrasto(dragId !== null, gradeRef);
   const [wipError, setWipError] = useState("");
 
   // pedido de task extra
@@ -1765,7 +1804,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
       {loading ? (
         <p role="status" style={{ color: "#8a948e", fontSize: 13, margin: 0 }}>Carregando tasks...</p>
       ) : (
-        <div className="ds-tasks-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, alignItems: "start" }}>
+        <div ref={gradeRef} className="ds-tasks-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, alignItems: "start" }}>
           {COLUNAS.map((col) => {
             const colTasks = byColuna(col.id);
             const recolher = col.id === "concluida" && !concluidasAbertas && colTasks.length > CONCLUIDAS_VISIVEIS;

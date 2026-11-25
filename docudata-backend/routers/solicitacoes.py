@@ -18,7 +18,7 @@ from models.schemas import (
     SolicitacaoTaskResponse,
     SolicitacaoTaskResolve,
 )
-from services.acesso import exigir_acesso, exigir_acesso_por
+from services.acesso import emails_da_gerencia, exigir_acesso, exigir_acesso_por
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access
 from services.email_service import email_solicitacao_task, send_email
 from services.sprints import get_current_sprint_id
@@ -102,15 +102,13 @@ def _avisar_gerente(
             sp = client.table("sprints").select("numero").eq("id", sprint_id).execute().data
             sprint_numero = sp[0]["numero"] if sp else None
 
-        gerentes = (
-            client.table("pessoa").select("email").in_("cargo", ["gerente", "lider"]).execute().data or []
-        )
-        if not gerentes:
+        destinatarios = emails_da_gerencia(client, project_id)
+        if not destinatarios:
             return
 
         subject, html = email_solicitacao_task(projeto_nome, operacional_nome, sprint_numero, sugestao)
-        for g in gerentes:
-            send_email(g["email"], subject, html)
+        for email in destinatarios:
+            send_email(email, subject, html)
     except Exception as exc:
         _LOG.warning("notificacao_solicitacao_falhou exc=%s", type(exc).__name__)
 

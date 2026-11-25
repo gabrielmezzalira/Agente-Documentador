@@ -134,6 +134,26 @@ def gerentes_por_projeto(client) -> dict[str, list[dict]]:
     return saida
 
 
+def emails_da_gerencia(client, project_id: str) -> list[str]:
+    """Quem recebe os avisos de gestão do projeto: os gerentes vinculados a ele.
+    Sem nenhum vínculo (ou antes da migração v16), cai para líderes e owners, para o
+    aviso não se perder. Nunca manda para gerente de outro projeto."""
+    emails: list[str] = []
+    try:
+        vinculos = client.table("projeto_gerentes").select("pessoa_id").eq("project_id", project_id).execute().data or []
+        ids = [v["pessoa_id"] for v in vinculos if v.get("pessoa_id")]
+        if ids:
+            pessoas = client.table("pessoa").select("email").in_("id", ids).execute().data or []
+            emails = [p["email"] for p in pessoas if p.get("email")]
+    except Exception as exc:
+        if not _tabela_ausente(exc):
+            raise
+    if not emails:
+        pessoas = client.table("pessoa").select("email").in_("cargo", ["lider", "owner"]).execute().data or []
+        emails = [p["email"] for p in pessoas if p.get("email")]
+    return list(dict.fromkeys(emails))
+
+
 def vincular_gerente(client, project_id: str, pessoa_id: str, criado_por: str | None) -> None:
     """Idempotente; tolera a tabela ausente (pré-v16)."""
     try:

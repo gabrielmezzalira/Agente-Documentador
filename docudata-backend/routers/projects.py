@@ -17,7 +17,7 @@ from models.schemas import (
     GerenteVinculoCreate,
 )
 from core.observability import falha_externa
-from services.acesso import _tabela_ausente, projetos_visiveis, tem_acesso, vincular_gerente
+from services.acesso import _tabela_ausente, emails_da_gerencia, projetos_visiveis, tem_acesso, vincular_gerente
 from services.audit import registrar_auditoria
 from services.auth import get_current_pessoa, require_not_operacional, require_project_access, require_role
 from services.discovery_promocao import promover_validados_do_projeto
@@ -549,12 +549,8 @@ def _avisar_mudanca_para_pull(client, project_id: str, projeto_nome: str) -> Non
             .execute()
             .data or []
         )
-        gerentes = (
-            client.table("pessoa").select("email").in_("cargo", ["gerente", "lider"]).execute().data or []
-        )
-
         destinatarios = {p["email"] for p in operacionais if p.get("email")}
-        destinatarios |= {p["email"] for p in gerentes if p.get("email")}
+        destinatarios |= set(emails_da_gerencia(client, project_id))
         for email in destinatarios:
             send_email(email, subject, html)
     except Exception as exc:

@@ -22,3 +22,8 @@ test("aviso fixo de planejamento incompleto no projeto", () => {
   const p = ler("app/[subarea]/projects/[id]/page.tsx");
   for (const s of ["<PendenciasPlanejamento", 'cargo !== "operacional"', 'setEscopoFiltro("sem_sprint")']) assert.ok(p.includes(s), s);
 });
+
+test("kanban rola a tela sozinho enquanto um card é arrastado", () => {
+  const k = ler("app/components/TasksKanbanTab.tsx");
+  for (const s of ["useAutoScrollDuranteArrasto", "ancestralRolavel", 'addEventListener("dragover"', "gradeRef"]) assert.ok(k.includes(s), s);
+});

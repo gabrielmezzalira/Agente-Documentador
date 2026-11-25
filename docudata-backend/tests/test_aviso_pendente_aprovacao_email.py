@@ -137,3 +137,19 @@ def test_entrar_em_pendente_aprovacao_avisa_gerente(make_client):
     to, subject, html = envios[0]
     assert to == "ger@citi.com"
     assert "Fazer algo" in subject
+
+
+def test_aviso_vai_para_os_gerentes_do_projeto_e_nao_para_todos():
+    from services.acesso import emails_da_gerencia
+    from tests.fake_supabase import FakeClient
+    fake = FakeClient({
+        "projeto_gerentes": [{"project_id": "p1", "pessoa_id": "g1"}, {"project_id": "p2", "pessoa_id": "g2"}],
+        "pessoa": [
+            {"id": "g1", "email": "ana@citi.org.br", "cargo": "gerente"},
+            {"id": "g2", "email": "bruno@citi.org.br", "cargo": "gerente"},
+            {"id": "l1", "email": "lider@citi.org.br", "cargo": "lider"},
+        ],
+    })
+    assert emails_da_gerencia(fake, "p1") == ["ana@citi.org.br"]
+    # projeto sem gerente vinculado: o aviso cai para líderes e owners
+    assert emails_da_gerencia(fake, "p3") == ["lider@citi.org.br"]
