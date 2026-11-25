@@ -25,6 +25,12 @@ const PRIORIDADE_LABEL: Record<string, string> = {
   wont: "Won't",
 };
 
+/** Sprint alvo é obrigatória: número da sprint a partir de 1 ("3" ou "Sprint 3"). */
+function sprintAlvoValida(v: string): boolean {
+  const m = v.trim().match(/^(?:sprint\s*)?(\d+)$/i);
+  return !!m && Number(m[1]) >= 1;
+}
+
 const PRIORIDADE_COLOR: Record<string, string> = {
   must: "#ff6b6b",
   should: "#f2c14e",
@@ -54,9 +60,12 @@ interface Props {
   funcionalidades: FuncionalidadeResponse[];
   onImported: (novas: FuncionalidadeResponse[]) => void;
   onDeleted?: (id: string) => void;
+  onUpdated?: (f: FuncionalidadeResponse) => void;
+  /** Filtro de sprint ao abrir a aba ("sem_sprint" vem do aviso de planejamento incompleto). */
+  filtroInicial?: string;
 }
 
-export default function EscopoTab({ projectId, funcionalidades, onImported, onDeleted }: Props) {
+export default function EscopoTab({ projectId, funcionalidades, onImported, onDeleted, onUpdated, filtroInicial }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [inputMode, setInputMode] = useState<InputMode>("arquivo");
   const [texto, setTexto] = useState("");
@@ -64,6 +73,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
   const [dragging, setDragging] = useState(false);
   const [propostas, setPropostas] = useState<FuncionalidadeProposta[]>([]);
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
+  const [sprintsAlvo, setSprintsAlvo] = useState<Record<number, string>>({});
+  const [sprintParaTodas, setSprintParaTodas] = useState("");
   const [erro, setErro] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -103,6 +114,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     if (!editForm.titulo.trim()) { setErroEdit("Título é obrigatório."); return; }
     const criterios = editForm.criterios_aceite.filter(c => c.trim());
     if (!criterios.length) { setErroEdit("Adicione ao menos um critério de aceite."); return; }
+    if (!sprintAlvoValida(editForm.sprint_alvo)) { setErroEdit("Informe a sprint alvo (número da sprint)."); return; }
     setSavingEdit(true);
     setErroEdit("");
     const original = funcList.find(x => x.id === editingId);
@@ -116,9 +128,10 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
         prioridade: editForm.prioridade,
         responsavel: editForm.responsavel.trim() || undefined,
         status: statusMudou ? editForm.status : undefined,
-        sprint_alvo: editForm.sprint_alvo.trim() || undefined,
+        sprint_alvo: editForm.sprint_alvo.trim(),
       });
       setFuncList(prev => prev.map(f => f.id === atualizada.id ? atualizada : f));
+      onUpdated?.(atualizada);
       setEditingId(null);
     } catch (e: unknown) {
       setErroEdit((e as Error).message);
@@ -142,7 +155,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
   }
 
   // formulário manual
-  const emptyForm = { id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "" };
+  const emptyForm = { id_funcional: "", titulo: "", descricao: "", criterios_aceite: [""], prioridade: "should", responsavel: "", sprint_alvo: "" };
   const [form, setForm] = useState(emptyForm);
   const [savingManual, setSavingManual] = useState(false);
 
@@ -150,6 +163,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     if (!form.titulo.trim()) { setErro("Título é obrigatório."); return; }
     const criterios = form.criterios_aceite.filter(c => c.trim());
     if (!criterios.length) { setErro("Adicione ao menos um critério de aceite."); return; }
+    if (!sprintAlvoValida(form.sprint_alvo)) { setErro("Informe a sprint alvo: em qual sprint esta funcionalidade deve ser entregue."); return; }
     setSavingManual(true);
     setErro("");
     try {
@@ -161,6 +175,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
         criterios_aceite: criterios,
         prioridade: form.prioridade,
         responsavel: form.responsavel.trim() || undefined,
+        sprint_alvo: form.sprint_alvo.trim(),
       });
       setFuncList(prev => [...prev, nova]);
       onImported([nova]);
@@ -206,16 +221,23 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
   }
 
   async function handleConfirmar() {
+    const faltando = [...selecionadas].filter((i) => !sprintAlvoValida(sprintsAlvo[i] ?? ""));
+    if (faltando.length > 0) {
+      setErro(`Informe a sprint alvo de ${faltando.length === 1 ? "1 funcionalidade selecionada" : `${faltando.length} funcionalidades selecionadas`}.`);
+      return;
+    }
     setStep("saving");
     setErro("");
     try {
-      const itens = propostas.map((p, i) => ({ proposta: p, confirmed: selecionadas.has(i) }));
+      const itens = propostas.map((p, i) => ({ proposta: p, confirmed: selecionadas.has(i), sprint_alvo: selecionadas.has(i) ? sprintsAlvo[i].trim() : undefined }));
       const criadas = await confirmarImportacao(projectId, itens);
       onImported(criadas);
       setStep("idle");
       setTexto("");
       setPropostas([]);
       setSelecionadas(new Set());
+      setSprintsAlvo({});
+      setSprintParaTodas("");
     } catch (e: unknown) {
       setErro((e as Error).message);
       setStep("review");
@@ -236,10 +258,12 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
     setArquivo(null);
     setPropostas([]);
     setSelecionadas(new Set());
+    setSprintsAlvo({});
+    setSprintParaTodas("");
     setErro("");
   }
 
-  const [sprintFiltro, setSprintFiltro] = useState<string>("todas");
+  const [sprintFiltro, setSprintFiltro] = useState<string>(filtroInicial ?? "todas");
 
   const totalPorStatus = funcList.reduce<Record<string, number>>((acc, f) => {
     acc[f.status] = (acc[f.status] ?? 0) + 1;
@@ -396,7 +420,7 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: ds.white }}>
                   {propostas.length} funcionalidades encontradas
                 </h3>
-                <p style={{ margin: "4px 0 0", fontSize: 13.5, color: ds.muted }}>Desmarque as que não quer salvar, depois confirme.</p>
+                <p style={{ margin: "4px 0 0", fontSize: 13.5, color: ds.muted }}>Desmarque as que não quer salvar e informe a sprint alvo de cada uma.</p>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <Button variant="ghost" onClick={handleCancelar}>Cancelar</Button>
@@ -407,6 +431,19 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
             </div>
 
             {erro && <ErrorNotice>{erro}</ErrorNotice>}
+
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <Field label="Sprint alvo para todas" htmlFor="import-sprint-todas">
+                <Input id="import-sprint-todas" type="number" min={1} inputMode="numeric" value={sprintParaTodas} onChange={(e) => setSprintParaTodas(e.target.value)} placeholder="Ex: 1" style={{ width: 140 }} />
+              </Field>
+              <Button
+                variant="secondary"
+                disabled={!sprintAlvoValida(sprintParaTodas)}
+                onClick={() => setSprintsAlvo(Object.fromEntries(propostas.map((_, i) => [i, sprintParaTodas.trim()])))}
+              >
+                Aplicar a todas
+              </Button>
+            </div>
 
             <div style={{ display: "flex", gap: 14 }}>
               <button type="button" className="ds-text-btn" style={{ ...linkBtn, padding: 0, color: ds.green, fontWeight: 600 }} onClick={() => setSelecionadas(new Set(propostas.map((_, i) => i)))}>
@@ -442,7 +479,22 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                           {PRIORIDADE_LABEL[p.prioridade] ?? p.prioridade}
                         </span>
                       </div>
-                      <p style={{ margin: "4px 0 0", fontSize: 15, fontWeight: 500, color: ds.white }}>{p.titulo}</p>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
+                        <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: ds.white }}>{p.titulo}</p>
+                        {marcada && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }} onClick={(e) => e.preventDefault()}>
+                            <span style={{ fontSize: 12.5, color: ds.muted }}>Sprint</span>
+                            <Input
+                              aria-label={`Sprint alvo de ${p.titulo}`}
+                              type="number" min={1} inputMode="numeric"
+                              value={sprintsAlvo[i] ?? ""}
+                              onChange={(e) => setSprintsAlvo((s) => ({ ...s, [i]: e.target.value }))}
+                              placeholder="—"
+                              style={{ width: 72, height: 34, borderColor: sprintAlvoValida(sprintsAlvo[i] ?? "") ? undefined : ds.amberLine }}
+                            />
+                          </span>
+                        )}
+                      </div>
                       {p.descricao && <p style={{ margin: "4px 0 0", fontSize: 13.5, color: ds.text2, lineHeight: 1.55 }}>{p.descricao}</p>}
                       {p.criterios_aceite.length > 0 && (
                         <div style={{ marginTop: 10 }}>
@@ -485,6 +537,9 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                 <Input id={`nova-${key}`} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} />
               </Field>
             ))}
+            <Field label="Sprint alvo" htmlFor="nova-sprint_alvo" required hint="Em qual sprint esta funcionalidade deve ser entregue.">
+              <Input id="nova-sprint_alvo" type="number" min={1} inputMode="numeric" value={form.sprint_alvo} onChange={(e) => setForm((f) => ({ ...f, sprint_alvo: e.target.value }))} placeholder="Ex: 2" style={{ maxWidth: 160 }} />
+            </Field>
             <CriteriosEditor
               idPrefix="nova"
               criterios={form.criterios_aceite}
@@ -628,8 +683,8 @@ export default function EscopoTab({ projectId, funcionalidades, onImported, onDe
                             <option value="concluida">Concluída</option>
                           </Select>
                         </Field>
-                        <Field label="Sprint alvo" htmlFor={`edit-${f.id}-sprint`}>
-                          <Input id={`edit-${f.id}-sprint`} value={editForm.sprint_alvo} onChange={(e) => setEditForm((ef) => ({ ...ef, sprint_alvo: e.target.value }))} placeholder="ex: 3" />
+                        <Field label="Sprint alvo" htmlFor={`edit-${f.id}-sprint`} required>
+                          <Input id={`edit-${f.id}-sprint`} type="number" min={1} inputMode="numeric" value={editForm.sprint_alvo} onChange={(e) => setEditForm((ef) => ({ ...ef, sprint_alvo: e.target.value }))} placeholder="ex: 3" />
                         </Field>
                         <Field label="Prioridade" htmlFor={`edit-${f.id}-prioridade`}>
                           <Select id={`edit-${f.id}-prioridade`} value={editForm.prioridade} onChange={(e) => setEditForm((ef) => ({ ...ef, prioridade: e.target.value }))}>

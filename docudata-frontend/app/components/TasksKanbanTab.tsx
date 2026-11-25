@@ -290,6 +290,7 @@ function TaskModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
+    if (mode === "create" && !funcId) { setErr("Escolha a funcionalidade da task."); return; }
     if (mode === "create" && nivelProprio && !nivelGerente) { setErr("Escolha o nível da task."); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
@@ -566,13 +567,19 @@ function TaskModal({
           )}
 
           <div>
-            <label style={labelSt}>Funcionalidade</label>
-            <select value={funcId} onChange={(e) => setFuncId(e.target.value)} style={inputSt}>
-              <option value="">Sem funcionalidade</option>
-              {funcionalidades.map((f) => (
-                <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
-              ))}
-            </select>
+            <label style={labelSt} htmlFor="task-funcionalidade">Funcionalidade *</label>
+            {funcionalidades.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: "#f2c14e", lineHeight: 1.5 }}>
+                Este projeto ainda não tem funcionalidades. Cadastre o escopo na aba Planejamento antes de criar tasks.
+              </p>
+            ) : (
+              <select id="task-funcionalidade" required={mode === "create"} value={funcId} onChange={(e) => setFuncId(e.target.value)} style={inputSt}>
+                {(mode === "create" || !task?.funcionalidade_id) && <option value="" disabled={mode === "create"}>{mode === "create" ? "Escolha a funcionalidade" : "Sem funcionalidade"}</option>}
+                {funcionalidades.map((f) => (
+                  <option key={f.id} value={f.id}>{f.id_funcional} — {f.titulo}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>

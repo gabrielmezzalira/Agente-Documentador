@@ -32,13 +32,13 @@ def test_ajuste_reabertura_converte_e_guarda_original():
 
 @pytest.mark.parametrize("pontos", [1, 2, 3, 5])
 def test_task_create_aceita_niveis(pontos):
-    assert TaskCreate(project_id="p", titulo="t", pontos=pontos).pontos == pontos
+    assert TaskCreate(project_id="p", titulo="t", pontos=pontos, funcionalidade_id="fn-1").pontos == pontos
 
 
 @pytest.mark.parametrize("pontos", [0, 4, 8])
 def test_task_create_rejeita_fora_da_regua(pontos):
     with pytest.raises(ValidationError) as exc:
-        TaskCreate(project_id="p", titulo="t", pontos=pontos)
+        TaskCreate(project_id="p", titulo="t", pontos=pontos, funcionalidade_id="fn-1")
     assert MENSAGEM_NIVEL_INVALIDO in str(exc.value)
 
 

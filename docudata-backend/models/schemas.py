@@ -313,6 +313,19 @@ class TechTimelineResponse(BaseModel):
     timeline: list[TechTimelineEntry]
 
 
+MENSAGEM_SPRINT_ALVO = "Informe a sprint alvo da funcionalidade (número da sprint, a partir de 1)"
+
+
+def normalizar_sprint_alvo(v: Optional[str]) -> str:
+    """Sprint alvo é obrigatória e é o número da sprint (guardado como texto)."""
+    texto = (v or "").strip()
+    if texto.lower().startswith("sprint"):
+        texto = texto[6:].strip()
+    if not texto.isdigit() or int(texto) < 1:
+        raise ValueError(MENSAGEM_SPRINT_ALVO)
+    return str(int(texto))
+
+
 class FuncionalidadeCreate(BaseModel):
     project_id: str
     id_funcional: str
@@ -321,7 +334,12 @@ class FuncionalidadeCreate(BaseModel):
     criterios_aceite: list[str]
     prioridade: str = "should"
     responsavel: Optional[str] = None
-    sprint_alvo: Optional[str] = None
+    sprint_alvo: str
+
+    @field_validator("sprint_alvo", mode="before")
+    @classmethod
+    def sprint_alvo_obrigatoria(cls, v) -> str:
+        return normalizar_sprint_alvo(None if v is None else str(v))
 
     @field_validator("criterios_aceite")
     @classmethod
@@ -349,6 +367,12 @@ class FuncionalidadeUpdate(BaseModel):
     sprint_alvo: Optional[str] = None
     autor: Optional[str] = None
     motivo: Optional[str] = None
+
+    @field_validator("sprint_alvo", mode="before")
+    @classmethod
+    def sprint_alvo_nao_apaga(cls, v):
+        # Ausente (None) = não mexe; enviada, tem que ser uma sprint válida (não dá para apagar).
+        return None if v is None else normalizar_sprint_alvo(str(v))
 
     @field_validator("criterios_aceite")
     @classmethod
@@ -416,6 +440,7 @@ class ImportPropostaResponse(BaseModel):
 class ImportConfirmarItem(BaseModel):
     proposta: FuncionalidadeProposta
     confirmed: bool
+    sprint_alvo: Optional[str] = None  # obrigatória nos itens confirmados (checada na rota)
 
 
 class ImportConfirmarRequest(BaseModel):
@@ -480,7 +505,7 @@ class TaskCreate(BaseModel):
     pontos: Optional[int] = None  # ignorado: o nível vem do classificador (spec A2)
     opiniao_nivel: Optional[int] = None
     nivel_gerente: Optional[int] = None  # gerente/líder/owner escolhe o nível: não passa pelo classificador
-    funcionalidade_id: Optional[str] = None
+    funcionalidade_id: str  # obrigatória: toda task nasce ligada a uma funcionalidade do escopo
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
     descricao: Optional[str] = None
@@ -489,6 +514,13 @@ class TaskCreate(BaseModel):
     ordem: int = 0
     extra: bool = False  # task concedida além do que a pessoa tinha; não entra no previsto da sprint
     requer_aprovacao: bool = False  # true: não pode ir direto pra concluida, precisa passar por pendente_aprovacao
+
+    @field_validator("funcionalidade_id", mode="before")
+    @classmethod
+    def funcionalidade_obrigatoria(cls, v):
+        if v is None or not str(v).strip():
+            raise ValueError("Escolha a funcionalidade da task")
+        return str(v).strip()
 
     @field_validator("pontos", "opiniao_nivel", "nivel_gerente")
     @classmethod

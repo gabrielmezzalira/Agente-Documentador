@@ -31,6 +31,7 @@ def _fake(**tasks_extra):
         "sprints": [{"id": "s1", "project_id": "p1", "numero": 1, "iniciada": False},
                     {"id": "s2", "project_id": "p1", "numero": 2, "iniciada": True}],
         "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}],
+        "funcionalidades": [{"id": "fn-1", "project_id": "p1", "status": "nao_iniciada"}],
         "tasks": [], "task_classificacoes": [], "task_aprendizado": [],
     }, defaults={"tasks": {"bloqueado": False, "created_at": "2026-01-01T00:00:00+00:00",
                            "updated_at": "2026-01-01T00:00:00+00:00"}})
@@ -58,7 +59,7 @@ def _tc(monkeypatch, autenticar, fake, cargo="gerente"):
     return autenticar(TestClient(app), cargo)
 
 
-BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro"}
+BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1"}
 
 
 def test_criar_com_classificacao_aplicada(monkeypatch, autenticar, classificar_ok):

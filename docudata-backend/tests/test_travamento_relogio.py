@@ -157,6 +157,18 @@ def _make_mock_client(task_data, sprints_iniciada=None):
 
             tbl.select = MagicMock(side_effect=select_side_effect)
 
+        elif table_name == "funcionalidades":
+            def select_side_effect(cols):
+                query = MagicMock()
+                query.eq = MagicMock(return_value=query)
+                query.in_ = MagicMock(return_value=query)
+                resp = MagicMock()
+                resp.data = [{"id": "fn-1", "project_id": "proj-1", "status": "nao_iniciada"}]
+                query.execute = MagicMock(return_value=resp)
+                return query
+
+            tbl.select = MagicMock(side_effect=select_side_effect)
+
         elif table_name == "operacionais":
             def select_side_effect(cols):
                 query = MagicMock()
@@ -249,7 +261,7 @@ def test_criar_task_planejado_com_sprint_iniciada_ancora_relogio(monkeypatch):
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.post("/tasks", json={
-        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-1",
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-1", "funcionalidade_id": "fn-1",
     })
 
     assert resp.status_code == 201
@@ -264,7 +276,7 @@ def test_criar_task_com_sprint_nao_iniciada_nao_ancora_relogio(monkeypatch):
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.post("/tasks", json={
-        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-2",
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "sprint_id": "sprint-2", "funcionalidade_id": "fn-1",
     })
 
     assert resp.status_code == 201
@@ -277,7 +289,8 @@ def test_criar_task_sem_sprint_nao_ancora_relogio(monkeypatch):
     mock_sb, calls = _make_mock_client(task)
     tc = _patch_and_client(monkeypatch, mock_sb)
 
-    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Task nova", "pontos": 3})
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Task nova", "pontos": 3,
+                                  "funcionalidade_id": "fn-1"})
 
     assert resp.status_code == 201
     payload = calls["tasks_insert"][-1]
@@ -290,7 +303,7 @@ def test_criar_task_direto_em_concluida_nao_ancora_relogio(monkeypatch):
     tc = _patch_and_client(monkeypatch, mock_sb)
 
     resp = tc.post("/tasks", json={
-        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3,
+        "project_id": "proj-1", "titulo": "Task nova", "pontos": 3, "funcionalidade_id": "fn-1",
         "sprint_id": "sprint-1", "coluna_kanban": "concluida",
     })
 

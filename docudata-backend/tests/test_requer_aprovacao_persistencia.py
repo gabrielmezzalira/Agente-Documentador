@@ -57,6 +57,14 @@ def _mock_client(task=None, tasks_insert=None, tasks_update=None):
             tbl.select = MagicMock(side_effect=select_side_effect)
             tbl.insert = MagicMock(side_effect=insert_side_effect)
             tbl.update = MagicMock(side_effect=update_side_effect)
+        elif name == "funcionalidades":
+            q = MagicMock()
+            q.eq = MagicMock(return_value=q)
+            q.in_ = MagicMock(return_value=q)
+            resp = MagicMock()
+            resp.data = [{"id": "fn-1", "project_id": "proj-1", "status": "nao_iniciada"}]
+            q.execute = MagicMock(return_value=resp)
+            tbl.select = MagicMock(return_value=q)
         elif name == "projects":
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
@@ -108,7 +116,7 @@ def test_create_task_persiste_requer_aprovacao_true(make_client):
 
     resp = tc.post("/tasks", json={
         "project_id": "proj-1", "titulo": "Task com aprovação", "pontos": 3,
-        "requer_aprovacao": True,
+        "requer_aprovacao": True, "funcionalidade_id": "fn-1",
     })
 
     assert resp.status_code == 201
@@ -120,13 +128,22 @@ def test_create_task_persiste_requer_aprovacao_false_por_default(make_client):
     tc, tasks_insert, _ = make_client()
 
     resp = tc.post("/tasks", json={
-        "project_id": "proj-1", "titulo": "Task normal", "pontos": 3,
+        "project_id": "proj-1", "titulo": "Task normal", "pontos": 3, "funcionalidade_id": "fn-1",
     })
 
     assert resp.status_code == 201
     # A chave tem que ir explicitamente no insert (não ficar de fora "porque o
     # banco tem default") — assim o contrato vale mesmo se o default mudar.
     assert tasks_insert[0]["requer_aprovacao"] is False
+
+
+def test_create_task_sem_funcionalidade_id_422(make_client):
+    tc, tasks_insert, _ = make_client()
+
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Sem funcionalidade", "pontos": 3})
+
+    assert resp.status_code == 422
+    assert tasks_insert == []
 
 
 def test_patch_task_persiste_requer_aprovacao_true(make_client):

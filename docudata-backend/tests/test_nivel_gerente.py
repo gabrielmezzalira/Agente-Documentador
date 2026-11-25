@@ -15,6 +15,7 @@ def _fake():
         "sprints": [{"id": "s1", "project_id": "p1", "numero": 1, "iniciada": False},
                     {"id": "s2", "project_id": "p1", "numero": 2, "iniciada": True}],
         "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}],
+        "funcionalidades": [{"id": "fn-1", "project_id": "p1", "status": "nao_iniciada"}],
         "tasks": [], "task_classificacoes": [], "task_aprendizado": [],
     }, defaults={"tasks": {"bloqueado": False, "created_at": "2026-01-01T00:00:00+00:00",
                            "updated_at": "2026-01-01T00:00:00+00:00"}})
@@ -137,7 +138,7 @@ def test_resolver_revisao_nao_se_aplica_a_task_manual():
 
 # --- criação ---
 
-BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro"}
+BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1"}
 
 
 @pytest.fixture

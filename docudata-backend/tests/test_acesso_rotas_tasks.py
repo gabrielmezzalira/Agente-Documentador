@@ -102,7 +102,7 @@ def test_task_escrita_de_fora_403_sem_escrever(api):
     assert api.post("/tasks/t-out/mover", params={"coluna_destino": "em_andamento"}).status_code == 403
     assert api.post("/tasks/t-out/aprovar").status_code == 403
     assert api.post("/tasks/t-out/puxar").status_code == 403
-    assert api.post("/tasks", json={"project_id": OUTRO, "titulo": "n"}).status_code == 403
+    assert api.post("/tasks", json={"project_id": OUTRO, "titulo": "n", "funcionalidade_id": "f-out"}).status_code == 403
     _sem_escrita(api, [])
     assert any(t["id"] == "t-out" for t in api.fake.t["tasks"])
 
@@ -123,7 +123,7 @@ def test_funcionalidades_de_fora_403(api):
     assert api.get("/funcionalidades", params={"project_id": OUTRO}).status_code == 403
     assert api.get("/funcionalidades/f-out").status_code == 403
     assert api.get("/funcionalidades/f-out/transicoes").status_code == 403
-    assert api.post("/funcionalidades", json={"project_id": OUTRO, "id_funcional": "RF1", "titulo": "x", "criterios_aceite": ["y"]}).status_code == 403
+    assert api.post("/funcionalidades", json={"project_id": OUTRO, "id_funcional": "RF1", "titulo": "x", "criterios_aceite": ["y"], "sprint_alvo": "1"}).status_code == 403
     assert api.patch("/funcionalidades/f-out", json={"titulo": "x"}).status_code == 403
     assert api.delete("/funcionalidades/f-out").status_code == 403
     assert api.post("/funcionalidades/f-out/aprovar").status_code == 403

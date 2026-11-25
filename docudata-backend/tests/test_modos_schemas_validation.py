@@ -65,13 +65,13 @@ def test_pontuacao_evento_response_rejeita_tipo_invalido():
 
 
 def test_task_create_aceita_coluna_pendente_aprovacao():
-    t = TaskCreate(project_id="p1", titulo="X", pontos=1, coluna_kanban="pendente_aprovacao")
+    t = TaskCreate(project_id="p1", titulo="X", pontos=1, funcionalidade_id="fn-1", coluna_kanban="pendente_aprovacao")
     assert t.coluna_kanban == "pendente_aprovacao"
 
 
 def test_task_create_rejeita_coluna_invalida():
     with pytest.raises(ValidationError):
-        TaskCreate(project_id="p1", titulo="X", pontos=1, coluna_kanban="arquivada")
+        TaskCreate(project_id="p1", titulo="X", pontos=1, funcionalidade_id="fn-1", coluna_kanban="arquivada")
 
 
 def test_rejeitar_task_request_exige_motivo():
@@ -83,3 +83,32 @@ def test_rejeitar_task_request_aceita_motivo_valido():
     r = RejeitarTaskRequest(motivo="Falta cobertura de teste")
     assert r.motivo == "Falta cobertura de teste"
     assert r.autor is None
+
+
+# ── funcionalidade: sprint_alvo obrigatória; task: funcionalidade_id obrigatória ──
+
+def _fn_kw(**kw):
+    return dict(project_id="p1", id_funcional="RF1", titulo="F", criterios_aceite=["c"], **kw)
+
+
+def test_funcionalidade_create_exige_sprint_alvo():
+    from models.schemas import FuncionalidadeCreate
+    with pytest.raises(ValidationError):
+        FuncionalidadeCreate(**_fn_kw())
+
+
+@pytest.mark.parametrize("valor", ["0", "abc", "", "Sprint"])
+def test_funcionalidade_create_rejeita_sprint_alvo_invalida(valor):
+    from models.schemas import FuncionalidadeCreate
+    with pytest.raises(ValidationError):
+        FuncionalidadeCreate(**_fn_kw(sprint_alvo=valor))
+
+
+def test_funcionalidade_create_normaliza_sprint_alvo():
+    from models.schemas import FuncionalidadeCreate
+    assert FuncionalidadeCreate(**_fn_kw(sprint_alvo="Sprint 3")).sprint_alvo == "3"
+
+
+def test_task_create_exige_funcionalidade_id():
+    with pytest.raises(ValidationError):
+        TaskCreate(project_id="p1", titulo="X")

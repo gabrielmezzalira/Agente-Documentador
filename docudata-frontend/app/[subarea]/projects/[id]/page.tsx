@@ -67,6 +67,7 @@ import {
   type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
+import PendenciasPlanejamento from "../../../components/PendenciasPlanejamento";
 import { Button as DsButton, buttonClass, buttonStyle, EmptyState, ErrorNotice, Field as DsField, Select as DsSelect, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
 import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
@@ -804,11 +805,14 @@ export default function ProjectDashboard() {
   const [sprints, setSprints] = useState<SprintWithStatus[]>([]);
   const [planejadasAbertas, setPlanejadasAbertas] = useState(false);
   const [funcionalidades, setFuncionalidades] = useState<FuncionalidadeResponse[]>([]);
+  const [escopoFiltro, setEscopoFiltro] = useState<string | undefined>(undefined);
   const [operacionais, setOperacionais] = useState<OperacionalResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ---------- ui ----------
   const [activeTab, setActiveTab] = useState<TabId>("sprints");
+  // O filtro "sem sprint" vale só para a ida a partir do aviso; ao sair da aba, volta ao normal.
+  useEffect(() => { if (activeTab !== "escopo") setEscopoFiltro(undefined); }, [activeTab]);
   const auth = useAuth();
   const cargo = auth?.cargo ?? "lider";
   const [descOpen, setDescOpen] = useState(false);
@@ -1455,6 +1459,15 @@ export default function ProjectDashboard() {
         onChange={(t) => setActiveTab(t as TabId)}
       />
 
+      {project && cargo !== "operacional" && (
+        <PendenciasPlanejamento
+          project={project}
+          funcionalidades={funcionalidades}
+          onVerSemSprint={() => { setEscopoFiltro("sem_sprint"); setActiveTab("escopo"); }}
+          onProjectUpdated={setProject}
+        />
+      )}
+
       {githubVisible && githubRepositories.every((repo) => !repo.active) && activeTab !== "config" && (
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16,
@@ -1966,6 +1979,9 @@ export default function ProjectDashboard() {
           funcionalidades={funcionalidades}
           onImported={(novas) => setFuncionalidades((prev) => [...prev, ...novas])}
           onDeleted={(deletedId) => setFuncionalidades((prev) => prev.filter((f) => f.id !== deletedId))}
+          onUpdated={(f) => setFuncionalidades((prev) => prev.map((x) => (x.id === f.id ? f : x)))}
+          filtroInicial={escopoFiltro}
+          key={escopoFiltro ?? "todas"}
         />
       )}
 

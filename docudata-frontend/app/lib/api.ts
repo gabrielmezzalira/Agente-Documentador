@@ -1451,6 +1451,7 @@ export async function createFuncionalidade(data: {
   criterios_aceite: string[];
   prioridade: string;
   responsavel?: string;
+  sprint_alvo: string;
 }): Promise<FuncionalidadeResponse> {
   const res = await apiFetch(`${API}/funcionalidades`, {
     method: "POST",
@@ -1466,7 +1467,7 @@ export async function createFuncionalidade(data: {
 
 export async function confirmarImportacao(
   projectId: string,
-  itens: { proposta: FuncionalidadeProposta; confirmed: boolean }[],
+  itens: { proposta: FuncionalidadeProposta; confirmed: boolean; sprint_alvo?: string }[],
 ): Promise<FuncionalidadeResponse[]> {
   const res = await apiFetch(`${API}/funcionalidades/importar/confirmar`, {
     method: "POST",

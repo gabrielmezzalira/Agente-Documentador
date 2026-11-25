@@ -30,6 +30,7 @@ def test_criar_task_nao_e_bloqueada_por_orcamento(monkeypatch, autenticar):
     fake = FakeClient({
         "projects": [{"id": "p1", "modo_trabalho": "ATRIBUICAO"}],
         "sprints": [{"id": "s1", "project_id": "p1", "iniciada": False, "pontos_orcamento": 1}],
+        "funcionalidades": [{"id": "fn-1", "project_id": "p1", "status": "nao_iniciada"}],
         "tasks": [],
     })
     # O fake não preenche os defaults de coluna do banco que o response_model exige.
@@ -45,7 +46,8 @@ def test_criar_task_nao_e_bloqueada_por_orcamento(monkeypatch, autenticar):
 
     fake.table = tabela_com_defaults
     tc = _app(monkeypatch, autenticar, fake)
-    resp = tc.post("/tasks", json={"project_id": "p1", "titulo": "Grande", "pontos": 5, "sprint_id": "s1"})
+    resp = tc.post("/tasks", json={"project_id": "p1", "titulo": "Grande", "pontos": 5, "sprint_id": "s1",
+                                   "funcionalidade_id": "fn-1"})
     assert resp.status_code == 201, resp.text
 
 

@@ -180,7 +180,8 @@ def make_client_create(monkeypatch, autenticar):
 def test_create_task_rejeita_operacional_id_em_projeto_pull(make_client_create):
     tc, ins = make_client_create(projeto={"id": "proj-1", "modo_trabalho": "PULL"})
 
-    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a",
+                                  "funcionalidade_id": "fn-1"})
 
     assert resp.status_code == 422
     assert "Pull" in resp.json()["detail"]
@@ -190,7 +191,8 @@ def test_create_task_rejeita_operacional_id_em_projeto_pull(make_client_create):
 def test_create_task_em_atribuicao_nao_rejeita_por_causa_do_modo(make_client_create):
     tc, ins = make_client_create(projeto={"id": "proj-1", "modo_trabalho": "ATRIBUICAO"})
 
-    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a"})
+    resp = tc.post("/tasks", json={"project_id": "proj-1", "titulo": "Nova", "pontos": 2, "operacional_id": "op-a",
+                                  "funcionalidade_id": "fn-1"})
 
     # 422 aqui vem da validação de "operacional_id não pertence a este
     # projeto" (fixture não cadastra operacionais) — a prova de que o gate

@@ -15,6 +15,7 @@ from models.schemas import (
     ImportPropostaResponse,
     ImportConfirmarRequest,
     FuncionalidadeProposta,
+    normalizar_sprint_alvo,
 )
 from services.aprovacao_funcionalidade import aprovar, com_tem_tasks, desfazer_aprovacao, nomes_dos_aprovadores, revogar_se_aprovada
 from services.acesso import exigir_acesso, exigir_acesso_por
@@ -200,18 +201,26 @@ async def confirmar_importacao(data: ImportConfirmarRequest, pessoa: dict = Depe
     if not proj_check.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    confirmadas = [item.proposta for item in data.itens if item.confirmed]
+    confirmadas = [item for item in data.itens if item.confirmed]
     if not confirmadas:
         return []
+    sprints_alvo: list[str] = []
+    for item in confirmadas:
+        try:
+            sprints_alvo.append(normalizar_sprint_alvo(item.sprint_alvo))
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Informe a sprint alvo de \"{item.proposta.titulo}\".")
 
     criadas = []
-    for prop in confirmadas:
+    for item, sprint_alvo in zip(confirmadas, sprints_alvo):
+        prop = item.proposta
         payload = {
             "project_id": data.project_id,
             "id_funcional": prop.id_funcional,
             "titulo": prop.titulo,
             "criterios_aceite": prop.criterios_aceite,
             "prioridade": prop.prioridade,
+            "sprint_alvo": sprint_alvo,
         }
         if prop.descricao:
             payload["descricao"] = prop.descricao
@@ -237,8 +246,7 @@ async def create_funcionalidade(data: FuncionalidadeCreate, pessoa: dict = Depen
         payload["descricao"] = data.descricao
     if data.responsavel is not None:
         payload["responsavel"] = data.responsavel
-    if data.sprint_alvo is not None:
-        payload["sprint_alvo"] = data.sprint_alvo
+    payload["sprint_alvo"] = data.sprint_alvo
     response = client.table("funcionalidades").insert(payload).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create funcionalidade")
