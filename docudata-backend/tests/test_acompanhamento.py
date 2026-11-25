@@ -657,3 +657,41 @@ def test_rota_aceita_subarea_pta(monkeypatch, autenticar):
     assert r.status_code == 200
     j = r.json()
     assert j["subarea"] == "pta" and j["kpis"]["projetos"] == 0
+
+
+def test_progresso_da_sprint_conta_pontos_e_colunas():
+    from services.acompanhamento import progresso_da_sprint
+    ts = [task(1, pontos=3, coluna_kanban="concluida", prevista_no_inicio=True),
+          task(2, pontos=2, coluna_kanban="em_andamento", prevista_no_inicio=True, travado_automatico=True),
+          task(3, pontos=5, coluna_kanban="pendente_aprovacao", prevista_no_inicio=True),
+          task(4, pontos=1, coluna_kanban="concluida", extra=True)]
+    p = progresso_da_sprint(ts)
+    assert (p["pts_previstos"], p["pts_concluidos"], p["pct"]) == (10, 3, 30.0)
+    assert (p["tasks_total"], p["tasks_em_andamento"], p["tasks_aguardando"], p["tasks_concluidas"], p["extras"], p["travadas"]) == (4, 1, 1, 2, 1, 1)
+
+
+def test_progresso_sem_foto_do_inicio_usa_soma_das_tasks():
+    from services.acompanhamento import progresso_da_sprint
+    p = progresso_da_sprint([task(1, pontos=4, coluna_kanban="concluida"), task(2, pontos=4, coluna_kanban="planejado")])
+    assert (p["pts_previstos"], p["pct"]) == (8, 50.0)
+    assert progresso_da_sprint([])["pct"] is None
+
+
+def test_lista_traz_progresso_pendencias_e_tendencia(monkeypatch, autenticar):
+    j = _tc(monkeypatch, autenticar).get("/acompanhamento?subarea=dados").json()
+    alfa = next(p for p in j["projetos"] if p["nome"] == "Alfa")
+    assert alfa["gerente"] == "Ana" and alfa["sprint_atual"]["numero"] == 2
+    assert alfa["progresso"]["pts_previstos"] == 6 and alfa["progresso"]["pts_concluidos"] == 3 and alfa["progresso"]["pct"] == 50.0
+    assert (alfa["funcs_planejadas"], alfa["meta_total"], alfa["travadas"]) == (2, 1, 1)
+    assert [t["numero"] for t in alfa["tendencia"]] == [1, 2] and alfa["tendencia"][-1]["parcial"] is True
+    assert {"codigo", "texto"} == set(alfa["sinais"][0])
+    gama = next(p for p in j["projetos"] if p["nome"] == "Gama")
+    assert gama["sprint_atual"] is None and gama["progresso"] is None and gama["gerente"] == "Sem gerente"
+
+
+def test_detalhe_lista_o_planejado_e_as_tasks_da_sprint(monkeypatch, autenticar):
+    j = _tc_detalhe(monkeypatch, autenticar).get(f"/acompanhamento/projetos/{P1}").json()
+    assert j["progresso"]["pts_previstos"] == 12 and j["progresso"]["pts_concluidos"] == 8
+    assert [(f["id_funcional"], f["na_meta"]) for f in j["planejamento"]] == [("F3", True), ("F4", False)]
+    assert [t["id"] for t in j["tasks"]] == ["t3", "t1", "t2"]  # em andamento primeiro, concluídas depois
+    assert j["tasks"][0]["responsavel"] == "Caio" and j["tasks"][0]["coluna"] == "em_andamento"

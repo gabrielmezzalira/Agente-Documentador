@@ -1156,12 +1156,57 @@ class AcompPorGerente(BaseModel):
     metas_fechadas: int
 
 
+class AcompProgresso(BaseModel):
+    pts_previstos: float
+    pts_concluidos: float
+    pct: Optional[float] = None
+    tasks_total: int
+    tasks_planejadas: int
+    tasks_em_andamento: int
+    tasks_aguardando: int
+    tasks_concluidas: int
+    extras: int = 0
+    travadas: int = 0
+
+
+class AcompTendencia(BaseModel):
+    numero: int
+    spi: Optional[float] = None
+    parcial: bool = False
+    meta_batida: Optional[bool] = None
+
+
+class AcompSinalResumo(BaseModel):
+    codigo: str
+    texto: str
+
+
+class AcompSprintRefResumo(BaseModel):
+    id: str
+    numero: int
+    fechada: bool
+
+
 class AcompProjetoStatus(BaseModel):
     id: str
     nome: Optional[str] = None
+    cliente: Optional[str] = None
+    gerente: Optional[str] = None
     status: str
     motivos: list[str]
     diagnostico: str
+    sinais: list[AcompSinalResumo] = []
+    sprint_atual: Optional[AcompSprintRefResumo] = None
+    proximas_sprints: int = 0
+    progresso: Optional[AcompProgresso] = None
+    funcs_planejadas: int = 0
+    funcs_planejadas_entregues: int = 0
+    meta_total: int = 0
+    meta_entregues: int = 0
+    pct_prazo: Optional[float] = None
+    pct_escopo: Optional[float] = None
+    travadas: int = 0
+    tendencia: list[AcompTendencia] = []
 
 
 class AcompanhamentoResponse(BaseModel):
@@ -1251,8 +1296,35 @@ class AcompTime(BaseModel):
     pessoas: list[AcompPessoa]
 
 
+class AcompPlanejadaFunc(BaseModel):
+    id: str
+    id_funcional: Optional[str] = None
+    titulo: Optional[str] = None
+    status: Optional[str] = None
+    aprovada: bool
+    na_meta: bool
+    tasks_total: int
+    tasks_concluidas: int
+    pts_total: float
+    pts_concluidos: float
+
+
+class AcompTaskSprint(BaseModel):
+    id: str
+    titulo: Optional[str] = None
+    coluna: str
+    pontos: float
+    responsavel: Optional[str] = None
+    funcionalidade: Optional[str] = None
+    extra: bool = False
+    travada: bool = False
+
+
 class AcompDetalheResponse(BaseModel):
     projeto: AcompDetalheProjeto
+    progresso: Optional[AcompProgresso] = None
+    planejamento: list[AcompPlanejadaFunc] = []
+    tasks: list[AcompTaskSprint] = []
     status: str
     diagnostico: str
     sinais: list[AcompSinal]

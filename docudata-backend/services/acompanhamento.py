@@ -48,6 +48,31 @@ def spi_de(tasks_da_sprint: list[dict]) -> float | None:
     return round(realizado / previsto, 3)
 
 
+def progresso_da_sprint(tasks_da_sprint: list[dict]) -> dict:
+    """Quanto do planejado da sprint já foi feito, em pontos e em tasks.
+
+    Previsto segue a regra do SPI (foto do início + o que surgiu); sprint sem foto
+    (iniciada antes da regra) usa a soma das tasks normais. Extras ficam fora dos
+    pontos, mas entram na contagem de tasks por coluna."""
+    normais = [t for t in tasks_da_sprint if not t.get("extra")]
+    previsto = previsto_de(normais)
+    if previsto <= 0:
+        previsto = sum(t.get("pontos") or 0 for t in normais)
+    concluido = sum(t.get("pontos") or 0 for t in normais if t.get("coluna_kanban") == "concluida")
+    por_coluna = {"planejado": 0, "em_andamento": 0, "pendente_aprovacao": 0, "concluida": 0}
+    for t in tasks_da_sprint:
+        col = t.get("coluna_kanban") or "planejado"
+        por_coluna[col] = por_coluna.get(col, 0) + 1
+    return {
+        "pts_previstos": previsto, "pts_concluidos": concluido,
+        "pct": round(concluido / previsto * 100, 1) if previsto > 0 else None,
+        "tasks_total": len(tasks_da_sprint), "tasks_planejadas": por_coluna["planejado"],
+        "tasks_em_andamento": por_coluna["em_andamento"], "tasks_aguardando": por_coluna["pendente_aprovacao"],
+        "tasks_concluidas": por_coluna["concluida"], "extras": sum(1 for t in tasks_da_sprint if t.get("extra")),
+        "travadas": sum(1 for t in tasks_da_sprint if t.get("travado_automatico") and t.get("coluna_kanban") != "concluida"),
+    }
+
+
 def p85(valores: list[float]) -> float | None:
     if not valores:
         return None
@@ -399,6 +424,13 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
         for t in ts:
             if t.get("sprint_id"):
                 por_sprint.setdefault(t["sprint_id"], []).append(t)
+        atual_id = c["sprint_atual"]["id"] if c["sprint_atual"] else None
+        c["_progresso"] = progresso_da_sprint(por_sprint.get(atual_id, [])) if atual_id else None
+        c["_planejadas_ids"] = planejadas.get(atual_id, set()) if atual_id else set()
+        c["_funcs"] = funcs_por_proj.get(p["id"], [])
+        ids_funcs = {f["id"] for f in c["_funcs"]}
+        c["_funcs_na_sprint"] = len(c["_planejadas_ids"] & ids_funcs | {
+            t["funcionalidade_id"] for t in por_sprint.get(atual_id, []) if t.get("funcionalidade_id") in ids_funcs})
         mapa, spis_brutos, feat, feat_ant = mapa_do_projeto(sps, funcs_por_proj.get(p["id"], []), por_sprint, metas, agora)
         # SPI parcial da sprint aberta não vira sinal nem KPI: só sprints fechadas contam
         fechadas = [i for i, m in enumerate(mapa) if m["numero"] is not None and not m["parcial"]
@@ -413,7 +445,8 @@ def carregar_projetos(client, subarea: str, agora: datetime | None = None,
             "sem_funcionalidades": sem_funcionalidades,
             "prazo_escopo": c["prazo_escopo"], "tolerancia": p.get("tolerancia_desvio_pontos"),
             "ultima_fechada": c["ultima_fechada"], "travadas": c["saude"]["tasks_travadas"],
-            "tem_meta_atual": c["meta"]["total"] > 0, "tem_planejamento_atual": c["planejado"]["funcs_planejadas"] > 0,
+            "tem_meta_atual": c["meta"]["total"] > 0, # Sprint com tasks já está planejada, mesmo sem funcionalidade vinculada.
+            "tem_planejamento_atual": c["planejado"]["funcs_planejadas"] > 0 or bool(c["_progresso"] and c["_progresso"]["tasks_total"]),
             "tem_gerente": bool((p.get("gerente_email") or "").strip()), "tem_sprint": c["sprint_atual"] is not None,
         })
         status = status_de(sinais)
@@ -467,8 +500,32 @@ def montar_acompanhamento(client, subarea: str, agora: datetime | None = None, g
             "sem_datas": len(itens) - len(com_datas), "sem_funcionalidades": len(sem_func),
         },
         "por_gerente": por_gerente,
-        "projetos": [{"id": i["id"], "nome": i["nome"], "status": i["_status"],
-                      "motivos": i["_motivos"], "diagnostico": i["_diagnostico"]} for i in ordenados],
+        "projetos": [resumo_do_projeto(i, nome_do_gerente(i)) for i in ordenados],
+    }
+
+
+def _pct_prazo_escopo(pe: dict) -> tuple[float | None, float | None]:
+    if pe.get("sem_dados") or pe.get("sem_funcionalidades"):
+        return None, None
+    return pe.get("pct_prazo_consumido"), pe.get("pct_escopo_concluido")
+
+
+def resumo_do_projeto(i: dict, gerente: str) -> dict:
+    """Linha do projeto na lista do acompanhamento: status, progresso da sprint atual,
+    prazo × escopo, pendências e a tendência de SPI das sprints anteriores."""
+    pct_prazo, pct_escopo = _pct_prazo_escopo(i["prazo_escopo"])
+    return {
+        "id": i["id"], "nome": i["nome"], "cliente": i.get("cliente"), "gerente": gerente,
+        "status": i["_status"], "motivos": i["_motivos"], "diagnostico": i["_diagnostico"],
+        "sinais": [{"codigo": s["codigo"], "texto": s["texto"]} for s in i["_sinais"]],
+        "sprint_atual": i["sprint_atual"], "proximas_sprints": len(i["proximas_sprints"]),
+        "progresso": i.get("_progresso"),
+        "funcs_planejadas": i.get("_funcs_na_sprint", i["planejado"]["funcs_planejadas"]),
+        "funcs_planejadas_entregues": i["planejado"]["funcs_planejadas_entregues"],
+        "meta_total": i["meta"]["total"], "meta_entregues": i["meta"]["entregues"],
+        "pct_prazo": pct_prazo, "pct_escopo": pct_escopo, "travadas": i["saude"]["tasks_travadas"],
+        "tendencia": [{"numero": m["numero"], "spi": m["spi"], "parcial": m["parcial"], "meta_batida": m["meta_batida"]}
+                      for m in i["_mapa"] if m["numero"] is not None],
     }
 
 
@@ -543,8 +600,49 @@ def montar_detalhe(client, projeto_id: str, agora: datetime | None = None) -> di
         pessoas.sort(key=lambda p: (p["nome"] or "").casefold())
         time = {"sprint_numero": atual["numero"], "mediana_squad": med_squad, "mediana_subarea": med_sub, "pessoas": pessoas}
 
+    planejamento: list[dict] = []
+    tasks_out: list[dict] = []
+    if atual is not None:
+        ts_atual = por_sprint.get(atual["id"], [])
+        funcs_por_id = {f["id"]: f for f in c["_funcs"]}
+        meta_ids = {f["id"] for f in c["meta"]["funcionalidades"]}
+        ids = list(dict.fromkeys(
+            [i for i in sorted(c["_planejadas_ids"]) if i in funcs_por_id]
+            + [t["funcionalidade_id"] for t in ts_atual if t.get("funcionalidade_id") in funcs_por_id]
+        ))
+        for fid in ids:
+            f = funcs_por_id[fid]
+            dela = [t for t in ts_atual if t.get("funcionalidade_id") == fid and not t.get("extra")]
+            planejamento.append({
+                "id": fid, "id_funcional": f.get("id_funcional"), "titulo": f.get("titulo"), "status": f.get("status"),
+                "aprovada": _aprovada(f), "na_meta": fid in meta_ids,
+                "tasks_total": len(dela), "tasks_concluidas": sum(1 for t in dela if t.get("coluna_kanban") == "concluida"),
+                "pts_total": sum(t.get("pontos") or 0 for t in dela),
+                "pts_concluidos": sum(t.get("pontos") or 0 for t in dela if t.get("coluna_kanban") == "concluida"),
+            })
+        planejamento.sort(key=lambda f: (f["id_funcional"] or "", f["titulo"] or ""))
+
+        linhas = _em_lote([atual["id"]], lambda l: ler_tudo(lambda: client.table("tasks")
+                          .select("id, titulo, coluna_kanban, pontos, operacional_id, funcionalidade_id, extra, travado_automatico")
+                          .in_("sprint_id", l).order("id")))
+        ops = sorted({t["operacional_id"] for t in linhas if t.get("operacional_id")})
+        nomes_ops = {o["id"]: o.get("nome") for o in _em_lote(ops, lambda l: ler_tudo(
+            lambda: client.table("operacionais").select("id, nome").in_("id", l).order("id")))}
+        ordem_col = {"em_andamento": 0, "pendente_aprovacao": 1, "planejado": 2, "concluida": 3}
+        for t in linhas:
+            f = funcs_por_id.get(t.get("funcionalidade_id") or "")
+            tasks_out.append({
+                "id": t["id"], "titulo": t.get("titulo"), "coluna": t.get("coluna_kanban") or "planejado",
+                "pontos": t.get("pontos") or 0, "responsavel": nomes_ops.get(t.get("operacional_id")),
+                "funcionalidade": (f.get("id_funcional") or f.get("titulo")) if f else None,
+                "extra": bool(t.get("extra")),
+                "travada": bool(t.get("travado_automatico")) and t.get("coluna_kanban") != "concluida",
+            })
+        tasks_out.sort(key=lambda t: (not t["travada"], ordem_col.get(t["coluna"], 9), (t["titulo"] or "").casefold()))
+
     return {
         "projeto": {"id": c["id"], "nome": c["nome"], "cliente": c["cliente"], "gerente": c["_gerente_nome"]},
+        "progresso": c.get("_progresso"), "planejamento": planejamento, "tasks": tasks_out,
         "status": c["_status"], "diagnostico": c["_diagnostico"], "sinais": c["_sinais"],
         "numeros": {
             "spi_atual": c["_mapa"][-1]["spi"], "spi_ultima_fechada": c["_spi"],

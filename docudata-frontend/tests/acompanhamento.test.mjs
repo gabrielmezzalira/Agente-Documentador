@@ -4,19 +4,19 @@ import { readFileSync, existsSync } from "node:fs";
 
 const ler = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
-test("dashboard de acompanhamento tem os 4 blocos e filtros", () => {
+test("dashboard de acompanhamento: filtro por status, lista de projetos com progresso, por gerente e legenda", () => {
   const p = ler("app/acompanhamento/page.tsx");
-  for (const s of ["Acompanhamento dos projetos", "Precisa de você", "Evolução por sprint", "Risco de prazo", "Por gerente",
-                   "Features entregues", "SPI médio", "Metas batidas", "Tasks travadas", "Todos os gerentes",
-                   "Nenhum projeto precisa de atenção agora.", "sem comparação"]) assert.ok(p.includes(s), s);
+  for (const s of ["Acompanhamento dos projetos", "Projetos", "Por gerente", "Todos os gerentes", "O que significa cada status e pendência",
+                   "dos pontos planejados já foram concluídos", "aria-pressed", "Nenhum projeto com este status.", "Escopo vazio",
+                   "Sem datas do contrato", "sem sprint fechada", "Nenhuma sprint iniciada"]) assert.ok(p.includes(s), s);
 });
 
-test("mapa de calor e dispersão", () => {
-  assert.ok(existsSync(new URL("../app/components/acompanhamento/MapaCalor.tsx", import.meta.url)));
-  const m = ler("app/components/acompanhamento/MapaCalor.tsx");
-  for (const s of ["sem dado", "≥ 0,9", "0,7–0,9", "< 0,7", "aria-label"]) assert.ok(m.includes(s), s);
-  const d = ler("app/components/acompanhamento/DispersaoPrazo.tsx");
-  for (const s of ["% do prazo consumido", "% das funcionalidades aprovadas", "sem datas do contrato", "<title>"]) assert.ok(d.includes(s), s);
+test("pendências e status têm explicação e quem resolve", () => {
+  const v = ler("app/components/acompanhamento/visual.ts");
+  for (const c of ["spi_critico", "prazo", "meta_ruim", "travadas", "spi_caindo", "sem_meta", "sem_sprint", "sem_planejamento",
+                   "sem_datas", "sem_funcionalidades", "sem_gerente"]) assert.ok(v.includes(`${c}: {`), c);
+  for (const s of ["Meta da sprint não definida", "quem:", "Crítico", "Faltam dados", "Pendente de aprovação"]) assert.ok(v.includes(s), s);
+  assert.ok(ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx").includes("Quem resolve"));
 });
 
 test("api e menu", () => {
@@ -44,18 +44,16 @@ test("tela ignora resposta antiga ao alternar a subárea e chips do Escopo quebr
 test("painel de detalhe do projeto", () => {
   const p = ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx");
   for (const s of ["Definir meta", "Sprint a sprint", "abaixo do piso", "sem histórico para o piso", "Planejadas fora da meta:",
-                   "Histórico de mudanças da meta", "Sem meta nesta sprint.", "meta batida"]) assert.ok(p.includes(s), s);
+                   "Histórico de mudanças da meta", "Sem meta nesta sprint.", "meta batida", "O que está pendente", "O que foi planejado",
+                   "Tasks da sprint", "do planejado concluído", "sem responsável", "falta a Planning"]) assert.ok(p.includes(s), s);
   assert.ok(ler("app/acompanhamento/page.tsx").includes("ProjetoDetalhePainel"));
 });
 
 test("SPI parcial da sprint aberta, projeto sem funcionalidades e estados sem dado", () => {
   const p = ler("app/acompanhamento/page.tsx");
-  for (const s of ["sprints fechadas", "Atualizando...", ': "sem dado"}>']) assert.ok(p.includes(s), s);
-  assert.ok(/metas_fechadas > 0 \?/.test(p), "metas sem fechadas mostram sem dado");
+  for (const s of ["SPI das fechadas", "Atualizando...", "!t.parcial"]) assert.ok(p.includes(s), s);
+  assert.ok(/metas_fechadas > 0 \?/.test(p), "metas sem fechadas não aparecem");
   assert.ok(!/const carregar[\s\S]{0,200}setDados\(null\)/.test(p), "recarregar não esvazia o dashboard");
-  const m = ler("app/components/acompanhamento/MapaCalor.tsx");
-  for (const s of ["(parcial)", "atual = parcial"]) assert.ok(m.includes(s), s);
-  assert.ok(ler("app/components/acompanhamento/DispersaoPrazo.tsx").includes("sem funcionalidades"));
   const d = ler("app/components/acompanhamento/ProjetoDetalhePainel.tsx");
   for (const s of ["SPI da sprint atual (parcial)", "SPI da última sprint fechada", "sem funcionalidades", "setEventos(null)"]) assert.ok(d.includes(s), s);
   assert.ok(d.includes("f.pct_tasks != null && <ProgressBar"), "barra omitida sem pct_tasks");

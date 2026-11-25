@@ -2602,7 +2602,62 @@ export interface AcompPorGerente {
   metas_batidas: number;
   metas_fechadas: number;
 }
-export interface AcompProjetoStatus { id: string; nome: string | null; status: AcompStatus; motivos: string[]; diagnostico: string }
+export interface AcompProgresso {
+  pts_previstos: number;
+  pts_concluidos: number;
+  pct: number | null;
+  tasks_total: number;
+  tasks_planejadas: number;
+  tasks_em_andamento: number;
+  tasks_aguardando: number;
+  tasks_concluidas: number;
+  extras: number;
+  travadas: number;
+}
+export interface AcompTendencia { numero: number; spi: number | null; parcial: boolean; meta_batida: boolean | null }
+export interface AcompProjetoStatus {
+  id: string;
+  nome: string | null;
+  cliente: string | null;
+  gerente: string | null;
+  status: AcompStatus;
+  motivos: string[];
+  diagnostico: string;
+  sinais: AcompSinal[];
+  sprint_atual: AcompSprintRef | null;
+  proximas_sprints: number;
+  progresso: AcompProgresso | null;
+  funcs_planejadas: number;
+  funcs_planejadas_entregues: number;
+  meta_total: number;
+  meta_entregues: number;
+  pct_prazo: number | null;
+  pct_escopo: number | null;
+  travadas: number;
+  tendencia: AcompTendencia[];
+}
+export interface AcompPlanejadaFunc {
+  id: string;
+  id_funcional: string | null;
+  titulo: string | null;
+  status: string | null;
+  aprovada: boolean;
+  na_meta: boolean;
+  tasks_total: number;
+  tasks_concluidas: number;
+  pts_total: number;
+  pts_concluidos: number;
+}
+export interface AcompTaskSprint {
+  id: string;
+  titulo: string | null;
+  coluna: "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida" | string;
+  pontos: number;
+  responsavel: string | null;
+  funcionalidade: string | null;
+  extra: boolean;
+  travada: boolean;
+}
 export interface AcompanhamentoResponse {
   subarea: string;
   filtro_gerente: string | null;
@@ -2617,6 +2672,9 @@ export interface AcompanhamentoResponse {
 export interface AcompSinal { codigo: string; texto: string }
 export interface AcompDetalheResponse {
   projeto: { id: string; nome: string | null; cliente: string | null; gerente: string | null };
+  progresso: AcompProgresso | null;
+  planejamento: AcompPlanejadaFunc[];
+  tasks: AcompTaskSprint[];
   status: AcompStatus;
   diagnostico: string;
   sinais: AcompSinal[];
