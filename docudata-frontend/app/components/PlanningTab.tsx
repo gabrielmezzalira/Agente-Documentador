@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { buttonClass, buttonStyle } from "./ds";
 import {
   getRascunho,
   patchRascunho,
@@ -98,49 +99,13 @@ const stepLabelStyle = (active: boolean, done: boolean): React.CSSProperties => 
   cursor: "default",
 });
 
-const btnPrimaryStyle: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "none",
-  borderRadius: 8,
-  padding: "9px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+const btnPrimaryStyle: React.CSSProperties = buttonStyle("primary");
 
-const btnSecondaryStyle: React.CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#c3cbc6",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 8,
-  padding: "9px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+const btnSecondaryStyle: React.CSSProperties = buttonStyle("secondary");
 
-const btnConfirmStyle: React.CSSProperties = {
-  background: "rgba(62,224,111,0.12)",
-  color: "#3ee06f",
-  border: "1px solid rgba(62,224,111,0.35)",
-  borderRadius: 8,
-  padding: "10px 22px",
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: "pointer",
-};
+const btnConfirmStyle: React.CSSProperties = buttonStyle("active");
 
-const btnDisabledStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.08)",
-  color: "#5d6661",
-  border: "none",
-  borderRadius: 8,
-  padding: "9px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "not-allowed",
-};
+const btnDisabledStyle: React.CSSProperties = { ...buttonStyle("primary"), opacity: 0.45, boxShadow: "none", cursor: "not-allowed" };
 
 const errorTextStyle: React.CSSProperties = {
   color: "#ff6b6b",
@@ -390,7 +355,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
             O documento foi registrado e o rascunho foi descartado.
           </p>
           <button
-            style={btnPrimaryStyle}
+            className={buttonClass("primary")} style={btnPrimaryStyle}
             onClick={() => {
               setConfirmado(false);
               setMarkdownGerado("");
@@ -427,7 +392,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
             será calculado ao iniciar o planning (últimas 3 sprints)
           </div>
 
-          <button style={btnPrimaryStyle} onClick={handleIniciar}>
+          <button className={buttonClass("primary")} style={btnPrimaryStyle} onClick={handleIniciar}>
             Iniciar Planning da Sprint {sprintAlvo}
           </button>
         </div>
@@ -516,7 +481,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
 
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button
-              style={selecionadas.length > 0 ? btnPrimaryStyle : btnDisabledStyle}
+              className={buttonClass("primary")} style={selecionadas.length > 0 ? btnPrimaryStyle : btnDisabledStyle}
               disabled={selecionadas.length === 0}
               onClick={() => patchAndAdvance(2)}
             >
@@ -622,11 +587,11 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
           })}
 
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button style={btnSecondaryStyle} onClick={() => patchAndAdvance(1)}>
+            <button className={buttonClass("secondary")} style={btnSecondaryStyle} onClick={() => patchAndAdvance(1)}>
               Anterior
             </button>
             <button
-              style={passo2Valido ? btnPrimaryStyle : btnDisabledStyle}
+              className={buttonClass("primary")} style={passo2Valido ? btnPrimaryStyle : btnDisabledStyle}
               disabled={!passo2Valido}
               onClick={() => patchAndAdvance(3)}
             >
@@ -666,10 +631,10 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
           })}
 
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button style={btnSecondaryStyle} onClick={() => patchAndAdvance(2)}>
+            <button className={buttonClass("secondary")} style={btnSecondaryStyle} onClick={() => patchAndAdvance(2)}>
               Anterior
             </button>
-            <button style={btnPrimaryStyle} onClick={() => patchAndAdvance(4)}>
+            <button className={buttonClass("primary")} style={btnPrimaryStyle} onClick={() => patchAndAdvance(4)}>
               Próximo
             </button>
           </div>
@@ -781,11 +746,11 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
           })}
 
           <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-            <button style={btnSecondaryStyle} onClick={() => patchAndAdvance(3)}>
+            <button className={buttonClass("secondary")} style={btnSecondaryStyle} onClick={() => patchAndAdvance(3)}>
               Anterior
             </button>
             <button
-              style={btnPrimaryStyle}
+              className={buttonClass("primary")} style={btnPrimaryStyle}
               onClick={async () => {
                 await patchAndAdvance(4);
                 if (onGoToSprintDoc) {
@@ -817,7 +782,7 @@ export default function PlanningTab({ projectId, sprints, onGoToSprintDoc }: Pro
             </button>
             {markdownGerado && !gerandoMarkdown && (
               <button
-                style={confirmando ? btnDisabledStyle : btnConfirmStyle}
+                className={buttonClass("active")} style={confirmando ? btnDisabledStyle : btnConfirmStyle}
                 disabled={confirmando}
                 onClick={handleConfirmar}
                 title="Salvar markdown gerado anteriormente"

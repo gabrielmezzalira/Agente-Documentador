@@ -67,7 +67,7 @@ import {
   type ConfiguracaoHistoricoEntry,
 } from "../../../lib/api";
 import Tabs from "../../../components/Tabs";
-import { Button as DsButton, EmptyState, ErrorNotice, Field as DsField, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
+import { Button as DsButton, buttonClass, buttonStyle, EmptyState, ErrorNotice, Field as DsField, Select as DsSelect, TabSectionHead, Textarea as DsTextarea } from "../../../components/ds";
 import { cardStyle as dsCardStyle } from "../../../lib/ds";
 import { useAuth } from "../../../components/AuthGuard";
 import SprintCard from "../../../components/SprintCard";
@@ -208,36 +208,29 @@ function GerentesSection({ projectId }: { projectId: string }) {
             {g.email && <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{g.email}</span>}
           </span>
           {podeGerir && podeRemover && (
-            <button
-              onClick={() => handleRemover(g)}
-              style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
-            >
+            <DsButton variant="ghost" size="sm" onClick={() => handleRemover(g)}>
               Remover
-            </button>
+            </DsButton>
           )}
         </div>
       ))}
 
       {podeGerir && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
-          <select
+          <DsSelect
             aria-label="Gerente a vincular"
             value={escolhido}
             onChange={(e) => setEscolhido(e.target.value)}
-            style={{ padding: "6px 10px", border: "1px solid rgba(62,224,111,0.2)", borderRadius: 7, fontSize: 13, color: "#f2f5f3", background: "#0d1711", minWidth: 220 }}
+            style={{ width: "auto", minWidth: 260, flex: "1 1 260px" }}
           >
             <option value="">{disponiveis.length ? "Selecione um gerente" : "Nenhum candidato disponível"}</option>
             {disponiveis.map((c) => (
               <option key={c.pessoa_id} value={c.pessoa_id}>{c.nome}{c.email ? ` (${c.email})` : ""}</option>
             ))}
-          </select>
-          <button
-            onClick={handleVincular}
-            disabled={busy || !escolhido}
-            style={{ background: "#3ee06f", color: "#04120a", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: busy || !escolhido ? "default" : "pointer", opacity: busy || !escolhido ? 0.5 : 1 }}
-          >
-            {busy ? "…" : "Vincular"}
-          </button>
+          </DsSelect>
+          <DsButton variant="primary" onClick={handleVincular} disabled={busy || !escolhido}>
+            {busy ? "Vinculando…" : "Vincular"}
+          </DsButton>
         </div>
       )}
 
@@ -550,14 +543,14 @@ function MigrarModoModal({
         {err && <p style={{ fontSize: 12, color: "#ff6b6b", marginBottom: 12 }}>{err}</p>}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onClose} disabled={confirmando} style={btnSecondary}>
+          <button type="button" onClick={onClose} disabled={confirmando} className={buttonClass("secondary")} style={btnSecondary}>
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleConfirmar}
             disabled={loadingPreview || confirmando || !preview}
-            style={{ ...btnPrimary, opacity: confirmando ? 0.6 : 1 }}
+            className={buttonClass("primary")} style={{ ...btnPrimary, opacity: confirmando ? 0.6 : 1 }}
           >
             {confirmando ? "Migrando..." : "Confirmar migração"}
           </button>
@@ -733,7 +726,7 @@ function ModosTrabalhoSection({
           type="button"
           onClick={handleSalvarModos}
           disabled={savingModos || !configMudou}
-          style={{ ...btnSecondary, opacity: savingModos || !configMudou ? 0.5 : 1, cursor: savingModos || !configMudou ? "not-allowed" : "pointer" }}
+          className={buttonClass("secondary")} style={{ ...btnSecondary, opacity: savingModos || !configMudou ? 0.5 : 1, cursor: savingModos || !configMudou ? "not-allowed" : "pointer" }}
         >
           {savingModos ? "Salvando..." : "Salvar"}
         </button>
@@ -769,7 +762,7 @@ function ModosTrabalhoSection({
               type="button"
               onClick={handleSalvarWip}
               disabled={savingWip}
-              style={{ ...btnSecondary, opacity: savingWip ? 0.5 : 1 }}
+              className={buttonClass("secondary")} style={{ ...btnSecondary, opacity: savingWip ? 0.5 : 1 }}
             >
               {savingWip ? "Salvando..." : "Salvar"}
             </button>
@@ -1469,7 +1462,7 @@ export default function ProjectDashboard() {
           borderRadius: 12, background: "rgba(177,151,252,0.10)", color: "#b197fc", fontSize: 13,
         }}>
           <span>Conecte os repositórios deste projeto para incorporar automaticamente os commits ao contexto.</span>
-          <button style={{ ...btnSecondary, color: "#b197fc", borderColor: "rgba(177,151,252,0.30)" }} onClick={() => setActiveTab("config")}>
+          <button className={buttonClass("secondary")} style={{ ...btnSecondary, color: "#b197fc", borderColor: "rgba(177,151,252,0.30)" }} onClick={() => setActiveTab("config")}>
             Configurar
           </button>
         </div>
@@ -1767,7 +1760,7 @@ export default function ProjectDashboard() {
                     Os commits de todos os repositórios conectados alimentam automaticamente o contexto deste projeto.
                   </p>
                 </div>
-                <button onClick={handleStartGitHubConnection} disabled={githubLoading || githubPreparing} style={{ ...btnPrimary, opacity: githubLoading || githubPreparing ? 0.6 : 1 }}>
+                <button onClick={handleStartGitHubConnection} disabled={githubLoading || githubPreparing} className={buttonClass("primary")} style={{ ...btnPrimary, opacity: githubLoading || githubPreparing ? 0.6 : 1 }}>
                   {githubLoading || githubPreparing
                     ? "Consultando..."
                     : githubRepositories.length > 0
@@ -1801,7 +1794,7 @@ export default function ProjectDashboard() {
                         </span>
                         {!repo.active && (
                           <button
-                            style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            className={buttonClass("danger")} style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
                             onClick={() => handleRemoveRepository(repo)}
                             disabled={githubLoading}
                           >
@@ -1810,7 +1803,7 @@ export default function ProjectDashboard() {
                         )}
                         {repo.active ? (
                           <button
-                            style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            className={buttonClass("danger")} style={{ ...btnDanger, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
                             onClick={() => handleDisconnectRepository(repo)}
                             disabled={githubLoading}
                           >
@@ -1818,7 +1811,7 @@ export default function ProjectDashboard() {
                           </button>
                         ) : repo.permission_status === "disconnected" ? (
                           <button
-                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            className={buttonClass("secondary")} style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
                             onClick={() => handleReconnectRepository(repo)}
                             disabled={githubLoading}
                           >
@@ -1826,7 +1819,7 @@ export default function ProjectDashboard() {
                           </button>
                         ) : (
                           <button
-                            style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
+                            className={buttonClass("secondary")} style={{ ...btnSecondary, padding: "5px 9px", fontSize: 11, opacity: githubLoading ? 0.6 : 1 }}
                             onClick={handleStartGitHubConnection}
                             disabled={githubLoading}
                           >
@@ -1844,7 +1837,7 @@ export default function ProjectDashboard() {
 
           <section style={sectionStyle}>
             <h2 style={sectionTitle}>Status do projeto</h2>
-            <button onClick={handleToggleDelivered} style={project.is_delivered ? btnDeliveredActive : btnDelivered}>
+            <button onClick={handleToggleDelivered} className={buttonClass(project.is_delivered ? "active" : "secondary")} style={project.is_delivered ? btnDeliveredActive : btnDelivered}>
               {project.is_delivered ? "✓ Marcado como entregue (desfazer)" : "Marcar como entregue"}
             </button>
           </section>
@@ -1919,7 +1912,7 @@ export default function ProjectDashboard() {
             <p style={{ fontSize: 13, color: "#8a948e", marginBottom: 14 }}>
               Excluir o projeto remove todas as ingestões, sprints e documentos. Esta ação é irreversível.
             </p>
-            <button onClick={handleDeleteProject} style={btnDanger}>Excluir projeto</button>
+            <button onClick={handleDeleteProject} className={buttonClass("danger")} style={btnDanger}>Excluir projeto</button>
           </section>
         </>
       )}
@@ -2129,42 +2122,9 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
   fontFamily: "inherit",
 };
-const btnPrimary: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "1px solid #3ee06f",
-  borderRadius: 10,
-  height: 38,
-  padding: "0 16px",
-  fontSize: 13.5,
-  fontWeight: 600,
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-  boxShadow: "0 0 24px rgba(62,224,111,0.25)",
-  fontFamily: "inherit",
-};
-const btnSecondary: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  color: "#f2f5f3",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-const btnDanger: React.CSSProperties = {
-  background: "transparent",
-  color: "#ff6b6b",
-  border: "1px solid rgba(255,107,107,0.30)",
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
+const btnPrimary: React.CSSProperties = buttonStyle("primary");
+const btnSecondary: React.CSSProperties = buttonStyle("secondary");
+const btnDanger: React.CSSProperties = buttonStyle("danger");
 const markdownContainer: React.CSSProperties = {
   background: "rgba(62,224,111,0.055)",
   border: "1px solid rgba(62,224,111,0.2)",
@@ -2173,26 +2133,8 @@ const markdownContainer: React.CSSProperties = {
   lineHeight: 1.8,
   color: "#c3cbc6",
 };
-const btnDelivered: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  color: "#f2f5f3",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: 10,
-  padding: "9px 16px",
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: "pointer",
-};
-const btnDeliveredActive: React.CSSProperties = {
-  background: "rgba(62,224,111,0.12)",
-  color: "#3ee06f",
-  border: "1px solid rgba(62,224,111,0.35)",
-  borderRadius: 10,
-  padding: "9px 16px",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+const btnDelivered: React.CSSProperties = buttonStyle("secondary");
+const btnDeliveredActive: React.CSSProperties = buttonStyle("active");
 const alertBox: React.CSSProperties = {
   background: "rgba(255,107,107,0.10)",
   border: "1px solid rgba(255,107,107,0.30)",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import { buttonClass, buttonStyle } from "./ds";
 import {
   getSprintFuncionalidades,
   updateSprintFuncionalidade,
@@ -74,27 +75,9 @@ const toggleBtn = (active: boolean, color: "green" | "amber"): CSSProperties => 
   transition: "all 0.1s",
 });
 
-const btnPrimary: CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "none",
-  borderRadius: 10,
-  padding: "10px 20px",
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: "pointer",
-};
+const btnPrimary: CSSProperties = buttonStyle("primary");
 
-const btnSecondary: CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#f2f5f3",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 10,
-  padding: "10px 16px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+const btnSecondary: CSSProperties = buttonStyle("secondary");
 
 // ---------- component ----------
 
@@ -217,10 +200,10 @@ export default function FuncionalidadesStatusModal({
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-          <button style={btnSecondary} onClick={onClose}>Pular</button>
+          <button className={buttonClass("secondary")} style={btnSecondary} onClick={onClose}>Pular</button>
           {items.length > 0 && (
             <button
-              style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}
+              className={buttonClass("primary")} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}
               onClick={handleSave}
               disabled={saving}
             >

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import TutorialBanner from "./TutorialBanner";
 import PropostasMelhoria from "./PropostasMelhoria";
-import { Button as DsButton, Select as DsSelect, ErrorNotice, Chip } from "./ds";
+import { Button as DsButton, buttonClass, buttonStyle, Select as DsSelect, ErrorNotice, Chip } from "./ds";
 import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
 import { nomeCurto } from "../lib/nome";
@@ -102,34 +102,11 @@ const inputSt: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-const btnPrimary: React.CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "1px solid #3ee06f",
-  borderRadius: 10,
-  height: 38,
-  padding: "0 16px",
-  fontSize: 13.5,
-  fontWeight: 600,
-  cursor: "pointer",
-  boxShadow: "0 0 24px rgba(62,224,111,0.25)",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-};
+const btnPrimary: React.CSSProperties = buttonStyle("primary");
 
-const btnGhost: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: 10,
-  padding: "0 14px",
-  height: 32,
-  fontSize: 12.5,
-  fontWeight: 600,
-  color: "#f2f5f3",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-};
+const btnGhost: React.CSSProperties = buttonStyle("secondary", "sm");
+const btnDanger: React.CSSProperties = buttonStyle("danger");
+const btnActive: React.CSSProperties = buttonStyle("active");
 
 // ---------------------------------------------------------------------------
 // Modal Nova/Editar Task
@@ -202,7 +179,7 @@ function PorQueNivel({ taskId }: { taskId: string }) {
   const sinais = classificacao?.sinais ? Object.entries(classificacao.sinais) : [];
   return (
     <div>
-      <button type="button" onClick={alternar} aria-expanded={aberto} style={btnGhost}>
+      <button type="button" onClick={alternar} aria-expanded={aberto} className={buttonClass("secondary")} style={btnGhost}>
         {aberto ? "Ocultar justificativa" : "Por que esse nível?"}
       </button>
       {aberto && (
@@ -578,7 +555,7 @@ function TaskModal({
                 placeholder="Novo item..."
                 style={{ ...inputSt, flex: 1 }}
               />
-              <button type="button" onClick={addChecklistItem} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
+              <button type="button" onClick={addChecklistItem} className={buttonClass("secondary")} style={{ ...btnGhost, padding: "7px 12px" }}>+</button>
             </div>
           </div>
 
@@ -702,7 +679,7 @@ function TaskModal({
             ) : (
               task.classificacao_status !== "manual" && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} style={btnGhost}>
+                  <button type="button" onClick={handleReclassificar} disabled={reclassificando || saving || edicaoPendente} className={buttonClass("secondary")} style={btnGhost}>
                     {reclassificando ? "Reclassificando…" : "Reclassificar"}
                   </button>
                   {edicaoPendente && <span style={{ fontSize: 12, color: "#8a948e" }}>Salve antes de reclassificar</span>}
@@ -721,7 +698,7 @@ function TaskModal({
                     <option key={n} value={n}>{rotuloNivel(n)}</option>
                   ))}
                 </DsSelect>
-                <button type="button" onClick={handleMudarNivel} disabled={!novoNivel || mudandoNivel || saving || edicaoPendente} style={btnGhost}>
+                <button type="button" onClick={handleMudarNivel} disabled={!novoNivel || mudandoNivel || saving || edicaoPendente} className={buttonClass("secondary")} style={btnGhost}>
                   {mudandoNivel ? "Salvando…" : "Mudar nível"}
                 </button>
               </div>
@@ -843,7 +820,7 @@ function TaskModal({
                       type="button"
                       onClick={handleOverrideTravamento}
                       disabled={overridingTravamento}
-                      style={{ ...btnGhost, opacity: overridingTravamento ? 0.6 : 1 }}
+                      className={buttonClass("secondary")} style={{ ...btnGhost, opacity: overridingTravamento ? 0.6 : 1 }}
                     >
                       {overridingTravamento ? "Suprimindo..." : "Suprimir alerta"}
                     </button>
@@ -862,7 +839,7 @@ function TaskModal({
                         type="button"
                         onClick={handleAprovar}
                         disabled={aprovando}
-                        style={{ ...btnPrimary, opacity: aprovando ? 0.6 : 1 }}
+                        className={buttonClass("primary")} style={{ ...btnPrimary, opacity: aprovando ? 0.6 : 1 }}
                       >
                         {aprovando ? "Aprovando..." : "Aprovar"}
                       </button>
@@ -870,7 +847,7 @@ function TaskModal({
                         type="button"
                         onClick={() => setRejeitando(true)}
                         disabled={aprovando}
-                        style={btnGhost}
+                        className={buttonClass("secondary")} style={btnGhost}
                       >
                         Rejeitar
                       </button>
@@ -890,11 +867,11 @@ function TaskModal({
                           type="button"
                           onClick={handleRejeitar}
                           disabled={aprovando}
-                          style={{ ...btnPrimary, background: "#ff6b6b", opacity: aprovando ? 0.6 : 1 }}
+                          className={buttonClass("danger")} style={{ ...btnDanger, opacity: aprovando ? 0.6 : 1 }}
                         >
                           {aprovando ? "Rejeitando..." : "Confirmar rejeição"}
                         </button>
-                        <button type="button" onClick={() => setRejeitando(false)} disabled={aprovando} style={btnGhost}>
+                        <button type="button" onClick={() => setRejeitando(false)} disabled={aprovando} className={buttonClass("secondary")} style={btnGhost}>
                           Cancelar
                         </button>
                       </div>
@@ -971,8 +948,8 @@ function TaskModal({
               </button>
             )}
             <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
-              <button type="button" onClick={onClose} style={btnGhost}>Cancelar</button>
-              <button type="submit" disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
+              <button type="button" onClick={onClose} className={buttonClass("secondary")} style={btnGhost}>Cancelar</button>
+              <button type="submit" disabled={saving} className={buttonClass("primary")} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
                 {saving ? (mode === "create" ? "Classificando…" : "Salvando…") : mode === "create" ? "Criar" : "Salvar"}
               </button>
             </div>
@@ -1101,7 +1078,7 @@ function TaskViewModal({
 
         {precisaReclassificar && (
           <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <button type="button" onClick={reclassificar} disabled={reclassificando} style={btnGhost}>
+            <button type="button" onClick={reclassificar} disabled={reclassificando} className={buttonClass("secondary")} style={btnGhost}>
               {reclassificando ? "Reclassificando…" : "Reclassificar"}
             </button>
             <span style={{ fontSize: 12, color: "#8a948e" }}>O nível desta task ainda não foi confirmado pelo classificador.</span>
@@ -1131,7 +1108,7 @@ function TaskViewModal({
                 const atualizada = await puxarTask(task.id);
                 onSaved(atualizada);
               }}
-              style={btnPrimary}
+              className={buttonClass("primary")} style={btnPrimary}
             >
               Puxar esta task
             </button>
@@ -1148,7 +1125,7 @@ function TaskViewModal({
                 const atualizada = await devolverTask(task.id);
                 onSaved(atualizada);
               }}
-              style={{ ...btnPrimary, background: "#0d1711", color: "#ff6b6b", border: "1px solid rgba(255,107,107,0.30)" }}
+              className={buttonClass("danger")} style={btnDanger}
             >
               Devolver à fila
             </button>
@@ -1156,8 +1133,8 @@ function TaskViewModal({
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-          {onEditar && <button type="button" onClick={onEditar} style={btnGhost}>Editar task</button>}
-          <button type="button" onClick={onClose} style={btnPrimary}>Fechar</button>
+          {onEditar && <button type="button" onClick={onEditar} className={buttonClass("secondary")} style={btnGhost}>Editar task</button>}
+          <button type="button" onClick={onClose} className={buttonClass("primary")} style={btnPrimary}>Fechar</button>
         </div>
       </div>
     </div>
@@ -1248,14 +1225,14 @@ function ConfirmTransicaoModal({
           </div>
         )}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onCancel} disabled={confirming} style={btnGhost}>
+          <button type="button" onClick={onCancel} disabled={confirming} className={buttonClass("secondary")} style={btnGhost}>
             Cancelar
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={confirming || semMotivo}
-            style={{ ...btnPrimary, opacity: confirming || semMotivo ? 0.6 : 1 }}
+            className={buttonClass("primary")} style={{ ...btnPrimary, opacity: confirming || semMotivo ? 0.6 : 1 }}
           >
             {modo === "aprovar"
               ? (confirming ? "Aprovando…" : "Aprovar")
@@ -1672,7 +1649,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               <button
                 onClick={handlePedirTask}
                 disabled={pedindoTask}
-                style={{ ...btnPrimary, background: "rgba(62,224,111,0.12)" }}
+                className={buttonClass("active")} style={btnActive}
               >
                 {pedindoTask ? "Enviando..." : "Quero mais uma task"}
               </button>
@@ -1709,13 +1686,13 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 </div>
                 <button
                   onClick={() => { handleResolverPedido(s.id, "atendida"); setCreateModal({ defaultSprintId: filterSprintId || lastSprint?.id }); }}
-                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "rgba(62,224,111,0.12)" }}
+                  className={buttonClass("active")} style={{ ...btnActive, height: 30, padding: "0 12px", fontSize: 12 }}
                 >
                   Criar task extra
                 </button>
                 <button
                   onClick={() => handleResolverPedido(s.id, "recusada")}
-                  style={{ ...btnGhost, padding: "4px 12px", fontSize: 12 }}
+                  className={buttonClass("secondary")} style={{ ...btnGhost, height: 30, padding: "0 12px", fontSize: 12 }}
                 >
                   Nada agora
                 </button>
@@ -1759,14 +1736,14 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
                 <button
                   disabled={resolvingId === s.id}
                   onClick={() => setPendingSugestao(s)}
-                  style={{ ...btnPrimary, padding: "5px 14px", fontSize: 12, background: "rgba(62,224,111,0.12)", opacity: resolvingId === s.id ? 0.5 : 1 }}
+                  className={buttonClass("active")} style={{ ...btnActive, height: 30, padding: "0 12px", fontSize: 12, opacity: resolvingId === s.id ? 0.5 : 1 }}
                 >
                   Aceitar
                 </button>
                 <button
                   disabled={resolvingId === s.id}
                   onClick={() => handleResolveSugestao(s.id, false)}
-                  style={{ ...btnGhost, padding: "4px 12px", fontSize: 12, opacity: resolvingId === s.id ? 0.5 : 1 }}
+                  className={buttonClass("secondary")} style={{ ...btnGhost, height: 30, padding: "0 12px", fontSize: 12, opacity: resolvingId === s.id ? 0.5 : 1 }}
                 >
                   Ignorar
                 </button>
@@ -1909,7 +1886,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               Task criada · nível {avisoCriacao.nivel} · {rotuloNivel(avisoCriacao.nivel)}
             </span>
             {avisoCriacao.justificativa && (
-              <button type="button" onClick={() => setMostrarPorque((v) => !v)} aria-expanded={mostrarPorque} style={btnGhost}>
+              <button type="button" onClick={() => setMostrarPorque((v) => !v)} aria-expanded={mostrarPorque} className={buttonClass("secondary")} style={btnGhost}>
                 por quê?
               </button>
             )}
@@ -1928,11 +1905,11 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               Na sua visão, qual era o nível dessa task?
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(1)}>1 · simples</button>
-              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(2)}>2 · moderada</button>
-              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(3)}>3 · complexa</button>
-              <button type="button" style={btnGhost} onClick={() => escolherOpiniao(5)}>5 · muito complexa</button>
-              <button type="button" style={{ ...btnGhost, border: "none", background: "none", color: "#8a948e" }} onClick={() => escolherOpiniao(null)}>Pular</button>
+              <button type="button" className={buttonClass("secondary")} style={btnGhost} onClick={() => escolherOpiniao(1)}>1 · simples</button>
+              <button type="button" className={buttonClass("secondary")} style={btnGhost} onClick={() => escolherOpiniao(2)}>2 · moderada</button>
+              <button type="button" className={buttonClass("secondary")} style={btnGhost} onClick={() => escolherOpiniao(3)}>3 · complexa</button>
+              <button type="button" className={buttonClass("secondary")} style={btnGhost} onClick={() => escolherOpiniao(5)}>5 · muito complexa</button>
+              <button type="button" className={buttonClass("ghost")} style={buttonStyle("ghost", "sm")} onClick={() => escolherOpiniao(null)}>Pular</button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { buttonClass, buttonStyle } from "./ds";
 import ReactMarkdown from "react-markdown";
 import {
   enrichPlanningComCorrelacoes,
@@ -119,28 +120,9 @@ const tabBtnStyle = (active: boolean): CSSProperties => ({
   borderColor: active ? "rgba(255,255,255,0.14)" : "rgba(62,224,111,0.2)",
 });
 
-const btnPrimary: CSSProperties = {
-  background: "#3ee06f",
-  color: "#04120a",
-  border: "none",
-  borderRadius: 10,
-  padding: "11px 22px",
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: "pointer",
-  transition: "opacity 0.1s",
-};
+const btnPrimary: CSSProperties = buttonStyle("primary");
 
-const btnSecondary: CSSProperties = {
-  background: "rgba(62,224,111,0.055)",
-  color: "#f2f5f3",
-  border: "1px solid rgba(62,224,111,0.2)",
-  borderRadius: 10,
-  padding: "11px 18px",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+const btnSecondary: CSSProperties = buttonStyle("secondary");
 
 const banner = (color: "yellow" | "green"): CSSProperties => ({
   background: color === "yellow" ? "rgba(242,193,78,0.10)" : "rgba(62,224,111,0.12)",
@@ -728,15 +710,15 @@ export default function PlanningModal({
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
-                style={{ ...btnSecondary, fontSize: 12, color: "#8a948e" }}
+                className={buttonClass("ghost")} style={buttonStyle("ghost", "sm")}
                 onClick={handleEnterManual}
                 disabled={loading}
               >
                 Escrever sem IA
               </button>
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={btnSecondary} onClick={onClose}>Cancelar</button>
-                <button style={btnPrimary} onClick={handleContinuarComKanban}>
+                <button className={buttonClass("secondary")} style={btnSecondary} onClick={onClose}>Cancelar</button>
+                <button className={buttonClass("primary")} style={btnPrimary} onClick={handleContinuarComKanban}>
                   Continuar →
                 </button>
               </div>
@@ -826,16 +808,16 @@ export default function PlanningModal({
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
               <button
-                style={{ ...btnSecondary, fontSize: 12, color: "#8a948e" }}
+                className={buttonClass("ghost")} style={buttonStyle("ghost", "sm")}
                 onClick={() => setStep("input")}
                 disabled={loading}
               >
                 ← Voltar
               </button>
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={btnSecondary} onClick={onClose}>Cancelar</button>
+                <button className={buttonClass("secondary")} style={btnSecondary} onClick={onClose}>Cancelar</button>
                 <button
-                  style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
+                  className={buttonClass("primary")} style={{ ...btnPrimary, opacity: loading ? 0.7 : 1 }}
                   onClick={handleAnalisar}
                   disabled={loading}
                 >
@@ -896,14 +878,14 @@ export default function PlanningModal({
                 onChange={(e) => setNewTask(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addManualTask()}
               />
-              <button style={btnSecondary} onClick={addManualTask}>+ Add</button>
+              <button className={buttonClass("secondary")} style={btnSecondary} onClick={addManualTask}>+ Add</button>
             </div>
 
             {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
-              <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
-              <button style={btnPrimary} onClick={() => setStep("form")}>
+              <button className={buttonClass("secondary")} style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
+              <button className={buttonClass("primary")} style={btnPrimary} onClick={() => setStep("form")}>
                 Próximo: preencher campos →
               </button>
             </div>
@@ -1060,8 +1042,8 @@ export default function PlanningModal({
             {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 24 }}>
-              <button style={btnSecondary} onClick={() => setStep("correlacoes")}>← Voltar</button>
-              <button style={btnPrimary} onClick={handleGerar}>
+              <button className={buttonClass("secondary")} style={btnSecondary} onClick={() => setStep("correlacoes")}>← Voltar</button>
+              <button className={buttonClass("primary")} style={btnPrimary} onClick={handleGerar}>
                 Gerar planning →
               </button>
             </div>
@@ -1091,9 +1073,9 @@ export default function PlanningModal({
             />
             {error && <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>{error}</p>}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 20 }}>
-              <button style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
+              <button className={buttonClass("secondary")} style={btnSecondary} onClick={() => setStep("input")}>← Voltar</button>
               <button
-                style={{ ...btnPrimary, opacity: manualSaving ? 0.7 : 1 }}
+                className={buttonClass("primary")} style={{ ...btnPrimary, opacity: manualSaving ? 0.7 : 1 }}
                 onClick={handleSaveManual}
                 disabled={manualSaving}
               >
@@ -1109,7 +1091,7 @@ export default function PlanningModal({
             <div style={{ ...banner("green"), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>✓ Planning gerado e salvo com sucesso.</span>
               <button
-                style={{ ...btnSecondary, fontSize: 12, padding: "6px 12px" }}
+                className={buttonClass("secondary")} style={buttonStyle("secondary", "sm")}
                 onClick={handleCopy}
               >
                 {copied ? "Copiado!" : "Copiar markdown"}
@@ -1119,7 +1101,7 @@ export default function PlanningModal({
               <ReactMarkdown>{docContent}</ReactMarkdown>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-              <button style={btnPrimary} onClick={onClose}>Fechar</button>
+              <button className={buttonClass("primary")} style={btnPrimary} onClick={onClose}>Fechar</button>
             </div>
           </>
         )}
