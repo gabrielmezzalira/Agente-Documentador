@@ -112,6 +112,43 @@ const btnDanger: React.CSSProperties = buttonStyle("danger");
 const btnActive: React.CSSProperties = buttonStyle("active");
 
 // ---------------------------------------------------------------------------
+// Painel lateral (estilo "side peek" do Notion) — usado pelos modais de task
+
+const painelOverlayStyle: React.CSSProperties = {
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+  display: "flex", alignItems: "stretch", justifyContent: "flex-end", zIndex: 1000,
+};
+
+function painelStyle(expandido: boolean): React.CSSProperties {
+  return {
+    position: "relative", background: "#0d1711", padding: "28px 32px",
+    width: "100%", maxWidth: expandido ? "min(1100px, 100vw)" : "min(680px, 100vw)",
+    height: "100%", overflowY: "auto",
+    borderLeft: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "-20px 0 60px rgba(0,0,0,0.25)",
+    transition: "max-width 0.2s ease",
+  };
+}
+
+function BotaoExpandirPainel({ expandido, onToggle }: { expandido: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={expandido ? "Reduzir painel" : "Expandir painel"}
+      title={expandido ? "Reduzir painel" : "Expandir painel"}
+      style={{
+        position: "absolute", top: 12, right: 16, background: "transparent",
+        border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#9aa8a0",
+        width: 30, height: 30, cursor: "pointer", fontSize: 14, lineHeight: 1,
+      }}
+    >
+      {expandido ? "⇥" : "⇤"}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Modal Nova/Editar Task
 
 interface TaskModalProps {
@@ -232,6 +269,7 @@ function TaskModal({
   mode, task, projectId, sprints, operacionais, funcionalidades,
   defaultSprintId, modoTrabalho, onClose, onSaved, onTaskUpdated, onReclassified, onDeleted,
 }: TaskModalProps) {
+  const [expandido, setExpandido] = useState(false);
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
   const [material, setMaterial] = useState(task?.material_apoio ?? "");
@@ -486,17 +524,11 @@ function TaskModal({
   }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-    }}
+    <div style={painelOverlayStyle}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
-        width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-      }}>
+      <div style={painelStyle(expandido)}>
+        <BotaoExpandirPainel expandido={expandido} onToggle={() => setExpandido((v) => !v)} />
         <h3 style={{ fontSize: 17, fontWeight: 800, color: "#f2f5f3", margin: "0 0 20px" }}>
           {mode === "create" ? "Nova task" : "Editar task"}
         </h3>
@@ -1024,6 +1056,7 @@ function TaskViewModal({
   /** Chamado depois de reclassificar com sucesso (recarrega a lista e fecha). */
   onReclassified?: () => void;
 }) {
+  const [expandido, setExpandido] = useState(false);
   const auth = useAuth();
   const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
   const [checklist, setChecklist] = useState(task.checklist);
@@ -1068,17 +1101,11 @@ function TaskViewModal({
   }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-    }}
+    <div style={painelOverlayStyle}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background: "#0d1711", borderRadius: 16, padding: "28px 32px",
-        width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-      }}>
+      <div style={painelStyle(expandido)}>
+        <BotaoExpandirPainel expandido={expandido} onToggle={() => setExpandido((v) => !v)} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
           <span style={{ ...chip, ...estiloPontos(task.classificacao_status) }} title={tituloPontos(task)}>{task.pontos}pt</span>
           {sprint && <span style={{ ...chip, background: "rgba(177,151,252,0.10)", color: "#b197fc" }}>Sprint {sprint.numero}</span>}
