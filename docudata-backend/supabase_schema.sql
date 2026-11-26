@@ -1514,3 +1514,13 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ON CONFLICT (project_id, pessoa_id) DO NOTHING;
 -- COMMIT;
 -- Rollback: DROP TABLE IF EXISTS projeto_gerentes;
+
+-- ============================================================
+-- v17 (2026-11-25): material de apoio da task. Texto em markdown escrito pelo gerente
+-- para o operacional ver (o enunciado fica em `descricao`, que alimenta o classificador;
+-- o material de apoio fica de fora dele). As imagens da task vão para o Supabase Storage
+-- (bucket `task-anexos`, criado pelo backend) e não precisam de SQL.
+-- Antes desta migração tudo funciona; só salvar material de apoio responde 503.
+-- ============================================================
+-- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS material_apoio text;
+-- Rollback: ALTER TABLE tasks DROP COLUMN IF EXISTS material_apoio;

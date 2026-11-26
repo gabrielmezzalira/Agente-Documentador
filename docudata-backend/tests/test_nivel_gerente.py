@@ -138,7 +138,8 @@ def test_resolver_revisao_nao_se_aplica_a_task_manual():
 
 # --- criação ---
 
-BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1"}
+BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1",
+        "operacional_id": "op1"}
 
 
 @pytest.fixture

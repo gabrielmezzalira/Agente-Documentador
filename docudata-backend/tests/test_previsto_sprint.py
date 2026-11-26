@@ -94,6 +94,7 @@ def _base_fake(tasks=()):
             {"id": "s-fut", "project_id": "p1", "iniciada": False},
         ],
         "funcionalidades": [{"id": "fn-1", "project_id": "p1", "status": "nao_iniciada"}],
+        "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}],
         "tasks": list(tasks),
     })
 
@@ -101,7 +102,7 @@ def _base_fake(tasks=()):
 def test_criar_task_em_sprint_iniciada_surge_na_sprint(monkeypatch, autenticar):
     fake = _base_fake()
     tc = _app_tasks(monkeypatch, autenticar, fake)
-    resp = tc.post("/tasks", json={"project_id": "p1", "titulo": "T", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-ini"})
+    resp = tc.post("/tasks", json={"project_id": "p1", "titulo": "T", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-ini", "operacional_id": "op1"})
     assert resp.status_code == 201, resp.text
     assert resp.json()["surgiu_na_sprint"] is True and resp.json()["prevista_no_inicio"] is False
 
@@ -109,8 +110,8 @@ def test_criar_task_em_sprint_iniciada_surge_na_sprint(monkeypatch, autenticar):
 def test_criar_task_extra_ou_em_sprint_futura_nao_surge(monkeypatch, autenticar):
     fake = _base_fake()
     tc = _app_tasks(monkeypatch, autenticar, fake)
-    r1 = tc.post("/tasks", json={"project_id": "p1", "titulo": "E", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-ini", "extra": True})
-    r2 = tc.post("/tasks", json={"project_id": "p1", "titulo": "F", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-fut"})
+    r1 = tc.post("/tasks", json={"project_id": "p1", "titulo": "E", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-ini", "extra": True, "operacional_id": "op1"})
+    r2 = tc.post("/tasks", json={"project_id": "p1", "titulo": "F", "pontos": 3, "funcionalidade_id": "fn-1", "sprint_id": "s-fut", "operacional_id": "op1"})
     for r in (r1, r2):
         assert r.status_code == 201, r.text
         assert r.json()["surgiu_na_sprint"] is False and r.json()["prevista_no_inicio"] is False

@@ -59,7 +59,8 @@ def _tc(monkeypatch, autenticar, fake, cargo="gerente"):
     return autenticar(TestClient(app), cargo)
 
 
-BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1"}
+BODY = {"project_id": "p1", "titulo": "Nova", "descricao": "algo claro", "funcionalidade_id": "fn-1",
+        "operacional_id": "op1"}
 
 
 def test_criar_com_classificacao_aplicada(monkeypatch, autenticar, classificar_ok):

@@ -65,6 +65,13 @@ def _mock_client(task=None, tasks_insert=None, tasks_update=None):
             resp.data = [{"id": "fn-1", "project_id": "proj-1", "status": "nao_iniciada"}]
             q.execute = MagicMock(return_value=resp)
             tbl.select = MagicMock(return_value=q)
+        elif name == "operacionais":
+            q = MagicMock()
+            q.eq = MagicMock(return_value=q)
+            resp = MagicMock()
+            resp.data = [{"id": "op-1", "project_id": "proj-1", "email": None}]
+            q.execute = MagicMock(return_value=resp)
+            tbl.select = MagicMock(return_value=q)
         elif name == "projects":
             q = MagicMock()
             q.eq = MagicMock(return_value=q)
@@ -116,7 +123,7 @@ def test_create_task_persiste_requer_aprovacao_true(make_client):
 
     resp = tc.post("/tasks", json={
         "project_id": "proj-1", "titulo": "Task com aprovação", "pontos": 3,
-        "requer_aprovacao": True, "funcionalidade_id": "fn-1",
+        "requer_aprovacao": True, "funcionalidade_id": "fn-1", "operacional_id": "op-1",
     })
 
     assert resp.status_code == 201
@@ -129,6 +136,7 @@ def test_create_task_persiste_requer_aprovacao_false_por_default(make_client):
 
     resp = tc.post("/tasks", json={
         "project_id": "proj-1", "titulo": "Task normal", "pontos": 3, "funcionalidade_id": "fn-1",
+        "operacional_id": "op-1",
     })
 
     assert resp.status_code == 201

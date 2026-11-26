@@ -1791,6 +1791,8 @@ export interface TaskKanbanResponse {
   operacional_id?: string | null;
   titulo: string;
   descricao?: string | null;
+  /** Markdown escrito pelo gerente para o operacional; não passa pelo classificador. */
+  material_apoio?: string | null;
   pontos: number;
   coluna_kanban: "planejado" | "em_andamento" | "pendente_aprovacao" | "concluida";
   bloqueado: boolean;
@@ -1864,6 +1866,7 @@ export async function createTaskKanban(data: {
   operacional_id?: string;
   funcionalidade_id?: string;
   descricao?: string;
+  material_apoio?: string;
   coluna_kanban?: string;
   extra?: boolean;
   checklist?: { texto: string; done: boolean }[];
@@ -2090,6 +2093,8 @@ export async function patchTaskKanban(
   data: {
     titulo?: string;
     descricao?: string;
+    /** Texto vazio apaga o material de apoio. */
+    material_apoio?: string;
     coluna_kanban?: string;
     operacional_id?: string | null;
     sprint_id?: string;
@@ -2117,8 +2122,47 @@ export async function patchTaskKanban(
     const err = await res.json().catch(() => ({}));
     throw Object.assign(new Error((err as { detail?: string }).detail ?? "WIP atingido"), { status: 409 });
   }
-  if (!res.ok) throw new Error("Erro ao atualizar task");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: unknown }).detail;
+    throw new Error(typeof detail === "string" ? detail : "Erro ao atualizar task");
+  }
   return res.json();
+}
+
+/** Imagem anexada a uma task (fica no Storage; o download passa pelo backend, que confere o acesso). */
+export interface TaskAnexo { nome: string; url: string; tamanho: number | null; criado_em: string | null }
+
+export const TASK_ANEXO_MAX_BYTES = 4 * 1024 * 1024; // o proxy do Vercel aceita até 4,5 MB no corpo
+export const TASK_ANEXO_TIPOS = "image/png,image/jpeg,image/webp,image/gif";
+
+export function taskAnexoSrc(taskId: string, nome: string): string {
+  return `${API}/tasks/${taskId}/anexos/${nome}`;
+}
+
+async function erroDoAnexo(res: Response, padrao: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  const detail = (err as { detail?: unknown }).detail;
+  return new Error(typeof detail === "string" ? detail : padrao);
+}
+
+export async function listTaskAnexos(taskId: string): Promise<TaskAnexo[]> {
+  const res = await apiFetch(`${API}/tasks/${taskId}/anexos`);
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível carregar as imagens");
+  return res.json();
+}
+
+export async function uploadTaskAnexo(taskId: string, arquivo: File): Promise<TaskAnexo> {
+  const form = new FormData();
+  form.append("arquivo", arquivo);
+  const res = await apiFetch(`${API}/tasks/${taskId}/anexos`, { method: "POST", body: form });
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível enviar a imagem");
+  return res.json();
+}
+
+export async function deleteTaskAnexo(taskId: string, nome: string): Promise<void> {
+  const res = await apiFetch(`${API}/tasks/${taskId}/anexos/${nome}`, { method: "DELETE" });
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível remover a imagem");
 }
 
 export async function moverTaskKanban(

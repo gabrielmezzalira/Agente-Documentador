@@ -509,6 +509,7 @@ class TaskCreate(BaseModel):
     sprint_id: Optional[str] = None
     operacional_id: Optional[str] = None
     descricao: Optional[str] = None
+    material_apoio: Optional[str] = Field(default=None, max_length=20000)  # markdown para o operacional; fora do classificador
     coluna_kanban: str = "planejado"
     checklist: Optional[list[dict]] = None  # [{texto, done}]
     ordem: int = 0
@@ -544,6 +545,7 @@ _BLOQUEIO_TIPOS_VALIDOS = {"interno", "cliente"}
 class TaskUpdate(BaseModel):
     titulo: Optional[str] = None
     descricao: Optional[str] = None
+    material_apoio: Optional[str] = Field(default=None, max_length=20000)
     pontos: Optional[int] = None
     funcionalidade_id: Optional[str] = None
     sprint_id: Optional[str] = None
@@ -600,6 +602,7 @@ class TaskResponse(BaseModel):
     operacional_id: Optional[str] = None
     titulo: str
     descricao: Optional[str] = None
+    material_apoio: Optional[str] = None
     pontos: int
     pontos_legado: Optional[int] = None
     coluna_kanban: str

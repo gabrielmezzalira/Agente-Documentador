@@ -17,6 +17,7 @@ def _fake():
         "projects": [{"id": "p1", "modo_trabalho": "ATRIBUICAO"}],
         "sprints": [{"id": "s1", "project_id": "p1", "iniciada": False}],
         "tasks": [],
+        "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}],
     }, defaults={"tasks": {"bloqueado": False, "created_at": "2026-01-01T00:00:00+00:00",
                            "updated_at": "2026-01-01T00:00:00+00:00"}})
 
@@ -52,7 +53,8 @@ def _transicoes(fake, fid):
 def test_criar_task_planejada_mantem_nao_iniciada_sem_transicao(monkeypatch, autenticar):
     fake = _fake()
     resp = _tc(monkeypatch, autenticar, fake).post(
-        "/tasks", json={"project_id": "p1", "titulo": "Nova", "pontos": 1, "funcionalidade_id": "fA"})
+        "/tasks", json={"project_id": "p1", "titulo": "Nova", "pontos": 1, "funcionalidade_id": "fA",
+                        "operacional_id": "op1"})
     assert resp.status_code == 201, resp.text
     assert _status(fake, "fA") == "nao_iniciada"
     assert _transicoes(fake, "fA") == []
@@ -62,7 +64,8 @@ def test_criar_task_em_andamento_muda_status(monkeypatch, autenticar):
     fake = _fake()
     resp = _tc(monkeypatch, autenticar, fake).post(
         "/tasks", json={"project_id": "p1", "titulo": "Nova", "pontos": 1,
-                        "funcionalidade_id": "fA", "coluna_kanban": "em_andamento"})
+                        "funcionalidade_id": "fA", "coluna_kanban": "em_andamento",
+                        "operacional_id": "op1"})
     assert resp.status_code == 201, resp.text
     assert _status(fake, "fA") == "em_andamento"
 

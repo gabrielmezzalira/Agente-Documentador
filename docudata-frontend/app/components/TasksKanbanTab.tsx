@@ -8,9 +8,12 @@ import { Button as DsButton, buttonClass, buttonStyle, Select as DsSelect, Error
 import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
 import { nomeCurto } from "../lib/nome";
+import { MaterialApoioEditor, MaterialApoioLeitura } from "./MaterialApoio";
+import ModoTrabalhoAviso from "./ModoTrabalhoAviso";
 import {
   listTasksKanban,
   createTaskKanban,
+  uploadTaskAnexo,
   patchTaskKanban,
   moverTaskKanban,
   deleteTaskKanban,
@@ -231,6 +234,8 @@ function TaskModal({
 }: TaskModalProps) {
   const [titulo, setTitulo] = useState(task?.titulo ?? "");
   const [descricao, setDescricao] = useState(task?.descricao ?? "");
+  const [material, setMaterial] = useState(task?.material_apoio ?? "");
+  const [imagensPendentes, setImagensPendentes] = useState<File[]>([]);
   const auth = useAuth();
   const ehLider = auth?.cargo === "lider" || auth?.cargo === "owner";
   const ehGerente = !!auth && auth.cargo !== "operacional";
@@ -282,6 +287,7 @@ function TaskModal({
 
   const tituloMudou = mode === "edit" && titulo !== (task?.titulo ?? "");
   const descricaoMudou = mode === "edit" && descricao !== (task?.descricao ?? "");
+  const materialMudou = mode === "edit" && material.trim() !== (task?.material_apoio ?? "").trim();
   const checklistMudou = mode === "edit" && JSON.stringify(checklist.map((i) => [i.texto, i.done])) !== JSON.stringify((task?.checklist ?? []).map((i) => [i.texto, i.done]));
   const edicaoPendente = tituloMudou || descricaoMudou || checklistMudou;
   const textoMudou = tituloMudou || descricaoMudou
@@ -291,6 +297,7 @@ function TaskModal({
     e.preventDefault();
     if (!titulo.trim()) { setErr("Título obrigatório."); return; }
     if (mode === "create" && !funcId) { setErr("Escolha a funcionalidade da task."); return; }
+    if (mode === "create" && modoTrabalho !== "PULL" && !operacionalId) { setErr("Escolha o responsável da task."); return; }
     if (mode === "create" && nivelProprio && !nivelGerente) { setErr("Escolha o nível da task."); return; }
     if (jaEstavaBloqueadoManual && !eraBloqueioCliente && !bloqueado && !bloqueadoResolvidoPor) {
       setErr("Informe quem resolveu o bloqueio.");
@@ -307,6 +314,7 @@ function TaskModal({
           project_id: projectId,
           titulo: titulo.trim(),
           descricao: descricao.trim() || undefined,
+          ...(ehGerente && material.trim() ? { material_apoio: material.trim() } : {}),
           sprint_id: sprintId || undefined,
           operacional_id: operacionalId || undefined,
           funcionalidade_id: funcId || undefined,
@@ -324,6 +332,7 @@ function TaskModal({
         saved = await patchTaskKanban(task!.id, {
           ...(tituloMudou ? { titulo: titulo.trim() } : {}),
           ...(descricaoMudou ? { descricao: descricao.trim() } : {}),
+          ...(materialMudou ? { material_apoio: material.trim() } : {}),
           ...(checklistMudou ? { checklist } : {}),
           sprint_id: sprintId || undefined,
           ...(operacionalMudou ? { operacional_id: operacionalId || null } : {}),
@@ -337,6 +346,15 @@ function TaskModal({
           extra,
           requer_aprovacao: requerAprovacao,
         });
+      }
+      if (mode === "create" && imagensPendentes.length > 0) {
+        const falhas: string[] = [];
+        for (const img of imagensPendentes) {
+          try { await uploadTaskAnexo(saved.id, img); } catch (e) { falhas.push(`${img.name}: ${e instanceof Error ? e.message : "erro"}`); }
+        }
+        if (falhas.length > 0) {
+          alert(`A task foi criada, mas ${falhas.length === 1 ? "1 imagem não subiu" : `${falhas.length} imagens não subiram`}:\n${falhas.join("\n")}\n\nAbra a task e use Editar para anexar de novo.`);
+        }
       }
       onSaved(saved, mode === "create");
       onClose();
@@ -522,6 +540,16 @@ function TaskModal({
             </p>
           </div>
 
+          {ehGerente && (
+            <MaterialApoioEditor
+              taskId={mode === "edit" ? task!.id : null}
+              texto={material}
+              onTexto={setMaterial}
+              pendentes={imagensPendentes}
+              onPendentes={setImagensPendentes}
+            />
+          )}
+
           {/* Checklist */}
           <div>
             <label style={labelSt}>Checklist</label>
@@ -603,13 +631,23 @@ function TaskModal({
             </div>
           ) : (
             <div>
-              <label style={labelSt}>Operacional</label>
-              <select value={operacionalId} onChange={(e) => setOperacionalId(e.target.value)} style={inputSt}>
-                <option value="">Sem operacional</option>
+              <label style={labelSt} htmlFor="task-responsavel">{mode === "create" ? "Responsável *" : "Responsável"}</label>
+              <select
+                id="task-responsavel" value={operacionalId} required={mode === "create"} aria-describedby="task-responsavel-ajuda"
+                onChange={(e) => setOperacionalId(e.target.value)} style={inputSt}
+              >
+                {mode === "create"
+                  ? <option value="" disabled>Escolha quem vai fazer a task</option>
+                  : <option value="">Sem responsável</option>}
                 {operacionais.filter((o) => o.ativo).map((o) => (
                   <option key={o.id} value={o.id}>{o.nome}{o.papel ? ` — ${o.papel}` : ""}</option>
                 ))}
               </select>
+              <p id="task-responsavel-ajuda" style={{ fontSize: 12, lineHeight: 1.5, margin: "6px 0 0", color: operacionais.some((o) => o.ativo) ? "#8a948e" : "#f2c14e" }}>
+                {operacionais.some((o) => o.ativo)
+                  ? "Neste projeto o modo é Atribuição: toda task precisa de um responsável, definido por você ao criar."
+                  : "Este projeto não tem ninguém ativo no time. Cadastre as pessoas em Configurações do projeto antes de criar tasks."}
+              </p>
             </div>
           )}
 
@@ -1064,6 +1102,8 @@ function TaskViewModal({
             <ReactMarkdown>{task.descricao}</ReactMarkdown>
           </div>
         )}
+
+        <MaterialApoioLeitura taskId={task.id} texto={task.material_apoio} />
 
         <div>
           <label style={labelSt}>Checklist{checklist.length > 0 ? ` (${done}/${checklist.length})` : ""}</label>
@@ -1633,6 +1673,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <TutorialBanner heading="Tasks e Kanban" steps={tasksSteps} />
+      <ModoTrabalhoAviso modo={modoTrabalho} />
       {/* Filters */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <DsSelect aria-label="Filtrar por sprint" value={filterSprintId} onChange={(e) => setFilterSprintId(e.target.value)} style={{ width: 200, height: 40, fontSize: 13.5 }}>

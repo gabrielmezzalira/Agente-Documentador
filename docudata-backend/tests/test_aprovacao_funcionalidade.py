@@ -18,6 +18,7 @@ def _fake(status="concluida", aprovada_em=None):
         "projects": [{"id": "p1", "modo_trabalho": "ATRIBUICAO"}],
         "sprints": [{"id": "s1", "project_id": "p1", "iniciada": False}],
         "tasks": [],
+        "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}],
     }, defaults={"tasks": {"bloqueado": False, "created_at": "2026-01-01T00:00:00+00:00",
                            "updated_at": "2026-01-01T00:00:00+00:00"}})
 
@@ -81,7 +82,8 @@ def test_revogar_se_aprovada():
 def test_task_nova_em_funcionalidade_aprovada_revoga(monkeypatch, autenticar):
     fake = _fake(aprovada_em="2026-10-01T00:00:00+00:00")
     resp = _tc(monkeypatch, autenticar, fake).post(
-        "/tasks", json={"project_id": "p1", "titulo": "Ajuste", "pontos": 1, "funcionalidade_id": "f1"}
+        "/tasks", json={"project_id": "p1", "titulo": "Ajuste", "pontos": 1, "funcionalidade_id": "f1",
+               "operacional_id": "op1"}
     )
     assert resp.status_code == 201, resp.text
     assert fake.tables["funcionalidades"][0]["aprovada_em"] is None

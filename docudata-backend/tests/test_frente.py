@@ -24,7 +24,7 @@ def _fake(**task_kw):
         "projects": [{"id": "p1", "name": "Proj", "subarea": "dev", "modo_trabalho": "ATRIBUICAO"}],
         "sprints": [{"id": "s1", "project_id": "p1", "numero": 1, "iniciada": False}],
         "funcionalidades": [{"id": "fn-1", "project_id": "p1", "status": "nao_iniciada"}],
-        "operacionais": [], "tasks": [task], "task_classificacoes": [], "task_aprendizado": [],
+        "operacionais": [{"id": "op1", "project_id": "p1", "email": "pessoa@citi.org.br"}], "tasks": [task], "task_classificacoes": [], "task_aprendizado": [],
     }, defaults={"tasks": {"bloqueado": False, "created_at": "2026-01-01T00:00:00+00:00",
                            "updated_at": "2026-01-01T00:00:00+00:00"}})
 
@@ -110,7 +110,7 @@ def test_post_agenda_classificacao_sem_gravar_frente_no_insert(monkeypatch, aute
     fake = _fake()
     fake.tables["tasks"].clear()
     c, agendadas = _tc(monkeypatch, autenticar, fake)
-    resp = c.post("/tasks", json={"project_id": "p1", "titulo": "Nova", "descricao": "x", "nivel_gerente": 3, "funcionalidade_id": "fn-1"})
+    resp = c.post("/tasks", json={"project_id": "p1", "titulo": "Nova", "descricao": "x", "nivel_gerente": 3, "funcionalidade_id": "fn-1", "operacional_id": "op1"})
     assert resp.status_code == 201, resp.text
     criada = fake.tables["tasks"][0]
     assert agendadas == [criada["id"]]
@@ -201,7 +201,7 @@ def test_post_nivel_gerente_com_gravar_classificacao_falhando_remove_task_e_503(
         raise RuntimeError("violates check constraint")
 
     monkeypatch.setattr(ciclo, "gravar_classificacao", explode)
-    resp = c.post("/tasks", json={"project_id": "p1", "titulo": "Nova", "descricao": "x", "nivel_gerente": 3, "funcionalidade_id": "fn-1"})
+    resp = c.post("/tasks", json={"project_id": "p1", "titulo": "Nova", "descricao": "x", "nivel_gerente": 3, "funcionalidade_id": "fn-1", "operacional_id": "op1"})
     assert resp.status_code == 503
     assert "migração v12" in resp.json()["detail"]
     assert fake.tables["tasks"] == []

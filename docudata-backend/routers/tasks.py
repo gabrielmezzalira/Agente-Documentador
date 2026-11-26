@@ -20,6 +20,7 @@ from models.schemas import (
     _COLUNAS_VALIDAS,
 )
 from services import classificador_ciclo as ciclo
+from services.task_anexos import remover_todos as remover_todos_anexos
 from services.acesso import emails_da_gerencia, exigir_acesso, exigir_acesso_por
 from services.auth import (
     get_current_pessoa,
@@ -61,8 +62,16 @@ _CAMPOS_BLOQUEADOS_PARA_OPERACIONAL = {
     "titulo", "descricao", "pontos", "funcionalidade_id", "sprint_id",
     "operacional_id", "ordem", "extra", "bloqueado", "motivo_bloqueio",
     "bloqueado_manual", "bloqueado_por", "bloqueado_resolvido_por",
-    "bloqueio_tipo", "requer_aprovacao", "frente",
+    "bloqueio_tipo", "requer_aprovacao", "frente", "material_apoio",
 }
+
+
+MSG_MIGRACAO_MATERIAL = "Material de apoio indisponível: aplique a migração v17 no banco."
+
+
+def _coluna_material_ausente(exc: Exception) -> bool:
+    texto = str(exc)
+    return "material_apoio" in texto and any(m in texto for m in ("PGRST204", "42703", "does not exist", "schema cache"))
 
 
 def _sincronizar_funcionalidades(client, funcionalidade_ids, autor: Optional[str] = "sistema") -> None:
@@ -331,6 +340,11 @@ async def create_task(
             status_code=422,
             detail="Em modo Pull, tasks não podem ter responsável definido manualmente. Use a fila de puxar.",
         )
+    if not data.operacional_id and projeto_row.get("modo_trabalho") == "ATRIBUICAO":
+        raise HTTPException(
+            status_code=422,
+            detail="Em modo Atribuição, toda task precisa de um responsável. Escolha quem vai fazer a task.",
+        )
 
     if data.operacional_id:
         op_check = (
@@ -394,6 +408,8 @@ async def create_task(
         val = getattr(data, field, None)
         if val is not None:
             payload[field] = val
+    if (data.material_apoio or "").strip():
+        payload["material_apoio"] = data.material_apoio.strip()
 
     # ALERT-01/ALERT-04: o relógio de travamento automático conta desde que a
     # task esteja ativa (planejado ou em_andamento) E a sprint dela já tenha
@@ -407,7 +423,12 @@ async def create_task(
     if data.sprint_id:
         payload.update(marcas_ao_entrar_na_sprint(sprint_iniciada, data.extra))
 
-    resp = client.table("tasks").insert(payload).execute()
+    try:
+        resp = client.table("tasks").insert(payload).execute()
+    except Exception as exc:
+        if "material_apoio" in payload and _coluna_material_ausente(exc):
+            raise HTTPException(status_code=503, detail=MSG_MIGRACAO_MATERIAL)
+        raise
     if not resp.data:
         raise HTTPException(status_code=500, detail="Failed to create task")
 
@@ -1250,7 +1271,15 @@ async def patch_task(
         updates["frente"] = data.frente
         updates["frente_definida_por"] = "gerente"
 
-    result = client.table("tasks").update(updates).eq("id", task_id).execute()
+    if "material_apoio" in data.model_fields_set:
+        updates["material_apoio"] = (data.material_apoio or "").strip() or None
+
+    try:
+        result = client.table("tasks").update(updates).eq("id", task_id).execute()
+    except Exception as exc:
+        if "material_apoio" in updates and _coluna_material_ausente(exc):
+            raise HTTPException(status_code=503, detail=MSG_MIGRACAO_MATERIAL)
+        raise
 
     if (
         background is not None
@@ -1452,4 +1481,5 @@ async def delete_task(task_id: str, pessoa: dict = Depends(require_not_operacion
             )
 
     client.table("tasks").delete().eq("id", task_id).execute()
+    remover_todos_anexos(client, check.data[0]["project_id"], task_id)
     _sincronizar_funcionalidades(client, [check.data[0].get("funcionalidade_id")], pessoa.get("email"))
