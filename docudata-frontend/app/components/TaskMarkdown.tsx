@@ -2,6 +2,7 @@
 
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import ImagemAmpliavel from "./ImagemAmpliavel";
 import { taskAnexoSrc } from "../lib/api";
 import { ds } from "../lib/ds";
 
@@ -61,16 +62,9 @@ export default function TaskMarkdown({ taskId, texto }: { taskId: string; texto:
             if (src.startsWith(PREFIXO)) {
               const nome = src.slice(PREFIXO.length);
               if (!NOME_ANEXO.test(nome)) return <span style={{ color: ds.muted }}>[imagem indisponível]</span>;
-              const url = taskAnexoSrc(taskId, nome);
-              return (
-                <a href={url} target="_blank" rel="noreferrer noopener" title="Abrir em tamanho original" style={{ display: "block" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={alt ?? ""} loading="lazy" />
-                </a>
-              );
+              return <ImagemAmpliavel src={taskAnexoSrc(taskId, nome)} alt={alt ?? ""} />;
             }
-            // eslint-disable-next-line @next/next/no-img-element
-            return <img src={src} alt={alt ?? ""} loading="lazy" referrerPolicy="no-referrer" />;
+            return <ImagemAmpliavel src={src} alt={alt ?? ""} />;
           },
         }}
       >

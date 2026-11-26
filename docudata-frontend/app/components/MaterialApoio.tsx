@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { Button } from "./ds";
+import ImagemAmpliavel from "./ImagemAmpliavel";
 import TaskMarkdown, { anexosCitados, referenciaAnexo, semReferencia } from "./TaskMarkdown";
 import { ds, labelStyle } from "../lib/ds";
 import {
@@ -172,8 +173,7 @@ export function MaterialApoioEditor({ taskId, texto, onTexto, pendentes, onPende
           {taskId
             ? anexos.map((a) => (
                 <li key={a.nome} style={{ display: "flex", flexDirection: "column", gap: 6, width: 88 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={taskAnexoSrc(taskId, a.nome)} alt={a.nome} style={miniatura} loading="lazy" />
+                  <ImagemAmpliavel src={taskAnexoSrc(taskId, a.nome)} alt={a.nome} style={miniatura} />
                   <button type="button" onClick={() => inserir(a.nome)} style={linkBtn}>Inserir no texto</button>
                   <button type="button" onClick={() => void remover(a.nome)} style={{ ...linkBtn, color: ds.red }}>Remover</button>
                 </li>
@@ -217,10 +217,11 @@ export function MaterialApoioLeitura({ taskId, texto }: { taskId: string; texto:
         <ul style={{ listStyle: "none", margin: (texto ?? "").trim() ? "12px 0 0" : 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
           {soltas.map((a) => (
             <li key={a.nome}>
-              <a href={taskAnexoSrc(taskId, a.nome)} target="_blank" rel="noreferrer noopener" title="Abrir em tamanho original" style={{ display: "block" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={taskAnexoSrc(taskId, a.nome)} alt={a.nome.replace(/^[a-z0-9]{12}-/, "").replace(/\.[a-z]+$/, "").replace(/-/g, " ")} style={imagemCheia} loading="lazy" />
-              </a>
+              <ImagemAmpliavel
+                src={taskAnexoSrc(taskId, a.nome)}
+                alt={a.nome.replace(/^[a-z0-9]{12}-/, "").replace(/\.[a-z]+$/, "").replace(/-/g, " ")}
+                style={imagemCheia}
+              />
             </li>
           ))}
         </ul>
