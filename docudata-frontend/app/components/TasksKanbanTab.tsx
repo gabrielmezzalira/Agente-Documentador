@@ -9,6 +9,7 @@ import { useAuth } from "./AuthGuard";
 import { NIVEIS, rotuloNivel } from "../lib/regua";
 import { nomeCurto } from "../lib/nome";
 import { MaterialApoioEditor, MaterialApoioLeitura } from "./MaterialApoio";
+import Avatar, { PessoaComFoto } from "./Avatar";
 import ModoTrabalhoAviso from "./ModoTrabalhoAviso";
 import {
   listTasksKanban,
@@ -1379,7 +1380,7 @@ function TaskCard({
         {task.frente && <Chip>{rotuloFrente(task.frente)}</Chip>}
 
         {op && (
-          <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }} title={op.nome}>{nomeCurto(op.nome)}</span>
+          <span style={{ ...chip, background: "rgba(177,151,252,0.14)", color: "#b197fc", borderColor: "rgba(177,151,252,0.3)" }} title={op.nome}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar nome={op.nome} size={16} />{nomeCurto(op.nome)}</span></span>
         )}
 
         {/* Fora da fila, task sem dono é anomalia (ninguém recebe o crédito): tem que aparecer. */}
@@ -1789,7 +1790,7 @@ export default function TasksKanbanTab({ projectId, sprints, operacionais, funci
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 13, color: "#c3cbc6" }}>
-                    <strong>{s.operacional_nome}</strong> está sem task em aberto e pediu mais trabalho.
+                    <PessoaComFoto nome={s.operacional_nome ?? ""} size={20}><strong>{s.operacional_nome}</strong></PessoaComFoto> está sem task em aberto e pediu mais trabalho.
                   </span>
                   {s.sugestao && (
                     <p style={{ fontSize: 12, color: "#7cf0a0", background: "rgba(62,224,111,0.12)", borderRadius: 6, padding: "6px 10px", margin: "6px 0 0" }}>

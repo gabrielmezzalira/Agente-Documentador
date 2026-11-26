@@ -6,6 +6,7 @@ import DefinirMetaModal from "../DefinirMetaModal";
 import { COLUNAS_KANBAN, COR_STATUS, STATUS_INFO, TOM_STATUS, corDoSpi, num, pendencia, pts } from "./visual";
 import { ds, labelStyle } from "../../lib/ds";
 import { nomeCurto } from "../../lib/nome";
+import Avatar from "../Avatar";
 import { getDetalheProjeto, getEventosMeta, type AcompDetalheResponse, type AcompTaskSprint, type MetaEvento } from "../../lib/api";
 
 const mono: CSSProperties = { fontFamily: ds.fontMono };
@@ -190,7 +191,7 @@ function TasksDaSprint({ tasks }: { tasks: AcompTaskSprint[] }) {
         <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
           <span style={{ fontSize: 13.5, color: t.coluna === "concluida" ? ds.muted : ds.text, overflowWrap: "anywhere" }}>{t.titulo ?? "(sem título)"}</span>
           <span style={{ fontSize: 12, color: ds.muted }}>
-            {t.responsavel ? nomeCurto(t.responsavel) : <span style={{ color: ds.amber }}>sem responsável</span>}
+            {t.responsavel ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar nome={t.responsavel} size={16} />{nomeCurto(t.responsavel)}</span> : <span style={{ color: ds.amber }}>sem responsável</span>}
             {t.funcionalidade ? ` · ${t.funcionalidade}` : ""} · {pts(t.pontos)} pt{t.pontos === 1 ? "" : "s"}{t.extra ? " · extra" : ""}
           </span>
         </span>
@@ -354,7 +355,7 @@ export default function ProjetoDetalhePainel({ projetoId, onClose, onMetaSalva }
                 <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column" }}>
                   {d.time.pessoas.map((p) => (
                     <li key={p.operacional_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: `1px solid ${ds.border}`, fontSize: 14, color: ds.text2 }}>
-                      <span style={{ fontWeight: 600, color: ds.white }} title={p.nome ?? undefined}>{p.nome ? nomeCurto(p.nome) : "Sem nome"}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, color: ds.white }} title={p.nome ?? undefined}>{p.nome && <Avatar nome={p.nome} size={26} />}{p.nome ? nomeCurto(p.nome) : "Sem nome"}</span>
                       <span style={{ ...mono, marginLeft: "auto", color: ds.muted }}>{num(p.realizado, 1)} pts</span>
                       {p.piso == null
                         ? <span style={{ fontSize: 12.5, color: ds.muted }}>sem histórico para o piso</span>

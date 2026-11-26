@@ -1,4 +1,5 @@
 "use client";
+import { AvatarEditavel } from "../components/Avatar";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
@@ -97,9 +98,12 @@ export default function PessoasPage() {
             </div>
             {pessoas.map((p, i) => (
               <div key={p.id} role="row" style={{ display: "grid", gridTemplateColumns: COLUNAS, gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none" }}>
-                <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: ds.white }}>{p.nome}</span>
-                  <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{p.email}</span>
+                <span role="cell" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <AvatarEditavel nome={p.nome} onErro={(m) => alert(m)} />
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: ds.white }}>{p.nome}</span>
+                    <span style={{ fontFamily: ds.fontMono, fontSize: 12, color: ds.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{p.email}</span>
+                  </span>
                 </span>
                 <span role="cell" style={{ fontSize: 13, color: ds.text2, lineHeight: 1.45 }}>
                   {p.projetos.length > 0 ? p.projetos.join(", ") : <span style={{ color: ds.dim }}>—</span>}

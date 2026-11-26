@@ -1,4 +1,5 @@
 "use client";
+import Avatar from "../Avatar";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -44,6 +45,7 @@ export default function ChooserHeader({ pessoa }: { pessoa: MeResponse }) {
       </nav>
 
       <div style={{ ...cardStyle, boxShadow: "none", borderRadius: 999, display: "flex", alignItems: "center", gap: 10, padding: "6px 6px 6px 14px" }}>
+        <Avatar nome={pessoa.nome} size={26} />
         <span style={{ fontSize: 13.5, color: ds.text, fontWeight: 600 }}>{pessoa.nome}</span>
         <Chip tone="green">{CARGO_LABEL[pessoa.cargo] ?? pessoa.cargo}</Chip>
         <button

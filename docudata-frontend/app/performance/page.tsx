@@ -1,4 +1,5 @@
 "use client";
+import { PessoaComFoto } from "../components/Avatar";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
@@ -53,7 +54,7 @@ function PessoaCard({ op, posicao }: { op: PerformanceOperacional; posicao: numb
       <div className="ds-perf-row" style={{ display: "grid", gridTemplateColumns: "52px 250px minmax(0,1fr) 120px", gap: 24, alignItems: "center", padding: "22px 28px" }}>
         <span style={{ fontFamily: ds.fontMono, fontSize: 22, fontWeight: 600, color: primeiro ? ds.green : ds.dim }}>{String(posicao).padStart(2, "0")}</span>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 17, fontWeight: 600, color: ds.white }}>{op.nome}</span>
+          <PessoaComFoto nome={op.nome} size={36}><span style={{ fontSize: 17, fontWeight: 600, color: ds.white }}>{op.nome}</span></PessoaComFoto>
           {primeiro && <Chip tone="green" dot>Maior contribuição</Chip>}
           {op.janela_parcial && <Chip tone="amber">Janela parcial</Chip>}
         </div>

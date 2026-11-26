@@ -1,4 +1,5 @@
 "use client";
+import { PessoaComFoto } from "./Avatar";
 
 import { useEffect, useState } from "react";
 import TutorialBanner from "./TutorialBanner";
@@ -281,7 +282,7 @@ export default function MetricasTab({ projectId, modoTrabalho = "ATRIBUICAO" }: 
               const cor = op.spi === null ? ds.muted : spiColor(op.spi / 100);
               return (
                 <div key={op.operacional_id} role="row" style={{ display: "grid", gridTemplateColumns: "1.3fr 1.4fr 1fr 1.2fr", gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none", fontSize: 14, color: ds.text2 }}>
-                  <span role="cell">{op.nome}</span>
+                  <span role="cell"><PessoaComFoto nome={op.nome} /></span>
                   <span role="cell" style={{ display: "flex", alignItems: "center", gap: 10 }} title={op.spi === null && op.sprints_avaliadas > 0 ? "Sem task alocada nesta sprint: score calculado com o restante das dimensões (avaliação do gerente, autonomia)" : undefined}>
                     <span style={{ fontFamily: ds.fontMono, fontWeight: 600, color: cor, width: 52 }}>{op.spi === null ? "—" : fmtNum(op.spi)}</span>
                     {op.spi !== null && (

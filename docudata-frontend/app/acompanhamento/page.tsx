@@ -1,4 +1,5 @@
 "use client";
+import Avatar from "../components/Avatar";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useAuth } from "../components/AuthGuard";
@@ -173,7 +174,7 @@ function ProjetoLinha({ p, onAbrir }: { p: AcompProjetoStatus; onAbrir: () => vo
           <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: ds.white, overflowWrap: "anywhere" }}>{p.nome ?? "Projeto"}</span>
             <span style={legenda}>
-              {p.gerente && p.gerente !== "Sem gerente" ? nomeCurto(p.gerente) : "sem gerente"}
+              {p.gerente && p.gerente !== "Sem gerente" ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, verticalAlign: "middle" }}><Avatar nome={p.gerente} size={16} />{nomeCurto(p.gerente)}</span> : "sem gerente"}
               {p.cliente ? ` · ${p.cliente}` : ""}
             </span>
           </span>
@@ -236,7 +237,7 @@ function PorGerente({ projetos, onFiltrar }: { projetos: AcompProjetoStatus[]; o
             <tr key={g.nome}>
               <td style={{ textAlign: "left" }}>
                 <button type="button" onClick={() => onFiltrar(g.nome)} title="Ver só os projetos deste gerente" className="acomp-link">
-                  {g.nome === "Sem gerente" ? g.nome : nomeCurto(g.nome)}
+                  {g.nome === "Sem gerente" ? g.nome : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Avatar nome={g.nome} size={20} />{nomeCurto(g.nome)}</span>}
                 </button>
               </td>
               <td><span style={{ ...mono, color: ds.text2 }}>{g.projetos.length}</span></td>

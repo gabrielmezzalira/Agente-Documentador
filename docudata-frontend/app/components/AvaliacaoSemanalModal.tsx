@@ -1,4 +1,5 @@
 "use client";
+import { PessoaComFoto } from "./Avatar";
 
 import { useEffect, useState } from "react";
 import {
@@ -120,7 +121,7 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
             {pendencias.map((p) => (
               <button key={p.operacional_id} onClick={() => iniciarAvaliacao(p)}
                 style={{ textAlign: "left", padding: "11px 14px", border: `1px solid ${ds.innerBorder}`, borderRadius: 10, background: ds.inner, color: ds.text, fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>
-                {p.nome}
+                <PessoaComFoto nome={p.nome} size={28} />
               </button>
             ))}
           </div>
@@ -137,7 +138,7 @@ export default function AvaliacaoSemanalModal({ sprintId, sprintNumero, modoTrab
 
         {avaliando && (
           <div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: ds.white, marginTop: 0, marginBottom: 14 }}>{avaliando.nome}</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: ds.white, marginTop: 0, marginBottom: 14 }}><PessoaComFoto nome={avaliando.nome} size={32} /></p>
 
             {avaliando.ultima_avaliacao_outro_projeto && !reaproveitadaDe && (
               <div style={{ background: ds.violetSoft, border: `1px solid ${ds.violetLine}`, borderRadius: 10, padding: 12, marginBottom: 18, fontSize: 12.5, color: ds.text2 }}>

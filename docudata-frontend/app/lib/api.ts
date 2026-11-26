@@ -2165,6 +2165,40 @@ export async function deleteTaskAnexo(taskId: string, nome: string): Promise<voi
   if (!res.ok) throw await erroDoAnexo(res, "Não foi possível remover a imagem");
 }
 
+/** Foto de perfil das pessoas. A chave vem do nome (igual à do backend), então o mesmo nome usa a mesma foto em todo lugar. */
+export function chaveFoto(nome: string | null | undefined): string {
+  return (nome ?? "")
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export function fotoSrc(chave: string, versao: string): string {
+  return `${API}/fotos/${chave}?v=${encodeURIComponent(versao)}`;
+}
+
+export async function listFotos(): Promise<Record<string, string>> {
+  const res = await apiFetch(`${API}/fotos`);
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível carregar as fotos");
+  return res.json();
+}
+
+export async function uploadFoto(nome: string, arquivo: Blob): Promise<void> {
+  const form = new FormData();
+  form.append("nome", nome);
+  form.append("arquivo", arquivo, "foto");
+  const res = await apiFetch(`${API}/fotos`, { method: "PUT", body: form });
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível enviar a foto");
+}
+
+export async function deleteFoto(chave: string): Promise<void> {
+  const res = await apiFetch(`${API}/fotos/${chave}`, { method: "DELETE" });
+  if (!res.ok) throw await erroDoAnexo(res, "Não foi possível remover a foto");
+}
+
 export async function moverTaskKanban(
   id: string,
   coluna_destino: string,

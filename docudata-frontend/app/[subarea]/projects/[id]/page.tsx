@@ -1,4 +1,5 @@
 "use client";
+import { AvatarEditavel } from "../../../components/Avatar";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -204,6 +205,7 @@ function GerentesSection({ projectId }: { projectId: string }) {
 
       {gerentes.map((g) => (
         <div key={g.pessoa_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <AvatarEditavel nome={g.nome} onErro={(m) => alert(m)} />
           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f2f5f3" }}>
             {g.nome}
             {g.email && <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{g.email}</span>}
@@ -369,6 +371,7 @@ function OperacionaisSection({
           padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)",
           opacity: op.ativo ? 1 : 0.5,
         }}>
+          <AvatarEditavel nome={op.nome} onErro={(m) => alert(m)} />
           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#f2f5f3" }}>
             {op.nome}
             {op.papel && <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{op.papel}</span>}

@@ -1,4 +1,5 @@
 "use client";
+import { PessoaComFoto } from "../components/Avatar";
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
@@ -126,7 +127,7 @@ export default function AvaliacoesPage() {
                 {g.linhas.map((a, i) => (
                   <div key={a.id} role="row" style={{ display: "grid", gridTemplateColumns: colunas, gap: 12, alignItems: "center", padding: "14px 16px", borderTop: i > 0 ? `1px solid ${ds.border}` : "none", fontSize: 14, color: ds.text2 }}>
                     <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                      <span style={{ color: ds.white, fontWeight: 600 }}>{a.operacional_nome}</span>
+                      <PessoaComFoto nome={a.operacional_nome}><span style={{ color: ds.white, fontWeight: 600 }}>{a.operacional_nome}</span></PessoaComFoto>
                       {a.total_edicoes > 0 && a.ultima_edicao_em && (
                         <span style={{ fontSize: 11.5, color: ds.amber }}>editada por {a.ultima_edicao_por} em {formatData(a.ultima_edicao_em)}</span>
                       )}

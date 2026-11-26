@@ -1,4 +1,5 @@
 "use client";
+import { AvatarEditavel } from "../Avatar";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -6,7 +7,7 @@ import { useState } from "react";
 import { logout, type MeResponse } from "../../lib/api";
 import { cardStyle, ds } from "../../lib/ds";
 import { StatusDot } from "../ds";
-import { CARGO_LABEL, initialsOf, navItemsFor, subareaFromPath, type SubareaSlug } from "./navItems";
+import { CARGO_LABEL, navItemsFor, subareaFromPath, type SubareaSlug } from "./navItems";
 import styles from "./shell.module.css";
 
 /** Menu lateral de 248px: logo, produto, navegação por cargo e cartão do usuário no rodapé. */
@@ -46,12 +47,7 @@ export default function Sidebar({ pessoa, subarea, includeProjects }: { pessoa: 
       </nav>
 
       <div style={{ ...cardStyle, marginTop: "auto", borderRadius: 12, boxShadow: "none", display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
-        <span
-          aria-hidden="true"
-          style={{ width: 36, height: 36, flexShrink: 0, borderRadius: "50%", background: ds.greenSoft, border: `1px solid ${ds.greenLine}`, color: ds.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}
-        >
-          {initialsOf(pessoa.nome)}
-        </span>
+        <AvatarEditavel nome={pessoa.nome} onErro={(m) => alert(m)} />
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: ds.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pessoa.nome}</span>
           <span style={{ fontSize: 11.5, color: ds.muted }}>

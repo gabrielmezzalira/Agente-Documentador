@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getMe, type MeResponse } from "../lib/api";
 import AppShell from "./shell/AppShell";
+import { FotosProvider } from "./Avatar";
 
 // Rotas que quem está deslogado precisa abrir — inclui o fluxo de senha,
 // senão o guard manda de volta pro /login e o link parece não fazer nada.
@@ -46,7 +47,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={pessoa}>
-      {pessoa ? <AppShell pessoa={pessoa}>{children}</AppShell> : children}
+      {pessoa ? <FotosProvider><AppShell pessoa={pessoa}>{children}</AppShell></FotosProvider> : children}
     </AuthContext.Provider>
   );
 }
