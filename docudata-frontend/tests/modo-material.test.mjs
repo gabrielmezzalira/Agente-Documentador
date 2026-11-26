@@ -32,3 +32,10 @@ test("markdown da task só abre imagens anexadas do próprio backend e não inte
   for (const s of ["anexo:", "NOME_ANEXO", "defaultUrlTransform", 'rel="noreferrer noopener"', 'referrerPolicy="no-referrer"']) assert.ok(t.includes(s), s);
   assert.ok(!t.includes("rehypeRaw") && !t.includes("dangerouslySetInnerHTML"), "sem HTML cru");
 });
+
+test("imagens do material de apoio ocupam toda a largura na leitura", () => {
+  const m = ler("app/components/MaterialApoio.tsx");
+  assert.ok(/imagemCheia[\s\S]{0,160}width: "100%"/.test(m), "galeria em largura total");
+  assert.ok(!m.includes("width: 120, height: 120"), "sem miniatura fixa na leitura");
+  assert.ok(ler("app/components/TaskMarkdown.tsx").includes(".task-md img{display:block;width:100%"), "imagem no texto em largura total");
+});

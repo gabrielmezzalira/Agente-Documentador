@@ -43,7 +43,7 @@ const CSS = `
 .task-md th,.task-md td{border:1px solid ${ds.border};padding:6px 10px;text-align:left}
 .task-md th{color:${ds.white};background:rgba(255,255,255,0.04)}
 .task-md hr{border:none;border-top:1px solid ${ds.border};margin:16px 0}
-.task-md img{display:block;max-width:100%;height:auto;border-radius:10px;border:1px solid ${ds.border}}
+.task-md img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid ${ds.border}}
 `;
 
 /** Markdown da task. As imagens `anexo:` vêm do backend (com o acesso do projeto); HTML solto no texto não é interpretado. */
@@ -63,7 +63,7 @@ export default function TaskMarkdown({ taskId, texto }: { taskId: string; texto:
               if (!NOME_ANEXO.test(nome)) return <span style={{ color: ds.muted }}>[imagem indisponível]</span>;
               const url = taskAnexoSrc(taskId, nome);
               return (
-                <a href={url} target="_blank" rel="noreferrer noopener" title="Abrir em tamanho original" style={{ display: "inline-block", maxWidth: "100%" }}>
+                <a href={url} target="_blank" rel="noreferrer noopener" title="Abrir em tamanho original" style={{ display: "block" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={alt ?? ""} loading="lazy" />
                 </a>
