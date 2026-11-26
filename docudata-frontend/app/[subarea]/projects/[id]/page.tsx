@@ -322,6 +322,17 @@ function OperacionaisSection({
     }
   }
 
+  async function handleRenomear(op: OperacionalResponse) {
+    const novo = prompt(`Novo nome para "${op.nome}":`, op.nome)?.trim();
+    if (!novo || novo === op.nome) return;
+    try {
+      const updated = await updateOperacional(op.id, { nome: novo });
+      onUpdated(operacionais.map((o) => (o.id === updated.id ? updated : o)));
+    } catch {
+      alert("Não foi possível trocar o nome (talvez já exista alguém com esse nome no projeto).");
+    }
+  }
+
   async function handleRemover(op: OperacionalResponse) {
     if (!confirm(
       `Remover "${op.nome}" deste projeto?\n\n` +
@@ -379,6 +390,13 @@ function OperacionaisSection({
               ? <span style={{ fontWeight: 400, color: "#8a948e", marginLeft: 8 }}>{op.email}</span>
               : <span style={{ fontWeight: 400, color: "#f2c14e", marginLeft: 8 }} title="Sem e-mail, esta pessoa não é reconhecida entre projetos">sem e-mail</span>}
           </span>
+          <button
+            onClick={() => handleRenomear(op)}
+            title="Corrigir o nome desta pessoa. A foto é ligada ao nome: depois de renomear, coloque a foto de novo."
+            style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+          >
+            Renomear
+          </button>
           <button
             onClick={() => handleToggleAtivo(op)}
             style={{ background: "none", border: "none", fontSize: 11, color: "#8a948e", cursor: "pointer", textDecoration: "underline", padding: 0 }}
