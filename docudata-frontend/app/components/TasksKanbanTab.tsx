@@ -112,20 +112,19 @@ const btnDanger: React.CSSProperties = buttonStyle("danger");
 const btnActive: React.CSSProperties = buttonStyle("active");
 
 // ---------------------------------------------------------------------------
-// Painel lateral (estilo "side peek" do Notion) — usado pelos modais de task
+// Modal centralizado de task, com botão para expandir a visualização
 
 const painelOverlayStyle: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
-  display: "flex", alignItems: "stretch", justifyContent: "flex-end", zIndex: 1000,
+  display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
 };
 
 function painelStyle(expandido: boolean): React.CSSProperties {
   return {
-    position: "relative", background: "#0d1711", padding: "28px 32px",
-    width: "100%", maxWidth: expandido ? "min(1100px, 100vw)" : "min(680px, 100vw)",
-    height: "100%", overflowY: "auto",
-    borderLeft: "1px solid rgba(255,255,255,0.08)",
-    boxShadow: "-20px 0 60px rgba(0,0,0,0.25)",
+    position: "relative", background: "#0d1711", borderRadius: 16, padding: "28px 32px",
+    width: "100%", maxWidth: expandido ? "min(1000px, calc(100vw - 32px))" : 520,
+    maxHeight: expandido ? "94vh" : "90vh", overflowY: "auto",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
     transition: "max-width 0.2s ease",
   };
 }
@@ -143,7 +142,7 @@ function BotaoExpandirPainel({ expandido, onToggle }: { expandido: boolean; onTo
         width: 30, height: 30, cursor: "pointer", fontSize: 14, lineHeight: 1,
       }}
     >
-      {expandido ? "⇥" : "⇤"}
+      {expandido ? "⤡" : "⤢"}
     </button>
   );
 }
