@@ -13,6 +13,7 @@ from services.task_anexos import MAX_BYTES, validar_imagem
 
 BUCKET = "fotos-perfil"
 LADO = 256
+LADO_COMPLETA = 1024
 CHAVE_VALIDA = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 
 _bucket_garantido = False
@@ -38,6 +39,20 @@ def preparar(dados: bytes) -> bytes:
         img = ImageOps.fit(img, (LADO, LADO), Image.LANCZOS)
         saida = io.BytesIO()
         img.save(saida, "WEBP", quality=85)
+    return saida.getvalue()
+
+
+def preparar_completa(dados: bytes) -> bytes:
+    """Versão para ampliar ao clicar na foto: sem recorte, só reduzida (maior lado = LADO_COMPLETA)."""
+    validar_imagem(dados)
+    from PIL import Image, ImageOps
+
+    with Image.open(io.BytesIO(dados)) as img:
+        img.seek(0)
+        img = ImageOps.exif_transpose(img).convert("RGBA")
+        img.thumbnail((LADO_COMPLETA, LADO_COMPLETA), Image.LANCZOS)
+        saida = io.BytesIO()
+        img.save(saida, "WEBP", quality=88)
     return saida.getvalue()
 
 
@@ -70,15 +85,23 @@ def versoes(client) -> dict[str, str]:
 
 def salvar(client, chave: str, dados: bytes) -> None:
     garantir_bucket(client)
-    client.storage.from_(BUCKET).upload(
-        f"{chave}.webp", preparar(dados), {"content-type": "image/webp", "upsert": "true", "cache-control": "3600"},
-    )
+    opcoes = {"content-type": "image/webp", "upsert": "true", "cache-control": "3600"}
+    miniatura = preparar(dados)
+    completa = preparar_completa(dados)
+    # A completa vai numa subpasta para não aparecer como "pessoa" em versoes().
+    client.storage.from_(BUCKET).upload(f"completa/{chave}.webp", completa, opcoes)
+    client.storage.from_(BUCKET).upload(f"{chave}.webp", miniatura, opcoes)
 
 
-def baixar(client, chave: str) -> bytes:
+def baixar(client, chave: str, completa: bool = False) -> bytes:
     garantir_bucket(client)
+    if completa:
+        try:
+            return client.storage.from_(BUCKET).download(f"completa/{chave}.webp")
+        except Exception:
+            pass  # foto antiga, anterior à versão ampliável: cai na miniatura
     return client.storage.from_(BUCKET).download(f"{chave}.webp")
 
 
 def remover(client, chave: str) -> None:
-    client.storage.from_(BUCKET).remove([f"{chave}.webp"])
+    client.storage.from_(BUCKET).remove([f"{chave}.webp", f"completa/{chave}.webp"])

@@ -1,4 +1,4 @@
-"""Backlog pessoal: só o Owner usa, e cada um só enxerga as próprias linhas."""
+"""Backlog pessoal: gerente, líder e owner usam; cada um só enxerga as próprias linhas."""
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,16 +21,19 @@ def test_owner_cria_lista_marca_feito_e_apaga(api):
     item = api.post("/backlog", json={"titulo": "  Revisar PTA ", "prioridade": "alta"}).json()
     assert item["titulo"] == "Revisar PTA" and item["pessoa_id"] == "pessoa-teste"
     assert [i["id"] for i in api.get("/backlog").json()] == [item["id"]]  # o alheio não aparece
-    feito = api.patch(f"/backlog/{item['id']}", json={"feito": True}).json()
-    assert feito["feito"] is True and feito["concluido_em"]
-    reaberto = api.patch(f"/backlog/{item['id']}", json={"feito": False}).json()
-    assert reaberto["concluido_em"] is None
+    assert item["status"] == "planejado"
+    andamento = api.patch(f"/backlog/{item['id']}", json={"status": "andamento"}).json()
+    assert andamento["status"] == "andamento" and andamento["concluido_em"] is None
+    feito = api.patch(f"/backlog/{item['id']}", json={"status": "concluido"}).json()
+    assert feito["status"] == "concluido" and feito["feito"] is True and feito["concluido_em"]
+    reaberto = api.patch(f"/backlog/{item['id']}", json={"status": "planejado"}).json()
+    assert reaberto["concluido_em"] is None and reaberto["feito"] is False
     assert api.delete(f"/backlog/{item['id']}").status_code == 204
     assert api.get("/backlog").json() == []
 
 
 def test_nao_mexe_em_item_de_outra_pessoa(api):
-    assert api.patch("/backlog/alheio", json={"feito": True}).status_code == 404
+    assert api.patch("/backlog/alheio", json={"status": "concluido"}).status_code == 404
     api.delete("/backlog/alheio")
     restante = api.fake.table("backlog_pessoal").select("*").execute().data
     assert [i["id"] for i in restante] == ["alheio"] and restante[0]["feito"] is False
@@ -40,8 +43,19 @@ def test_titulo_vazio_e_recusado(api):
     assert api.post("/backlog", json={"titulo": "   "}).status_code == 422
 
 
-@pytest.mark.parametrize("cargo", ["lider", "gerente", "operacional"])
-def test_so_owner_acessa(api, cargo):
-    c = api.como(cargo)
+def test_operacional_nao_acessa(api):
+    c = api.como("operacional")
     assert c.get("/backlog").status_code == 403
     assert c.post("/backlog", json={"titulo": "x"}).status_code == 403
+
+
+@pytest.mark.parametrize("cargo", ["gerente", "lider"])
+def test_gerente_e_lider_tem_o_proprio_quadro(api, cargo):
+    c = api.como(cargo)
+    assert c.get("/backlog").status_code == 200
+    assert c.post("/backlog", json={"titulo": "x"}).status_code == 201
+
+
+def test_linha_antiga_sem_status_aparece_pelo_feito(api):
+    api.fake.table("backlog_pessoal").insert({"id": "velho", "pessoa_id": "pessoa-teste", "titulo": "a", "feito": True}).execute()
+    assert [i["status"] for i in api.get("/backlog").json()] == ["concluido"]

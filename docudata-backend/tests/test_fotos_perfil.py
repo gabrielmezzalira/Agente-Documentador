@@ -83,11 +83,29 @@ def test_gerente_troca_foto_e_ela_vira_webp_quadrado(api):
     assert api.fake.storage.buckets == [fotos.BUCKET]
 
 
+def test_ampliada_mantem_a_foto_inteira_sem_recortar(api):
+    _trocar(api, dados=_img((400, 200)))
+    grande = api.get("/fotos/maria-souza?tam=completa")
+    with Image.open(io.BytesIO(grande.content)) as saida:
+        assert saida.size == (400, 200)  # retangular: nada cortado
+    assert list(api.get("/fotos").json()) == ["maria-souza"]  # a ampliada não vira "pessoa"
+    assert api.delete("/fotos/maria-souza").status_code == 204
+    assert api.fake.storage.arquivos == {}
+
+
+def test_ampliada_de_foto_antiga_cai_na_miniatura(api):
+    _trocar(api)
+    del api.fake.storage.arquivos["completa/maria-souza.webp"]
+    assert api.get("/fotos/maria-souza?tam=completa").status_code == 200
+
+
 def test_trocar_de_novo_muda_a_versao(api):
     _trocar(api, dados=_img((40, 20)))
-    antes = api.get("/fotos").json()["maria-souza"]
+    antes = api.fake.storage.arquivos["maria-souza.webp"]
     _trocar(api, dados=_img((300, 300), "JPEG"))
-    assert api.get("/fotos").json()["maria-souza"] != antes or len(api.fake.storage.arquivos) == 1
+    # trocar substitui o arquivo (miniatura + ampliada), sem acumular cópias
+    assert api.fake.storage.arquivos["maria-souza.webp"] != antes
+    assert sorted(api.fake.storage.arquivos) == ["completa/maria-souza.webp", "maria-souza.webp"]
 
 
 def test_arquivo_que_nao_e_imagem_e_recusado(api):

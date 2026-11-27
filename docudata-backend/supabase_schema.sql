@@ -1542,3 +1542,13 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- );
 -- CREATE INDEX IF NOT EXISTS idx_backlog_pessoal_pessoa ON backlog_pessoal(pessoa_id);
 -- Rollback: DROP TABLE IF EXISTS backlog_pessoal;
+
+-- ============================================================
+-- v19 (2026-11-27): backlog pessoal vira quadro (Planejado / Em andamento / Concluído) e passa
+-- a existir também para gerente e líder. Cada pessoa continua vendo só as próprias linhas.
+-- Requer a v18. Antes desta migração a página /backlog responde 503.
+-- ============================================================
+-- ALTER TABLE backlog_pessoal ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'planejado'
+--     CHECK (status IN ('planejado','andamento','concluido'));
+-- UPDATE backlog_pessoal SET status = 'concluido' WHERE feito = true;
+-- Rollback: ALTER TABLE backlog_pessoal DROP COLUMN IF EXISTS status;

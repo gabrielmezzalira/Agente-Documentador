@@ -2180,6 +2180,11 @@ export function fotoSrc(chave: string, versao: string): string {
   return `${API}/fotos/${chave}?v=${encodeURIComponent(versao)}`;
 }
 
+/** Foto inteira (sem o recorte quadrado do avatar), para ampliar ao clicar. */
+export function fotoCompletaSrc(chave: string, versao: string): string {
+  return `${API}/fotos/${chave}?tam=completa&v=${encodeURIComponent(versao)}`;
+}
+
 export async function listFotos(): Promise<Record<string, string>> {
   const res = await apiFetch(`${API}/fotos`);
   if (!res.ok) throw await erroDoAnexo(res, "Não foi possível carregar as fotos");
@@ -2897,15 +2902,18 @@ export async function decidirProposta(
   return res.json();
 }
 
-// ── Backlog pessoal do Owner ─────────────────────────────────────────────────
+// ── Backlog pessoal (gerente, líder e owner) ─────────────────────────────────────────────────
 
 export type BacklogPrioridade = "alta" | "media" | "baixa";
+
+export type BacklogStatus = "planejado" | "andamento" | "concluido";
 
 export interface BacklogItem {
   id: string;
   titulo: string;
   notas: string | null;
   prioridade: BacklogPrioridade;
+  status: BacklogStatus;
   feito: boolean;
   concluido_em: string | null;
   criado_em: string;
@@ -2923,7 +2931,7 @@ export async function listBacklog(): Promise<BacklogItem[]> {
   return res.json();
 }
 
-export async function createBacklogItem(data: { titulo: string; notas?: string; prioridade: BacklogPrioridade }): Promise<BacklogItem> {
+export async function createBacklogItem(data: { titulo: string; notas?: string; prioridade: BacklogPrioridade; status?: BacklogStatus }): Promise<BacklogItem> {
   const res = await apiFetch(`${API}/backlog`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   if (!res.ok) throw await erroDoBacklog(res, "Não foi possível criar o item");
   return res.json();
@@ -2931,7 +2939,7 @@ export async function createBacklogItem(data: { titulo: string; notas?: string; 
 
 export async function updateBacklogItem(
   id: string,
-  data: Partial<{ titulo: string; notas: string; prioridade: BacklogPrioridade; feito: boolean }>,
+  data: Partial<{ titulo: string; notas: string; prioridade: BacklogPrioridade; status: BacklogStatus }>,
 ): Promise<BacklogItem> {
   const res = await apiFetch(`${API}/backlog/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   if (!res.ok) throw await erroDoBacklog(res, "Não foi possível atualizar o item");

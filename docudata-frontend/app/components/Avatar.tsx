@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { chaveFoto, deleteFoto, fotoSrc, listFotos, uploadFoto, TASK_ANEXO_TIPOS } from "../lib/api";
+import { createPortal } from "react-dom";
+import { chaveFoto, deleteFoto, fotoCompletaSrc, fotoSrc, listFotos, uploadFoto, TASK_ANEXO_TIPOS } from "../lib/api";
 import { ds } from "../lib/ds";
 import { initialsOf } from "./shell/navItems";
 
@@ -34,19 +35,51 @@ function corDoNome(nome: string) {
   return CORES[h % CORES.length];
 }
 
-/** Foto redonda da pessoa; sem foto, as iniciais numa cor que depende do nome. */
+/** Foto inteira em tela cheia: clique, Esc ou fora fecham. Vai para o body para não herdar o recorte/clique de quem a abriu. */
+function FotoAmpliada({ nome, chave, versao, onClose }: { nome: string; chave: string; versao: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div
+      role="dialog" aria-modal="true" aria-label={`Foto de ${nome}`}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)", cursor: "zoom-out" }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={fotoCompletaSrc(chave, versao)} alt={`Foto de ${nome}`} style={{ maxWidth: "min(92vw, 900px)", maxHeight: "80vh", objectFit: "contain", borderRadius: 16, border: `1px solid ${ds.borderStrong}`, boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }} />
+      <span style={{ color: ds.white, fontSize: 16, fontWeight: 600 }}>{nome}</span>
+    </div>,
+    document.body,
+  );
+}
+
+/** Foto redonda da pessoa; sem foto, as iniciais numa cor que depende do nome. Com foto, clicar amplia. */
 export default function Avatar({ nome, size = 28 }: { nome: string; size?: number }) {
   const { versoes } = useContext(FotosContext);
   const chave = chaveFoto(nome);
   const versao = versoes[chave];
   const [quebrou, setQuebrou] = useState(false);
+  const [ampliada, setAmpliada] = useState(false);
   useEffect(() => setQuebrou(false), [versao]);
+  const fechar = useCallback(() => setAmpliada(false), []);
   const cor = corDoNome(nome);
   const base: React.CSSProperties = { width: size, height: size, flexShrink: 0, borderRadius: "50%", display: "inline-block", verticalAlign: "middle" };
 
   if (versao && !quebrou) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={fotoSrc(chave, versao)} alt="" aria-hidden="true" onError={() => setQuebrou(true)} style={{ ...base, objectFit: "cover", border: `1px solid ${ds.borderStrong}` }} />;
+    return (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={fotoSrc(chave, versao)} alt="" aria-hidden="true" title={`Ampliar a foto de ${nome}`} onError={() => setQuebrou(true)}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); setAmpliada(true); }}
+          style={{ ...base, objectFit: "cover", border: `1px solid ${ds.borderStrong}`, cursor: "zoom-in" }}
+        />
+        {ampliada && <FotoAmpliada nome={nome} chave={chave} versao={versao} onClose={fechar} />}
+      </>
+    );
   }
   return (
     <span

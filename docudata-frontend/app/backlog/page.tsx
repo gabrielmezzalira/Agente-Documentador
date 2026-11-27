@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
-import { Button, Card, Chip, EmptyState, ErrorNotice, Input, PageHeader, SegmentedControl, Select, Textarea } from "../components/ds";
+import { Button, Card, Chip, ErrorNotice, Input, PageHeader, Select, Textarea } from "../components/ds";
 import { ds } from "../lib/ds";
 import type { Tone } from "../lib/ds";
 import {
   createBacklogItem, deleteBacklogItem, listBacklog, updateBacklogItem,
-  type BacklogItem, type BacklogPrioridade,
+  type BacklogItem, type BacklogPrioridade, type BacklogStatus,
 } from "../lib/api";
 
 const PRIORIDADES: { valor: BacklogPrioridade; label: string; tom: Tone; peso: number }[] = [
@@ -17,35 +17,42 @@ const PRIORIDADES: { valor: BacklogPrioridade; label: string; tom: Tone; peso: n
 ];
 const prioridadeDe = (v: BacklogPrioridade) => PRIORIDADES.find((p) => p.valor === v)!;
 
-type Filtro = "pendentes" | "feitos" | "todos";
+// Mesmas colunas e cores do Kanban das tasks, sem "Pendente de aprovação" (aqui não há aprovação).
+const COLUNAS: { id: BacklogStatus; label: string; color: string }[] = [
+  { id: "planejado", label: "Planejado", color: "#8a948e" },
+  { id: "andamento", label: "Em andamento", color: "#f2c14e" },
+  { id: "concluido", label: "Concluído", color: "#3ee06f" },
+];
 
 export default function BacklogPage() {
   const auth = useAuth();
-  const ehOwner = auth?.cargo === "owner";
+  const liberado = !!auth && auth.cargo !== "operacional";
   const [itens, setItens] = useState<BacklogItem[] | null>(null);
   const [erro, setErro] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("pendentes");
   const [titulo, setTitulo] = useState("");
   const [notas, setNotas] = useState("");
   const [prioridade, setPrioridade] = useState<BacklogPrioridade>("media");
   const [salvando, setSalvando] = useState(false);
-  const [editando, setEditando] = useState<string | null>(null);
-  const [rascunho, setRascunho] = useState("");
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [sobre, setSobre] = useState<BacklogStatus | null>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState({ titulo: "", notas: "" });
 
   useEffect(() => {
-    if (!ehOwner) return;
+    if (!liberado) return;
     listBacklog().then(setItens).catch((e: Error) => setErro(e.message));
-  }, [ehOwner]);
+  }, [liberado]);
 
-  const visiveis = useMemo(() => {
-    const base = (itens ?? []).filter((i) => (filtro === "todos" ? true : filtro === "feitos" ? i.feito : !i.feito));
-    return [...base].sort((a, b) =>
-      Number(a.feito) - Number(b.feito) ||
-      prioridadeDe(a.prioridade).peso - prioridadeDe(b.prioridade).peso ||
-      b.criado_em.localeCompare(a.criado_em));
-  }, [itens, filtro]);
-
-  const pendentes = (itens ?? []).filter((i) => !i.feito).length;
+  const porColuna = useMemo(() => {
+    const mapa: Record<BacklogStatus, BacklogItem[]> = { planejado: [], andamento: [], concluido: [] };
+    for (const i of itens ?? []) mapa[i.status].push(i);
+    for (const col of COLUNAS) {
+      mapa[col.id].sort((a, b) => col.id === "concluido"
+        ? (b.concluido_em ?? "").localeCompare(a.concluido_em ?? "")
+        : prioridadeDe(a.prioridade).peso - prioridadeDe(b.prioridade).peso || b.criado_em.localeCompare(a.criado_em));
+    }
+    return mapa;
+  }, [itens]);
 
   function trocar(novo: BacklogItem) {
     setItens((atual) => (atual ?? []).map((i) => (i.id === novo.id ? novo : i)));
@@ -68,23 +75,48 @@ export default function BacklogPage() {
     setSalvando(false);
   }
 
-  const alternar = (i: BacklogItem) => executar(async () => trocar(await updateBacklogItem(i.id, { feito: !i.feito })));
+  /** Move o card já na tela e desfaz se o servidor recusar. */
+  function mover(item: BacklogItem, status: BacklogStatus) {
+    if (item.status === status) return Promise.resolve();
+    const antes = item;
+    trocar({ ...item, status, feito: status === "concluido" });
+    return executar(async () => {
+      try { trocar(await updateBacklogItem(item.id, { status })); } catch (e) { trocar(antes); throw e; }
+    });
+  }
+
+  function soltar(status: BacklogStatus) {
+    const item = (itens ?? []).find((i) => i.id === arrastando);
+    setArrastando(null); setSobre(null);
+    if (item) void mover(item, status);
+  }
+
   const mudarPrioridade = (i: BacklogItem, p: BacklogPrioridade) => executar(async () => trocar(await updateBacklogItem(i.id, { prioridade: p })));
   const apagar = (i: BacklogItem) => {
     if (!confirm(`Apagar "${i.titulo}"?`)) return Promise.resolve();
     return executar(async () => {
       await deleteBacklogItem(i.id);
       setItens((atual) => (atual ?? []).filter((x) => x.id !== i.id));
+      setAberto(null);
     });
   };
-  async function salvarTitulo(i: BacklogItem) {
-    const novo = rascunho.trim();
-    setEditando(null);
-    if (!novo || novo === i.titulo) return;
-    await executar(async () => trocar(await updateBacklogItem(i.id, { titulo: novo })));
+
+  function abrir(i: BacklogItem) {
+    setAberto(i.id);
+    setRascunho({ titulo: i.titulo, notas: i.notas ?? "" });
   }
 
-  if (auth && !ehOwner) return <ErrorNotice>Esta página é só do Owner.</ErrorNotice>;
+  async function salvarEdicao(i: BacklogItem) {
+    const novoTitulo = rascunho.titulo.trim();
+    if (!novoTitulo) return;
+    if (novoTitulo === i.titulo && rascunho.notas.trim() === (i.notas ?? "")) { setAberto(null); return; }
+    await executar(async () => {
+      trocar(await updateBacklogItem(i.id, { titulo: novoTitulo, notas: rascunho.notas }));
+      setAberto(null);
+    });
+  }
+
+  if (auth && !liberado) return <ErrorNotice>Esta página é só de Gerente, Líder e Owner.</ErrorNotice>;
 
   return (
     <>
@@ -105,51 +137,91 @@ export default function BacklogPage() {
         </form>
       </Card>
 
-      <SegmentedControl
-        label="Filtro"
-        value={filtro}
-        onChange={setFiltro}
-        options={[{ value: "pendentes", label: `Pendentes${itens ? ` (${pendentes})` : ""}` }, { value: "feitos", label: "Feitos" }, { value: "todos", label: "Todos" }]}
-      />
-
       {!itens && !erro && <p role="status" style={{ margin: 0, color: ds.muted }}>Carregando...</p>}
-      {itens && visiveis.length === 0 && <EmptyState>{filtro === "pendentes" ? "Nada pendente. Adicione algo acima." : "Nada por aqui."}</EmptyState>}
 
-      {visiveis.length > 0 && (
-        <Card>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {visiveis.map((i, idx) => (
-              <li key={i.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 18px", borderTop: idx > 0 ? `1px solid ${ds.border}` : "none" }}>
-                <input type="checkbox" checked={i.feito} onChange={() => void alternar(i)} aria-label={`Marcar "${i.titulo}" como ${i.feito ? "pendente" : "feito"}`} style={{ marginTop: 4, width: 18, height: 18, accentColor: ds.green, cursor: "pointer" }} />
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {editando === i.id ? (
-                    <Input
-                      autoFocus value={rascunho} maxLength={200} aria-label="Editar título"
-                      onChange={(e) => setRascunho(e.target.value)} onBlur={() => void salvarTitulo(i)}
-                      onKeyDown={(e) => { if (e.key === "Enter") void salvarTitulo(i); if (e.key === "Escape") setEditando(null); }}
-                    />
-                  ) : (
-                    <button
-                      type="button" onClick={() => { setEditando(i.id); setRascunho(i.titulo); }} title="Clique para editar"
-                      style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "text", fontFamily: "inherit", fontSize: 15, fontWeight: 600, color: i.feito ? ds.muted : ds.white, textDecoration: i.feito ? "line-through" : "none", overflowWrap: "anywhere" }}
-                    >
-                      {i.titulo}
-                    </button>
-                  )}
-                  {i.notas && <span style={{ fontSize: 13, lineHeight: 1.5, color: ds.muted, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{i.notas}</span>}
+      {itens && (
+        <div className="ds-backlog-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, alignItems: "start" }}>
+          {COLUNAS.map((col) => {
+            const doStatus = porColuna[col.id];
+            return (
+              <div
+                key={col.id}
+                onDragOver={(e) => { e.preventDefault(); if (sobre !== col.id) setSobre(col.id); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSobre(null); }}
+                onDrop={() => soltar(col.id)}
+                style={{
+                  display: "flex", flexDirection: "column", gap: 10, minWidth: 0, minHeight: 140, padding: 16, borderRadius: 14,
+                  background: "rgba(62,224,111,0.04)", transition: "border-color 0.15s",
+                  border: `1px solid ${sobre === col.id && arrastando ? col.color : "rgba(62,224,111,0.16)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px 6px" }}>
+                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: col.color, boxShadow: `0 0 8px ${col.color}`, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: col.color, fontWeight: 600 }}>{col.label}</span>
+                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, padding: "1px 8px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "#c3cbc6" }}>{doStatus.length}</span>
                 </div>
-                {i.feito
-                  ? <Chip tone="green">Feito</Chip>
-                  : (
-                    <Select aria-label={`Prioridade de ${i.titulo}`} value={i.prioridade} onChange={(e) => void mudarPrioridade(i, e.target.value as BacklogPrioridade)} style={{ width: 110, height: 32, fontSize: 12.5 }}>
-                      {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.label}</option>)}
-                    </Select>
-                  )}
-                <button type="button" onClick={() => void apagar(i)} aria-label={`Apagar "${i.titulo}"`} title="Apagar" style={{ background: "none", border: "none", cursor: "pointer", color: ds.red, fontSize: 18, lineHeight: 1, padding: "2px 4px" }}>×</button>
-              </li>
-            ))}
-          </ul>
-        </Card>
+
+                {doStatus.length === 0 && (
+                  <div style={{ padding: "28px 12px", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 12, textAlign: "center", fontSize: 13, color: "#5d6661" }}>
+                    {arrastando ? "Solte aqui" : "Nada por aqui"}
+                  </div>
+                )}
+
+                {doStatus.map((i) => (
+                  <article
+                    key={i.id}
+                    draggable={aberto !== i.id}
+                    onDragStart={() => setArrastando(i.id)}
+                    onDragEnd={() => { setArrastando(null); setSobre(null); }}
+                    className="ds-task-card"
+                    style={{
+                      display: "flex", flexDirection: "column", gap: 10, padding: 16, borderRadius: 12, textAlign: "left", width: "100%",
+                      background: "rgba(62,224,111,0.055)", border: "1px solid rgba(62,224,111,0.17)", fontFamily: "inherit",
+                      opacity: arrastando === i.id ? 0.4 : 1, cursor: aberto === i.id ? "default" : "grab",
+                    }}
+                  >
+                    {aberto === i.id ? (
+                      <>
+                        <Input autoFocus aria-label="Título" value={rascunho.titulo} maxLength={200} onChange={(e) => setRascunho({ ...rascunho, titulo: e.target.value })} />
+                        <Textarea aria-label="Notas" rows={3} placeholder="Notas (opcional)" value={rascunho.notas} maxLength={5000} onChange={(e) => setRascunho({ ...rascunho, notas: e.target.value })} />
+                        <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+                          <Button type="button" variant="secondary" onClick={() => void apagar(i)} style={{ color: ds.red }}>Apagar</Button>
+                          <span style={{ display: "flex", gap: 8 }}>
+                            <Button type="button" variant="secondary" onClick={() => setAberto(null)}>Cancelar</Button>
+                            <Button type="button" variant="primary" disabled={!rascunho.titulo.trim()} onClick={() => void salvarEdicao(i)}>Salvar</Button>
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button" onClick={() => abrir(i)} title="Clique para editar"
+                          style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: i.status === "concluido" ? ds.muted : ds.white, textDecoration: i.status === "concluido" ? "line-through" : "none", overflowWrap: "anywhere" }}
+                        >
+                          {i.titulo}
+                        </button>
+                        {i.notas && <span style={{ fontSize: 13, lineHeight: 1.5, color: ds.muted, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{i.notas}</span>}
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                          {i.status === "concluido"
+                            ? <Chip tone="green">Feito</Chip>
+                            : (
+                              <Select aria-label={`Prioridade de ${i.titulo}`} value={i.prioridade} onChange={(e) => void mudarPrioridade(i, e.target.value as BacklogPrioridade)} style={{ width: 100, height: 28, fontSize: 12 }}>
+                                {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.label}</option>)}
+                              </Select>
+                            )}
+                          {/* Alternativa ao arrastar (celular/teclado). */}
+                          <Select aria-label={`Mover "${i.titulo}" para`} value={i.status} onChange={(e) => void mover(i, e.target.value as BacklogStatus)} style={{ width: 130, height: 28, fontSize: 12, marginLeft: "auto" }}>
+                            {COLUNAS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          </Select>
+                        </div>
+                      </>
+                    )}
+                  </article>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
     </>
   );

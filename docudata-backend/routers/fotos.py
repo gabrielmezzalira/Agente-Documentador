@@ -27,11 +27,11 @@ async def listar_fotos(pessoa: dict = Depends(get_current_pessoa)):
 
 
 @router.get("/{chave}")
-async def baixar_foto(chave: str, pessoa: dict = Depends(get_current_pessoa)):
+async def baixar_foto(chave: str, tam: str = "", pessoa: dict = Depends(get_current_pessoa)):
     if not fotos.chave_valida(chave):
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     try:
-        dados = fotos.baixar(get_client(), chave)
+        dados = fotos.baixar(get_client(), chave, completa=tam == "completa")
     except Exception:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     return Response(
