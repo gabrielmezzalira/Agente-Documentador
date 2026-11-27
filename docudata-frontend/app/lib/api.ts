@@ -2896,3 +2896,49 @@ export async function decidirProposta(
   if (!res.ok) throw new Error(detalheProposta(await res.json().catch(() => ({})), "Erro ao decidir a proposta"));
   return res.json();
 }
+
+// ── Backlog pessoal do Owner ─────────────────────────────────────────────────
+
+export type BacklogPrioridade = "alta" | "media" | "baixa";
+
+export interface BacklogItem {
+  id: string;
+  titulo: string;
+  notas: string | null;
+  prioridade: BacklogPrioridade;
+  feito: boolean;
+  concluido_em: string | null;
+  criado_em: string;
+}
+
+async function erroDoBacklog(res: Response, padrao: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  const detail = (err as { detail?: unknown }).detail;
+  return new Error(typeof detail === "string" ? detail : padrao);
+}
+
+export async function listBacklog(): Promise<BacklogItem[]> {
+  const res = await apiFetch(`${API}/backlog`);
+  if (!res.ok) throw await erroDoBacklog(res, "Não foi possível carregar o backlog");
+  return res.json();
+}
+
+export async function createBacklogItem(data: { titulo: string; notas?: string; prioridade: BacklogPrioridade }): Promise<BacklogItem> {
+  const res = await apiFetch(`${API}/backlog`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  if (!res.ok) throw await erroDoBacklog(res, "Não foi possível criar o item");
+  return res.json();
+}
+
+export async function updateBacklogItem(
+  id: string,
+  data: Partial<{ titulo: string; notas: string; prioridade: BacklogPrioridade; feito: boolean }>,
+): Promise<BacklogItem> {
+  const res = await apiFetch(`${API}/backlog/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  if (!res.ok) throw await erroDoBacklog(res, "Não foi possível atualizar o item");
+  return res.json();
+}
+
+export async function deleteBacklogItem(id: string): Promise<void> {
+  const res = await apiFetch(`${API}/backlog/${id}`, { method: "DELETE" });
+  if (!res.ok) throw await erroDoBacklog(res, "Não foi possível apagar o item");
+}

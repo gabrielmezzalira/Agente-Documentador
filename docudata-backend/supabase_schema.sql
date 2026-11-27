@@ -1524,3 +1524,21 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 -- ============================================================
 -- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS material_apoio text;
 -- Rollback: ALTER TABLE tasks DROP COLUMN IF EXISTS material_apoio;
+
+-- ============================================================
+-- v18 (2026-11-26): backlog pessoal do Owner (página /backlog). Cada linha pertence a
+-- uma pessoa e o backend só devolve as dela, e só para o cargo owner.
+-- Antes desta migração tudo funciona; só a página /backlog responde 503.
+-- ============================================================
+-- CREATE TABLE IF NOT EXISTS backlog_pessoal (
+--     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--     pessoa_id     uuid NOT NULL REFERENCES pessoa(id) ON DELETE CASCADE,
+--     titulo        text NOT NULL,
+--     notas         text,
+--     prioridade    text NOT NULL DEFAULT 'media' CHECK (prioridade IN ('alta','media','baixa')),
+--     feito         boolean NOT NULL DEFAULT false,
+--     concluido_em  timestamptz,
+--     criado_em     timestamptz NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_backlog_pessoal_pessoa ON backlog_pessoal(pessoa_id);
+-- Rollback: DROP TABLE IF EXISTS backlog_pessoal;

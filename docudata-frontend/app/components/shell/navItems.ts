@@ -34,6 +34,7 @@ export function navItemsFor(cargo: Cargo | undefined, subarea: SubareaSlug, incl
   if (isOwnerOrLider(cargo)) items.push({ href: "/classificador", label: "Classificador", active: (p) => p.startsWith("/classificador") });
   if (canConfigure(cargo)) items.push({ href: "/avaliacoes", label: "Avaliações", active: (p) => p.startsWith("/avaliacoes") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/pessoas", label: "Pessoas", active: (p) => p.startsWith("/pessoas") });
+  if (cargo === "owner") items.push({ href: "/backlog", label: "Backlog", active: (p) => p.startsWith("/backlog") });
   items.push({ href: "/metodologia", label: "Documentos", active: (p) => p.startsWith("/metodologia") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/settings", label: "Configurações", active: (p) => p.startsWith("/settings") });
   return items;
