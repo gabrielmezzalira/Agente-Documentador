@@ -43,7 +43,7 @@ def _seed(com_snapshot=True):
     }
 
 
-def _tc(monkeypatch, fake, cargo="gerente"):
+def _tc(monkeypatch, fake, cargo="lider"):
     import routers.avaliacoes as avaliacoes_router
     monkeypatch.setattr(avaliacoes_router, "get_client", lambda: fake)
     from main import app
@@ -198,3 +198,10 @@ def test_post_apos_fechamento_sincroniza_snapshot(monkeypatch):
     [snap] = fake.tables["pontuacao_operacional_sprint"]
     assert snap["gerente_media"] == 4.67
     assert snap["gerente_pergunta3"] == 5
+
+
+def test_gerente_nao_acessa_historico_nem_edita(monkeypatch):
+    tc = _tc(monkeypatch, FakeClient(_seed()), cargo="gerente")
+    assert tc.get("/avaliacoes/historico").status_code == 403
+    assert tc.get("/avaliacoes/aval-1/edicoes").status_code == 403
+    assert tc.patch("/avaliacoes/aval-1", json=_EDICAO).status_code == 403

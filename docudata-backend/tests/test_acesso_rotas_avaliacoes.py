@@ -68,18 +68,13 @@ def api(monkeypatch, autenticar, vinculos_gerente):
     return c
 
 
-def test_historico_filtrado(api):
-    r = api.get("/avaliacoes/historico")
-    assert r.status_code == 200
-    assert [i["id"] for i in r.json()] == ["a-in"]
-    assert api.get("/avaliacoes/historico", params={"project_id": OUTRO}).status_code == 403
-    assert api.get("/avaliacoes/historico", params={"sprint_id": "s-out"}).status_code == 403
-    assert api.get("/avaliacoes/historico", params={"project_id": PID}).status_code == 200
-
-
-def test_historico_sem_vinculo_vazio(api, vinculos_gerente):
-    vinculos_gerente["pessoa-teste"] = set()
-    assert api.get("/avaliacoes/historico").json() == []
+def test_gerente_nao_ve_historico_nem_corrige_nota(api):
+    corpo = {f"resposta_{i}": 3 for i in range(1, 8)}
+    assert api.get("/avaliacoes/historico").status_code == 403
+    assert api.get("/avaliacoes/historico", params={"project_id": PID}).status_code == 403
+    assert api.get("/avaliacoes/a-in/edicoes").status_code == 403
+    assert api.patch("/avaliacoes/a-in", json={**corpo, "motivo": "ajuste de nota"}).status_code == 403
+    assert api.fake.writes == []
 
 
 def test_lider_ve_tudo(api, autenticar):
@@ -91,13 +86,9 @@ def test_rotas_de_fora(api):
     assert api.get("/avaliacoes/s-out/pendencias").status_code == 403
     assert api.get("/avaliacoes/s-out/elegiveis").status_code == 403
     assert api.post("/avaliacoes/s-out/confirmar").status_code == 403
-    assert api.get("/avaliacoes/a-out/edicoes").status_code == 403
-    corpo = {f"resposta_{i}": 3 for i in range(1, 8)}
-    assert api.patch("/avaliacoes/a-out", json={**corpo, "motivo": "ajuste de nota"}).status_code == 403
     assert api.fake.writes == []
     assert api.get("/avaliacoes/s-in/pendencias").status_code != 403
     assert api.get("/avaliacoes/s-in/elegiveis").status_code != 403
-    assert api.get("/avaliacoes/a-in/edicoes").status_code != 403
 
 
 def test_post_exige_mesmo_projeto(api):

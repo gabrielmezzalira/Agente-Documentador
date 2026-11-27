@@ -36,8 +36,8 @@ test("página /avaliacoes: guarda de cargo, filtros, edição com motivo e hist�
   assert.match(page, /Nenhuma avaliação/);
 });
 
-test("nav global linka /avaliacoes para gerente/líder/owner", () => {
+test("nav global linka /avaliacoes só para líder/owner (gerente não vê o histórico)", () => {
   // O menu global vive em components/shell/navItems.ts (casca nova), com a mesma regra de cargo.
   const nav = read("../app/components/shell/navItems.ts");
-  assert.match(nav, /canConfigure\(cargo\)\) items\.push\(\{ href: "\/avaliacoes"/);
+  assert.match(nav, /isOwnerOrLider\(cargo\)\) items\.push\(\{ href: "\/avaliacoes"/);
 });

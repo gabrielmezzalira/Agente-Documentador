@@ -40,7 +40,7 @@ export default function AvaliacoesPage() {
   const [editando, setEditando] = useState<AvaliacaoHistoricoItem | null>(null);
   const [vendoHistorico, setVendoHistorico] = useState<AvaliacaoHistoricoItem | null>(null);
 
-  const bloqueado = auth?.cargo === "operacional";
+  const bloqueado = !!auth && auth.cargo !== "owner" && auth.cargo !== "lider";
 
   useEffect(() => {
     if (!auth || bloqueado) return;
@@ -79,7 +79,7 @@ export default function AvaliacoesPage() {
     setEditando(null);
   }
 
-  if (bloqueado) return <ErrorNotice>Acesso restrito a Gerente, Líder e Owner.</ErrorNotice>;
+  if (bloqueado) return <ErrorNotice>Acesso restrito a Líder e Owner.</ErrorNotice>;
 
   return (
     <>

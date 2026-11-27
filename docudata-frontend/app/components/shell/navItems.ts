@@ -21,7 +21,6 @@ export interface NavItem {
 }
 
 const isOwnerOrLider = (c?: Cargo) => c === "owner" || c === "lider";
-const canConfigure = (c?: Cargo) => isOwnerOrLider(c) || c === "gerente";
 
 /** Itens do menu lateral, na ordem do protótipo, respeitando o cargo (mesmas regras do seletor de subárea). */
 export function navItemsFor(cargo: Cargo | undefined, subarea: SubareaSlug, includeProjects: boolean): NavItem[] {
@@ -32,7 +31,7 @@ export function navItemsFor(cargo: Cargo | undefined, subarea: SubareaSlug, incl
   if (isOwnerOrLider(cargo)) items.push({ href: "/performance", label: "Performance", active: (p) => p.startsWith("/performance") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/acompanhamento", label: "Acompanhamento", active: (p) => p.startsWith("/acompanhamento") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/classificador", label: "Classificador", active: (p) => p.startsWith("/classificador") });
-  if (canConfigure(cargo)) items.push({ href: "/avaliacoes", label: "Avaliações", active: (p) => p.startsWith("/avaliacoes") });
+  if (isOwnerOrLider(cargo)) items.push({ href: "/avaliacoes", label: "Avaliações", active: (p) => p.startsWith("/avaliacoes") });
   if (isOwnerOrLider(cargo)) items.push({ href: "/pessoas", label: "Pessoas", active: (p) => p.startsWith("/pessoas") });
   if (cargo === "owner") items.push({ href: "/backlog", label: "Backlog", active: (p) => p.startsWith("/backlog") });
   items.push({ href: "/metodologia", label: "Documentos", active: (p) => p.startsWith("/metodologia") });

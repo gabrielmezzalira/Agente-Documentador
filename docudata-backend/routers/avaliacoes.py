@@ -151,10 +151,10 @@ def _montar_historico(client, avaliacoes: list[dict]) -> list[dict]:
 async def historico_avaliacoes(
     project_id: Optional[str] = None,
     sprint_id: Optional[str] = None,
-    pessoa: dict = Depends(get_current_pessoa),
+    pessoa: dict = Depends(require_role("lider")),
 ):
-    """Avaliações filtráveis por projeto ou sprint. Líder/owner veem tudo;
-    gerente só as de sprints dos projetos a que está vinculado."""
+    """Avaliações filtráveis por projeto ou sprint. Só líder/owner: o gerente
+    responde o questionário, mas não vê o histórico nem corrige nota."""
     client = get_client()
     q = client.table("avaliacoes_gerente").select("*")
     if sprint_id:
@@ -186,7 +186,7 @@ async def historico_avaliacoes(
 async def editar_avaliacao(
     avaliacao_id: str,
     data: AvaliacaoGerenteEdicao,
-    pessoa: dict = Depends(get_current_pessoa),
+    pessoa: dict = Depends(require_role("lider")),
 ):
     """Correção de nota dada errado, sem prazo (a janela de 48h vale só pro
     questionário). Mantém o avaliador original e grava o log com motivo."""
@@ -228,7 +228,7 @@ async def editar_avaliacao(
 
 
 @router.get("/{avaliacao_id}/edicoes", response_model=list[AvaliacaoEdicaoItem])
-async def listar_edicoes(avaliacao_id: str, pessoa: dict = Depends(get_current_pessoa)):
+async def listar_edicoes(avaliacao_id: str, pessoa: dict = Depends(require_role("lider"))):
     client = get_client()
     exigir_acesso_por(client, pessoa, "avaliacao", avaliacao_id)
     rows = (
