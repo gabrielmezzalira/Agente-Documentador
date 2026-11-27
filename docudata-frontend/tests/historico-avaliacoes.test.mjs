@@ -27,7 +27,7 @@ test("api.ts expõe histórico, edição e log de avaliações", () => {
 test("página /avaliacoes: guarda de cargo, filtros, edição com motivo e histórico", () => {
   assert.ok(existsSync(new URL("../app/avaliacoes/page.tsx", import.meta.url)));
   const page = read("../app/avaliacoes/page.tsx");
-  assert.match(page, /cargo === "operacional"/);
+  assert.match(page, /cargo !== "owner" && auth.cargo !== "lider"/);
   assert.match(page, /getHistoricoAvaliacoes/);
   assert.match(page, /editarAvaliacao/);
   assert.match(page, /getEdicoesAvaliacao/);
