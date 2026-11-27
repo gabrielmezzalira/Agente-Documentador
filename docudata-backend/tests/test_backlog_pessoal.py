@@ -59,3 +59,19 @@ def test_gerente_e_lider_tem_o_proprio_quadro(api, cargo):
 def test_linha_antiga_sem_status_aparece_pelo_feito(api):
     api.fake.table("backlog_pessoal").insert({"id": "velho", "pessoa_id": "pessoa-teste", "titulo": "a", "feito": True}).execute()
     assert [i["status"] for i in api.get("/backlog").json()] == ["concluido"]
+
+
+def test_reordenar_grava_a_ordem_e_move_de_coluna(api):
+    a = api.post("/backlog", json={"titulo": "a"}).json()["id"]
+    b = api.post("/backlog", json={"titulo": "b"}).json()["id"]
+    c = api.post("/backlog", json={"titulo": "c"}).json()["id"]
+    r = api.post("/backlog/reordenar", json={"status": "planejado", "ids": [c, a, b]}).json()
+    assert [(i["id"], i["ordem"]) for i in r] == [(c, 0), (a, 1), (b, 2)]
+    # b sai para Concluído; ganha status e data de conclusão
+    mov = api.post("/backlog/reordenar", json={"status": "concluido", "ids": [b]}).json()
+    assert mov[0]["status"] == "concluido" and mov[0]["concluido_em"] and mov[0]["feito"] is True
+
+
+def test_reordenar_recusa_item_alheio(api):
+    assert api.post("/backlog/reordenar", json={"status": "planejado", "ids": ["alheio"]}).status_code == 404
+    assert api.post("/backlog/reordenar", json={"status": "planejado", "ids": ["x", "x"]}).status_code == 404

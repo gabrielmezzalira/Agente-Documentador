@@ -1,21 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../components/AuthGuard";
-import { Button, Card, Chip, ErrorNotice, Input, PageHeader, Select, Textarea } from "../components/ds";
+import { Button, Card, Chip, ErrorNotice, Input, PageHeader, Textarea } from "../components/ds";
 import { ds } from "../lib/ds";
-import type { Tone } from "../lib/ds";
 import {
-  createBacklogItem, deleteBacklogItem, listBacklog, updateBacklogItem,
-  type BacklogItem, type BacklogPrioridade, type BacklogStatus,
+  createBacklogItem, deleteBacklogItem, listBacklog, reordenarBacklog, updateBacklogItem,
+  type BacklogItem, type BacklogStatus,
 } from "../lib/api";
-
-const PRIORIDADES: { valor: BacklogPrioridade; label: string; tom: Tone; peso: number }[] = [
-  { valor: "alta", label: "Alta", tom: "red", peso: 0 },
-  { valor: "media", label: "Média", tom: "amber", peso: 1 },
-  { valor: "baixa", label: "Baixa", tom: "neutral", peso: 2 },
-];
-const prioridadeDe = (v: BacklogPrioridade) => PRIORIDADES.find((p) => p.valor === v)!;
 
 // Mesmas colunas e cores do Kanban das tasks, sem "Pendente de aprovação" (aqui não há aprovação).
 const COLUNAS: { id: BacklogStatus; label: string; color: string }[] = [
@@ -24,6 +16,10 @@ const COLUNAS: { id: BacklogStatus; label: string; color: string }[] = [
   { id: "concluido", label: "Concluído", color: "#3ee06f" },
 ];
 
+function LinhaDeEncaixe({ cor }: { cor: string }) {
+  return <div aria-hidden="true" style={{ height: 3, borderRadius: 2, background: cor, boxShadow: `0 0 8px ${cor}`, margin: "-4px 0" }} />;
+}
+
 export default function BacklogPage() {
   const auth = useAuth();
   const liberado = !!auth && auth.cargo !== "operacional";
@@ -31,10 +27,10 @@ export default function BacklogPage() {
   const [erro, setErro] = useState("");
   const [titulo, setTitulo] = useState("");
   const [notas, setNotas] = useState("");
-  const [prioridade, setPrioridade] = useState<BacklogPrioridade>("media");
   const [salvando, setSalvando] = useState(false);
   const [arrastando, setArrastando] = useState<string | null>(null);
-  const [sobre, setSobre] = useState<BacklogStatus | null>(null);
+  // Onde o card arrastado cairia: coluna e posição (a linha colorida marca o ponto).
+  const [alvo, setAlvo] = useState<{ col: BacklogStatus; indice: number } | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState({ titulo: "", notas: "" });
 
@@ -47,9 +43,10 @@ export default function BacklogPage() {
     const mapa: Record<BacklogStatus, BacklogItem[]> = { planejado: [], andamento: [], concluido: [] };
     for (const i of itens ?? []) mapa[i.status].push(i);
     for (const col of COLUNAS) {
-      mapa[col.id].sort((a, b) => col.id === "concluido"
-        ? (b.concluido_em ?? "").localeCompare(a.concluido_em ?? "")
-        : prioridadeDe(a.prioridade).peso - prioridadeDe(b.prioridade).peso || b.criado_em.localeCompare(a.criado_em));
+      mapa[col.id].sort((x, y) =>
+        (x.ordem ?? 0) - (y.ordem ?? 0) || (col.id === "concluido"
+          ? (y.concluido_em ?? "").localeCompare(x.concluido_em ?? "")
+          : y.criado_em.localeCompare(x.criado_em)));
     }
     return mapa;
   }, [itens]);
@@ -68,30 +65,40 @@ export default function BacklogPage() {
     if (!titulo.trim()) return;
     setSalvando(true);
     await executar(async () => {
-      const novo = await createBacklogItem({ titulo: titulo.trim(), notas: notas.trim() || undefined, prioridade });
+      const novo = await createBacklogItem({ titulo: titulo.trim(), notas: notas.trim() || undefined, prioridade: "media" });
       setItens((atual) => [novo, ...(atual ?? [])]);
       setTitulo(""); setNotas("");
     });
     setSalvando(false);
   }
 
-  /** Move o card já na tela e desfaz se o servidor recusar. */
-  function mover(item: BacklogItem, status: BacklogStatus) {
-    if (item.status === status) return Promise.resolve();
-    const antes = item;
-    trocar({ ...item, status, feito: status === "concluido" });
-    return executar(async () => {
-      try { trocar(await updateBacklogItem(item.id, { status })); } catch (e) { trocar(antes); throw e; }
+  /** Põe o card na posição do ponto marcado: já na tela, e desfaz se o servidor recusar. */
+  function soltar() {
+    const destino = alvo;
+    const item = (itens ?? []).find((i) => i.id === arrastando);
+    setArrastando(null); setAlvo(null);
+    if (!item || !destino) return;
+    const coluna = porColuna[destino.col];
+    const demais = coluna.filter((i) => i.id !== item.id);
+    // O ponto foi medido com o próprio card ainda na lista: ajusta se ele estava antes dele.
+    const antes = coluna.findIndex((i) => i.id === item.id);
+    const posicao = Math.min(demais.length, antes !== -1 && antes < destino.indice ? destino.indice - 1 : destino.indice);
+    const ids = [...demais.slice(0, posicao).map((i) => i.id), item.id, ...demais.slice(posicao).map((i) => i.id)];
+    if (item.status === destino.col && ids.every((id, n) => id === coluna[n]?.id)) return;
+
+    const snapshot = itens;
+    const ordemNova = new Map(ids.map((id, n) => [id, n]));
+    setItens((atual) => (atual ?? []).map((i) => ordemNova.has(i.id)
+      ? { ...i, ordem: ordemNova.get(i.id), status: destino.col, feito: destino.col === "concluido" }
+      : i));
+    void executar(async () => {
+      try {
+        const salvos = await reordenarBacklog(destino.col, ids);
+        setItens((atual) => (atual ?? []).map((i) => salvos.find((x) => x.id === i.id) ?? i));
+      } catch (e) { setItens(snapshot); throw e; }
     });
   }
 
-  function soltar(status: BacklogStatus) {
-    const item = (itens ?? []).find((i) => i.id === arrastando);
-    setArrastando(null); setSobre(null);
-    if (item) void mover(item, status);
-  }
-
-  const mudarPrioridade = (i: BacklogItem, p: BacklogPrioridade) => executar(async () => trocar(await updateBacklogItem(i.id, { prioridade: p })));
   const apagar = (i: BacklogItem) => {
     if (!confirm(`Apagar "${i.titulo}"?`)) return Promise.resolve();
     return executar(async () => {
@@ -128,9 +135,6 @@ export default function BacklogPage() {
         <form onSubmit={adicionar} style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Input aria-label="Novo item" placeholder="O que precisa ser feito?" value={titulo} maxLength={200} onChange={(e) => setTitulo(e.target.value)} style={{ flex: "1 1 320px", width: "auto" }} />
-            <Select aria-label="Prioridade" value={prioridade} onChange={(e) => setPrioridade(e.target.value as BacklogPrioridade)} style={{ width: 130 }}>
-              {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.label}</option>)}
-            </Select>
             <Button type="submit" variant="primary" disabled={salvando || !titulo.trim()}>Adicionar</Button>
           </div>
           <Textarea aria-label="Notas" placeholder="Notas (opcional)" rows={2} value={notas} maxLength={5000} onChange={(e) => setNotas(e.target.value)} />
@@ -146,13 +150,13 @@ export default function BacklogPage() {
             return (
               <div
                 key={col.id}
-                onDragOver={(e) => { e.preventDefault(); if (sobre !== col.id) setSobre(col.id); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSobre(null); }}
-                onDrop={() => soltar(col.id)}
+                onDragOver={(e) => { e.preventDefault(); if (arrastando && alvo?.col !== col.id) setAlvo({ col: col.id, indice: doStatus.length }); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAlvo(null); }}
+                onDrop={(e) => { e.preventDefault(); soltar(); }}
                 style={{
                   display: "flex", flexDirection: "column", gap: 10, minWidth: 0, minHeight: 140, padding: 16, borderRadius: 14,
                   background: "rgba(62,224,111,0.04)", transition: "border-color 0.15s",
-                  border: `1px solid ${sobre === col.id && arrastando ? col.color : "rgba(62,224,111,0.16)"}`,
+                  border: `1px solid ${alvo?.col === col.id && arrastando ? col.color : "rgba(62,224,111,0.16)"}`,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px 6px" }}>
@@ -167,12 +171,20 @@ export default function BacklogPage() {
                   </div>
                 )}
 
-                {doStatus.map((i) => (
+                {doStatus.map((i, n) => (
+                  <Fragment key={i.id}>
+                  {arrastando && alvo?.col === col.id && alvo.indice === n && <LinhaDeEncaixe cor={col.color} />}
                   <article
-                    key={i.id}
                     draggable={aberto !== i.id}
                     onDragStart={() => setArrastando(i.id)}
-                    onDragEnd={() => { setArrastando(null); setSobre(null); }}
+                    onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+                    onDragOver={(e) => {
+                      if (!arrastando) return;
+                      e.preventDefault(); e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const indice = doStatus.indexOf(i) + (e.clientY > r.top + r.height / 2 ? 1 : 0);
+                      if (alvo?.col !== col.id || alvo.indice !== indice) setAlvo({ col: col.id, indice });
+                    }}
                     className="ds-task-card"
                     style={{
                       display: "flex", flexDirection: "column", gap: 10, padding: 16, borderRadius: 12, textAlign: "left", width: "100%",
@@ -201,23 +213,13 @@ export default function BacklogPage() {
                           {i.titulo}
                         </button>
                         {i.notas && <span style={{ fontSize: 13, lineHeight: 1.5, color: ds.muted, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{i.notas}</span>}
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                          {i.status === "concluido"
-                            ? <Chip tone="green">Feito</Chip>
-                            : (
-                              <Select aria-label={`Prioridade de ${i.titulo}`} value={i.prioridade} onChange={(e) => void mudarPrioridade(i, e.target.value as BacklogPrioridade)} style={{ width: 100, height: 28, fontSize: 12 }}>
-                                {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.label}</option>)}
-                              </Select>
-                            )}
-                          {/* Alternativa ao arrastar (celular/teclado). */}
-                          <Select aria-label={`Mover "${i.titulo}" para`} value={i.status} onChange={(e) => void mover(i, e.target.value as BacklogStatus)} style={{ width: 130, height: 28, fontSize: 12, marginLeft: "auto" }}>
-                            {COLUNAS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                          </Select>
-                        </div>
+                        {i.status === "concluido" && <div><Chip tone="green">Feito</Chip></div>}
                       </>
                     )}
                   </article>
+                  </Fragment>
                 ))}
+                {arrastando && alvo?.col === col.id && alvo.indice >= doStatus.length && doStatus.length > 0 && <LinhaDeEncaixe cor={col.color} />}
               </div>
             );
           })}

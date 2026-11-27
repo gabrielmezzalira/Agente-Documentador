@@ -26,6 +26,12 @@ class BacklogCreate(BaseModel):
     status: Status = "planejado"
 
 
+class BacklogReordenar(BaseModel):
+    """Estado final de uma coluna: os ids na ordem em que ficaram (inclui o card que veio de outra coluna)."""
+    status: Status
+    ids: list[str] = Field(..., max_length=500)
+
+
 class BacklogUpdate(BaseModel):
     titulo: Optional[str] = Field(default=None, min_length=1, max_length=200)
     notas: Optional[str] = Field(default=None, max_length=5000)
@@ -44,6 +50,8 @@ def _erro(exc: Exception, acao: str):
     texto = str(exc)
     if "backlog_pessoal" in texto and any(m in texto for m in ("PGRST205", "42P01", "does not exist")):
         return HTTPException(status_code=503, detail="Backlog indisponível: aplique a migração v18.")
+    if "ordem" in texto and any(m in texto for m in ("PGRST204", "42703", "does not exist", "schema cache")):
+        return HTTPException(status_code=503, detail="Reordenar indisponível: aplique a migração v20.")
     if "status" in texto and any(m in texto for m in ("PGRST204", "42703", "does not exist", "schema cache")):
         return HTTPException(status_code=503, detail="Backlog indisponível: aplique a migração v19.")
     return falha_externa("supabase.backlog", exc, f"Não foi possível {acao}", status_code=500)
@@ -68,6 +76,31 @@ async def listar(pessoa: dict = Depends(require_not_operacional)):
     except Exception as exc:
         raise _erro(exc, "carregar o backlog")
     return [_com_status(l) for l in linhas]
+
+
+@router.post("/reordenar")
+async def reordenar(data: BacklogReordenar, pessoa: dict = Depends(require_not_operacional)):
+    """Grava a ordem de uma coluna; um card vindo de outra coluna muda de status junto."""
+    client = get_client()
+    try:
+        donos = {
+            l["id"]: _com_status(l)
+            for l in (client.table("backlog_pessoal").select("*").eq("pessoa_id", pessoa["id"]).execute().data or [])
+        }
+        if len(set(data.ids)) != len(data.ids) or any(i not in donos for i in data.ids):
+            raise HTTPException(status_code=404, detail="Item não encontrado")
+        saida = []
+        for posicao, item_id in enumerate(data.ids):
+            campos: dict = {"ordem": posicao}
+            if donos[item_id]["status"] != data.status:
+                campos.update(_campos_de_status(data.status))
+            resp = client.table("backlog_pessoal").update(campos).eq("id", item_id).eq("pessoa_id", pessoa["id"]).execute()
+            saida.append(_com_status(resp.data[0]))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _erro(exc, "reordenar o backlog")
+    return saida
 
 
 @router.post("", status_code=201)

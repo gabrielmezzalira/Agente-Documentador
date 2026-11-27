@@ -1552,3 +1552,10 @@ CREATE INDEX IF NOT EXISTS idx_sprint_meta_eventos_sprint ON sprint_meta_eventos
 --     CHECK (status IN ('planejado','andamento','concluido'));
 -- UPDATE backlog_pessoal SET status = 'concluido' WHERE feito = true;
 -- Rollback: ALTER TABLE backlog_pessoal DROP COLUMN IF EXISTS status;
+
+-- ============================================================
+-- v20 (2026-11-27): ordem manual dos cards do backlog pessoal (arrastar para cima/baixo).
+-- Requer a v18. Antes desta migração só o reordenamento responde 503; o resto funciona.
+-- ============================================================
+-- ALTER TABLE backlog_pessoal ADD COLUMN IF NOT EXISTS ordem integer NOT NULL DEFAULT 0;
+-- Rollback: ALTER TABLE backlog_pessoal DROP COLUMN IF EXISTS ordem;

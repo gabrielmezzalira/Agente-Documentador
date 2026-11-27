@@ -2914,6 +2914,8 @@ export interface BacklogItem {
   notas: string | null;
   prioridade: BacklogPrioridade;
   status: BacklogStatus;
+  /** Posição manual dentro da coluna (migração v20); ausente em linhas antigas. */
+  ordem?: number;
   feito: boolean;
   concluido_em: string | null;
   criado_em: string;
@@ -2943,6 +2945,13 @@ export async function updateBacklogItem(
 ): Promise<BacklogItem> {
   const res = await apiFetch(`${API}/backlog/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   if (!res.ok) throw await erroDoBacklog(res, "Não foi possível atualizar o item");
+  return res.json();
+}
+
+/** Grava a ordem final de uma coluna; um card vindo de outra coluna muda de status junto. */
+export async function reordenarBacklog(status: BacklogStatus, ids: string[]): Promise<BacklogItem[]> {
+  const res = await apiFetch(`${API}/backlog/reordenar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, ids }) });
+  if (!res.ok) throw await erroDoBacklog(res, "Não foi possível reordenar");
   return res.json();
 }
 

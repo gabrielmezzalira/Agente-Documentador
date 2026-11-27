@@ -22,3 +22,10 @@ test("clicar na foto abre a versão inteira em tela cheia", () => {
   assert.match(avatar, /createPortal/);
   assert.match(ler("app/lib/api.ts"), /tam=completa/);
 });
+
+test("cards se reordenam arrastando, sem seletores de prioridade/mover", () => {
+  const pagina = ler("app/backlog/page.tsx");
+  assert.match(pagina, /reordenarBacklog/);
+  assert.match(pagina, /LinhaDeEncaixe/);
+  assert.doesNotMatch(pagina, /<Select/);
+});
